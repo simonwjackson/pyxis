@@ -1,0 +1,13 @@
+node_modules/*
+.direnv
+
+# Environment files with credentials
+.env.local
+.env*.local
+
+# Fixtures contain auth tokens
+fixtures/*.json
+!fixtures/.gitkeep
+
+# Build output
+dist/
