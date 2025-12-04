@@ -9,14 +9,12 @@ CLI Layer (src/cli/)
   cache/        Session persistence
   output/       Formatters (table, JSON, M3U)
   errors/       Error handling + display
-        |
-        v
+            ↓
 Client Layer (src/client.ts)
   Public API facade
   Session management
   Quality selection
-        |
-        v
+            ↓
 API Layer (src/api/)
   auth.ts       Partner + user login
   station.ts    Station CRUD, seeds, feedback
@@ -25,17 +23,14 @@ API Layer (src/api/)
   bookmark.ts   Bookmark add/delete
   track.ts      Track explanations
   call.ts       Base API call abstraction
-        |
-        v
+            ↓
 Crypto Layer (src/crypto/)
   blowfish.ts   Blowfish cipher (Dojo Toolkit)
   index.ts      encrypt/decrypt wrappers
-        |
-        v
+            ↓
 HTTP Layer (src/http/client.ts)
   fetch wrapper with Effect error handling
-        |
-        v
+            ↓
 Pandora JSON API v5
   https://tuner.pandora.com/services/json/
 ```
@@ -63,22 +58,18 @@ Pandora JSON API v5
 ## Data Flow
 
 ```
-User Input -> Commander.js -> Command Handler
-                                    |
-                                    v
+User Input → Commander.js → Command Handler
+                                    ↓
                               Load Session
-                                    |
-                                    v
+                                    ↓
                               API Call (Effect pipeline)
-                                - Build request params
-                                - Encrypt payload (if needed)
-                                - HTTP POST
-                                - Parse response
-                                    |
-                                    v
+                                → Build request params
+                                → Encrypt payload (if needed)
+                                → HTTP POST
+                                → Parse response
+                                    ↓
                               Format Output
-                                    |
-                                    v
+                                    ↓
                               stdout (table/JSON/M3U)
 ```
 
@@ -123,4 +114,4 @@ runEffect() wraps Effect execution with formatted error output
 2. **Readonly types** - All API types use `readonly` modifiers
 3. **Tagged errors** - Discriminated union for type-safe error handling
 4. **Session caching** - Auth tokens persisted to `~/.cache/pandora/`
-5. **Config priority** - Defaults -> YAML file -> Environment variables
+5. **Config priority** - Defaults → YAML file → Environment variables
