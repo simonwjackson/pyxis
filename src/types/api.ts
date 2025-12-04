@@ -55,6 +55,9 @@ export type PlaylistItem = {
     readonly mediumQuality: AudioQuality
     readonly lowQuality: AudioQuality
   }
+  // additionalAudioUrl is returned when requested via PlaylistRequest.additionalAudioUrl
+  // Can be a single string or array of strings depending on how many formats were requested
+  readonly additionalAudioUrl?: string | readonly string[]
 }
 
 export type PlaylistRequest = {

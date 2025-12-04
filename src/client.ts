@@ -2,6 +2,8 @@ import { Effect } from "effect"
 import * as Auth from "./api/auth.js"
 import * as User from "./api/user.js"
 import * as Station from "./api/station.js"
+import { getAudioFormat, DEFAULT_QUALITY } from "./quality.js"
+import type { Quality } from "./quality.js"
 import type {
   StationListResponse,
   PlaylistRequest,
@@ -49,3 +51,18 @@ export const getPlaylist = (
   request: PlaylistRequest
 ): Effect.Effect<PlaylistResponse, PandoraError> =>
   Station.getPlaylist(session, request)
+
+/**
+ * Get playlist with quality level abstraction
+ *
+ * Automatically requests the correct audio format based on quality level
+ */
+export const getPlaylistWithQuality = (
+  session: PandoraSession,
+  stationToken: string,
+  quality: Quality = DEFAULT_QUALITY
+): Effect.Effect<PlaylistResponse, PandoraError> =>
+  Station.getPlaylist(session, {
+    stationToken,
+    additionalAudioUrl: getAudioFormat(quality)
+  })

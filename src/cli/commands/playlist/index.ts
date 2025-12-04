@@ -2,13 +2,23 @@ import { Command } from "commander"
 import { Effect } from "effect"
 import pc from "picocolors"
 import * as Client from "../../../client.js"
+import { getAudioUrl, DEFAULT_QUALITY, QUALITY_INFO } from "../../../quality.js"
+import type { Quality } from "../../../quality.js"
 import * as Session from "../../cache/session.js"
 import { loadConfig } from "../../config/loader.js"
 import { formatTable, formatError, type OutputOptions } from "../../output/formatter.js"
+import { generateM3U, generateURLList } from "../../output/m3u.js"
 import { handleEffectError } from "../../errors/handler.js"
 import type { GlobalOptions } from "../../index.js"
 
-async function getCommand(stationToken: string, options: GlobalOptions): Promise<void> {
+type Format = "full" | "urls" | "m3u"
+
+type GetOptions = GlobalOptions & {
+  quality: Quality
+  format: Format
+}
+
+async function getCommand(stationToken: string, options: GetOptions): Promise<void> {
   try {
     const config = await loadConfig(options.config)
     let session = await Session.getSession()
@@ -26,11 +36,43 @@ async function getCommand(stationToken: string, options: GlobalOptions): Promise
     }
 
     const playlist = await Effect.runPromise(
-      Client.getPlaylist(session, { stationToken })
+      Client.getPlaylistWithQuality(session, stationToken, options.quality)
     )
 
     const outputOpts: OutputOptions = { json: options.json }
+    const qualityInfo = QUALITY_INFO[options.quality]
 
+    // Extract URL using quality abstraction
+    const getUrl = (item: typeof playlist.items[0]): string | undefined => {
+      return getAudioUrl(item, options.quality)
+    }
+
+    // Handle different output formats
+    if (options.format === "urls") {
+      const entries = playlist.items
+        .map(item => ({
+          duration: -1,
+          title: `${item.artistName} - ${item.songName}`,
+          url: getUrl(item) || ""
+        }))
+        .filter(e => e.url)
+      console.log(generateURLList(entries))
+      return
+    }
+
+    if (options.format === "m3u") {
+      const entries = playlist.items
+        .map(item => ({
+          duration: -1,
+          title: `${item.artistName} - ${item.songName}`,
+          url: getUrl(item) || ""
+        }))
+        .filter(e => e.url)
+      console.log(generateM3U(entries))
+      return
+    }
+
+    // Full format (default)
     if (options.json) {
       console.log(JSON.stringify({ success: true, data: playlist }, null, 2))
       return
@@ -40,11 +82,12 @@ async function getCommand(stationToken: string, options: GlobalOptions): Promise
       Artist: item.artistName,
       Song: item.songName,
       Album: item.albumName || '—',
-      Token: item.trackToken,
+      URL: getUrl(item) || '—',
     }))
 
-    console.log(formatTable(['Artist', 'Song', 'Album', 'Token'], rows, outputOpts))
-    console.log(pc.dim(`\nTotal tracks: ${playlist.items.length}`))
+    console.log(formatTable(['Artist', 'Song', 'Album', 'URL'], rows, outputOpts))
+    console.log(pc.dim(`\nTotal tracks: ${playlist.items.length} | Quality: ${qualityInfo.description}`))
+    console.log(pc.dim(`Note: URLs expire in approximately 30 minutes`))
   } catch (error) {
     handleEffectError(error, { json: options.json, verbose: options.verbose })
     process.exit(1)
@@ -75,8 +118,15 @@ export function registerPlaylistCommands(program: Command): void {
   playlist
     .command("get <station-token>")
     .description("Get playlist for a station")
-    .action(async (stationToken: string) => {
-      const opts = program.opts<GlobalOptions>()
+    .option("-Q, --quality <level>", "Audio quality: high (128kbps MP3), medium (64kbps AAC+), low (32kbps AAC+)", "high")
+    .option("-f, --format <fmt>", "Output format: full, urls, m3u", "full")
+    .action(async (stationToken: string, cmdOpts: { quality: string; format: string }) => {
+      const globalOpts = program.opts<GlobalOptions>()
+      const opts: GetOptions = {
+        ...globalOpts,
+        quality: cmdOpts.quality as Quality,
+        format: cmdOpts.format as Format
+      }
       await getCommand(stationToken, opts)
     })
 

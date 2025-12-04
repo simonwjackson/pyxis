@@ -22,7 +22,18 @@ export {
 
 // Client
 export type { PandoraSession } from "./client.js"
-export { login, getStationList, getPlaylist } from "./client.js"
+export { login, getStationList, getPlaylist, getPlaylistWithQuality } from "./client.js"
+
+// Quality
+export type { Quality, AudioFormat, QualityInfo } from "./quality.js"
+export {
+  getAudioUrl,
+  getAudioFormat,
+  getQualityInfo,
+  isValidQuality,
+  DEFAULT_QUALITY,
+  QUALITY_INFO
+} from "./quality.js"
 
 // Config
 export { PandoraConfig as PandoraConfigTag, PandoraConfigLive } from "./config.js"
