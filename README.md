@@ -129,6 +129,27 @@ pandora playlist get "Station Name" -f m3u > playlist.m3u
 pandora playlist get "Station Name" -Q medium
 ```
 
+#### Streaming with mpv
+
+```bash
+# Basic endless loop
+while true; do
+  pandora playlist get "Station Name" -f urls | mpv --playlist=-
+done
+
+# Using a named pipe for continuous playback
+mkfifo /tmp/pandora-urls
+
+# Terminal 1: Feed URLs continuously
+while true; do
+  pandora playlist get "Station Name" -f urls >> /tmp/pandora-urls
+  sleep 1
+done
+
+# Terminal 2: Play from pipe
+mpv --playlist=/tmp/pandora-urls --prefetch-playlist=yes
+```
+
 ### Track Feedback
 
 ```bash
