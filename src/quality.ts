@@ -89,7 +89,6 @@ export function getAudioUrl(
       if (Array.isArray(item.additionalAudioUrl)) {
         return item.additionalAudioUrl[0]
       }
-      return item.additionalAudioUrl
     }
     // Fallback to audioUrlMap.highQuality if 128kbps not available
     return item.audioUrlMap?.highQuality?.audioUrl

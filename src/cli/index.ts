@@ -9,7 +9,11 @@ import {
   registerAuthCommands,
   registerStationsCommands,
   registerPlaylistCommands,
-  registerConfigCommands
+  registerConfigCommands,
+  registerSearchCommand,
+  registerBookmarksCommands,
+  registerAccountCommands,
+  registerTrackCommands,
 } from "./commands/index.js"
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
@@ -65,8 +69,12 @@ function main(): void {
   registerStationsCommands(program)
   registerPlaylistCommands(program)
   registerConfigCommands(program)
+  registerSearchCommand(program)
+  registerBookmarksCommands(program)
+  registerTrackCommands(program)
+  registerAccountCommands(program)
 
-  program.addHelpText("after", "\n\n" + pc.bold("Examples:") + "\n  $ pandora auth login\n  $ pandora stations list --json\n  $ pandora playlist get <station-id>\n  $ pandora config init\n  $ pandora --config ~/.pandora.yaml stations list\n  $ pandora --verbose auth status\n")
+  program.addHelpText("after", "\n\n" + pc.bold("Examples:") + "\n  $ pandora auth login\n  $ pandora stations list --json\n  $ pandora playlist get <station-id>\n  $ pandora search \"pink floyd\" --type artist\n  $ pandora account settings\n  $ pandora account usage\n  $ pandora config init\n  $ pandora --config ~/.pandora.yaml stations list\n  $ pandora --verbose auth status\n")
 
   program.parse()
 }
