@@ -3,140 +3,106 @@
 ## System Overview
 
 ```
-+-------------------------------------------------------------+
-|                         CLI Layer                           |
-|  src/cli/                                                   |
-|  +-- commands/     Command handlers (auth, stations, etc)   |
-|  +-- config/       YAML config loading + validation         |
-|  +-- cache/        Session persistence                      |
-|  +-- output/       Formatters (table, JSON, M3U)            |
-|  +-- errors/       Error handling + display                 |
-+-------------------------------------------------------------+
-                              |
-                              v
-+-------------------------------------------------------------+
-|                       Client Layer                          |
-|  src/client.ts                                              |
-|  - Public API facade                                        |
-|  - Session management                                       |
-|  - Quality selection                                        |
-+-------------------------------------------------------------+
-                              |
-                              v
-+-------------------------------------------------------------+
-|                        API Layer                            |
-|  src/api/                                                   |
-|  +-- auth.ts       Partner + user login                     |
-|  +-- station.ts    Station CRUD, seeds, feedback            |
-|  +-- user.ts       Settings, bookmarks, usage               |
-|  +-- music.ts      Search, track info, sharing              |
-|  +-- bookmark.ts   Bookmark add/delete                      |
-|  +-- track.ts      Track explanations                       |
-|  +-- call.ts       Base API call abstraction                |
-+-------------------------------------------------------------+
-                              |
-                              v
-+-------------------------------------------------------------+
-|                      Crypto Layer                           |
-|  src/crypto/                                                |
-|  +-- blowfish.ts   Blowfish cipher (Dojo Toolkit)           |
-|  +-- index.ts      encrypt/decrypt wrappers                 |
-+-------------------------------------------------------------+
-                              |
-                              v
-+-------------------------------------------------------------+
-|                      HTTP Layer                             |
-|  src/http/client.ts                                         |
-|  - fetch wrapper with Effect error handling                 |
-+-------------------------------------------------------------+
-                              |
-                              v
-+-------------------------------------------------------------+
-|              Pandora JSON API v5                            |
-|              https://tuner.pandora.com/services/json/       |
-+-------------------------------------------------------------+
+CLI Layer (src/cli/)
+  commands/     Command handlers (auth, stations, etc)
+  config/       YAML config loading + validation
+  cache/        Session persistence
+  output/       Formatters (table, JSON, M3U)
+  errors/       Error handling + display
+        |
+        v
+Client Layer (src/client.ts)
+  Public API facade
+  Session management
+  Quality selection
+        |
+        v
+API Layer (src/api/)
+  auth.ts       Partner + user login
+  station.ts    Station CRUD, seeds, feedback
+  user.ts       Settings, bookmarks, usage
+  music.ts      Search, track info, sharing
+  bookmark.ts   Bookmark add/delete
+  track.ts      Track explanations
+  call.ts       Base API call abstraction
+        |
+        v
+Crypto Layer (src/crypto/)
+  blowfish.ts   Blowfish cipher (Dojo Toolkit)
+  index.ts      encrypt/decrypt wrappers
+        |
+        v
+HTTP Layer (src/http/client.ts)
+  fetch wrapper with Effect error handling
+        |
+        v
+Pandora JSON API v5
+  https://tuner.pandora.com/services/json/
 ```
 
 ## Authentication Flow
 
-```
-1. Partner Login (unencrypted)
-   POST auth.partnerLogin
-   +-- Send device credentials (android/iphone/palm)
-   +-- Receive encrypted syncTime + partnerAuthToken
-   +-- Decrypt syncTime, calculate offset
+1. **Partner Login** (unencrypted)
+   - POST auth.partnerLogin
+   - Send device credentials (android/iphone/palm)
+   - Receive encrypted syncTime + partnerAuthToken
+   - Decrypt syncTime, calculate offset
 
-2. User Login (encrypted)
-   POST auth.userLogin
-   +-- Encrypt payload with partner key
-   +-- Include syncTime offset
-   +-- Receive userAuthToken + userId
+2. **User Login** (encrypted)
+   - POST auth.userLogin
+   - Encrypt payload with partner key
+   - Include syncTime offset
+   - Receive userAuthToken + userId
 
-3. Authenticated Calls
-   POST <method>
-   +-- Include auth_token, partner_id, user_id in URL
-   +-- Encrypt JSON payload with Blowfish ECB
-   +-- Include syncTime in payload
-```
+3. **Authenticated Calls**
+   - POST <method>
+   - Include auth_token, partner_id, user_id in URL
+   - Encrypt JSON payload with Blowfish ECB
+   - Include syncTime in payload
 
 ## Data Flow
 
 ```
 User Input -> Commander.js -> Command Handler
-                               |
-                               v
-                         Load Session (cache/session.ts)
-                               |
-                               v
-                         API Call (Effect pipeline)
-                               |
-                               +-- Build request params
-                               +-- Encrypt payload (if needed)
-                               +-- HTTP POST
-                               +-- Parse response
-                               |
-                               v
-                         Format Output (formatter.ts)
-                               |
-                               v
-                         stdout (table/JSON/M3U)
+                                    |
+                                    v
+                              Load Session
+                                    |
+                                    v
+                              API Call (Effect pipeline)
+                                - Build request params
+                                - Encrypt payload (if needed)
+                                - HTTP POST
+                                - Parse response
+                                    |
+                                    v
+                              Format Output
+                                    |
+                                    v
+                              stdout (table/JSON/M3U)
 ```
 
-## Module Dependencies
+## Module Structure
 
-```
-src/
-+-- cli/
-|   +-- index.ts          Entry point, command registration
-|   +-- commands/
-|   |   +-- index.ts      Command exports
-|   |   +-- auth/         Login, logout, status
-|   |   +-- stations/     List, create, delete, rename, seeds, share
-|   |   +-- playlist/     Get tracks from station
-|   |   +-- search/       Music search
-|   |   +-- bookmarks/    List, add, delete
-|   |   +-- track/        Info, explain, like, dislike, sleep
-|   |   +-- account/      Settings, usage
-|   |   +-- config/       Init, show, path
-|   +-- config/
-|   |   +-- schema.ts     Zod validation schema
-|   |   +-- loader.ts     YAML + env var loading
-|   |   +-- paths.ts      XDG paths
-|   +-- cache/
-|       +-- session.ts    Session persistence with file locking
-|
-+-- api/                  One file per API domain
-+-- crypto/               Blowfish encryption
-+-- http/                 HTTP client wrapper
-+-- types/
-|   +-- api.ts            Request/response types
-|   +-- errors.ts         Tagged error types
-|   +-- config.ts         Config types
-|
-+-- client.ts             Public API facade
-+-- quality.ts            Audio quality mapping
-+-- constants.ts          API URL, device credentials
-```
+**src/cli/** - Command-line interface
+- index.ts - Entry point, command registration
+- commands/ - Command handlers by domain (auth, stations, playlist, search, bookmarks, track, account, config)
+- config/ - schema.ts (Zod), loader.ts (YAML + env), paths.ts (XDG)
+- cache/ - session.ts (persistence with file locking)
+
+**src/api/** - One file per API domain
+- auth.ts, station.ts, user.ts, music.ts, bookmark.ts, track.ts, call.ts
+
+**src/crypto/** - Blowfish encryption
+- blowfish.ts (Dojo Toolkit cipher), index.ts (wrappers)
+
+**src/http/** - HTTP client wrapper
+
+**src/types/** - TypeScript types
+- api.ts (request/response), errors.ts (tagged errors), config.ts
+
+**src/** - Root modules
+- client.ts (public API facade), quality.ts (audio mapping), constants.ts (API URL, device credentials)
 
 ## Error Handling
 
