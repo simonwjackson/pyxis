@@ -85,10 +85,13 @@ export function getAudioUrl(
 ): string | undefined {
   // High quality uses additionalAudioUrl (HTTP_128_MP3)
   if (quality === "high") {
-    if (item.additionalAudioUrl) {
-      if (Array.isArray(item.additionalAudioUrl)) {
-        return item.additionalAudioUrl[0]
+    const additional = item.additionalAudioUrl
+    if (additional) {
+      if (typeof additional === "string") {
+        return additional
       }
+      // It's a readonly string array
+      return additional[0]
     }
     // Fallback to audioUrlMap.highQuality if 128kbps not available
     return item.audioUrlMap?.highQuality?.audioUrl
