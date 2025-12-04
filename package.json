@@ -4,6 +4,9 @@
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "bin": {
+    "pandora": "./dist/cli/bin.js"
+  },
   "exports": {
     ".": {
       "import": "./dist/index.js",
@@ -13,14 +16,25 @@
   "scripts": {
     "build": "tsc",
     "dev": "tsc --watch",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "cli": "bun run dist/cli/index.js",
+    "start:cli": "bun run build && node dist/cli/bin.js"
   },
   "dependencies": {
+    "@effect/platform": "^0.x",
+    "cli-table3": "^0.6.5",
+    "commander": "^14.0.2",
     "effect": "^3.x",
-    "@effect/platform": "^0.x"
+    "env-paths": "^3.0.0",
+    "picocolors": "^1.1.1",
+    "proper-lockfile": "^4.1.2",
+    "yaml": "^2.8.2",
+    "zod": "^4.1.13"
   },
   "devDependencies": {
-    "typescript": "^5.x",
-    "@types/node": "^20.x"
+    "@types/node": "^20.x",
+    "@types/proper-lockfile": "^4.1.4",
+    "@types/yaml": "^1.9.7",
+    "typescript": "^5.x"
   }
 }

@@ -25,4 +25,4 @@ export type { PandoraSession } from "./client.js"
 export { login, getStationList, getPlaylist } from "./client.js"
 
 // Config
-export { PandoraConfig, PandoraConfigLive } from "./config.js"
+export { PandoraConfig as PandoraConfigTag, PandoraConfigLive } from "./config.js"

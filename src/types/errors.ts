@@ -30,6 +30,14 @@ export class ConfigError extends Data.TaggedError("ConfigError")<{
   readonly message: string
 }> {}
 
+export class NotFoundError extends Data.TaggedError("NotFoundError")<{
+  readonly message: string
+}> {}
+
+export class SessionError extends Data.TaggedError("SessionError")<{
+  readonly message: string
+}> {}
+
 export type PandoraError =
   | EncryptionError
   | DecryptionError
@@ -37,3 +45,5 @@ export type PandoraError =
   | UserLoginError
   | ApiCallError
   | ConfigError
+  | NotFoundError
+  | SessionError

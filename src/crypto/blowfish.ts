@@ -478,8 +478,8 @@ const setIV = (data: string, inputType?: number): void => {
 }
 
 const encrypt = (plaintext: string, key: string, ao?: BlowfishOptions): string | number[] => {
-  let out = outputTypes.Base64
-  let mode = cipherModes.ECB
+  let out: 0 | 1 | 2 | 3 = outputTypes.Base64
+  let mode: 0 | 1 | 2 | 3 | 4 | 5 = cipherModes.ECB
   if (ao) {
     if (ao.outputType !== undefined) out = ao.outputType
     if (ao.cipherMode !== undefined) mode = ao.cipherMode
@@ -550,8 +550,8 @@ const encrypt = (plaintext: string, key: string, ao?: BlowfishOptions): string |
 }
 
 const decrypt = (ciphertext: string, key: string, ao?: BlowfishOptions): string => {
-  let ip = outputTypes.Base64
-  let mode = cipherModes.ECB
+  let ip: 0 | 1 | 2 | 3 = outputTypes.Base64
+  let mode: 0 | 1 | 2 | 3 | 4 | 5 = cipherModes.ECB
   if (ao) {
     if (ao.outputType !== undefined) ip = ao.outputType
     if (ao.cipherMode !== undefined) mode = ao.cipherMode
