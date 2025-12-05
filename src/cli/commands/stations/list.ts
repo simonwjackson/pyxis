@@ -19,7 +19,7 @@ type ListOptions = {
 
 type ListCommandOptions = GlobalOptions & ListOptions
 
-function sortStations(stations: readonly Station[], sortField: SortField): Station[] {
+export function sortStations(stations: readonly Station[], sortField: SortField): Station[] {
   const mutableStations = [...stations]
 
   switch (sortField) {
@@ -38,7 +38,7 @@ function sortStations(stations: readonly Station[], sortField: SortField): Stati
   }
 }
 
-function limitStations(stations: Station[], limit: number | undefined): Station[] {
+export function limitStations(stations: Station[], limit: number | undefined): Station[] {
   if (limit === undefined || limit <= 0) {
     return stations
   }

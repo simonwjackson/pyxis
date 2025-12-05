@@ -10,7 +10,7 @@ import { runEffect } from "../../errors/handler.js"
 import { findStation } from "../utils/findStation.js"
 import type { GlobalOptions } from "../../index.js"
 
-function parseStationNames(args: string[]): string[] {
+export function parseStationNames(args: string[]): string[] {
   const allNames: string[] = []
   
   for (const arg of args) {
@@ -25,7 +25,7 @@ function parseStationNames(args: string[]): string[] {
   return allNames
 }
 
-function resolveStationIds(
+export function resolveStationIds(
   stations: readonly Station[],
   queries: string[]
 ): Effect.Effect<string[], PandoraError> {

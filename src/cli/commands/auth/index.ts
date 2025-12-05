@@ -8,7 +8,7 @@ import { formatSuccess, formatError, type OutputOptions } from "../../output/for
 import { handleEffectError } from "../../errors/handler.js"
 import type { GlobalOptions } from "../../index.js"
 
-async function loginCommand(options: GlobalOptions): Promise<void> {
+export async function loginCommand(options: GlobalOptions): Promise<void> {
   try {
     const config = await loadConfig(options.config)
 
@@ -49,7 +49,7 @@ async function loginCommand(options: GlobalOptions): Promise<void> {
   }
 }
 
-async function logoutCommand(options: GlobalOptions): Promise<void> {
+export async function logoutCommand(options: GlobalOptions): Promise<void> {
   try {
     await Session.clearSession()
 
@@ -61,7 +61,7 @@ async function logoutCommand(options: GlobalOptions): Promise<void> {
   }
 }
 
-async function statusCommand(options: GlobalOptions): Promise<void> {
+export async function statusCommand(options: GlobalOptions): Promise<void> {
   try {
     const sessionInfo = await Session.getSessionInfo()
     const outputOpts: OutputOptions = { json: options.json }
