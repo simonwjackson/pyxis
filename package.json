@@ -18,7 +18,10 @@
     "dev": "tsc --watch",
     "typecheck": "tsc --noEmit",
     "cli": "bun run dist/cli/index.js",
-    "start:cli": "bun run build && node dist/cli/bin.js"
+    "start:cli": "bun run build && node dist/cli/bin.js",
+    "test": "bun test",
+    "test:watch": "bun test --watch",
+    "test:coverage": "bun test --coverage"
   },
   "dependencies": {
     "@effect/platform": "^0.x",
