@@ -11,3 +11,4 @@ fixtures/*.json
 
 # Build output
 dist/
+result
