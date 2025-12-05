@@ -6,6 +6,7 @@ import { registerCreateCommand } from "./create.js"
 import { registerDeleteCommand } from "./delete.js"
 import { registerRenameCommand } from "./rename.js"
 import { registerSeedCommand } from "./seed.js"
+import { registerGenresCommand } from "./genres.js"
 
 export function registerStationsCommands(program: Command): void {
   const stations = program
@@ -19,4 +20,5 @@ export function registerStationsCommands(program: Command): void {
   registerDeleteCommand(stations)
   registerRenameCommand(stations)
   registerSeedCommand(stations)
+  registerGenresCommand(stations)
 }
