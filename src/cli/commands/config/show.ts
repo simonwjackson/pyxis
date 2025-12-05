@@ -59,16 +59,16 @@ function getEnvOverrides(): Map<string, string> {
   const envVars = [
     'PANDORA_USERNAME',
     'PANDORA_PASSWORD',
-    'PANDORA_OUTPUT_FORMAT',
-    'PANDORA_OUTPUT_VERBOSE',
-    'PANDORA_OUTPUT_COLOR',
-    'PANDORA_CACHE_ENABLED',
-    'PANDORA_CACHE_TTL',
-    'PANDORA_CACHE_PATH',
-    'PANDORA_PLAYLIST_QUALITY',
-    'PANDORA_PLAYLIST_ADDITIONAL_URL',
-    'PANDORA_STATIONS_SORT',
-    'PANDORA_STATIONS_LIMIT',
+    'PYXIS_OUTPUT_FORMAT',
+    'PYXIS_OUTPUT_VERBOSE',
+    'PYXIS_OUTPUT_COLOR',
+    'PYXIS_CACHE_ENABLED',
+    'PYXIS_CACHE_TTL',
+    'PYXIS_CACHE_PATH',
+    'PYXIS_PLAYLIST_QUALITY',
+    'PYXIS_PLAYLIST_ADDITIONAL_URL',
+    'PYXIS_STATIONS_SORT',
+    'PYXIS_STATIONS_LIMIT',
   ];
 
   for (const varName of envVars) {
@@ -94,8 +94,8 @@ export async function showConfig(
     const configPath = getConfigPath(customConfigPath);
     const defaultPath = getDefaultConfigPath();
 
-    console.log(pc.bold(pc.blue('\nPandora CLI Configuration')));
-    console.log(pc.bold(pc.blue('='.repeat(25))) + '\n');
+    console.log(pc.bold(pc.blue('\nPyxis Configuration')));
+    console.log(pc.bold(pc.blue('='.repeat(19))) + '\n');
 
     if (configPath) {
       console.log(pc.bold('Source: ') + pc.cyan(configPath));

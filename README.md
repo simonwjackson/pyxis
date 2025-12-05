@@ -1,4 +1,4 @@
-# Pandora CLI
+# Pyxis
 
 Unofficial command-line client for Pandora music service, built with TypeScript and Effect.
 
@@ -9,11 +9,11 @@ Unofficial command-line client for Pandora music service, built with TypeScript 
 
 ```bash
 # Run directly
-nix run github:simonwjackson/pandora -- auth login
-nix run github:simonwjackson/pandora -- stations list
-nix run github:simonwjackson/pandora -- playlist get "My Station" -f m3u > playlist.m3u
-nix run github:simonwjackson/pandora -- search "pink floyd" --type artist
-nix run github:simonwjackson/pandora -- track like <track-token> --station "My Station"
+nix run github:simonwjackson/pyxis -- auth login
+nix run github:simonwjackson/pyxis -- stations list
+nix run github:simonwjackson/pyxis -- playlist get "My Station" -f m3u > playlist.m3u
+nix run github:simonwjackson/pyxis -- search "pink floyd" --type artist
+nix run github:simonwjackson/pyxis -- track like <track-token> --station "My Station"
 ```
 
 ## Installation
@@ -22,14 +22,14 @@ nix run github:simonwjackson/pandora -- track like <track-token> --station "My S
 
 ```bash
 # Run without installing
-nix run github:simonwjackson/pandora -- --help
+nix run github:simonwjackson/pyxis -- --help
 
 # Install to profile
-nix profile install github:simonwjackson/pandora
+nix profile install github:simonwjackson/pyxis
 
 # Add to flake.nix
 {
-  inputs.pandora.url = "github:simonwjackson/pandora";
+  inputs.pyxis.url = "github:simonwjackson/pyxis";
 }
 ```
 
@@ -38,11 +38,11 @@ nix profile install github:simonwjackson/pandora
 
 ```bash
 # Enter dev environment
-nix develop github:simonwjackson/pandora
+nix develop github:simonwjackson/pyxis
 
 # Or clone and develop locally
-git clone https://github.com/simonwjackson/pandora.git
-cd pandora
+git clone https://github.com/simonwjackson/pyxis.git
+cd pyxis
 nix develop
 bun install
 bun run build
@@ -55,78 +55,78 @@ bun run build
 
 ```bash
 # Login (interactive prompt)
-pandora auth login
+pyxis auth login
 
 # Login with credentials
-pandora auth login -u user@example.com -p password
+pyxis auth login -u user@example.com -p password
 
 # Check auth status
-pandora auth status
+pyxis auth status
 
 # Logout
-pandora auth logout
+pyxis auth logout
 ```
 
 ### Search
 
 ```bash
 # Search for artists, songs, or genres
-pandora search "pink floyd"
+pyxis search "pink floyd"
 
 # Filter by type
-pandora search "dark side" --type song
-pandora search "rock" --type genre
+pyxis search "dark side" --type song
+pyxis search "rock" --type genre
 ```
 
 ### Stations
 
 ```bash
 # List all stations
-pandora stations list
+pyxis stations list
 
 # Sort by name or creation date
-pandora stations list -s name
+pyxis stations list -s name
 
 # Get station details
-pandora stations info "My Station Name"
+pyxis stations info "My Station Name"
 
 # Create station from search result
-pandora search "pink floyd" --type artist  # Get music token
-pandora stations create <music-token> --type artist
+pyxis search "pink floyd" --type artist  # Get music token
+pyxis stations create <music-token> --type artist
 
 # Rename or delete stations
-pandora stations rename "Old Name" "New Name"
-pandora stations delete "Station Name"
+pyxis stations rename "Old Name" "New Name"
+pyxis stations delete "Station Name"
 
 # Browse genre stations
-pandora stations genres
-pandora stations genres --category "Rock"
+pyxis stations genres
+pyxis stations genres --category "Rock"
 
 # Manage seeds
-pandora stations seed add "My Station" <music-token>
-pandora stations seed remove <seed-id>
+pyxis stations seed add "My Station" <music-token>
+pyxis stations seed remove <seed-id>
 
 # Share stations
-pandora stations share "My Station" friend@example.com
+pyxis stations share "My Station" friend@example.com
 
 # Configure QuickMix (shuffle)
-pandora stations quickmix set "Station 1" "Station 2" "Station 3"
+pyxis stations quickmix set "Station 1" "Station 2" "Station 3"
 ```
 
 ### Playlists
 
 ```bash
 # Get full track details
-pandora playlist get "Station Name"
+pyxis playlist get "Station Name"
 
 # Get URLs only
-pandora playlist get "Station Name" -f urls
+pyxis playlist get "Station Name" -f urls
 
 # Generate M3U playlist
-pandora playlist get "Station Name" -f m3u > playlist.m3u
+pyxis playlist get "Station Name" -f m3u > playlist.m3u
 
 # Specify audio quality
-pandora playlist get "Station Name" -Q medium
+pyxis playlist get "Station Name" -Q medium
 ```
 
 #### Streaming with mpv
@@ -134,71 +134,71 @@ pandora playlist get "Station Name" -Q medium
 ```bash
 # Basic endless loop
 while true; do
-  pandora playlist get "Station Name" -f urls | mpv --playlist=-
+  pyxis playlist get "Station Name" -f urls | mpv --playlist=-
 done
 
 # Using a named pipe for continuous playback
-mkfifo /tmp/pandora-urls
+mkfifo /tmp/pyxis-urls
 
 # Terminal 1: Feed URLs continuously
 while true; do
-  pandora playlist get "Station Name" -f urls >> /tmp/pandora-urls
+  pyxis playlist get "Station Name" -f urls >> /tmp/pyxis-urls
   sleep 1
 done
 
 # Terminal 2: Play from pipe
-mpv --playlist=/tmp/pandora-urls --prefetch-playlist=yes
+mpv --playlist=/tmp/pyxis-urls --prefetch-playlist=yes
 ```
 
 ### Track Feedback
 
 ```bash
 # Rate tracks (tokens from playlist output)
-pandora track like <track-token> --station "My Station"
-pandora track dislike <track-token> --station "My Station"
+pyxis track like <track-token> --station "My Station"
+pyxis track dislike <track-token> --station "My Station"
 
 # Remove a rating
-pandora track unfeedback <feedback-id>
+pyxis track unfeedback <feedback-id>
 
 # Skip song for 30 days
-pandora track sleep <track-token>
+pyxis track sleep <track-token>
 
 # Get track info
-pandora track info <track-token>
-pandora track explain <track-token>  # Music Genome attributes
+pyxis track info <track-token>
+pyxis track explain <track-token>  # Music Genome attributes
 
 # Share a track
-pandora track share <music-token> friend@example.com
+pyxis track share <music-token> friend@example.com
 ```
 
 ### Bookmarks
 
 ```bash
 # List saved bookmarks
-pandora bookmarks list
-pandora bookmarks list --type artists
-pandora bookmarks list --type songs
+pyxis bookmarks list
+pyxis bookmarks list --type artists
+pyxis bookmarks list --type songs
 
 # Save from current track
-pandora bookmarks add artist <track-token>
-pandora bookmarks add song <track-token>
+pyxis bookmarks add artist <track-token>
+pyxis bookmarks add song <track-token>
 
 # Remove bookmark
-pandora bookmarks delete <bookmark-token> --type artist
-pandora bookmarks delete <bookmark-token> --type song
+pyxis bookmarks delete <bookmark-token> --type artist
+pyxis bookmarks delete <bookmark-token> --type song
 ```
 
 ### Account
 
 ```bash
 # View account info
-pandora account settings
-pandora account usage
+pyxis account settings
+pyxis account usage
 
 # Modify settings
-pandora account set explicit off
-pandora account set private on
-pandora account set zip 90210
+pyxis account set explicit off
+pyxis account set private on
+pyxis account set zip 90210
 ```
 
 ### Global Options
@@ -216,10 +216,10 @@ All commands support these options:
 <details>
 <summary>Configuration file format</summary>
 
-Configuration is stored in `~/.config/pandora/config.yaml` (or `~/.pandora/config.yaml` on non-XDG systems).
+Configuration is stored in `~/.config/pyxis/config.yaml` (or `~/.pyxis/config.yaml` on non-XDG systems).
 
 ```yaml
-# Authentication credentials
+# Pandora credentials
 auth:
   username: user@example.com
   # password: optional  # Use env var PANDORA_PASSWORD instead
@@ -246,14 +246,14 @@ stations:
 
 Initialize config file:
 ```bash
-pandora config init
+pyxis config init
 ```
 
 View current configuration:
 ```bash
-pandora config show
-pandora config show --reveal-secrets  # Include passwords
-pandora config path                    # Show config file location
+pyxis config show
+pyxis config show --reveal-secrets  # Include passwords
+pyxis config path                    # Show config file location
 ```
 </details>
 
@@ -262,7 +262,7 @@ pandora config path                    # Show config file location
 
 - `PANDORA_USERNAME` - Pandora account email
 - `PANDORA_PASSWORD` - Pandora account password
-- `PANDORA_CONFIG` - Custom config file path
+- `PYXIS_CONFIG` - Custom config file path
 
 Environment variables take precedence over config file values.
 </details>
@@ -270,7 +270,7 @@ Environment variables take precedence over config file values.
 <details>
 <summary>Session caching</summary>
 
-Authentication tokens are cached in `~/.cache/pandora/session.json` to avoid repeated logins. Sessions expire based on Pandora's token lifetime.
+Authentication tokens are cached in `~/.cache/pyxis/session.json` to avoid repeated logins. Sessions expire based on Pandora's token lifetime.
 
 Disable caching with `--no-cache` flag or set `cache.enabled: false` in config.
 </details>
@@ -281,59 +281,59 @@ Disable caching with `--no-cache` flag or set `cache.enabled: false` in config.
 <summary>Complete command list</summary>
 
 ### Authentication
-- `pandora auth login [-u email] [-p password]` - Login to Pandora
-- `pandora auth logout [--all]` - Clear session (--all removes all sessions)
-- `pandora auth status` - Show current authentication status
+- `pyxis auth login [-u email] [-p password]` - Login to Pandora
+- `pyxis auth logout [--all]` - Clear session (--all removes all sessions)
+- `pyxis auth status` - Show current authentication status
 
 ### Search
-- `pandora search <query> [--type <artist|song|genre|all>]` - Search for music
+- `pyxis search <query> [--type <artist|song|genre|all>]` - Search for music
 
 ### Stations
-- `pandora stations list [-s sort] [-l limit]` - List all stations
+- `pyxis stations list [-s sort] [-l limit]` - List all stations
   - Sort: `recent` (default), `name`, `created`
-- `pandora stations info <station>` - Show detailed station information
-- `pandora stations create <music-token> [--type <song|artist>]` - Create station
-- `pandora stations delete <station>` - Delete station
-- `pandora stations rename <station> <new-name>` - Rename station
-- `pandora stations genres [--category <name>]` - Browse genre stations
-- `pandora stations share <station> <email> [emails...]` - Share via email
-- `pandora stations clone <station>` - Clone shared station as editable
-- `pandora stations seed add <station> <music-token>` - Add seed
-- `pandora stations seed remove <seed-id>` - Remove seed
-- `pandora stations quickmix set <stations...>` - Configure shuffle stations
-- `pandora stations quickmix show` - Show QuickMix stations
+- `pyxis stations info <station>` - Show detailed station information
+- `pyxis stations create <music-token> [--type <song|artist>]` - Create station
+- `pyxis stations delete <station>` - Delete station
+- `pyxis stations rename <station> <new-name>` - Rename station
+- `pyxis stations genres [--category <name>]` - Browse genre stations
+- `pyxis stations share <station> <email> [emails...]` - Share via email
+- `pyxis stations clone <station>` - Clone shared station as editable
+- `pyxis stations seed add <station> <music-token>` - Add seed
+- `pyxis stations seed remove <seed-id>` - Remove seed
+- `pyxis stations quickmix set <stations...>` - Configure shuffle stations
+- `pyxis stations quickmix show` - Show QuickMix stations
 
 ### Playlists
-- `pandora playlist get <station> [-Q quality] [-f format]` - Get playlist tracks
+- `pyxis playlist get <station> [-Q quality] [-f format]` - Get playlist tracks
   - Quality: `high` (default), `medium`, `low`
   - Format: `full` (default), `urls`, `m3u`
 
 ### Track
-- `pandora track info <track-token>` - Show track details
-- `pandora track explain <track-token>` - Show Music Genome attributes
-- `pandora track like <track-token> --station <station>` - Thumbs up
-- `pandora track dislike <track-token> --station <station>` - Thumbs down
-- `pandora track unfeedback <feedback-id>` - Remove rating
-- `pandora track sleep <track-token>` - Skip for 30 days
-- `pandora track share <music-token> <email>` - Share via email
+- `pyxis track info <track-token>` - Show track details
+- `pyxis track explain <track-token>` - Show Music Genome attributes
+- `pyxis track like <track-token> --station <station>` - Thumbs up
+- `pyxis track dislike <track-token> --station <station>` - Thumbs down
+- `pyxis track unfeedback <feedback-id>` - Remove rating
+- `pyxis track sleep <track-token>` - Skip for 30 days
+- `pyxis track share <music-token> <email>` - Share via email
 
 ### Bookmarks
-- `pandora bookmarks list [--type <artists|songs|all>]` - List bookmarks
-- `pandora bookmarks add artist <track-token>` - Bookmark artist
-- `pandora bookmarks add song <track-token>` - Bookmark song
-- `pandora bookmarks delete <bookmark-token> --type <artist|song>` - Remove bookmark
+- `pyxis bookmarks list [--type <artists|songs|all>]` - List bookmarks
+- `pyxis bookmarks add artist <track-token>` - Bookmark artist
+- `pyxis bookmarks add song <track-token>` - Bookmark song
+- `pyxis bookmarks delete <bookmark-token> --type <artist|song>` - Remove bookmark
 
 ### Account
-- `pandora account settings` - View account settings
-- `pandora account usage` - View listening time and limits
-- `pandora account set explicit <on|off>` - Toggle explicit filter
-- `pandora account set private <on|off>` - Toggle profile privacy
-- `pandora account set zip <zipcode>` - Set zip code
+- `pyxis account settings` - View account settings
+- `pyxis account usage` - View listening time and limits
+- `pyxis account set explicit <on|off>` - Toggle explicit filter
+- `pyxis account set private <on|off>` - Toggle profile privacy
+- `pyxis account set zip <zipcode>` - Set zip code
 
 ### Configuration
-- `pandora config init [--force]` - Create config file
-- `pandora config show [--reveal-secrets]` - Display current configuration
-- `pandora config path` - Print config file path
+- `pyxis config init [--force]` - Create config file
+- `pyxis config show [--reveal-secrets]` - Display current configuration
+- `pyxis config path` - Print config file path
 </details>
 
 ## API
@@ -374,11 +374,11 @@ Built with [Effect](https://effect.website/) for functional error handling and t
 
 **Authentication fails**
 - Verify credentials are correct
-- Clear session cache: `pandora auth logout`
+- Clear session cache: `pyxis auth logout`
 - Check if Pandora is experiencing service issues
 
 **No stations listed**
-- Ensure you're logged in: `pandora auth status`
+- Ensure you're logged in: `pyxis auth status`
 - Try refreshing with `--no-cache` flag
 
 **Playlist URLs don't work**

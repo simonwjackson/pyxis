@@ -113,5 +113,5 @@ runEffect() wraps Effect execution with formatted error output
 1. **Effect-TS everywhere** - All async ops return `Effect.Effect<T, E>`
 2. **Readonly types** - All API types use `readonly` modifiers
 3. **Tagged errors** - Discriminated union for type-safe error handling
-4. **Session caching** - Auth tokens persisted to `~/.cache/pandora/`
+4. **Session caching** - Auth tokens persisted to `~/.cache/pyxis/`
 5. **Config priority** - Defaults → YAML file → Environment variables

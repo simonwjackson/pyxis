@@ -24,7 +24,7 @@ async function loginCommand(options: GlobalOptions): Promise<void> {
       console.error("  $ export PANDORA_PASSWORD=yourpassword")
       console.error("")
       console.error("Or add them to your config file:")
-      console.error("  $ pandora config init")
+      console.error("  $ pyxis config init")
       process.exit(3)
     }
 

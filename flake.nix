@@ -1,5 +1,5 @@
 {
-  description = "Pandora API client";
+  description = "Pyxis - Pandora music service CLI client";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";

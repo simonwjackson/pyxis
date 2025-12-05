@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Overview
 
-Unofficial Pandora music service API client for Node.js, implementing the JSON API documented at https://6xq.net/pandora-apidoc/
+Pyxis is an unofficial Pandora music service CLI client for Node.js, implementing the JSON API documented at https://6xq.net/pandora-apidoc/
 
 ## Commands
 

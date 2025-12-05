@@ -7,7 +7,7 @@ export type FixtureMode = "record" | "replay" | "live"
 const FIXTURES_DIR = "./fixtures"
 
 export const getFixtureMode = (): Effect.Effect<FixtureMode, never> =>
-  Config.string("PANDORA_FIXTURE_MODE").pipe(
+  Config.string("PYXIS_FIXTURE_MODE").pipe(
     Config.withDefault("live"),
     Effect.map((mode) => {
       if (mode === "record" || mode === "replay") return mode

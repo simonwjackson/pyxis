@@ -90,9 +90,9 @@ function loadEnvConfig(): Record<string, unknown> {
   }
 
   // Output settings
-  const outputFormat = process.env.PANDORA_OUTPUT_FORMAT;
-  const outputVerbose = process.env.PANDORA_OUTPUT_VERBOSE;
-  const outputColor = process.env.PANDORA_OUTPUT_COLOR;
+  const outputFormat = process.env.PYXIS_OUTPUT_FORMAT;
+  const outputVerbose = process.env.PYXIS_OUTPUT_VERBOSE;
+  const outputColor = process.env.PYXIS_OUTPUT_COLOR;
 
   if (outputFormat || outputVerbose || outputColor) {
     config.output = {
@@ -103,9 +103,9 @@ function loadEnvConfig(): Record<string, unknown> {
   }
 
   // Cache settings
-  const cacheEnabled = process.env.PANDORA_CACHE_ENABLED;
-  const cacheTtl = process.env.PANDORA_CACHE_TTL;
-  const cachePath = process.env.PANDORA_CACHE_PATH;
+  const cacheEnabled = process.env.PYXIS_CACHE_ENABLED;
+  const cacheTtl = process.env.PYXIS_CACHE_TTL;
+  const cachePath = process.env.PYXIS_CACHE_PATH;
 
   if (cacheEnabled || cacheTtl || cachePath) {
     const ttl = cacheTtl ? parseInt(cacheTtl, 10) : undefined;
@@ -117,8 +117,8 @@ function loadEnvConfig(): Record<string, unknown> {
   }
 
   // Playlist settings
-  const playlistQuality = process.env.PANDORA_PLAYLIST_QUALITY;
-  const playlistUrl = process.env.PANDORA_PLAYLIST_ADDITIONAL_URL;
+  const playlistQuality = process.env.PYXIS_PLAYLIST_QUALITY;
+  const playlistUrl = process.env.PYXIS_PLAYLIST_ADDITIONAL_URL;
 
   if (playlistQuality || playlistUrl) {
     config.playlist = {
@@ -130,8 +130,8 @@ function loadEnvConfig(): Record<string, unknown> {
   }
 
   // Station settings
-  const stationsSort = process.env.PANDORA_STATIONS_SORT;
-  const stationsLimit = process.env.PANDORA_STATIONS_LIMIT;
+  const stationsSort = process.env.PYXIS_STATIONS_SORT;
+  const stationsLimit = process.env.PYXIS_STATIONS_LIMIT;
 
   if (stationsSort || stationsLimit) {
     const limit = stationsLimit ? parseInt(stationsLimit, 10) : undefined;
@@ -150,7 +150,7 @@ function loadEnvConfig(): Record<string, unknown> {
  * Get default config file path
  */
 function getDefaultConfigPath(): string {
-  return join(homedir(), '.config', 'pandora', 'config.yaml');
+  return join(homedir(), '.config', 'pyxis', 'config.yaml');
 }
 
 /**
@@ -161,7 +161,7 @@ function getDefaultConfigPath(): string {
  * 2. Config file (YAML)
  * 3. Environment variables
  *
- * @param configPath - Optional path to config file (defaults to ~/.config/pandora/config.yaml)
+ * @param configPath - Optional path to config file (defaults to ~/.config/pyxis/config.yaml)
  * @returns Validated configuration object
  * @throws ConfigError if configuration is invalid
  */

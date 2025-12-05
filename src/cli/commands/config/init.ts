@@ -9,10 +9,10 @@ export type InitOptions = {
   path?: string;
 };
 
-const EXAMPLE_CONFIG = `# Pandora CLI Configuration
-# Default location: ~/.config/pandora/config.yml
+const EXAMPLE_CONFIG = `# Pyxis Configuration
+# Default location: ~/.config/pyxis/config.yml
 
-# Authentication credentials (can also be set via PANDORA_USERNAME/PANDORA_PASSWORD env vars)
+# Pandora credentials (can also be set via PANDORA_USERNAME/PANDORA_PASSWORD env vars)
 auth:
   username: user@example.com
   # password: your-password-here  # Can be omitted and set via environment variable

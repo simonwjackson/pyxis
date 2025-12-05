@@ -39,8 +39,8 @@ function main(): void {
   const program = new Command()
 
   program
-    .name("pandora")
-    .description("Unofficial Pandora music service API client")
+    .name("pyxis")
+    .description("Unofficial Pandora music service CLI client")
     .version(packageJson.version, "-V, --version", "Show version")
     .helpOption("-h, --help", "Show help")
 
@@ -74,7 +74,7 @@ function main(): void {
   registerTrackCommands(program)
   registerAccountCommands(program)
 
-  program.addHelpText("after", "\n\n" + pc.bold("Examples:") + "\n  $ pandora auth login\n  $ pandora stations list --json\n  $ pandora playlist get <station-id>\n  $ pandora search \"pink floyd\" --type artist\n  $ pandora account settings\n  $ pandora account usage\n  $ pandora config init\n  $ pandora --config ~/.pandora.yaml stations list\n  $ pandora --verbose auth status\n")
+  program.addHelpText("after", "\n\n" + pc.bold("Examples:") + "\n  $ pyxis auth login\n  $ pyxis stations list --json\n  $ pyxis playlist get <station-id>\n  $ pyxis search \"pink floyd\" --type artist\n  $ pyxis account settings\n  $ pyxis account usage\n  $ pyxis config init\n  $ pyxis --config ~/.pyxis.yaml stations list\n  $ pyxis --verbose auth status\n")
 
   program.parse()
 }

@@ -1,7 +1,7 @@
-# Example Pandora CLI Configuration
-# Default location: ~/.config/pandora/config.yaml
+# Example Pyxis Configuration
+# Default location: ~/.config/pyxis/config.yaml
 
-# Authentication credentials (can also be set via PANDORA_USERNAME/PANDORA_PASSWORD env vars)
+# Pandora credentials (can also be set via PANDORA_USERNAME/PANDORA_PASSWORD env vars)
 auth:
   username: user@example.com
   # password: your-password-here  # Can be omitted and set via environment variable

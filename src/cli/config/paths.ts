@@ -4,7 +4,7 @@ import { homedir } from 'node:os';
 import { join, resolve } from 'node:path';
 import envPaths from 'env-paths';
 
-const paths = envPaths('pandora', { suffix: '' });
+const paths = envPaths('pyxis', { suffix: '' });
 
 /**
  * Resolve home directory in path
@@ -19,9 +19,9 @@ function expandHome(filepath: string): string {
 /**
  * Get the config file path following priority:
  * 1. Custom path via parameter (from CLI --config flag)
- * 2. PANDORA_CONFIG env var
- * 3. XDG: $XDG_CONFIG_HOME/pandora/config.yml (default: ~/.config/pandora/config.yml)
- * 4. Legacy: ~/.pandora/config.yml
+ * 2. PYXIS_CONFIG env var
+ * 3. XDG: $XDG_CONFIG_HOME/pyxis/config.yml (default: ~/.config/pyxis/config.yml)
+ * 4. Legacy: ~/.pyxis/config.yml
  *
  * Returns the first existing config file, or null if none found.
  */
@@ -34,7 +34,7 @@ export function getConfigPath(customPath?: string): string | null {
   }
 
   // Priority 2: Environment variable
-  const envConfig = process.env.PANDORA_CONFIG;
+  const envConfig = process.env.PYXIS_CONFIG;
   if (envConfig) {
     candidates.push(resolve(expandHome(envConfig)));
   }
@@ -43,7 +43,7 @@ export function getConfigPath(customPath?: string): string | null {
   candidates.push(join(paths.config, 'config.yml'));
 
   // Priority 4: Legacy path
-  candidates.push(join(homedir(), '.pandora', 'config.yml'));
+  candidates.push(join(homedir(), '.pyxis', 'config.yml'));
 
   // Return first existing path
   for (const candidate of candidates) {
@@ -65,11 +65,11 @@ export function getDefaultConfigPath(): string {
 
 /**
  * Get the cache directory path following priority:
- * 1. PANDORA_CACHE_DIR env var
- * 2. XDG: $XDG_CACHE_HOME/pandora/ (default: ~/.cache/pandora/)
+ * 1. PYXIS_CACHE_DIR env var
+ * 2. XDG: $XDG_CACHE_HOME/pyxis/ (default: ~/.cache/pyxis/)
  */
 export function getCacheDir(): string {
-  const envCache = process.env.PANDORA_CACHE_DIR;
+  const envCache = process.env.PYXIS_CACHE_DIR;
   if (envCache) {
     return resolve(expandHome(envCache));
   }

@@ -31,7 +31,7 @@ export const httpRequest = <T>(
       }
       return yield* Effect.fail(new ApiCallError({
         method: request.apiMethod,
-        message: `No fixture found for ${request.apiMethod}. Run with PANDORA_FIXTURE_MODE=record first.`
+        message: `No fixture found for ${request.apiMethod}. Run with PYXIS_FIXTURE_MODE=record first.`
       }))
     }
 

@@ -26,8 +26,8 @@ const envConfig = loadConfigFromEnv();
 Later sources override earlier ones:
 
 1. Default values (from `DEFAULT_CONFIG` in schema.ts)
-2. YAML config file (~/.config/pandora/config.yaml)
-3. Environment variables (PANDORA_*)
+2. YAML config file (~/.config/pyxis/config.yaml)
+3. Environment variables (PYXIS_*)
 
 ## Configuration Schema
 
@@ -67,26 +67,26 @@ All config values can be overridden via environment variables:
 - `PANDORA_PASSWORD` - Pandora account password
 
 ### Output
-- `PANDORA_OUTPUT_FORMAT` - Output format: `human` or `json`
-- `PANDORA_OUTPUT_VERBOSE` - Verbose output: `true` or `false`
-- `PANDORA_OUTPUT_COLOR` - Colored output: `true` or `false`
+- `PYXIS_OUTPUT_FORMAT` - Output format: `human` or `json`
+- `PYXIS_OUTPUT_VERBOSE` - Verbose output: `true` or `false`
+- `PYXIS_OUTPUT_COLOR` - Colored output: `true` or `false`
 
 ### Cache
-- `PANDORA_CACHE_ENABLED` - Enable caching: `true` or `false`
-- `PANDORA_CACHE_TTL` - Cache TTL in seconds (positive integer)
-- `PANDORA_CACHE_PATH` - Custom cache directory path
+- `PYXIS_CACHE_ENABLED` - Enable caching: `true` or `false`
+- `PYXIS_CACHE_TTL` - Cache TTL in seconds (positive integer)
+- `PYXIS_CACHE_PATH` - Custom cache directory path
 
 ### Playlist
-- `PANDORA_PLAYLIST_QUALITY` - Audio quality: `high`, `medium`, or `low`
-- `PANDORA_PLAYLIST_ADDITIONAL_URL` - Additional playlist URL
+- `PYXIS_PLAYLIST_QUALITY` - Audio quality: `high`, `medium`, or `low`
+- `PYXIS_PLAYLIST_ADDITIONAL_URL` - Additional playlist URL
 
 ### Stations
-- `PANDORA_STATIONS_SORT` - Station sort order: `name`, `created`, or `recent`
-- `PANDORA_STATIONS_LIMIT` - Maximum number of stations (positive integer)
+- `PYXIS_STATIONS_SORT` - Station sort order: `name`, `created`, or `recent`
+- `PYXIS_STATIONS_LIMIT` - Maximum number of stations (positive integer)
 
 ## Example Config File
 
-Default location: `~/.config/pandora/config.yaml`
+Default location: `~/.config/pyxis/config.yaml`
 
 ```yaml
 # Authentication

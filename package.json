@@ -1,11 +1,11 @@
 {
-  "name": "@pandora/client",
+  "name": "@pyxis/client",
   "version": "0.1.0",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "bin": {
-    "pandora": "./dist/cli/bin.js"
+    "pyxis": "./dist/cli/bin.js"
   },
   "exports": {
     ".": {

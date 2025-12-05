@@ -2,7 +2,7 @@ import { Config, Context, Effect, Layer } from "effect"
 import type { PandoraConfig } from "./types/config.js"
 import { ConfigError } from "./types/errors.js"
 
-const PandoraConfigTag = Context.GenericTag<PandoraConfig>("@pandora/PandoraConfig")
+const PandoraConfigTag = Context.GenericTag<PandoraConfig>("@pyxis/PandoraConfig")
 
 export const PandoraConfigLive = Layer.effect(
   PandoraConfigTag,
