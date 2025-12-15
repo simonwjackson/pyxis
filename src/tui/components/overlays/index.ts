@@ -7,4 +7,6 @@ export type {
 export { ConfirmDialog } from "./ConfirmDialog.js";
 export type { HelpOverlayProps } from "./HelpOverlay.js";
 export { HelpOverlay } from "./HelpOverlay.js";
+export type { LogViewerProps } from "./LogViewer.js";
+export { LogViewer } from "./LogViewer.js";
 export { ThemePicker } from "./ThemePicker.js";

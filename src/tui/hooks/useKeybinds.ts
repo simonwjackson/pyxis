@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useInput, type Key } from "ink";
+import { log } from "../utils/logger.js";
 
 const LEADER_TIMEOUT_MS = 1000;
 
@@ -37,6 +38,9 @@ interface KeybindConfig {
 	readonly dislike?: () => void;
 	readonly sleep?: () => void;
 	readonly trackInfo?: () => void;
+
+	// Debug
+	readonly toggleLog?: () => void;
 
 	// Leader key commands (ctrl+x prefix)
 	readonly leader?: Partial<LeaderCommands>;
@@ -124,6 +128,8 @@ export function useKeybinds(
 
 	const handleInput = useCallback(
 		(input: string, key: Key) => {
+			log("keypress", { input, key: JSON.stringify(key) });
+
 			// Handle leader key activation (ctrl+x)
 			if (key.ctrl && input === "x") {
 				activateLeaderMode();
@@ -168,7 +174,8 @@ export function useKeybinds(
 				config.goToBottom?.();
 				return;
 			}
-			if (input === "" && key.return) {
+			if (key.return) {
+				log("Enter key detected", { input, hasSelectHandler: !!config.select });
 				config.select?.();
 				return;
 			}
@@ -214,6 +221,12 @@ export function useKeybinds(
 			}
 			if (input === "r") {
 				config.renameStation?.();
+				return;
+			}
+
+			// Debug
+			if (input === "@") {
+				config.toggleLog?.();
 				return;
 			}
 		},

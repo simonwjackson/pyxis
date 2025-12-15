@@ -2,7 +2,13 @@ import { useReducer, useCallback } from "react";
 
 // View types
 type View = "stations" | "nowPlaying" | "search" | "settings";
-type Overlay = "commandPalette" | "themePicker" | "confirm" | "help" | null;
+type Overlay =
+	| "commandPalette"
+	| "themePicker"
+	| "confirm"
+	| "help"
+	| "log"
+	| null;
 
 // Station type (matches API response)
 interface Station {

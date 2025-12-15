@@ -14,3 +14,5 @@ export type {
 	Overlay,
 } from "./usePyxis.js";
 export { usePyxis } from "./usePyxis.js";
+export type { PlaybackState, UsePlaybackResult } from "./usePlayback.js";
+export { usePlayback } from "./usePlayback.js";

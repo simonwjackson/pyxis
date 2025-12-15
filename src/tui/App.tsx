@@ -8,14 +8,23 @@ import {
 	CommandPalette,
 	ConfirmDialog,
 	HelpOverlay,
+	LogViewer,
 	ThemePicker,
 	type Command,
 } from "./components/overlays/index.js";
+import { NowPlayingBar } from "./components/playback/index.js";
 import { StationList } from "./components/stations/index.js";
-import { useKeybinds, usePyxis, useTerminalSize } from "./hooks/index.js";
+import {
+	useKeybinds,
+	usePlayback,
+	usePyxis,
+	useTerminalSize,
+} from "./hooks/index.js";
 import { ThemeProvider, loadTheme } from "./theme/index.js";
+import { log } from "./utils/logger.js";
 import { getSession } from "../cli/cache/session.js";
-import { deleteStation, getStationList } from "../client.js";
+import { deleteStation, getPlaylist, getStationList } from "../client.js";
+import { getAudioUrl } from "../quality.js";
 
 type AppProps = {
 	readonly initialTheme?: string;
@@ -99,6 +108,7 @@ export const App: FC<AppProps> = ({ initialTheme = "pyxis" }) => {
 		stationId: string;
 		stationName: string;
 	} | null>(null);
+	const playback = usePlayback();
 
 	// Memoize commands to avoid recreating on every render
 	const commands = useMemo(
@@ -167,11 +177,7 @@ export const App: FC<AppProps> = ({ initialTheme = "pyxis" }) => {
 			case "play": {
 				const selectedStation = state.stations[state.selectedStationIndex];
 				if (selectedStation) {
-					actions.playStation(selectedStation);
-					actions.showNotification(
-						`Playing: ${selectedStation.stationName}`,
-						"info",
-					);
+					handlePlayStation(selectedStation);
 				}
 				break;
 			}
@@ -290,11 +296,76 @@ export const App: FC<AppProps> = ({ initialTheme = "pyxis" }) => {
 		actions.closeOverlay();
 	};
 
+	// Handle playing a station - fetch playlist and start playback
+	const handlePlayStation = async (station: {
+		stationId: string;
+		stationName: string;
+	}) => {
+		log("handlePlayStation called", station);
+		actions.playStation(station);
+		actions.showNotification(`Loading ${station.stationName}...`, "info");
+
+		try {
+			const session = await getSession();
+			if (!session) {
+				actions.showNotification("Not logged in", "error");
+				return;
+			}
+
+			const result = await Effect.runPromise(
+				getPlaylist(session, { stationToken: station.stationId }).pipe(
+					Effect.either,
+				),
+			);
+
+			if (result._tag === "Right" && result.right.items.length > 0) {
+				const items = result.right.items;
+				const firstTrack = items[0];
+				if (firstTrack) {
+					// Set first track as current
+					actions.setCurrentTrack({
+						trackToken: firstTrack.trackToken,
+						songName: firstTrack.songName,
+						artistName: firstTrack.artistName,
+						albumName: firstTrack.albumName ?? "Unknown Album",
+					});
+					// Set rest as queue
+					const queue = items.slice(1).map((item) => ({
+						trackToken: item.trackToken,
+						songName: item.songName,
+						artistName: item.artistName,
+						albumName: item.albumName ?? "Unknown Album",
+					}));
+					actions.setQueue(queue);
+
+					// Get audio URL and start playback with mpv
+					const audioUrl = getAudioUrl(firstTrack, "high");
+					if (audioUrl) {
+						playback.play(audioUrl);
+						actions.showNotification(
+							`Playing: ${firstTrack.songName}`,
+							"success",
+						);
+					} else {
+						actions.showNotification("No audio URL available", "error");
+					}
+				}
+			} else {
+				actions.showNotification("No tracks available", "error");
+			}
+		} catch {
+			actions.showNotification("Failed to load playlist", "error");
+		}
+	};
+
 	// Wire up keybinds
 	useKeybinds(
 		{
 			// Global
-			quit: () => exit(),
+			quit: () => {
+				playback.stop();
+				exit();
+			},
 			help: () => actions.openOverlay("help"),
 			commandPalette: () => actions.openOverlay("commandPalette"),
 
@@ -304,18 +375,29 @@ export const App: FC<AppProps> = ({ initialTheme = "pyxis" }) => {
 			goToTop: () => actions.moveSelection("top"),
 			goToBottom: () => actions.moveSelection("bottom"),
 			select: () => {
+				log("select keybind triggered", {
+					index: state.selectedStationIndex,
+					stationCount: state.stations.length,
+				});
 				const selectedStation = state.stations[state.selectedStationIndex];
 				if (selectedStation) {
-					actions.playStation(selectedStation);
-					actions.showNotification(
-						`Playing: ${selectedStation.stationName}`,
-						"info",
-					);
+					log("calling handlePlayStation", selectedStation.stationName);
+					handlePlayStation(selectedStation);
+				} else {
+					log("no station selected");
 				}
 			},
 
 			// Playback
-			playPause: () => actions.setPlaying(!state.isPlaying),
+			playPause: () => {
+				if (playback.state.isPlaying) {
+					playback.stop();
+					actions.setPlaying(false);
+				} else if (state.currentTrack) {
+					// Resume not implemented - would need to re-fetch URL
+					actions.showNotification("Resume not implemented yet", "info");
+				}
+			},
 			like: () => {
 				if (state.currentTrack) {
 					actions.likeTrack();
@@ -331,6 +413,15 @@ export const App: FC<AppProps> = ({ initialTheme = "pyxis" }) => {
 
 			// Station management
 			deleteStation: handleDeleteStation,
+
+			// Debug
+			toggleLog: () => {
+				if (state.activeOverlay === "log") {
+					actions.closeOverlay();
+				} else {
+					actions.openOverlay("log");
+				}
+			},
 
 			// Leader key commands
 			leader: {
@@ -401,14 +492,23 @@ export const App: FC<AppProps> = ({ initialTheme = "pyxis" }) => {
 
 		// Show station list
 		const playingId = state.currentStation?.stationId;
+		// Adjust max visible based on whether now playing bar is shown
+		const nowPlayingHeight = state.currentTrack ? 4 : 0;
 		return (
 			<Box flexGrow={1} flexDirection="column" paddingX={1}>
 				<StationList
 					stations={state.stations}
 					selectedIndex={state.selectedStationIndex}
 					{...(playingId !== undefined && { playingStationId: playingId })}
-					maxVisible={Math.max(5, rows - 8)}
+					maxVisible={Math.max(5, rows - 8 - nowPlayingHeight)}
 				/>
+				{state.currentTrack && (
+					<NowPlayingBar
+						track={state.currentTrack}
+						position={state.playbackPosition}
+						isPlaying={playback.state.isPlaying}
+					/>
+				)}
 			</Box>
 		);
 	};
@@ -456,6 +556,11 @@ export const App: FC<AppProps> = ({ initialTheme = "pyxis" }) => {
 					isVisible={state.activeOverlay === "themePicker"}
 					currentTheme={state.themeName}
 					onSelect={handleThemeSelect}
+					onClose={actions.closeOverlay}
+				/>
+
+				<LogViewer
+					isVisible={state.activeOverlay === "log"}
 					onClose={actions.closeOverlay}
 				/>
 
