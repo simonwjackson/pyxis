@@ -18,8 +18,9 @@ type NowPlayingBarProps = {
 	readonly width?: number;
 };
 
+const PROGRESS_FILLED = "━";
 const PROGRESS_UNFILLED = "─";
-const PROGRESS_HANDLE = "○";
+const PROGRESS_HANDLE = "●";
 
 // Border characters for round style
 const BORDER = {
@@ -101,8 +102,11 @@ export const NowPlayingBar: FC<NowPlayingBarProps> = ({
 	const displayTrackInfo = truncate(trackInfo, maxTrackInfoWidth);
 	const trackInfoPadding = maxTrackInfoWidth - displayTrackInfo.length;
 
-	// Progress bar
+	// Progress bar calculation
 	const progressBarWidth = contentWidth - timeDisplay.length - 4;
+	const progress = trackLength > 0 ? Math.min(position / trackLength, 1) : 0;
+	const filledWidth = Math.floor(progress * progressBarWidth);
+	const unfilledWidth = Math.max(0, progressBarWidth - filledWidth);
 
 	return (
 		<Box flexDirection="column" marginTop={1}>
@@ -130,9 +134,12 @@ export const NowPlayingBar: FC<NowPlayingBarProps> = ({
 			{/* Progress bar line */}
 			<Text>
 				{BORDER.vertical}{" "}
-				<Text color={theme.colors.progressTrack}>{PROGRESS_HANDLE}</Text>
+				<Text color={theme.colors.progress}>
+					{PROGRESS_FILLED.repeat(filledWidth)}
+				</Text>
+				<Text color={theme.colors.accent}>{PROGRESS_HANDLE}</Text>
 				<Text color={theme.colors.progressTrack}>
-					{PROGRESS_UNFILLED.repeat(Math.max(0, progressBarWidth))}
+					{PROGRESS_UNFILLED.repeat(unfilledWidth)}
 				</Text>
 				<Text color={theme.colors.textMuted}> {timeDisplay}</Text>{" "}
 				{BORDER.vertical}

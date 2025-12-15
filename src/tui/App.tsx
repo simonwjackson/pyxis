@@ -1,7 +1,14 @@
 import { Spinner } from "@inkjs/ui";
 import { Effect } from "effect";
 import { Box, Text, useApp } from "ink";
-import { type FC, useEffect, useMemo, useRef, useState } from "react";
+import {
+	type FC,
+	useCallback,
+	useEffect,
+	useMemo,
+	useRef,
+	useState,
+} from "react";
 
 import { Footer, Header } from "./components/layout/index.js";
 import {
@@ -108,7 +115,55 @@ export const App: FC<AppProps> = ({ initialTheme = "pyxis" }) => {
 		stationId: string;
 		stationName: string;
 	} | null>(null);
-	const playback = usePlayback();
+
+	// We need to store queue items with their audio URLs for playback
+	const trackUrlsRef = useRef<Map<string, string>>(new Map());
+
+	// Handle track end - advance to next in queue
+	const handleTrackEnd = useCallback(async () => {
+		log("Track ended, advancing to next");
+		const queue = state.queue;
+		const nextTrack = queue[0];
+		if (nextTrack) {
+			const remainingQueue = queue.slice(1);
+			actions.setCurrentTrack(nextTrack);
+			actions.setQueue(remainingQueue);
+
+			// Get the audio URL from our cache
+			const audioUrl = trackUrlsRef.current.get(nextTrack.trackToken);
+			if (audioUrl) {
+				log("Playing next track:", nextTrack.songName);
+				// playback.play will be called via effect
+			} else {
+				log("No audio URL cached for track");
+				actions.showNotification("Track URL not available", "error");
+			}
+		} else {
+			log("Queue empty, need to fetch more tracks");
+			actions.showNotification("Fetching more tracks...", "info");
+			// TODO: Fetch more tracks from the current station
+		}
+	}, [state.queue, actions]);
+
+	const playback = usePlayback({ onTrackEnd: handleTrackEnd });
+
+	// Track the last played track token to avoid re-playing
+	const lastPlayedTokenRef = useRef<string | null>(null);
+
+	// Play next track when current track changes (after track end advances queue)
+	useEffect(() => {
+		const currentToken = state.currentTrack?.trackToken ?? null;
+		const songName = state.currentTrack?.songName;
+		// Only play if track changed and we haven't played this one yet
+		if (currentToken && currentToken !== lastPlayedTokenRef.current) {
+			const audioUrl = trackUrlsRef.current.get(currentToken);
+			if (audioUrl) {
+				log("Auto-playing track from effect:", songName);
+				lastPlayedTokenRef.current = currentToken;
+				playback.play(audioUrl);
+			}
+		}
+	}, [state.currentTrack?.trackToken, state.currentTrack?.songName, playback]);
 
 	// Memoize commands to avoid recreating on every render
 	const commands = useMemo(
@@ -333,6 +388,16 @@ export const App: FC<AppProps> = ({ initialTheme = "pyxis" }) => {
 				const firstTrack = items[0];
 				log("first track", firstTrack?.songName);
 				if (firstTrack) {
+					// Cache all audio URLs for the playlist items
+					trackUrlsRef.current.clear();
+					for (const item of items) {
+						const url = getAudioUrl(item, "high");
+						if (url) {
+							trackUrlsRef.current.set(item.trackToken, url);
+						}
+					}
+					log(`Cached ${trackUrlsRef.current.size} audio URLs`);
+
 					// Set first track as current
 					actions.setCurrentTrack({
 						trackToken: firstTrack.trackToken,
@@ -350,7 +415,7 @@ export const App: FC<AppProps> = ({ initialTheme = "pyxis" }) => {
 					actions.setQueue(queue);
 
 					// Get audio URL and start playback with mpv
-					const audioUrl = getAudioUrl(firstTrack, "high");
+					const audioUrl = trackUrlsRef.current.get(firstTrack.trackToken);
 					log("audio URL", audioUrl ? audioUrl.slice(0, 50) + "..." : "none");
 					if (audioUrl) {
 						log("calling playback.play");
@@ -545,8 +610,11 @@ export const App: FC<AppProps> = ({ initialTheme = "pyxis" }) => {
 				/>
 				{state.currentTrack && (
 					<NowPlayingBar
-						track={state.currentTrack}
-						position={state.playbackPosition}
+						track={{
+							...state.currentTrack,
+							trackLength: playback.state.duration,
+						}}
+						position={playback.state.position}
 						isPlaying={playback.state.isPlaying}
 					/>
 				)}
