@@ -16,29 +16,20 @@ type FooterProps = {
  *
  * Renders:
  * ```
- * ├─────────────────────────────────────────────────────────────────────────────┤
- * │  j/k navigate  ⏎ play  space pause  l like  d dislike  / search  ? help    │
+ * j/k navigate  ⏎ play  space pause  l like  d dislike  / search  ? help
  * ```
  */
 export const Footer: FC<FooterProps> = ({ hints, width }) => {
 	return (
-		<Box
-			flexDirection="column"
-			width={width}
-			borderStyle="round"
-			borderTop={false}
-			paddingX={1}
-		>
-			<Box flexDirection="row" flexWrap="wrap" gap={2}>
-				{hints.map((hint) => (
-					<Box key={`${hint.key}-${hint.action}`}>
-						<Text bold color="cyan">
-							{hint.key}
-						</Text>
-						<Text dimColor> {hint.action}</Text>
-					</Box>
-				))}
-			</Box>
+		<Box flexDirection="row" flexWrap="wrap" gap={2} width={width} paddingX={1}>
+			{hints.map((hint) => (
+				<Box key={`${hint.key}-${hint.action}`}>
+					<Text bold color="cyan">
+						{hint.key}
+					</Text>
+					<Text dimColor> {hint.action}</Text>
+				</Box>
+			))}
 		</Box>
 	);
 };

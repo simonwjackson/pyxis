@@ -1,8 +1,6 @@
 import { appendFileSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
-import { tmpdir } from "node:os";
 
-const LOG_FILE = join(tmpdir(), "pyxis-tui.log");
+const LOG_FILE = "/tmp/pyxis-tui.log";
 
 // Clear log on startup
 let initialized = false;

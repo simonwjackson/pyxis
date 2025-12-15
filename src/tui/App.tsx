@@ -306,21 +306,32 @@ export const App: FC<AppProps> = ({ initialTheme = "pyxis" }) => {
 		actions.showNotification(`Loading ${station.stationName}...`, "info");
 
 		try {
+			log("getting session...");
 			const session = await getSession();
+			log("session result", session ? "got session" : "no session");
 			if (!session) {
 				actions.showNotification("Not logged in", "error");
 				return;
 			}
 
+			log("fetching playlist for", station.stationId);
 			const result = await Effect.runPromise(
 				getPlaylist(session, { stationToken: station.stationId }).pipe(
 					Effect.either,
 				),
 			);
+			log(
+				"playlist result",
+				result._tag,
+				result._tag === "Right"
+					? `${result.right.items.length} items`
+					: "error",
+			);
 
 			if (result._tag === "Right" && result.right.items.length > 0) {
 				const items = result.right.items;
 				const firstTrack = items[0];
+				log("first track", firstTrack?.songName);
 				if (firstTrack) {
 					// Set first track as current
 					actions.setCurrentTrack({
@@ -340,7 +351,9 @@ export const App: FC<AppProps> = ({ initialTheme = "pyxis" }) => {
 
 					// Get audio URL and start playback with mpv
 					const audioUrl = getAudioUrl(firstTrack, "high");
+					log("audio URL", audioUrl ? audioUrl.slice(0, 50) + "..." : "none");
 					if (audioUrl) {
+						log("calling playback.play");
 						playback.play(audioUrl);
 						actions.showNotification(
 							`Playing: ${firstTrack.songName}`,
@@ -351,6 +364,10 @@ export const App: FC<AppProps> = ({ initialTheme = "pyxis" }) => {
 					}
 				}
 			} else {
+				log(
+					"no tracks or error",
+					result._tag === "Left" ? result.left : "empty",
+				);
 				actions.showNotification("No tracks available", "error");
 			}
 		} catch {
@@ -391,11 +408,7 @@ export const App: FC<AppProps> = ({ initialTheme = "pyxis" }) => {
 			// Playback
 			playPause: () => {
 				if (playback.state.isPlaying) {
-					playback.stop();
-					actions.setPlaying(false);
-				} else if (state.currentTrack) {
-					// Resume not implemented - would need to re-fetch URL
-					actions.showNotification("Resume not implemented yet", "info");
+					playback.togglePause();
 				}
 			},
 			like: () => {
@@ -457,7 +470,13 @@ export const App: FC<AppProps> = ({ initialTheme = "pyxis" }) => {
 		// Loading state
 		if (state.isLoadingStations) {
 			return (
-				<Box flexGrow={1} alignItems="center" justifyContent="center">
+				<Box
+					flexGrow={1}
+					alignItems="center"
+					justifyContent="center"
+					borderStyle="round"
+					marginX={1}
+				>
 					<Spinner label="Loading stations..." />
 				</Box>
 			);
@@ -471,6 +490,8 @@ export const App: FC<AppProps> = ({ initialTheme = "pyxis" }) => {
 					flexDirection="column"
 					alignItems="center"
 					justifyContent="center"
+					borderStyle="round"
+					marginX={1}
 				>
 					<Text color={theme.colors.warning}>Not logged in</Text>
 					<Text color={theme.colors.textMuted}>
@@ -484,7 +505,13 @@ export const App: FC<AppProps> = ({ initialTheme = "pyxis" }) => {
 		// No stations
 		if (state.stations.length === 0) {
 			return (
-				<Box flexGrow={1} alignItems="center" justifyContent="center">
+				<Box
+					flexGrow={1}
+					alignItems="center"
+					justifyContent="center"
+					borderStyle="round"
+					marginX={1}
+				>
 					<Text color={theme.colors.textMuted}>No stations found</Text>
 				</Box>
 			);
@@ -493,14 +520,28 @@ export const App: FC<AppProps> = ({ initialTheme = "pyxis" }) => {
 		// Show station list
 		const playingId = state.currentStation?.stationId;
 		// Adjust max visible based on whether now playing bar is shown
-		const nowPlayingHeight = state.currentTrack ? 4 : 0;
+		// Account for: header(3) + footer(1) + outer border(2) + stations title(1) + station footer(2)
+		// Now playing adds: border(2) + title(1) + track info(1) + progress(1) = 5
+		const nowPlayingHeight = state.currentTrack ? 6 : 0;
+		const reservedRows = 9 + nowPlayingHeight;
 		return (
-			<Box flexGrow={1} flexDirection="column" paddingX={1}>
+			<Box
+				flexGrow={1}
+				flexDirection="column"
+				borderStyle="round"
+				marginX={1}
+				paddingX={1}
+			>
+				<Box marginBottom={1}>
+					<Text bold color="cyan">
+						Stations
+					</Text>
+				</Box>
 				<StationList
 					stations={state.stations}
 					selectedIndex={state.selectedStationIndex}
 					{...(playingId !== undefined && { playingStationId: playingId })}
-					maxVisible={Math.max(5, rows - 8 - nowPlayingHeight)}
+					maxVisible={Math.max(5, rows - reservedRows)}
 				/>
 				{state.currentTrack && (
 					<NowPlayingBar

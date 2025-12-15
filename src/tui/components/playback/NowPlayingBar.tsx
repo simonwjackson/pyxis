@@ -1,6 +1,5 @@
 import { Box, Text } from "ink";
 import type { FC } from "react";
-import { Panel } from "../layout/index.js";
 import { useTheme } from "../../theme/provider.js";
 import { formatDuration, truncate } from "../../utils/index.js";
 
@@ -19,17 +18,26 @@ type NowPlayingBarProps = {
 	readonly width?: number;
 };
 
-const PROGRESS_FILLED = "━";
 const PROGRESS_UNFILLED = "─";
 const PROGRESS_HANDLE = "○";
+
+// Border characters for round style
+const BORDER = {
+	topLeft: "╭",
+	topRight: "╮",
+	bottomLeft: "╰",
+	bottomRight: "╯",
+	horizontal: "─",
+	vertical: "│",
+} as const;
 
 /**
  * Compact now-playing bar that sits at the bottom of the stations view
  *
  * ```
  * ╭─ Now Playing ──────────────────────────────────────────────────────────╮
- * │  Comfortably Numb · Pink Floyd · The Wall                   ♥          │
- * │  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━○─────────  3:42 / 6:23 │
+ * │ Comfortably Numb · Pink Floyd · The Wall                            ♥ │
+ * │ ○─────────────────────────────────────────────────────  0:00 / 6:23   │
  * ╰────────────────────────────────────────────────────────────────────────╯
  * ```
  */
@@ -37,18 +45,44 @@ export const NowPlayingBar: FC<NowPlayingBarProps> = ({
 	track,
 	position,
 	isPlaying: _isPlaying,
-	width,
+	width: _width,
 }) => {
 	const theme = useTheme();
-	const panelWidth = width ?? 80;
+	const title = "Now Playing";
+	// Width of content area (excluding borders)
+	const contentWidth = 68;
+	// Width of horizontal line after title
+	const titleLineWidth = contentWidth - title.length - 3; // -3 for "─ " before and " " after title
 
 	if (!track) {
 		return (
-			<Panel title="Now Playing" width={panelWidth}>
-				<Box justifyContent="center" paddingY={1}>
+			<Box flexDirection="column" marginTop={1}>
+				{/* Top border with inline title */}
+				<Text>
+					{BORDER.topLeft}
+					{BORDER.horizontal}{" "}
+					<Text bold color="cyan">
+						{title}
+					</Text>{" "}
+					{BORDER.horizontal.repeat(Math.max(0, titleLineWidth))}
+					{BORDER.topRight}
+				</Text>
+
+				{/* Content */}
+				<Text>
+					{BORDER.vertical}{" "}
 					<Text color={theme.colors.textMuted}>No track playing</Text>
-				</Box>
-			</Panel>
+					{" ".repeat(contentWidth - 16)}
+					{BORDER.vertical}
+				</Text>
+
+				{/* Bottom border */}
+				<Text>
+					{BORDER.bottomLeft}
+					{BORDER.horizontal.repeat(contentWidth)}
+					{BORDER.bottomRight}
+				</Text>
+			</Box>
 		);
 	}
 
@@ -57,47 +91,59 @@ export const NowPlayingBar: FC<NowPlayingBarProps> = ({
 	const totalTime = formatDuration(trackLength);
 	const timeDisplay = `${currentTime} / ${totalTime}`;
 
-	// Calculate progress bar width
-	// Account for padding, borders, time display, and spacing
-	const timeWidth = timeDisplay.length + 2; // +2 for spacing
-	const availableWidth = panelWidth - 6; // -6 for panel borders/padding
-	const progressBarWidth = Math.max(10, availableWidth - timeWidth);
-
-	// Calculate progress percentage
-	const progress = trackLength > 0 ? Math.min(position / trackLength, 1) : 0;
-	const filledWidth = Math.floor(progress * (progressBarWidth - 1)); // -1 for handle
-	const unfilledWidth = progressBarWidth - filledWidth - 1;
-
 	// Build track info string
 	const trackInfo = `${track.songName} · ${track.artistName} · ${track.albumName}`;
 	const isLiked = track.rating === 1;
 
-	// Calculate max width for track info (leave room for heart icon)
-	const heartSpace = isLiked ? 4 : 0;
-	const maxTrackInfoWidth = availableWidth - heartSpace;
+	// Truncate track info if needed
+	const heartSpace = isLiked ? 2 : 0;
+	const maxTrackInfoWidth = contentWidth - 2 - heartSpace;
 	const displayTrackInfo = truncate(trackInfo, maxTrackInfoWidth);
+	const trackInfoPadding = maxTrackInfoWidth - displayTrackInfo.length;
+
+	// Progress bar
+	const progressBarWidth = contentWidth - timeDisplay.length - 4;
 
 	return (
-		<Panel title="Now Playing" width={panelWidth}>
+		<Box flexDirection="column" marginTop={1}>
+			{/* Top border with inline title */}
+			<Text>
+				{BORDER.topLeft}
+				{BORDER.horizontal}{" "}
+				<Text bold color="cyan">
+					{title}
+				</Text>{" "}
+				{BORDER.horizontal.repeat(Math.max(0, titleLineWidth))}
+				{BORDER.topRight}
+			</Text>
+
 			{/* Track info line */}
-			<Box justifyContent="space-between">
+			<Text>
+				{BORDER.vertical}{" "}
 				<Text color={theme.colors.text}>{displayTrackInfo}</Text>
+				{" ".repeat(trackInfoPadding)}
 				{isLiked && <Text color={theme.colors.liked}>{theme.icons.liked}</Text>}
-			</Box>
+				{isLiked ? " " : ""}
+				{BORDER.vertical}
+			</Text>
 
 			{/* Progress bar line */}
-			<Box justifyContent="space-between">
-				<Box>
-					<Text color={theme.colors.progress}>
-						{PROGRESS_FILLED.repeat(filledWidth)}
-					</Text>
-					<Text color={theme.colors.progressTrack}>{PROGRESS_HANDLE}</Text>
-					<Text color={theme.colors.progressTrack}>
-						{PROGRESS_UNFILLED.repeat(Math.max(0, unfilledWidth))}
-					</Text>
-				</Box>
-				<Text color={theme.colors.textMuted}> {timeDisplay}</Text>
-			</Box>
-		</Panel>
+			<Text>
+				{BORDER.vertical}{" "}
+				<Text color={theme.colors.progressTrack}>{PROGRESS_HANDLE}</Text>
+				<Text color={theme.colors.progressTrack}>
+					{PROGRESS_UNFILLED.repeat(Math.max(0, progressBarWidth))}
+				</Text>
+				<Text color={theme.colors.textMuted}> {timeDisplay}</Text>{" "}
+				{BORDER.vertical}
+			</Text>
+
+			{/* Bottom border */}
+			<Text>
+				{BORDER.bottomLeft}
+				{BORDER.horizontal.repeat(contentWidth)}
+				{BORDER.bottomRight}
+			</Text>
+		</Box>
 	);
 };

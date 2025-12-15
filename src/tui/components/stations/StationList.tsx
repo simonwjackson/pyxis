@@ -1,7 +1,6 @@
 import { Box, Text } from "ink";
 import type { FC } from "react";
 import { useMemo } from "react";
-import { Divider, Panel } from "../layout/index.js";
 import { useTheme } from "../../theme/index.js";
 import { StationItem } from "./StationItem.js";
 
@@ -20,25 +19,12 @@ type StationListProps = {
 };
 
 /**
- * Renders a scrollable station list inside a Panel.
- *
- * ```
- * ╭─ Stations ─────────────────────────────────────────────────────────────╮
- * │                                                                        │
- * │  › ♫ Pink Floyd Radio                                        playing  │
- * │      Radiohead Radio                                                   │
- * │      Ambient Chill                                                     │
- * │      ...                                                               │
- * │                                                                        │
- * │  ────────────────────────────────────────────────────────────────────  │
- * │  8 stations · sorted by recent                                         │
- * ╰────────────────────────────────────────────────────────────────────────╯
- * ```
+ * Renders a scrollable station list with virtual scrolling.
  *
  * Features:
  * - Virtual scrolling: only renders maxVisible items
  * - Tracks scroll offset based on selectedIndex
- * - Shows count footer with Divider
+ * - Shows count footer
  */
 export const StationList: FC<StationListProps> = ({
 	stations,
@@ -83,44 +69,39 @@ export const StationList: FC<StationListProps> = ({
 	const showScrollDown = scrollOffset + maxVisible < stations.length;
 
 	return (
-		<Panel title="Stations">
-			<Box flexDirection="column">
-				{/* Scroll up indicator */}
-				{showScrollUp && (
-					<Box justifyContent="center">
-						<Text color={theme.colors.textMuted}>▲ more</Text>
-					</Box>
-				)}
-
-				{/* Station items */}
-				{visibleStations.map((station, index) => {
-					const actualIndex = scrollOffset + index;
-					return (
-						<StationItem
-							key={station.stationId}
-							name={station.stationName}
-							isSelected={actualIndex === selectedIndex}
-							isPlaying={station.stationId === playingStationId}
-							isQuickMix={station.isQuickMix ?? false}
-						/>
-					);
-				})}
-
-				{/* Scroll down indicator */}
-				{showScrollDown && (
-					<Box justifyContent="center">
-						<Text color={theme.colors.textMuted}>▼ more</Text>
-					</Box>
-				)}
-
-				{/* Footer divider and count */}
-				<Box marginTop={1}>
-					<Divider />
+		<Box flexDirection="column" flexGrow={1}>
+			{/* Scroll up indicator */}
+			{showScrollUp && (
+				<Box justifyContent="center">
+					<Text color={theme.colors.textMuted}>▲ more</Text>
 				</Box>
-				<Box>
-					<Text color={theme.colors.textMuted}>{footerText}</Text>
+			)}
+
+			{/* Station items */}
+			{visibleStations.map((station, index) => {
+				const actualIndex = scrollOffset + index;
+				return (
+					<StationItem
+						key={station.stationId}
+						name={station.stationName}
+						isSelected={actualIndex === selectedIndex}
+						isPlaying={station.stationId === playingStationId}
+						isQuickMix={station.isQuickMix ?? false}
+					/>
+				);
+			})}
+
+			{/* Scroll down indicator */}
+			{showScrollDown && (
+				<Box justifyContent="center">
+					<Text color={theme.colors.textMuted}>▼ more</Text>
 				</Box>
+			)}
+
+			{/* Footer count */}
+			<Box marginTop={1}>
+				<Text color={theme.colors.textMuted}>{footerText}</Text>
 			</Box>
-		</Panel>
+		</Box>
 	);
 };
