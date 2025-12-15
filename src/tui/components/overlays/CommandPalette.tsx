@@ -2,7 +2,6 @@ import { TextInput } from "@inkjs/ui";
 import { Box, Text, useInput } from "ink";
 import { type FC, useMemo, useState } from "react";
 import { useTheme } from "../../theme/index.js";
-import { Divider, Panel } from "../layout/index.js";
 
 type Command = {
 	readonly id: string;
@@ -166,6 +165,20 @@ export const CommandPalette: FC<CommandPaletteProps> = ({
 	// Calculate the current flat index for each command
 	let currentFlatIndex = 0;
 
+	// Border characters
+	const BORDER = {
+		topLeft: "╭",
+		topRight: "╮",
+		bottomLeft: "╰",
+		bottomRight: "╯",
+		horizontal: "─",
+		vertical: "│",
+	} as const;
+
+	const title = "Commands";
+	const contentWidth = 58;
+	const titleLineWidth = contentWidth - title.length - 3;
+
 	return (
 		<Box
 			flexDirection="column"
@@ -174,53 +187,83 @@ export const CommandPalette: FC<CommandPaletteProps> = ({
 			position="absolute"
 			marginTop={2}
 		>
-			<Panel title="Commands" width={60}>
-				<Box flexDirection="column" gap={1}>
-					{/* Search input */}
-					<Box>
-						<Text color={theme.colors.primary}>{"> "}</Text>
-						<TextInput
-							placeholder="Type to filter..."
-							onChange={handleFilterChange}
-						/>
-					</Box>
+			<Box flexDirection="column">
+				{/* Top border with title */}
+				<Text>
+					{BORDER.topLeft}
+					{BORDER.horizontal}{" "}
+					<Text bold color="cyan">
+						{title}
+					</Text>{" "}
+					{BORDER.horizontal.repeat(Math.max(0, titleLineWidth))}
+					{BORDER.topRight}
+				</Text>
 
-					{/* Command list */}
-					<Box flexDirection="column">
-						{groupedCommands.map((group, groupIndex) => (
-							<Box flexDirection="column" key={group.category ?? "ungrouped"}>
-								{/* Show divider between groups (not before first) */}
-								{groupIndex > 0 && (
-									<Box marginY={0}>
-										<Divider width={54} />
-									</Box>
-								)}
+				{/* Search input line */}
+				<Text>
+					{BORDER.vertical} <Text color={theme.colors.primary}>{"> "}</Text>
+					<TextInput
+						placeholder="Type to filter..."
+						onChange={handleFilterChange}
+					/>
+					{BORDER.vertical}
+				</Text>
 
-								{/* Commands in this group */}
-								{group.commands.map((cmd) => {
-									const flatIndex = currentFlatIndex++;
-									const isSelected = flatIndex === selectedIndex;
+				{/* Empty line */}
+				<Text>
+					{BORDER.vertical}
+					{" ".repeat(contentWidth)}
+					{BORDER.vertical}
+				</Text>
 
-									return (
-										<CommandItem
-											key={cmd.id}
-											command={cmd}
-											isSelected={isSelected}
-										/>
-									);
-								})}
-							</Box>
-						))}
-
-						{/* Empty state */}
-						{flatCommands.length === 0 && (
-							<Box justifyContent="center" paddingY={1}>
-								<Text color={theme.colors.textMuted}>No matching commands</Text>
-							</Box>
+				{/* Command list */}
+				{groupedCommands.map((group, groupIndex) => (
+					<Box flexDirection="column" key={group.category ?? "ungrouped"}>
+						{/* Show divider between groups (not before first) */}
+						{groupIndex > 0 && (
+							<Text>
+								{BORDER.vertical}{" "}
+								<Text color={theme.colors.textMuted}>
+									{"─".repeat(contentWidth - 2)}
+								</Text>{" "}
+								{BORDER.vertical}
+							</Text>
 						)}
+
+						{/* Commands in this group */}
+						{group.commands.map((cmd) => {
+							const flatIndex = currentFlatIndex++;
+							const isSelected = flatIndex === selectedIndex;
+
+							return (
+								<Text key={cmd.id}>
+									{BORDER.vertical}
+									<CommandItem command={cmd} isSelected={isSelected} />
+									{BORDER.vertical}
+								</Text>
+							);
+						})}
 					</Box>
-				</Box>
-			</Panel>
+				))}
+
+				{/* Empty state */}
+				{flatCommands.length === 0 && (
+					<Text>
+						{BORDER.vertical}
+						{" ".repeat(20)}
+						<Text color={theme.colors.textMuted}>No matching commands</Text>
+						{" ".repeat(18)}
+						{BORDER.vertical}
+					</Text>
+				)}
+
+				{/* Bottom border */}
+				<Text>
+					{BORDER.bottomLeft}
+					{BORDER.horizontal.repeat(contentWidth)}
+					{BORDER.bottomRight}
+				</Text>
+			</Box>
 		</Box>
 	);
 };
@@ -233,39 +276,29 @@ type CommandItemProps = {
 const CommandItem: FC<CommandItemProps> = ({ command, isSelected }) => {
 	const theme = useTheme();
 
-	const indicatorColor = isSelected ? theme.colors.primary : theme.colors.text;
+	const nameWidth = 18;
+	const descWidth = 30;
+	const shortcutWidth = 8;
 
 	return (
-		<Box>
-			{/* Selection indicator */}
-			<Box width={2}>
-				<Text color={indicatorColor}>{isSelected ? "\u203A" : " "}</Text>
-			</Box>
-
-			{/* Command name */}
-			<Box width={20}>
-				<Text
-					color={isSelected ? theme.colors.text : theme.colors.textMuted}
-					bold={isSelected}
-				>
-					{command.name}
-				</Text>
-			</Box>
-
-			{/* Description */}
-			<Box flexGrow={1}>
-				<Text color={theme.colors.textDim}>{command.description}</Text>
-			</Box>
-
-			{/* Shortcut (if available) */}
-			{command.shortcut && (
-				<Box marginLeft={1}>
-					<Text color={theme.colors.textMuted} dimColor>
-						{command.shortcut}
-					</Text>
-				</Box>
-			)}
-		</Box>
+		<Text>
+			{" "}
+			<Text color={isSelected ? theme.colors.primary : theme.colors.text}>
+				{isSelected ? "›" : " "}
+			</Text>{" "}
+			<Text
+				color={isSelected ? theme.colors.text : theme.colors.textMuted}
+				bold={isSelected}
+			>
+				{command.name.padEnd(nameWidth)}
+			</Text>
+			<Text color={theme.colors.textDim}>
+				{command.description.slice(0, descWidth).padEnd(descWidth)}
+			</Text>
+			<Text color={theme.colors.textMuted} dimColor>
+				{(command.shortcut ?? "").padStart(shortcutWidth)}
+			</Text>
+		</Text>
 	);
 };
 

@@ -37,8 +37,8 @@ const BORDER = {
  *
  * ```
  * ╭─ Now Playing ──────────────────────────────────────────────────────────╮
- * │ Comfortably Numb · Pink Floyd · The Wall                            ♥ │
- * │ ○─────────────────────────────────────────────────────  0:00 / 6:23   │
+ * │ Comfortably Numb · Pink Floyd · The Wall                            ♥  │
+ * │ ○─────────────────────────────────────────────────────  0:00 / 6:23    │
  * ╰────────────────────────────────────────────────────────────────────────╯
  * ```
  */
@@ -127,7 +127,7 @@ export const NowPlayingBar: FC<NowPlayingBarProps> = ({
 				<Text color={theme.colors.text}>{displayTrackInfo}</Text>
 				{" ".repeat(trackInfoPadding)}
 				{isLiked && <Text color={theme.colors.liked}>{theme.icons.liked}</Text>}
-				{isLiked ? " " : ""}
+				{isLiked ? " " : ""}{" "}
 				{BORDER.vertical}
 			</Text>
 

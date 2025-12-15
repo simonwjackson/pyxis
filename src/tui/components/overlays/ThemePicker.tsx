@@ -2,7 +2,6 @@ import { Box, Text, useInput } from "ink";
 import { type FC, useState } from "react";
 import { useTheme } from "../../theme/index.js";
 import { loadTheme } from "../../theme/loader.js";
-import { Panel } from "../layout/index.js";
 
 interface ThemeInfo {
 	readonly name: string;
@@ -71,6 +70,20 @@ export const ThemePicker: FC<ThemePickerProps> = ({
 		return null;
 	}
 
+	// Border characters
+	const BORDER = {
+		topLeft: "╭",
+		topRight: "╮",
+		bottomLeft: "╰",
+		bottomRight: "╯",
+		horizontal: "─",
+		vertical: "│",
+	} as const;
+
+	const title = "Select Theme";
+	const contentWidth = 44;
+	const titleLineWidth = contentWidth - title.length - 3;
+
 	return (
 		<Box
 			flexDirection="column"
@@ -80,52 +93,83 @@ export const ThemePicker: FC<ThemePickerProps> = ({
 			marginTop={2}
 			marginLeft={10}
 		>
-			<Panel title="Select Theme" width={46}>
-				<Box flexDirection="column" paddingY={1}>
-					{themes.map((themeInfo, index) => {
-						const isSelected = index === selectedIndex;
-						const isCurrent = themeInfo.name === currentTheme;
-						const themeColors = loadTheme(themeInfo.name).colors;
+			<Box flexDirection="column">
+				{/* Top border with title */}
+				<Text>
+					{BORDER.topLeft}
+					{BORDER.horizontal}{" "}
+					<Text bold color="cyan">
+						{title}
+					</Text>{" "}
+					{BORDER.horizontal.repeat(Math.max(0, titleLineWidth))}
+					{BORDER.topRight}
+				</Text>
 
-						return (
-							<Box key={themeInfo.name} gap={1}>
-								<Text
-									color={isSelected ? theme.colors.primary : theme.colors.text}
-								>
-									{isSelected ? "›" : " "}
-								</Text>
-								<Text
-									color={themeColors.primary}
-									dimColor={!isSelected && !isCurrent}
-								>
-									●
-								</Text>
-								<Box width={14}>
-									<Text
-										color={
-											isCurrent
-												? theme.colors.accent
-												: isSelected
-													? theme.colors.text
-													: theme.colors.textMuted
-										}
-										bold={isCurrent}
-									>
-										{themeInfo.name}
-									</Text>
-								</Box>
-								<Text
-									color={
-										isSelected ? theme.colors.textMuted : theme.colors.textDim
-									}
-								>
-									{themeInfo.description}
-								</Text>
-							</Box>
-						);
-					})}
-				</Box>
-			</Panel>
+				{/* Empty line */}
+				<Text>
+					{BORDER.vertical}
+					{" ".repeat(contentWidth)}
+					{BORDER.vertical}
+				</Text>
+
+				{/* Theme list */}
+				{themes.map((themeInfo, index) => {
+					const isSelected = index === selectedIndex;
+					const isCurrent = themeInfo.name === currentTheme;
+					const themeColors = loadTheme(themeInfo.name).colors;
+
+					return (
+						<Text key={themeInfo.name}>
+							{BORDER.vertical}{" "}
+							<Text
+								color={isSelected ? theme.colors.primary : theme.colors.text}
+							>
+								{isSelected ? "›" : " "}
+							</Text>{" "}
+							<Text
+								color={themeColors.primary}
+								dimColor={!isSelected && !isCurrent}
+							>
+								●
+							</Text>{" "}
+							<Text
+								color={
+									isCurrent
+										? theme.colors.accent
+										: isSelected
+											? theme.colors.text
+											: theme.colors.textMuted
+								}
+								bold={isCurrent}
+							>
+								{themeInfo.name.padEnd(14)}
+							</Text>
+							<Text
+								color={
+									isSelected ? theme.colors.textMuted : theme.colors.textDim
+								}
+							>
+								{themeInfo.description.padEnd(22)}
+							</Text>
+							{BORDER.vertical}
+						</Text>
+					);
+				})}
+
+				{/* Empty line */}
+				<Text>
+					{BORDER.vertical}
+					{" ".repeat(contentWidth)}
+					{BORDER.vertical}
+				</Text>
+
+				{/* Bottom border */}
+				<Text>
+					{BORDER.bottomLeft}
+					{BORDER.horizontal.repeat(contentWidth)}
+					{BORDER.bottomRight}
+				</Text>
+			</Box>
 		</Box>
 	);
 };
