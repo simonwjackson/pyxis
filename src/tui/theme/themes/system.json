@@ -1,0 +1,38 @@
+{
+	"name": "system",
+	"colors": {
+		"primary": "cyan",
+		"secondary": "magenta",
+		"accent": "yellow",
+		"text": "white",
+		"textMuted": "gray",
+		"textDim": "blackBright",
+		"background": "black",
+		"backgroundPanel": "black",
+		"backgroundHighlight": "blackBright",
+		"backgroundSelection": "blue",
+		"border": "gray",
+		"borderActive": "cyan",
+		"borderMuted": "blackBright",
+		"error": "red",
+		"warning": "yellow",
+		"success": "green",
+		"info": "blue",
+		"playing": "green",
+		"liked": "red",
+		"disliked": "redBright",
+		"progress": "cyan",
+		"progressTrack": "gray"
+	},
+	"borders": {
+		"style": "single"
+	},
+	"icons": {
+		"playing": ">",
+		"paused": "||",
+		"liked": "+",
+		"disliked": "-",
+		"station": "*",
+		"search": "?"
+	}
+}

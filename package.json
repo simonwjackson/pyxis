@@ -1,43 +1,47 @@
 {
-  "name": "@pyxis/client",
-  "version": "0.1.0",
-  "type": "module",
-  "main": "dist/index.js",
-  "types": "dist/index.d.ts",
-  "bin": {
-    "pyxis": "./dist/cli/bin.js"
-  },
-  "exports": {
-    ".": {
-      "import": "./dist/index.js",
-      "types": "./dist/index.d.ts"
-    }
-  },
-  "scripts": {
-    "build": "tsc",
-    "dev": "tsc --watch",
-    "typecheck": "tsc --noEmit",
-    "cli": "bun run dist/cli/index.js",
-    "start:cli": "bun run build && node dist/cli/bin.js",
-    "test": "bun test",
-    "test:watch": "bun test --watch",
-    "test:coverage": "bun test --coverage"
-  },
-  "dependencies": {
-    "@effect/platform": "^0.x",
-    "cli-table3": "^0.6.5",
-    "commander": "^14.0.2",
-    "effect": "^3.x",
-    "env-paths": "^3.0.0",
-    "picocolors": "^1.1.1",
-    "proper-lockfile": "^4.1.2",
-    "yaml": "^2.8.2",
-    "zod": "^4.1.13"
-  },
-  "devDependencies": {
-    "@types/node": "^20.x",
-    "@types/proper-lockfile": "^4.1.4",
-    "@types/yaml": "^1.9.7",
-    "typescript": "^5.x"
-  }
+	"name": "@pyxis/client",
+	"version": "0.1.0",
+	"type": "module",
+	"main": "dist/index.js",
+	"types": "dist/index.d.ts",
+	"bin": {
+		"pyxis": "./dist/cli/bin.js"
+	},
+	"exports": {
+		".": {
+			"import": "./dist/index.js",
+			"types": "./dist/index.d.ts"
+		}
+	},
+	"scripts": {
+		"build": "tsc",
+		"dev": "tsc --watch",
+		"typecheck": "tsc --noEmit",
+		"cli": "bun run dist/cli/index.js",
+		"start:cli": "bun run build && node dist/cli/bin.js",
+		"test": "bun test",
+		"test:watch": "bun test --watch",
+		"test:coverage": "bun test --coverage"
+	},
+	"dependencies": {
+		"@effect/platform": "^0.x",
+		"@inkjs/ui": "^2.0.0",
+		"cli-table3": "^0.6.5",
+		"commander": "^14.0.2",
+		"effect": "^3.x",
+		"env-paths": "^3.0.0",
+		"ink": "^5.0.0",
+		"picocolors": "^1.1.1",
+		"proper-lockfile": "^4.1.2",
+		"react": "^18.0.0",
+		"yaml": "^2.8.2",
+		"zod": "^4.1.13"
+	},
+	"devDependencies": {
+		"@types/node": "^20.x",
+		"@types/proper-lockfile": "^4.1.4",
+		"@types/react": "^18.0.0",
+		"@types/yaml": "^1.9.7",
+		"typescript": "^5.x"
+	}
 }

@@ -1,0 +1,38 @@
+{
+	"name": "pyxis",
+	"colors": {
+		"primary": "#ff6b9d",
+		"secondary": "#c44569",
+		"accent": "#f8b500",
+		"text": "#ffffff",
+		"textMuted": "#a0a0a0",
+		"textDim": "#606060",
+		"background": "#1a1a2e",
+		"backgroundPanel": "#16213e",
+		"backgroundHighlight": "#0f3460",
+		"backgroundSelection": "#533483",
+		"border": "#3a3a5c",
+		"borderActive": "#ff6b9d",
+		"borderMuted": "#2a2a4c",
+		"error": "#ff4757",
+		"warning": "#ffa502",
+		"success": "#2ed573",
+		"info": "#70a1ff",
+		"playing": "#2ed573",
+		"liked": "#ff6b9d",
+		"disliked": "#ff4757",
+		"progress": "#ff6b9d",
+		"progressTrack": "#3a3a5c"
+	},
+	"borders": {
+		"style": "round"
+	},
+	"icons": {
+		"playing": "♪",
+		"paused": "⏸",
+		"liked": "♥",
+		"disliked": "✗",
+		"station": "📻",
+		"search": "🔍"
+	}
+}

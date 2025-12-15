@@ -1,0 +1,38 @@
+{
+	"name": "rose-pine",
+	"colors": {
+		"primary": "#ebbcba",
+		"secondary": "#c4a7e7",
+		"accent": "#f6c177",
+		"text": "#e0def4",
+		"textMuted": "#908caa",
+		"textDim": "#6e6a86",
+		"background": "#191724",
+		"backgroundPanel": "#1f1d2e",
+		"backgroundHighlight": "#26233a",
+		"backgroundSelection": "#403d52",
+		"border": "#524f67",
+		"borderActive": "#ebbcba",
+		"borderMuted": "#26233a",
+		"error": "#eb6f92",
+		"warning": "#f6c177",
+		"success": "#9ccfd8",
+		"info": "#31748f",
+		"playing": "#9ccfd8",
+		"liked": "#eb6f92",
+		"disliked": "#eb6f92",
+		"progress": "#ebbcba",
+		"progressTrack": "#524f67"
+	},
+	"borders": {
+		"style": "round"
+	},
+	"icons": {
+		"playing": "♪",
+		"paused": "⏸",
+		"liked": "♥",
+		"disliked": "✗",
+		"station": "📻",
+		"search": "🔍"
+	}
+}
