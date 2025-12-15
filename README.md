@@ -49,6 +49,24 @@ bun run build
 ```
 </details>
 
+<details>
+<summary>Development commands</summary>
+
+This project uses [just](https://just.systems/) for common tasks:
+
+```bash
+just build        # Build the nix package
+just test         # Run tests
+just typecheck    # Run TypeScript type checking
+just dev          # Watch mode for TypeScript
+
+# After changing package.json dependencies:
+just update-hashes
+```
+
+The `update-hashes` command automatically discovers the correct npm dependency hash for Nix builds by running a build with a dummy hash and extracting the correct one from the error output.
+</details>
+
 ## Usage
 
 ### Authentication

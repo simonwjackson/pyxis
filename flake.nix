@@ -16,6 +16,13 @@
   }: let
     systems = ["x86_64-linux" "aarch64-linux" "x86_64-darwin" "aarch64-darwin"];
     forAllSystems = nixpkgs.lib.genAttrs systems;
+    defaultNpmDepsHash = "sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=";
+    hashesFile = ./nix/hashes.json;
+    hashesData =
+      if builtins.pathExists hashesFile
+      then builtins.fromJSON (builtins.readFile hashesFile)
+      else {};
+    npmDepsHash = hashesData.npmDeps or defaultNpmDepsHash;
   in {
     packages = forAllSystems (system: let
       pkgs = nixpkgs.legacyPackages.${system};
@@ -25,7 +32,7 @@
         version = "0.1.0";
         src = ./.;
 
-        npmDepsHash = "sha256-cdOKoKfGQarop5HHAQyyYLI1iZ2dk/H3M3TiAFVoUlc=";
+        inherit npmDepsHash;
         makeCacheWritable = true;
 
         nativeBuildInputs = [pkgs.makeWrapper];
