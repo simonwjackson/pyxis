@@ -1,4 +1,4 @@
-import { useReducer, useCallback } from "react";
+import { useCallback, useReducer } from "react";
 
 // View types
 type View = "stations" | "nowPlaying" | "search" | "settings";
@@ -11,15 +11,15 @@ type Overlay =
 	| null;
 
 // Station type (matches API response)
-interface Station {
+type Station = {
 	readonly stationId: string;
 	readonly stationName: string;
 	readonly isQuickMix?: boolean;
 	readonly artUrl?: string;
-}
+};
 
-// Track type
-interface Track {
+// Track type (kept for reference, but playback state now in useQueue)
+type Track = {
 	readonly trackToken: string;
 	readonly songName: string;
 	readonly artistName: string;
@@ -27,10 +27,10 @@ interface Track {
 	readonly albumArtUrl?: string;
 	readonly trackLength?: number;
 	readonly rating?: number; // 0=none, 1=liked
-}
+};
 
-// Application state
-interface PyxisState {
+// Application state - UI-focused, playback is in useQueue
+type PyxisState = {
 	// Navigation
 	readonly currentView: View;
 	readonly activeOverlay: Overlay;
@@ -45,13 +45,6 @@ interface PyxisState {
 	readonly stationFilter: string;
 	readonly isLoadingStations: boolean;
 
-	// Playback
-	readonly currentStation: Station | null;
-	readonly currentTrack: Track | null;
-	readonly isPlaying: boolean;
-	readonly playbackPosition: number;
-	readonly queue: readonly Track[];
-
 	// UI
 	readonly themeName: string;
 
@@ -60,7 +53,7 @@ interface PyxisState {
 		message: string;
 		variant: "success" | "error" | "info";
 	} | null;
-}
+};
 
 // Action types
 type PyxisAction =
@@ -76,13 +69,6 @@ type PyxisAction =
 	| { type: "SELECT_STATION"; payload: number }
 	| { type: "MOVE_SELECTION"; payload: "up" | "down" | "top" | "bottom" }
 	| { type: "SET_STATION_FILTER"; payload: string }
-	| { type: "PLAY_STATION"; payload: Station }
-	| { type: "SET_CURRENT_TRACK"; payload: Track | null }
-	| { type: "SET_PLAYING"; payload: boolean }
-	| { type: "SET_PLAYBACK_POSITION"; payload: number }
-	| { type: "SET_QUEUE"; payload: readonly Track[] }
-	| { type: "LIKE_TRACK" }
-	| { type: "DISLIKE_TRACK" }
 	| { type: "SET_THEME"; payload: string }
 	| {
 			type: "SHOW_NOTIFICATION";
@@ -100,11 +86,6 @@ const initialState: PyxisState = {
 	selectedStationIndex: 0,
 	stationFilter: "",
 	isLoadingStations: false,
-	currentStation: null,
-	currentTrack: null,
-	isPlaying: false,
-	playbackPosition: 0,
-	queue: [],
 	themeName: "pyxis",
 	notification: null,
 };
@@ -152,22 +133,6 @@ const pyxisReducer = (state: PyxisState, action: PyxisAction): PyxisState => {
 				stationFilter: action.payload,
 				selectedStationIndex: 0,
 			};
-		case "PLAY_STATION":
-			return { ...state, currentStation: action.payload, isPlaying: true };
-		case "SET_CURRENT_TRACK":
-			return { ...state, currentTrack: action.payload, playbackPosition: 0 };
-		case "SET_PLAYING":
-			return { ...state, isPlaying: action.payload };
-		case "SET_PLAYBACK_POSITION":
-			return { ...state, playbackPosition: action.payload };
-		case "SET_QUEUE":
-			return { ...state, queue: action.payload };
-		case "LIKE_TRACK":
-			if (!state.currentTrack) return state;
-			return { ...state, currentTrack: { ...state.currentTrack, rating: 1 } };
-		case "DISLIKE_TRACK":
-			// Dislike typically skips the track
-			return { ...state, currentTrack: null };
 		case "SET_THEME":
 			return { ...state, themeName: action.payload };
 		case "SHOW_NOTIFICATION":
@@ -229,32 +194,6 @@ export const usePyxis = (initialTheme?: string) => {
 				dispatch({ type: "SET_STATION_FILTER", payload: filter }),
 			[],
 		),
-		playStation: useCallback(
-			(station: Station) =>
-				dispatch({ type: "PLAY_STATION", payload: station }),
-			[],
-		),
-		setCurrentTrack: useCallback(
-			(track: Track | null) =>
-				dispatch({ type: "SET_CURRENT_TRACK", payload: track }),
-			[],
-		),
-		setPlaying: useCallback(
-			(playing: boolean) => dispatch({ type: "SET_PLAYING", payload: playing }),
-			[],
-		),
-		setPlaybackPosition: useCallback(
-			(position: number) =>
-				dispatch({ type: "SET_PLAYBACK_POSITION", payload: position }),
-			[],
-		),
-		setQueue: useCallback(
-			(queue: readonly Track[]) =>
-				dispatch({ type: "SET_QUEUE", payload: queue }),
-			[],
-		),
-		likeTrack: useCallback(() => dispatch({ type: "LIKE_TRACK" }), []),
-		dislikeTrack: useCallback(() => dispatch({ type: "DISLIKE_TRACK" }), []),
 		setTheme: useCallback(
 			(theme: string) => dispatch({ type: "SET_THEME", payload: theme }),
 			[],

@@ -1,14 +1,7 @@
 import { Spinner } from "@inkjs/ui";
 import { Effect } from "effect";
 import { Box, Text, useApp } from "ink";
-import {
-	type FC,
-	useCallback,
-	useEffect,
-	useMemo,
-	useRef,
-	useState,
-} from "react";
+import { type FC, useEffect, useRef, useState } from "react";
 
 import { Footer, Header } from "./components/layout/index.js";
 import {
@@ -23,15 +16,14 @@ import { NowPlayingBar } from "./components/playback/index.js";
 import { StationList } from "./components/stations/index.js";
 import {
 	useKeybinds,
-	usePlayback,
 	usePyxis,
+	useQueue,
 	useTerminalSize,
 } from "./hooks/index.js";
 import { ThemeProvider, loadTheme } from "./theme/index.js";
 import { log } from "./utils/logger.js";
 import { getSession } from "../cli/cache/session.js";
-import { deleteStation, getPlaylist, getStationList } from "../client.js";
-import { getAudioUrl } from "../quality.js";
+import { deleteStation, getStationList } from "../client.js";
 
 type AppProps = {
 	readonly initialTheme?: string;
@@ -46,11 +38,8 @@ const hints = [
 	{ key: "q", action: "quit" },
 ] as const;
 
-// Command palette commands
-const createCommands = (
-	actions: ReturnType<typeof usePyxis>["actions"],
-	exit: () => void,
-): readonly Command[] => [
+// Command palette commands - simplified since we removed unused params
+const commands: readonly Command[] = [
 	{
 		id: "play",
 		name: "Play station",
@@ -116,60 +105,25 @@ export const App: FC<AppProps> = ({ initialTheme = "pyxis" }) => {
 		stationName: string;
 	} | null>(null);
 
-	// We need to store queue items with their audio URLs for playback
-	const trackUrlsRef = useRef<Map<string, string>>(new Map());
+	// Queue management - handles playback, advancement, and refill
+	const queue = useQueue();
 
-	// Handle track end - advance to next in queue
-	const handleTrackEnd = useCallback(async () => {
-		log("Track ended, advancing to next");
-		const queue = state.queue;
-		const nextTrack = queue[0];
-		if (nextTrack) {
-			const remainingQueue = queue.slice(1);
-			actions.setCurrentTrack(nextTrack);
-			actions.setQueue(remainingQueue);
-
-			// Get the audio URL from our cache
-			const audioUrl = trackUrlsRef.current.get(nextTrack.trackToken);
-			if (audioUrl) {
-				log("Playing next track:", nextTrack.songName);
-				// playback.play will be called via effect
-			} else {
-				log("No audio URL cached for track");
-				actions.showNotification("Track URL not available", "error");
-			}
-		} else {
-			log("Queue empty, need to fetch more tracks");
-			actions.showNotification("Fetching more tracks...", "info");
-			// TODO: Fetch more tracks from the current station
-		}
-	}, [state.queue, actions]);
-
-	const playback = usePlayback({ onTrackEnd: handleTrackEnd });
-
-	// Track the last played track token to avoid re-playing
-	const lastPlayedTokenRef = useRef<string | null>(null);
-
-	// Play next track when current track changes (after track end advances queue)
+	// Show notification when queue has errors
 	useEffect(() => {
-		const currentToken = state.currentTrack?.trackToken ?? null;
-		const songName = state.currentTrack?.songName;
-		// Only play if track changed and we haven't played this one yet
-		if (currentToken && currentToken !== lastPlayedTokenRef.current) {
-			const audioUrl = trackUrlsRef.current.get(currentToken);
-			if (audioUrl) {
-				log("Auto-playing track from effect:", songName);
-				lastPlayedTokenRef.current = currentToken;
-				playback.play(audioUrl);
-			}
+		if (queue.state.error) {
+			actions.showNotification(queue.state.error, "error");
 		}
-	}, [state.currentTrack?.trackToken, state.currentTrack?.songName, playback]);
+	}, [queue.state.error, actions]);
 
-	// Memoize commands to avoid recreating on every render
-	const commands = useMemo(
-		() => createCommands(actions, exit),
-		[actions, exit],
-	);
+	// Show notification when track changes
+	const lastNotifiedTrackRef = useRef<string | null>(null);
+	useEffect(() => {
+		const track = queue.state.currentTrack;
+		if (track && track.trackToken !== lastNotifiedTrackRef.current) {
+			lastNotifiedTrackRef.current = track.trackToken;
+			actions.showNotification(`Playing: ${track.songName}`, "success");
+		}
+	}, [queue.state.currentTrack, actions]);
 
 	// Load session and stations on mount
 	useEffect(() => {
@@ -240,14 +194,14 @@ export const App: FC<AppProps> = ({ initialTheme = "pyxis" }) => {
 				actions.showNotification("Search coming soon", "info");
 				break;
 			case "like":
-				if (state.currentTrack) {
-					actions.likeTrack();
+				if (queue.state.currentTrack) {
+					queue.likeTrack();
 					actions.showNotification("Track liked!", "success");
 				}
 				break;
 			case "dislike":
-				if (state.currentTrack) {
-					actions.dislikeTrack();
+				if (queue.state.currentTrack) {
+					queue.dislikeTrack();
 					actions.showNotification("Track skipped", "info");
 				}
 				break;
@@ -337,7 +291,7 @@ export const App: FC<AppProps> = ({ initialTheme = "pyxis" }) => {
 					actions.selectStation(Math.max(0, updatedStations.length - 1));
 				}
 			} else {
-				actions.showNotification(`Failed to delete station`, "error");
+				actions.showNotification("Failed to delete station", "error");
 			}
 		} catch {
 			actions.showNotification("An error occurred", "error");
@@ -351,93 +305,14 @@ export const App: FC<AppProps> = ({ initialTheme = "pyxis" }) => {
 		actions.closeOverlay();
 	};
 
-	// Handle playing a station - fetch playlist and start playback
-	const handlePlayStation = async (station: {
+	// Handle playing a station - now delegates to useQueue
+	const handlePlayStation = (station: {
 		stationId: string;
 		stationName: string;
 	}) => {
 		log("handlePlayStation called", station);
-		actions.playStation(station);
 		actions.showNotification(`Loading ${station.stationName}...`, "info");
-
-		try {
-			log("getting session...");
-			const session = await getSession();
-			log("session result", session ? "got session" : "no session");
-			if (!session) {
-				actions.showNotification("Not logged in", "error");
-				return;
-			}
-
-			log("fetching playlist for", station.stationId);
-			const result = await Effect.runPromise(
-				getPlaylist(session, { stationToken: station.stationId }).pipe(
-					Effect.either,
-				),
-			);
-			log(
-				"playlist result",
-				result._tag,
-				result._tag === "Right"
-					? `${result.right.items.length} items`
-					: "error",
-			);
-
-			if (result._tag === "Right" && result.right.items.length > 0) {
-				const items = result.right.items;
-				const firstTrack = items[0];
-				log("first track", firstTrack?.songName);
-				if (firstTrack) {
-					// Cache all audio URLs for the playlist items
-					trackUrlsRef.current.clear();
-					for (const item of items) {
-						const url = getAudioUrl(item, "high");
-						if (url) {
-							trackUrlsRef.current.set(item.trackToken, url);
-						}
-					}
-					log(`Cached ${trackUrlsRef.current.size} audio URLs`);
-
-					// Set first track as current
-					actions.setCurrentTrack({
-						trackToken: firstTrack.trackToken,
-						songName: firstTrack.songName,
-						artistName: firstTrack.artistName,
-						albumName: firstTrack.albumName ?? "Unknown Album",
-					});
-					// Set rest as queue
-					const queue = items.slice(1).map((item) => ({
-						trackToken: item.trackToken,
-						songName: item.songName,
-						artistName: item.artistName,
-						albumName: item.albumName ?? "Unknown Album",
-					}));
-					actions.setQueue(queue);
-
-					// Get audio URL and start playback with mpv
-					const audioUrl = trackUrlsRef.current.get(firstTrack.trackToken);
-					log("audio URL", audioUrl ? audioUrl.slice(0, 50) + "..." : "none");
-					if (audioUrl) {
-						log("calling playback.play");
-						playback.play(audioUrl);
-						actions.showNotification(
-							`Playing: ${firstTrack.songName}`,
-							"success",
-						);
-					} else {
-						actions.showNotification("No audio URL available", "error");
-					}
-				}
-			} else {
-				log(
-					"no tracks or error",
-					result._tag === "Left" ? result.left : "empty",
-				);
-				actions.showNotification("No tracks available", "error");
-			}
-		} catch {
-			actions.showNotification("Failed to load playlist", "error");
-		}
+		queue.playStation(station);
 	};
 
 	// Wire up keybinds
@@ -445,7 +320,7 @@ export const App: FC<AppProps> = ({ initialTheme = "pyxis" }) => {
 		{
 			// Global
 			quit: () => {
-				playback.stop();
+				queue.stop();
 				exit();
 			},
 			help: () => actions.openOverlay("help"),
@@ -472,19 +347,19 @@ export const App: FC<AppProps> = ({ initialTheme = "pyxis" }) => {
 
 			// Playback
 			playPause: () => {
-				if (playback.state.isPlaying) {
-					playback.togglePause();
+				if (queue.state.isPlaying) {
+					queue.togglePause();
 				}
 			},
 			like: () => {
-				if (state.currentTrack) {
-					actions.likeTrack();
+				if (queue.state.currentTrack) {
+					queue.likeTrack();
 					actions.showNotification("Track liked!", "success");
 				}
 			},
 			dislike: () => {
-				if (state.currentTrack) {
-					actions.dislikeTrack();
+				if (queue.state.currentTrack) {
+					queue.dislikeTrack();
 					actions.showNotification("Track skipped", "info");
 				}
 			},
@@ -583,11 +458,11 @@ export const App: FC<AppProps> = ({ initialTheme = "pyxis" }) => {
 		}
 
 		// Show station list
-		const playingId = state.currentStation?.stationId;
+		const playingId = queue.state.currentStation?.stationId;
 		// Adjust max visible based on whether now playing bar is shown
 		// Account for: header(3) + footer(1) + outer border(2) + stations title(1) + station footer(2)
 		// Now playing adds: border(2) + title(1) + track info(1) + progress(1) = 5
-		const nowPlayingHeight = state.currentTrack ? 6 : 0;
+		const nowPlayingHeight = queue.state.currentTrack ? 6 : 0;
 		const reservedRows = 9 + nowPlayingHeight;
 		return (
 			<Box
@@ -608,14 +483,14 @@ export const App: FC<AppProps> = ({ initialTheme = "pyxis" }) => {
 					{...(playingId !== undefined && { playingStationId: playingId })}
 					maxVisible={Math.max(5, rows - reservedRows)}
 				/>
-				{state.currentTrack && (
+				{queue.state.currentTrack && (
 					<NowPlayingBar
 						track={{
-							...state.currentTrack,
-							trackLength: playback.state.duration,
+							...queue.state.currentTrack,
+							trackLength: queue.state.duration,
 						}}
-						position={playback.state.position}
-						isPlaying={playback.state.isPlaying}
+						position={queue.state.position}
+						isPlaying={queue.state.isPlaying}
 					/>
 				)}
 			</Box>

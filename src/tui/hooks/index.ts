@@ -16,3 +16,10 @@ export type {
 export { usePyxis } from "./usePyxis.js";
 export type { PlaybackState, UsePlaybackResult } from "./usePlayback.js";
 export { usePlayback } from "./usePlayback.js";
+export type {
+	QueueState,
+	UseQueueResult,
+	Track as QueueTrack,
+	Station as QueueStation,
+} from "./useQueue.js";
+export { useQueue } from "./useQueue.js";
