@@ -72,5 +72,7 @@
         ];
       };
     });
+
+    homeManagerModules.default = ./nix/modules/home-manager.nix;
   };
 }
