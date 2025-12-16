@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { Command } from "commander";
-import { readFileSync } from "fs";
+import { readFileSync, existsSync } from "fs";
 import { dirname, join } from "path";
 import { fileURLToPath } from "url";
 import pc from "picocolors";
@@ -17,12 +17,29 @@ import {
 	registerTuiCommand,
 } from "./commands/index.js";
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
-const packageJsonPath = join(__dirname, "../../package.json");
-const packageJson = JSON.parse(readFileSync(packageJsonPath, "utf-8")) as {
-	version: string;
-	name: string;
-};
+// Version injected at build time for compiled binaries, fallback to package.json
+declare const __VERSION__: string | undefined;
+
+function getVersion(): string {
+	// Use build-time injected version if available (compiled binary)
+	if (typeof __VERSION__ !== "undefined") {
+		return __VERSION__;
+	}
+
+	// Fallback to package.json for development
+	const currentDir = dirname(fileURLToPath(import.meta.url));
+	const packageJsonPath = join(currentDir, "../../package.json");
+	if (existsSync(packageJsonPath)) {
+		const packageJson = JSON.parse(readFileSync(packageJsonPath, "utf-8")) as {
+			version: string;
+		};
+		return packageJson.version;
+	}
+
+	return "0.0.0-dev";
+}
+
+const version = getVersion();
 
 export type GlobalOptions = {
 	json: boolean;
@@ -42,7 +59,7 @@ function main(): void {
 	program
 		.name("pyxis")
 		.description("Unofficial Pandora music service CLI client")
-		.version(packageJson.version, "-V, --version", "Show version")
+		.version(version, "-V, --version", "Show version")
 		.helpOption("-h, --help", "Show help");
 
 	program
