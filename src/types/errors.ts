@@ -23,6 +23,7 @@ export class UserLoginError extends Data.TaggedError("UserLoginError")<{
 export class ApiCallError extends Data.TaggedError("ApiCallError")<{
 	readonly method: string;
 	readonly message: string;
+	readonly code?: number;
 	readonly cause?: unknown;
 }> {}
 
