@@ -32,6 +32,7 @@ import {
 	deleteStation,
 	getStationList,
 	renameStation,
+	sleepSong,
 } from "../client.js";
 
 type AppProps = {
@@ -472,6 +473,38 @@ export const App: FC<AppProps> = ({ initialTheme = "pyxis" }) => {
 			trackInfo: () => {
 				if (queue.state.currentTrack) {
 					actions.openOverlay("trackInfo");
+				}
+			},
+			sleep: async () => {
+				const track = queue.state.currentTrack;
+				if (!track) return;
+
+				const trackName = track.songName;
+				queue.skip(); // Skip immediately for better UX
+
+				try {
+					const session = await getSession();
+					if (!session) {
+						log("Cannot sleep track: not logged in");
+						return;
+					}
+
+					const result = await Effect.runPromise(
+						sleepSong(session, track.trackToken).pipe(Effect.either),
+					);
+
+					if (result._tag === "Right") {
+						actions.showNotification(
+							`"${trackName}" will be skipped for 30 days`,
+							"success",
+						);
+					} else {
+						actions.showNotification("Failed to sleep track", "error");
+						log("Sleep track failed:", result.left);
+					}
+				} catch (err) {
+					actions.showNotification("An error occurred", "error");
+					log("Sleep track error:", err);
 				}
 			},
 
