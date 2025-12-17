@@ -30,6 +30,7 @@ interface KeybindConfig {
 	// View switching
 	readonly nowPlaying?: () => void;
 	readonly goBack?: () => void;
+	readonly bookmarks?: () => void;
 
 	// Station management
 	readonly deleteStation?: () => void;
@@ -213,6 +214,10 @@ export function useKeybinds(
 				} else {
 					config.nextTrack?.();
 				}
+				return;
+			}
+			if (input === "b") {
+				config.bookmarks?.();
 				return;
 			}
 			if (key.rightArrow) {

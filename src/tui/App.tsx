@@ -14,6 +14,7 @@ import {
 	TrackInfoOverlay,
 	type Command,
 } from "./components/overlays/index.js";
+import { BookmarksView } from "./components/bookmarks/index.js";
 import { NowPlayingBar, NowPlayingView } from "./components/playback/index.js";
 import { SearchView } from "./components/search/index.js";
 import { StationList } from "./components/stations/index.js";
@@ -46,11 +47,11 @@ const hintsByView: Record<
 > = {
 	stations: [
 		{ key: "/", action: "search" },
+		{ key: "b", action: "bookmarks" },
 		{ key: "n", action: "now playing" },
 		{ key: "j/k", action: "navigate" },
 		{ key: "⏎", action: "play" },
 		{ key: "?", action: "help" },
-		{ key: "q", action: "quit" },
 	],
 	search: [
 		{ key: "Esc", action: "back" },
@@ -69,6 +70,12 @@ const hintsByView: Record<
 		{ key: "Esc", action: "back" },
 		{ key: "j/k", action: "navigate" },
 		{ key: "⏎", action: "select" },
+	],
+	bookmarks: [
+		{ key: "Esc", action: "back" },
+		{ key: "j/k", action: "navigate" },
+		{ key: "⏎", action: "create station" },
+		{ key: "x", action: "delete" },
 	],
 };
 
@@ -451,6 +458,7 @@ export const App: FC<AppProps> = ({ initialTheme = "pyxis" }) => {
 				}
 			},
 			goBack: () => actions.setView("stations"),
+			bookmarks: () => actions.setView("bookmarks"),
 
 			// Playback
 			playPause: () => {
@@ -524,8 +532,7 @@ export const App: FC<AppProps> = ({ initialTheme = "pyxis" }) => {
 			// Leader key commands
 			leader: {
 				theme: () => actions.openOverlay("themePicker"),
-				bookmarks: () =>
-					actions.showNotification("Bookmarks coming soon", "info"),
+				bookmarks: () => actions.setView("bookmarks"),
 				refresh: async () => {
 					actions.setLoadingStations(true);
 					const session = await getSession();
@@ -713,6 +720,19 @@ export const App: FC<AppProps> = ({ initialTheme = "pyxis" }) => {
 						queue={queue.state.queue}
 						position={queue.state.position}
 						isPlaying={queue.state.isPlaying}
+					/>
+				);
+
+			case "bookmarks":
+				return (
+					<BookmarksView
+						isVisible={state.currentView === "bookmarks"}
+						onClose={() => actions.setView("stations")}
+						onStationCreated={() => {
+							// Refresh stations after creating from bookmark
+							actions.setView("stations");
+						}}
+						onNotification={actions.showNotification}
 					/>
 				);
 
