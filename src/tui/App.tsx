@@ -464,8 +464,20 @@ export const App: FC<AppProps> = ({ initialTheme = "pyxis" }) => {
 
 			// Playback
 			playPause: () => {
-				if (queue.state.isPlaying) {
+				if (queue.state.currentTrack) {
+					// Toggle pause if already playing/paused
 					queue.togglePause();
+				} else {
+					// Start playing selected station if nothing is playing
+					const selectedStation = state.stations[state.selectedStationIndex];
+					if (selectedStation) {
+						handlePlayStation(selectedStation);
+					}
+				}
+			},
+			nextTrack: () => {
+				if (queue.state.currentTrack) {
+					queue.skip();
 				}
 			},
 			like: () => {

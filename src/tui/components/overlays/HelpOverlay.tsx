@@ -25,10 +25,9 @@ const keybinds = {
 		{ key: "A", action: "Bookmark artist" },
 	],
 	stations: [
-		{ key: "c", action: "Create station" },
 		{ key: "r", action: "Rename station" },
 		{ key: "x", action: "Delete station" },
-		{ key: "S", action: "Manage seeds" },
+		{ key: "→", action: "Skip track" },
 	],
 	system: [
 		{ key: ":", action: "Command palette" },
