@@ -1,7 +1,7 @@
 import { Effect } from "effect";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { getSession } from "../../cli/cache/session.js";
-import { getPlaylist } from "../../client.js";
+import { addFeedback, getPlaylist } from "../../client.js";
 import { getAudioUrl } from "../../quality.js";
 import { log } from "../utils/logger.js";
 import { usePlayback } from "./usePlayback.js";
@@ -269,23 +269,75 @@ export function useQueue(): UseQueueResult {
 		lastPlayedTokenRef.current = null;
 	}, [playback]);
 
-	// Like current track (placeholder - needs API integration)
-	const likeTrack = useCallback(() => {
-		if (currentTrack) {
-			log("Like track:", currentTrack.songName);
-			setCurrentTrack((prev) => (prev ? { ...prev, rating: 1 } : null));
-			// TODO: Call API to submit feedback
+	// Like current track
+	const likeTrack = useCallback(async () => {
+		if (!currentTrack || !currentStation) {
+			return;
 		}
-	}, [currentTrack]);
 
-	// Dislike current track - skips to next
-	const dislikeTrack = useCallback(() => {
-		if (currentTrack) {
-			log("Dislike track:", currentTrack.songName);
-			// TODO: Call API to submit feedback
-			skip();
+		log("Like track:", currentTrack.songName);
+		setCurrentTrack((prev) => (prev ? { ...prev, rating: 1 } : null));
+
+		try {
+			const session = await getSession();
+			if (!session) {
+				log("Cannot like track: not logged in");
+				return;
+			}
+
+			const result = await Effect.runPromise(
+				addFeedback(
+					session,
+					currentStation.stationId,
+					currentTrack.trackToken,
+					true,
+				).pipe(Effect.either),
+			);
+
+			if (result._tag === "Left") {
+				log("Failed to submit like feedback:", result.left);
+			} else {
+				log("Like feedback submitted successfully");
+			}
+		} catch (err) {
+			log("Error submitting like feedback:", err);
 		}
-	}, [currentTrack, skip]);
+	}, [currentTrack, currentStation]);
+
+	// Dislike current track - submits feedback and skips to next
+	const dislikeTrack = useCallback(async () => {
+		if (!currentTrack || !currentStation) {
+			return;
+		}
+
+		log("Dislike track:", currentTrack.songName);
+		const trackToken = currentTrack.trackToken;
+
+		// Skip immediately for better UX
+		skip();
+
+		try {
+			const session = await getSession();
+			if (!session) {
+				log("Cannot dislike track: not logged in");
+				return;
+			}
+
+			const result = await Effect.runPromise(
+				addFeedback(session, currentStation.stationId, trackToken, false).pipe(
+					Effect.either,
+				),
+			);
+
+			if (result._tag === "Left") {
+				log("Failed to submit dislike feedback:", result.left);
+			} else {
+				log("Dislike feedback submitted successfully");
+			}
+		} catch (err) {
+			log("Error submitting dislike feedback:", err);
+		}
+	}, [currentTrack, currentStation, skip]);
 
 	// Compose the state object
 	const state: QueueState = {

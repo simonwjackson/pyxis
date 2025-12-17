@@ -482,23 +482,22 @@ export const App: FC<AppProps> = ({ initialTheme = "pyxis" }) => {
 
 			if (createResult._tag === "Right") {
 				const newStation = createResult.right;
-
-				// Add new station to the list and select it
-				const stationData = {
-					stationId: newStation.stationId,
-					stationName: newStation.stationName,
-					isQuickMix: false,
-				};
-				const updatedStations = [stationData, ...state.stations];
-				actions.setStations(updatedStations);
-				actions.selectStation(0);
-
-				// Automatically start playing the new station
 				actions.showNotification(
-					`Playing "${newStation.stationName}"...`,
+					`Created station "${newStation.stationName}"`,
 					"success",
 				);
-				queue.playStation(stationData);
+
+				// Add new station to the list and select it
+				const updatedStations = [
+					{
+						stationId: newStation.stationId,
+						stationName: newStation.stationName,
+						isQuickMix: false,
+					},
+					...state.stations,
+				];
+				actions.setStations(updatedStations);
+				actions.selectStation(0);
 			} else {
 				actions.showNotification("Failed to create station", "error");
 				log("Station creation failed", createResult.left);
