@@ -157,6 +157,10 @@ export const usePyxis = (initialTheme?: string) => {
 			(view: View) => dispatch({ type: "SET_VIEW", payload: view }),
 			[],
 		),
+		goBack: useCallback(
+			() => dispatch({ type: "SET_VIEW", payload: "stations" }),
+			[],
+		),
 		openOverlay: useCallback(
 			(overlay: Overlay) => dispatch({ type: "SET_OVERLAY", payload: overlay }),
 			[],

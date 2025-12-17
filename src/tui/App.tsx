@@ -1,7 +1,7 @@
 import { Spinner } from "@inkjs/ui";
 import { Effect } from "effect";
 import { Box, Text, useApp } from "ink";
-import { type FC, useEffect, useRef, useState } from "react";
+import { type FC, useEffect, useMemo, useRef, useState } from "react";
 
 import { Footer, Header } from "./components/layout/index.js";
 import {
@@ -12,13 +12,15 @@ import {
 	ThemePicker,
 	type Command,
 } from "./components/overlays/index.js";
-import { NowPlayingBar } from "./components/playback/index.js";
+import { NowPlayingBar, NowPlayingView } from "./components/playback/index.js";
+import { SearchView } from "./components/search/index.js";
 import { StationList } from "./components/stations/index.js";
 import {
 	useKeybinds,
 	usePyxis,
 	useQueue,
 	useTerminalSize,
+	type View,
 } from "./hooks/index.js";
 import { ThemeProvider, loadTheme } from "./theme/index.js";
 import { log } from "./utils/logger.js";
@@ -30,13 +32,37 @@ type AppProps = {
 };
 
 // Hints for footer based on current view
-const hints = [
-	{ key: "j/k", action: "navigate" },
-	{ key: "⏎", action: "play" },
-	{ key: "x", action: "delete" },
-	{ key: "?", action: "help" },
-	{ key: "q", action: "quit" },
-] as const;
+const hintsByView: Record<
+	View,
+	readonly { readonly key: string; readonly action: string }[]
+> = {
+	stations: [
+		{ key: "/", action: "search" },
+		{ key: "n", action: "now playing" },
+		{ key: "j/k", action: "navigate" },
+		{ key: "⏎", action: "play" },
+		{ key: "?", action: "help" },
+		{ key: "q", action: "quit" },
+	],
+	search: [
+		{ key: "Esc", action: "back" },
+		{ key: "Tab", action: "switch focus" },
+		{ key: "j/k", action: "navigate" },
+		{ key: "⏎", action: "create station" },
+	],
+	nowPlaying: [
+		{ key: "Esc", action: "back" },
+		{ key: "/", action: "search" },
+		{ key: "+/-", action: "rate" },
+		{ key: "space", action: "pause" },
+		{ key: "z", action: "sleep" },
+	],
+	settings: [
+		{ key: "Esc", action: "back" },
+		{ key: "j/k", action: "navigate" },
+		{ key: "⏎", action: "select" },
+	],
+};
 
 // Command palette commands - simplified since we removed unused params
 const commands: readonly Command[] = [
@@ -104,6 +130,13 @@ export const App: FC<AppProps> = ({ initialTheme = "pyxis" }) => {
 		stationId: string;
 		stationName: string;
 	} | null>(null);
+	const [authSession, setAuthSession] = useState<{
+		syncTime: number;
+		partnerId: string;
+		partnerAuthToken: string;
+		userAuthToken: string;
+		userId: string;
+	} | null>(null);
 
 	// Queue management - handles playback, advancement, and refill
 	const queue = useQueue();
@@ -145,7 +178,8 @@ export const App: FC<AppProps> = ({ initialTheme = "pyxis" }) => {
 					return;
 				}
 
-				// Session found - mark as authenticated
+				// Session found - mark as authenticated and store for search
+				setAuthSession(session);
 				actions.setAuthenticated(true, null);
 
 				// Load stations using Effect
@@ -191,7 +225,7 @@ export const App: FC<AppProps> = ({ initialTheme = "pyxis" }) => {
 				break;
 			}
 			case "search":
-				actions.showNotification("Search coming soon", "info");
+				actions.setView("search");
 				break;
 			case "like":
 				if (queue.state.currentTrack) {
@@ -345,6 +379,15 @@ export const App: FC<AppProps> = ({ initialTheme = "pyxis" }) => {
 				}
 			},
 
+			// View switching
+			search: () => actions.setView("search"),
+			nowPlaying: () => {
+				if (queue.state.currentTrack) {
+					actions.setView("nowPlaying");
+				}
+			},
+			goBack: () => actions.setView("stations"),
+
 			// Playback
 			playPause: () => {
 				if (queue.state.isPlaying) {
@@ -402,10 +445,60 @@ export const App: FC<AppProps> = ({ initialTheme = "pyxis" }) => {
 				},
 			},
 		},
-		{ enabled: state.activeOverlay === null },
+		{
+			enabled: state.activeOverlay === null && state.currentView !== "search",
+		},
 	);
 
-	// Render content based on state
+	// Handle search result selection - create station from the result
+	const handleSearchSelect = async (result: {
+		type: "artist" | "song" | "genre";
+		name: string;
+		musicToken: string;
+	}) => {
+		actions.showNotification(`Creating station from ${result.name}...`, "info");
+		actions.setView("stations");
+
+		// TODO: Implement station creation from search result
+		// For now, just show a notification
+		actions.showNotification(
+			`Station creation from ${result.type} not yet implemented`,
+			"info",
+		);
+	};
+
+	// Render stations view (default/home)
+	const renderStationsView = () => {
+		const playingId = queue.state.currentStation?.stationId;
+		// Adjust max visible based on whether now playing bar is shown
+		// Account for: header(3) + footer(1) + outer border(2) + stations title(1) + station footer(2)
+		// Now playing adds: border(2) + title(1) + track info(1) + progress(1) = 5
+		const nowPlayingHeight = queue.state.currentTrack ? 6 : 0;
+		const reservedRows = 9 + nowPlayingHeight;
+		return (
+			<Box
+				flexGrow={1}
+				flexDirection="column"
+				borderStyle="round"
+				marginX={1}
+				paddingX={1}
+			>
+				<Box marginBottom={1}>
+					<Text bold color="cyan">
+						Stations
+					</Text>
+				</Box>
+				<StationList
+					stations={state.stations}
+					selectedIndex={state.selectedStationIndex}
+					{...(playingId !== undefined && { playingStationId: playingId })}
+					maxVisible={Math.max(5, rows - reservedRows)}
+				/>
+			</Box>
+		);
+	};
+
+	// Render content based on state and currentView
 	const renderContent = () => {
 		// Loading state
 		if (state.isLoadingStations) {
@@ -442,8 +535,8 @@ export const App: FC<AppProps> = ({ initialTheme = "pyxis" }) => {
 			);
 		}
 
-		// No stations
-		if (state.stations.length === 0) {
+		// No stations (only applies to stations view)
+		if (state.currentView === "stations" && state.stations.length === 0) {
 			return (
 				<Box
 					flexGrow={1}
@@ -457,33 +550,44 @@ export const App: FC<AppProps> = ({ initialTheme = "pyxis" }) => {
 			);
 		}
 
-		// Show station list
-		const playingId = queue.state.currentStation?.stationId;
-		// Adjust max visible based on whether now playing bar is shown
-		// Account for: header(3) + footer(1) + outer border(2) + stations title(1) + station footer(2)
-		// Now playing adds: border(2) + title(1) + track info(1) + progress(1) = 5
-		const nowPlayingHeight = queue.state.currentTrack ? 6 : 0;
-		const reservedRows = 9 + nowPlayingHeight;
-		return (
-			<Box
-				flexGrow={1}
-				flexDirection="column"
-				borderStyle="round"
-				marginX={1}
-				paddingX={1}
-			>
-				<Box marginBottom={1}>
-					<Text bold color="cyan">
-						Stations
-					</Text>
-				</Box>
-				<StationList
-					stations={state.stations}
-					selectedIndex={state.selectedStationIndex}
-					{...(playingId !== undefined && { playingStationId: playingId })}
-					maxVisible={Math.max(5, rows - reservedRows)}
-				/>
-				{queue.state.currentTrack && (
+		// Switch based on currentView
+		switch (state.currentView) {
+			case "search":
+				return (
+					<SearchView
+						isVisible={state.currentView === "search"}
+						onClose={() => actions.setView("stations")}
+						onSelect={handleSearchSelect}
+						{...(authSession && { authState: authSession })}
+					/>
+				);
+
+			case "nowPlaying":
+				return (
+					<NowPlayingView
+						track={queue.state.currentTrack}
+						station={queue.state.currentStation}
+						queue={queue.state.queue}
+						position={queue.state.position}
+						isPlaying={queue.state.isPlaying}
+					/>
+				);
+
+			case "stations":
+			default:
+				return renderStationsView();
+		}
+	};
+
+	return (
+		<ThemeProvider theme={theme}>
+			<Box flexDirection="column" width={columns} height={rows}>
+				<Header title="pyxis" theme={initialTheme} />
+
+				{renderContent()}
+
+				{/* Now Playing Bar - persists across all views except nowPlaying view */}
+				{queue.state.currentTrack && state.currentView !== "nowPlaying" && (
 					<NowPlayingBar
 						track={{
 							...queue.state.currentTrack,
@@ -493,16 +597,6 @@ export const App: FC<AppProps> = ({ initialTheme = "pyxis" }) => {
 						isPlaying={queue.state.isPlaying}
 					/>
 				)}
-			</Box>
-		);
-	};
-
-	return (
-		<ThemeProvider theme={theme}>
-			<Box flexDirection="column" width={columns} height={rows}>
-				<Header title="pyxis" theme={initialTheme} />
-
-				{renderContent()}
 
 				{/* Notification display */}
 				{state.notification && (
@@ -521,7 +615,7 @@ export const App: FC<AppProps> = ({ initialTheme = "pyxis" }) => {
 					</Box>
 				)}
 
-				<Footer hints={hints} />
+				<Footer hints={hintsByView[state.currentView]} />
 
 				{/* Overlays */}
 				<HelpOverlay

@@ -27,6 +27,10 @@ interface KeybindConfig {
 	readonly back?: () => void;
 	readonly search?: () => void;
 
+	// View switching
+	readonly nowPlaying?: () => void;
+	readonly goBack?: () => void;
+
 	// Station management
 	readonly deleteStation?: () => void;
 	readonly renameStation?: () => void;
@@ -179,7 +183,16 @@ export function useKeybinds(
 				config.select?.();
 				return;
 			}
-			if (key.escape || input === "h" || key.leftArrow) {
+			// Escape: goBack takes priority for view switching, falls back to back
+			if (key.escape) {
+				if (config.goBack) {
+					config.goBack();
+				} else {
+					config.back?.();
+				}
+				return;
+			}
+			if (input === "h" || key.leftArrow) {
 				config.back?.();
 				return;
 			}
@@ -193,7 +206,16 @@ export function useKeybinds(
 				config.playPause?.();
 				return;
 			}
-			if (input === "n" || key.rightArrow) {
+			// View switching: n for now playing (when handler defined), otherwise nextTrack
+			if (input === "n") {
+				if (config.nowPlaying) {
+					config.nowPlaying();
+				} else {
+					config.nextTrack?.();
+				}
+				return;
+			}
+			if (key.rightArrow) {
 				config.nextTrack?.();
 				return;
 			}

@@ -337,7 +337,7 @@ export const SearchView: FC<SearchViewProps> = ({
 	const genresStartIndex = songsStartIndex + groupedResults.songs.length;
 
 	return (
-		<Box flexDirection="column" flexGrow={1}>
+		<Box flexDirection="column" flexGrow={1} marginX={1}>
 			{/* Search input panel */}
 			<Panel title="Search">
 				<Box>
@@ -351,11 +351,9 @@ export const SearchView: FC<SearchViewProps> = ({
 				</Box>
 			</Panel>
 
-			<Box marginTop={1} />
-
 			{/* Results panel */}
-			<Panel title="Results">
-				<Box flexDirection="column" minHeight={10}>
+			<Panel title="Results" flexGrow={1}>
+				<Box flexDirection="column">
 					{/* Loading state */}
 					{searchState.status === "loading" && (
 						<Box>
@@ -402,15 +400,6 @@ export const SearchView: FC<SearchViewProps> = ({
 					)}
 				</Box>
 			</Panel>
-
-			{/* Help footer */}
-			<Box marginTop={1}>
-				<Text color={theme.colors.textMuted}>
-					{isInputFocused ? "Tab/Down" : "j/k"}: navigate | Enter: select | Esc:
-					close
-					{!isInputFocused && " | /: search"}
-				</Text>
-			</Box>
 		</Box>
 	);
 };
