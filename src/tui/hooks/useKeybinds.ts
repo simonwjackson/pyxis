@@ -43,6 +43,8 @@ interface KeybindConfig {
 	readonly dislike?: () => void;
 	readonly sleep?: () => void;
 	readonly trackInfo?: () => void;
+	readonly bookmarkArtist?: () => void;
+	readonly bookmarkSong?: () => void;
 
 	// Debug
 	readonly toggleLog?: () => void;
@@ -238,6 +240,14 @@ export function useKeybinds(
 			}
 			if (input === "i") {
 				config.trackInfo?.();
+				return;
+			}
+			if (input === "B") {
+				config.bookmarkSong?.();
+				return;
+			}
+			if (input === "A") {
+				config.bookmarkArtist?.();
 				return;
 			}
 

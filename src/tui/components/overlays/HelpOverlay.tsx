@@ -18,11 +18,11 @@ const keybinds = {
 	],
 	playback: [
 		{ key: "space", action: "Play/pause" },
-		{ key: "n", action: "Next track" },
-		{ key: "l", action: "Like track" },
-		{ key: "d", action: "Dislike track" },
-		{ key: "s", action: "Sleep track" },
+		{ key: "+/-", action: "Like/dislike" },
+		{ key: "z", action: "Sleep track" },
 		{ key: "i", action: "Track info" },
+		{ key: "B", action: "Bookmark song" },
+		{ key: "A", action: "Bookmark artist" },
 	],
 	stations: [
 		{ key: "c", action: "Create station" },

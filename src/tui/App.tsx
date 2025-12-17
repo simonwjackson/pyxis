@@ -29,6 +29,8 @@ import { ThemeProvider, loadTheme } from "./theme/index.js";
 import { log } from "./utils/logger.js";
 import { getSession } from "../cli/cache/session.js";
 import {
+	addArtistBookmark,
+	addSongBookmark,
 	createStation,
 	deleteStation,
 	getStationList,
@@ -63,7 +65,7 @@ const hintsByView: Record<
 		{ key: "Esc", action: "back" },
 		{ key: "/", action: "search" },
 		{ key: "+/-", action: "rate" },
-		{ key: "space", action: "pause" },
+		{ key: "B/A", action: "bookmark" },
 		{ key: "z", action: "sleep" },
 	],
 	settings: [
@@ -513,6 +515,70 @@ export const App: FC<AppProps> = ({ initialTheme = "pyxis" }) => {
 				} catch (err) {
 					actions.showNotification("An error occurred", "error");
 					log("Sleep track error:", err);
+				}
+			},
+
+			// Bookmarks
+			bookmarkSong: async () => {
+				const track = queue.state.currentTrack;
+				if (!track) return;
+
+				try {
+					const session = await getSession();
+					if (!session) {
+						actions.showNotification("Not logged in", "error");
+						return;
+					}
+
+					const result = await Effect.runPromise(
+						addSongBookmark(session, { trackToken: track.trackToken }).pipe(
+							Effect.either,
+						),
+					);
+
+					if (result._tag === "Right") {
+						actions.showNotification(
+							`Bookmarked "${result.right.songName}"`,
+							"success",
+						);
+					} else {
+						actions.showNotification("Failed to bookmark song", "error");
+						log("Bookmark song failed:", result.left);
+					}
+				} catch (err) {
+					actions.showNotification("An error occurred", "error");
+					log("Bookmark song error:", err);
+				}
+			},
+			bookmarkArtist: async () => {
+				const track = queue.state.currentTrack;
+				if (!track) return;
+
+				try {
+					const session = await getSession();
+					if (!session) {
+						actions.showNotification("Not logged in", "error");
+						return;
+					}
+
+					const result = await Effect.runPromise(
+						addArtistBookmark(session, { trackToken: track.trackToken }).pipe(
+							Effect.either,
+						),
+					);
+
+					if (result._tag === "Right") {
+						actions.showNotification(
+							`Bookmarked "${result.right.artistName}"`,
+							"success",
+						);
+					} else {
+						actions.showNotification("Failed to bookmark artist", "error");
+						log("Bookmark artist failed:", result.left);
+					}
+				} catch (err) {
+					actions.showNotification("An error occurred", "error");
+					log("Bookmark artist error:", err);
 				}
 			},
 
