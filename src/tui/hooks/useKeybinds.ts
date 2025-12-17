@@ -33,6 +33,7 @@ interface KeybindConfig {
 	readonly bookmarks?: () => void;
 
 	// Station management
+	readonly createStation?: () => void;
 	readonly deleteStation?: () => void;
 	readonly renameStation?: () => void;
 
@@ -252,6 +253,10 @@ export function useKeybinds(
 			}
 
 			// Station management
+			if (input === "c") {
+				config.createStation?.();
+				return;
+			}
 			if (input === "x") {
 				config.deleteStation?.();
 				return;

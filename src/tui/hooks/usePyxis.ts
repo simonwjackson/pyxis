@@ -78,8 +78,8 @@ type PyxisAction =
 	  }
 	| { type: "CLEAR_NOTIFICATION" };
 
-// Initial state
-const initialState: PyxisState = {
+// Initial state - exported for testing
+export const initialState: PyxisState = {
 	currentView: "stations",
 	activeOverlay: null,
 	isAuthenticated: false,
@@ -92,8 +92,11 @@ const initialState: PyxisState = {
 	notification: null,
 };
 
-// Reducer function
-const pyxisReducer = (state: PyxisState, action: PyxisAction): PyxisState => {
+// Reducer function - exported for testing
+export const pyxisReducer = (
+	state: PyxisState,
+	action: PyxisAction,
+): PyxisState => {
 	switch (action.type) {
 		case "SET_VIEW":
 			return { ...state, currentView: action.payload };

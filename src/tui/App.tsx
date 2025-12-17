@@ -595,6 +595,7 @@ export const App: FC<AppProps> = ({ initialTheme = "pyxis" }) => {
 			},
 
 			// Station management
+			createStation: () => actions.setView("search"),
 			deleteStation: handleDeleteStation,
 			renameStation: handleRenameStation,
 
