@@ -16,16 +16,30 @@ jobs:
       version: ${{ steps.version.outputs.version }}
       tag: ${{ steps.version.outputs.tag }}
     steps:
-      - name: Generate CalVer version
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Calculate CalVer version
         id: version
         run: |
-          # CalVer format: YYYY.MM.DD.RUN_NUMBER
-          DATE_PART=$(date +%Y.%-m.%-d)
-          VERSION="${DATE_PART}.${{ github.run_number }}"
+          # Format: YYYY.MMDD.BUILD (3-part semver compatible)
+          TODAY=$(date +%Y.%m%d)
+
+          # Find latest tag for today and increment, or start at 0
+          LATEST=$(git tag -l "v${TODAY}.*" | sort -V | tail -1)
+
+          if [[ -z "$LATEST" ]]; then
+            BUILD=0
+          else
+            BUILD=$((${LATEST##*.} + 1))
+          fi
+
+          VERSION="${TODAY}.${BUILD}"
           TAG="v${VERSION}"
           echo "version=${VERSION}" >> $GITHUB_OUTPUT
           echo "tag=${TAG}" >> $GITHUB_OUTPUT
-          echo "Generated version: ${VERSION}"
+          echo "Releasing ${TAG}"
 
   build:
     needs: version
@@ -81,8 +95,14 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      id-token: write
     steps:
       - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          registry-url: 'https://registry.npmjs.org'
 
       - name: Download all artifacts
         uses: actions/download-artifact@v4
@@ -100,6 +120,13 @@ jobs:
           sha256sum * > SHA256SUMS
           cat SHA256SUMS
 
+      - name: Create git tag
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag "${{ needs.version.outputs.tag }}"
+          git push origin "${{ needs.version.outputs.tag }}"
+
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
@@ -111,6 +138,13 @@ jobs:
             Rolling release from `main` branch.
 
             ### Installation
+
+            **Via npm:**
+            ```bash
+            npx @pyxis/client --help
+            # or install globally
+            npm install -g @pyxis/client
+            ```
 
             **Via Nix Flake (recommended):**
             ```bash
@@ -144,6 +178,18 @@ jobs:
             artifacts/*
           fail_on_unmatched_files: true
           make_latest: true
+
+      - name: Set package version
+        run: npm pkg set version=${{ needs.version.outputs.version }}
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build for npm
+        run: npm run build
+
+      - name: Publish to npm with provenance
+        run: npm publish --access public --provenance
 
   flakehub:
     needs: [version, release]
