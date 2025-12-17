@@ -9,6 +9,7 @@ type Overlay =
 	| "help"
 	| "log"
 	| "trackInfo"
+	| "renameStation"
 	| null;
 
 // Station type (matches API response)

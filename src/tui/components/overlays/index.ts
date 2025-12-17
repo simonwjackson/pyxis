@@ -9,6 +9,8 @@ export type { HelpOverlayProps } from "./HelpOverlay.js";
 export { HelpOverlay } from "./HelpOverlay.js";
 export type { LogViewerProps } from "./LogViewer.js";
 export { LogViewer } from "./LogViewer.js";
+export type { RenameStationOverlayProps } from "./RenameStationOverlay.js";
+export { RenameStationOverlay } from "./RenameStationOverlay.js";
 export { ThemePicker } from "./ThemePicker.js";
 export type { TrackInfoOverlayProps } from "./TrackInfoOverlay.js";
 export { TrackInfoOverlay } from "./TrackInfoOverlay.js";

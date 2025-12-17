@@ -9,6 +9,7 @@ import {
 	ConfirmDialog,
 	HelpOverlay,
 	LogViewer,
+	RenameStationOverlay,
 	ThemePicker,
 	TrackInfoOverlay,
 	type Command,
@@ -26,7 +27,12 @@ import {
 import { ThemeProvider, loadTheme } from "./theme/index.js";
 import { log } from "./utils/logger.js";
 import { getSession } from "../cli/cache/session.js";
-import { createStation, deleteStation, getStationList } from "../client.js";
+import {
+	createStation,
+	deleteStation,
+	getStationList,
+	renameStation,
+} from "../client.js";
 
 type AppProps = {
 	readonly initialTheme?: string;
@@ -340,6 +346,62 @@ export const App: FC<AppProps> = ({ initialTheme = "pyxis" }) => {
 		actions.closeOverlay();
 	};
 
+	// Handle station rename
+	const handleRenameStation = () => {
+		const selectedStation = state.stations[state.selectedStationIndex];
+		if (selectedStation) {
+			actions.openOverlay("renameStation");
+		}
+	};
+
+	const handleConfirmRename = async (stationId: string, newName: string) => {
+		actions.closeOverlay();
+
+		const selectedStation = state.stations[state.selectedStationIndex];
+		if (!selectedStation) return;
+
+		const oldName = selectedStation.stationName;
+
+		try {
+			const session = await getSession();
+			if (!session) {
+				actions.showNotification("Not logged in", "error");
+				return;
+			}
+
+			const result = await Effect.runPromise(
+				renameStation(session, {
+					stationToken: stationId,
+					stationName: newName,
+				}).pipe(Effect.either),
+			);
+
+			if (result._tag === "Right") {
+				// Update local state
+				const updatedStations = state.stations.map((s) =>
+					s.stationId === stationId
+						? { ...s, stationName: result.right.stationName }
+						: s,
+				);
+				actions.setStations(updatedStations);
+				actions.showNotification(
+					`Renamed "${oldName}" to "${result.right.stationName}"`,
+					"success",
+				);
+			} else {
+				actions.showNotification("Failed to rename station", "error");
+				log("Rename failed:", result.left);
+			}
+		} catch (err) {
+			actions.showNotification("An error occurred", "error");
+			log("Rename error:", err);
+		}
+	};
+
+	const handleCancelRename = () => {
+		actions.closeOverlay();
+	};
+
 	// Handle playing a station - now delegates to useQueue
 	const handlePlayStation = (station: {
 		stationId: string;
@@ -415,6 +477,7 @@ export const App: FC<AppProps> = ({ initialTheme = "pyxis" }) => {
 
 			// Station management
 			deleteStation: handleDeleteStation,
+			renameStation: handleRenameStation,
 
 			// Debug
 			toggleLog: () => {
@@ -694,6 +757,18 @@ export const App: FC<AppProps> = ({ initialTheme = "pyxis" }) => {
 					track={queue.state.currentTrack}
 					stationName={queue.state.currentStation?.stationName ?? null}
 					onClose={actions.closeOverlay}
+				/>
+
+				<RenameStationOverlay
+					isVisible={state.activeOverlay === "renameStation"}
+					stationId={
+						state.stations[state.selectedStationIndex]?.stationId ?? null
+					}
+					currentName={
+						state.stations[state.selectedStationIndex]?.stationName ?? ""
+					}
+					onConfirm={handleConfirmRename}
+					onCancel={handleCancelRename}
 				/>
 
 				<ConfirmDialog
