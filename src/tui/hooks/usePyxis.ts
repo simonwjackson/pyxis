@@ -8,6 +8,7 @@ type Overlay =
 	| "confirm"
 	| "help"
 	| "log"
+	| "trackInfo"
 	| null;
 
 // Station type (matches API response)

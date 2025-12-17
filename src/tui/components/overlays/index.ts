@@ -10,3 +10,5 @@ export { HelpOverlay } from "./HelpOverlay.js";
 export type { LogViewerProps } from "./LogViewer.js";
 export { LogViewer } from "./LogViewer.js";
 export { ThemePicker } from "./ThemePicker.js";
+export type { TrackInfoOverlayProps } from "./TrackInfoOverlay.js";
+export { TrackInfoOverlay } from "./TrackInfoOverlay.js";

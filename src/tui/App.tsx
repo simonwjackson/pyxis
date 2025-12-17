@@ -10,6 +10,7 @@ import {
 	HelpOverlay,
 	LogViewer,
 	ThemePicker,
+	TrackInfoOverlay,
 	type Command,
 } from "./components/overlays/index.js";
 import { NowPlayingBar, NowPlayingView } from "./components/playback/index.js";
@@ -406,6 +407,11 @@ export const App: FC<AppProps> = ({ initialTheme = "pyxis" }) => {
 					actions.showNotification("Track skipped", "info");
 				}
 			},
+			trackInfo: () => {
+				if (queue.state.currentTrack) {
+					actions.openOverlay("trackInfo");
+				}
+			},
 
 			// Station management
 			deleteStation: handleDeleteStation,
@@ -680,6 +686,13 @@ export const App: FC<AppProps> = ({ initialTheme = "pyxis" }) => {
 
 				<LogViewer
 					isVisible={state.activeOverlay === "log"}
+					onClose={actions.closeOverlay}
+				/>
+
+				<TrackInfoOverlay
+					isVisible={state.activeOverlay === "trackInfo"}
+					track={queue.state.currentTrack}
+					stationName={queue.state.currentStation?.stationName ?? null}
 					onClose={actions.closeOverlay}
 				/>
 
