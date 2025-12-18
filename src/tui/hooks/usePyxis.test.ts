@@ -16,6 +16,7 @@ describe("usePyxis reducer", () => {
 			expect(initialState.stations).toEqual([]);
 			expect(initialState.selectedStationIndex).toBe(0);
 			expect(initialState.stationFilter).toBe("");
+			expect(initialState.isFilterActive).toBe(false);
 			expect(initialState.isLoadingStations).toBe(false);
 			expect(initialState.themeName).toBe("pyxis");
 			expect(initialState.notification).toBeNull();
@@ -229,14 +230,20 @@ describe("usePyxis reducer", () => {
 
 		describe("up direction", () => {
 			it("should move selection up by one", () => {
-				const action: PyxisAction = { type: "MOVE_SELECTION", payload: "up" };
+				const action: PyxisAction = {
+					type: "MOVE_SELECTION",
+					payload: { direction: "up", maxIndex: 4 },
+				};
 				const result = pyxisReducer(stateWithStations, action);
 				expect(result.selectedStationIndex).toBe(1);
 			});
 
 			it("should not go below 0", () => {
 				const state = { ...stateWithStations, selectedStationIndex: 0 };
-				const action: PyxisAction = { type: "MOVE_SELECTION", payload: "up" };
+				const action: PyxisAction = {
+					type: "MOVE_SELECTION",
+					payload: { direction: "up", maxIndex: 4 },
+				};
 				const result = pyxisReducer(state, action);
 				expect(result.selectedStationIndex).toBe(0);
 			});
@@ -244,14 +251,20 @@ describe("usePyxis reducer", () => {
 
 		describe("down direction", () => {
 			it("should move selection down by one", () => {
-				const action: PyxisAction = { type: "MOVE_SELECTION", payload: "down" };
+				const action: PyxisAction = {
+					type: "MOVE_SELECTION",
+					payload: { direction: "down", maxIndex: 4 },
+				};
 				const result = pyxisReducer(stateWithStations, action);
 				expect(result.selectedStationIndex).toBe(3);
 			});
 
 			it("should not exceed max index", () => {
 				const state = { ...stateWithStations, selectedStationIndex: 4 };
-				const action: PyxisAction = { type: "MOVE_SELECTION", payload: "down" };
+				const action: PyxisAction = {
+					type: "MOVE_SELECTION",
+					payload: { direction: "down", maxIndex: 4 },
+				};
 				const result = pyxisReducer(state, action);
 				expect(result.selectedStationIndex).toBe(4);
 			});
@@ -259,7 +272,10 @@ describe("usePyxis reducer", () => {
 
 		describe("top direction", () => {
 			it("should jump to first station", () => {
-				const action: PyxisAction = { type: "MOVE_SELECTION", payload: "top" };
+				const action: PyxisAction = {
+					type: "MOVE_SELECTION",
+					payload: { direction: "top", maxIndex: 4 },
+				};
 				const result = pyxisReducer(stateWithStations, action);
 				expect(result.selectedStationIndex).toBe(0);
 			});
@@ -269,7 +285,7 @@ describe("usePyxis reducer", () => {
 			it("should jump to last station", () => {
 				const action: PyxisAction = {
 					type: "MOVE_SELECTION",
-					payload: "bottom",
+					payload: { direction: "bottom", maxIndex: 4 },
 				};
 				const result = pyxisReducer(stateWithStations, action);
 				expect(result.selectedStationIndex).toBe(4);
@@ -280,7 +296,10 @@ describe("usePyxis reducer", () => {
 			// Note: With empty stations, max = -1, so down clamps to -1
 			// This is a known edge case - in practice, empty stations shouldn't allow navigation
 			const state: PyxisState = { ...initialState, stations: [] };
-			const action: PyxisAction = { type: "MOVE_SELECTION", payload: "down" };
+			const action: PyxisAction = {
+				type: "MOVE_SELECTION",
+				payload: { direction: "down", maxIndex: -1 },
+			};
 			const result = pyxisReducer(state, action);
 			expect(result.selectedStationIndex).toBe(-1);
 		});
@@ -303,6 +322,37 @@ describe("usePyxis reducer", () => {
 			const action: PyxisAction = { type: "SET_STATION_FILTER", payload: "" };
 			const result = pyxisReducer(state, action);
 			expect(result.stationFilter).toBe("");
+		});
+	});
+
+	describe("SET_FILTER_ACTIVE action", () => {
+		it("should set filter active to true", () => {
+			const action: PyxisAction = { type: "SET_FILTER_ACTIVE", payload: true };
+			const result = pyxisReducer(initialState, action);
+			expect(result.isFilterActive).toBe(true);
+		});
+
+		it("should set filter active to false", () => {
+			const state: PyxisState = { ...initialState, isFilterActive: true };
+			const action: PyxisAction = { type: "SET_FILTER_ACTIVE", payload: false };
+			const result = pyxisReducer(state, action);
+			expect(result.isFilterActive).toBe(false);
+		});
+	});
+
+	describe("CLEAR_FILTER action", () => {
+		it("should clear filter and deactivate", () => {
+			const state: PyxisState = {
+				...initialState,
+				stationFilter: "rock",
+				isFilterActive: true,
+				selectedStationIndex: 5,
+			};
+			const action: PyxisAction = { type: "CLEAR_FILTER" };
+			const result = pyxisReducer(state, action);
+			expect(result.stationFilter).toBe("");
+			expect(result.isFilterActive).toBe(false);
+			expect(result.selectedStationIndex).toBe(0);
 		});
 	});
 

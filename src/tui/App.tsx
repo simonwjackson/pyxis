@@ -48,6 +48,7 @@ const hintsByView: Record<
 	readonly { readonly key: string; readonly action: string }[]
 > = {
 	stations: [
+		{ key: "f", action: "filter" },
 		{ key: "/", action: "search" },
 		{ key: "b", action: "bookmarks" },
 		{ key: "n", action: "now playing" },
@@ -158,6 +159,18 @@ export const App: FC<AppProps> = ({ initialTheme = "pyxis" }) => {
 	// Queue management - handles playback, advancement, and refill
 	const queue = useQueue();
 
+	// Compute filtered stations list
+	const filteredStations = useMemo(() => {
+		if (!state.stationFilter.trim()) return state.stations;
+		const lowerFilter = state.stationFilter.toLowerCase();
+		return state.stations.filter((s) =>
+			s.stationName.toLowerCase().includes(lowerFilter),
+		);
+	}, [state.stations, state.stationFilter]);
+
+	// Get the currently selected station from filtered list
+	const selectedStation = filteredStations[state.selectedStationIndex];
+
 	// Show notification when queue has errors
 	useEffect(() => {
 		if (queue.state.error) {
@@ -235,7 +248,6 @@ export const App: FC<AppProps> = ({ initialTheme = "pyxis" }) => {
 		actions.closeOverlay();
 		switch (command.id) {
 			case "play": {
-				const selectedStation = state.stations[state.selectedStationIndex];
 				if (selectedStation) {
 					handlePlayStation(selectedStation);
 				}
@@ -300,7 +312,6 @@ export const App: FC<AppProps> = ({ initialTheme = "pyxis" }) => {
 
 	// Handle station delete
 	const handleDeleteStation = () => {
-		const selectedStation = state.stations[state.selectedStationIndex];
 		if (selectedStation) {
 			setPendingDeleteStation({
 				stationId: selectedStation.stationId,
@@ -358,7 +369,6 @@ export const App: FC<AppProps> = ({ initialTheme = "pyxis" }) => {
 
 	// Handle station rename
 	const handleRenameStation = () => {
-		const selectedStation = state.stations[state.selectedStationIndex];
 		if (selectedStation) {
 			actions.openOverlay("renameStation");
 		}
@@ -367,7 +377,6 @@ export const App: FC<AppProps> = ({ initialTheme = "pyxis" }) => {
 	const handleConfirmRename = async (stationId: string, newName: string) => {
 		actions.closeOverlay();
 
-		const selectedStation = state.stations[state.selectedStationIndex];
 		if (!selectedStation) return;
 
 		const oldName = selectedStation.stationName;
@@ -434,16 +443,17 @@ export const App: FC<AppProps> = ({ initialTheme = "pyxis" }) => {
 			commandPalette: () => actions.openOverlay("commandPalette"),
 
 			// Navigation
-			moveUp: () => actions.moveSelection("up"),
-			moveDown: () => actions.moveSelection("down"),
-			goToTop: () => actions.moveSelection("top"),
-			goToBottom: () => actions.moveSelection("bottom"),
+			moveUp: () => actions.moveSelection("up", filteredStations.length - 1),
+			moveDown: () =>
+				actions.moveSelection("down", filteredStations.length - 1),
+			goToTop: () => actions.moveSelection("top", filteredStations.length - 1),
+			goToBottom: () =>
+				actions.moveSelection("bottom", filteredStations.length - 1),
 			select: () => {
 				log("select keybind triggered", {
 					index: state.selectedStationIndex,
-					stationCount: state.stations.length,
+					stationCount: filteredStations.length,
 				});
-				const selectedStation = state.stations[state.selectedStationIndex];
 				if (selectedStation) {
 					log("calling handlePlayStation", selectedStation.stationName);
 					handlePlayStation(selectedStation);
@@ -459,7 +469,14 @@ export const App: FC<AppProps> = ({ initialTheme = "pyxis" }) => {
 					actions.setView("nowPlaying");
 				}
 			},
-			goBack: () => actions.setView("stations"),
+			goBack: () => {
+				// If there's an active filter, clear it first
+				if (state.stationFilter) {
+					actions.clearFilter();
+				} else {
+					actions.setView("stations");
+				}
+			},
 			bookmarks: () => actions.setView("bookmarks"),
 
 			// Playback
@@ -469,7 +486,6 @@ export const App: FC<AppProps> = ({ initialTheme = "pyxis" }) => {
 					queue.togglePause();
 				} else {
 					// Start playing selected station if nothing is playing
-					const selectedStation = state.stations[state.selectedStationIndex];
 					if (selectedStation) {
 						handlePlayStation(selectedStation);
 					}
@@ -598,6 +614,7 @@ export const App: FC<AppProps> = ({ initialTheme = "pyxis" }) => {
 			createStation: () => actions.setView("search"),
 			deleteStation: handleDeleteStation,
 			renameStation: handleRenameStation,
+			filterStations: () => actions.setFilterActive(true),
 
 			// Debug
 			toggleLog: () => {
@@ -634,7 +651,10 @@ export const App: FC<AppProps> = ({ initialTheme = "pyxis" }) => {
 			},
 		},
 		{
-			enabled: state.activeOverlay === null && state.currentView !== "search",
+			enabled:
+				state.activeOverlay === null &&
+				state.currentView !== "search" &&
+				!state.isFilterActive,
 		},
 	);
 
@@ -722,6 +742,10 @@ export const App: FC<AppProps> = ({ initialTheme = "pyxis" }) => {
 					selectedIndex={state.selectedStationIndex}
 					{...(playingId !== undefined && { playingStationId: playingId })}
 					maxVisible={Math.max(5, rows - reservedRows)}
+					filter={state.stationFilter}
+					isFilterActive={state.isFilterActive}
+					onFilterChange={actions.setStationFilter}
+					onFilterClose={actions.clearFilter}
 				/>
 			</Box>
 		);
@@ -893,12 +917,8 @@ export const App: FC<AppProps> = ({ initialTheme = "pyxis" }) => {
 
 				<RenameStationOverlay
 					isVisible={state.activeOverlay === "renameStation"}
-					stationId={
-						state.stations[state.selectedStationIndex]?.stationId ?? null
-					}
-					currentName={
-						state.stations[state.selectedStationIndex]?.stationName ?? ""
-					}
+					stationId={selectedStation?.stationId ?? null}
+					currentName={selectedStation?.stationName ?? ""}
 					onConfirm={handleConfirmRename}
 					onCancel={handleCancelRename}
 				/>

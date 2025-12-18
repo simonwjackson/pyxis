@@ -169,6 +169,10 @@ const simulateKeypress = (
 		config.renameStation?.();
 		return;
 	}
+	if (input === "f") {
+		config.filterStations?.();
+		return;
+	}
 
 	// Debug
 	if (input === "@") {
@@ -369,6 +373,12 @@ describe("useKeybinds routing logic", () => {
 			const renameStation = mock(() => {});
 			simulateKeypress({ renameStation }, "r");
 			expect(renameStation).toHaveBeenCalledTimes(1);
+		});
+
+		it("should call filterStations on f key", () => {
+			const filterStations = mock(() => {});
+			simulateKeypress({ filterStations }, "f");
+			expect(filterStations).toHaveBeenCalledTimes(1);
 		});
 	});
 

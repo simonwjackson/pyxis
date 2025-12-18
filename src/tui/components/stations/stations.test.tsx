@@ -226,3 +226,101 @@ describe("StationList virtual scrolling", () => {
 		expect(lastFrame()).not.toContain("▼ more");
 	});
 });
+
+describe("StationList filtering", () => {
+	const mockStations = [
+		{ stationId: "1", stationName: "Pink Floyd Radio" },
+		{ stationId: "2", stationName: "Led Zeppelin Radio" },
+		{ stationId: "3", stationName: "Pink Martini Radio" },
+		{ stationId: "4", stationName: "Queen Radio" },
+		{ stationId: "5", stationName: "The Beatles Radio" },
+	];
+
+	it("should filter stations by name (case-insensitive)", () => {
+		const { lastFrame } = render(
+			<ThemedWrapper>
+				<StationList stations={mockStations} selectedIndex={0} filter="pink" />
+			</ThemedWrapper>,
+		);
+
+		// Should show stations containing "pink"
+		expect(lastFrame()).toContain("Pink Floyd Radio");
+		expect(lastFrame()).toContain("Pink Martini Radio");
+		// Should not show other stations
+		expect(lastFrame()).not.toContain("Led Zeppelin Radio");
+		expect(lastFrame()).not.toContain("Queen Radio");
+		expect(lastFrame()).not.toContain("The Beatles Radio");
+	});
+
+	it("should show filtered count in footer", () => {
+		const { lastFrame } = render(
+			<ThemedWrapper>
+				<StationList stations={mockStations} selectedIndex={0} filter="pink" />
+			</ThemedWrapper>,
+		);
+
+		// Should show "2 of 5 stations · filtered"
+		expect(lastFrame()).toContain("2 of 5");
+		expect(lastFrame()).toContain("filtered");
+	});
+
+	it("should show no results message when filter matches nothing", () => {
+		const { lastFrame } = render(
+			<ThemedWrapper>
+				<StationList
+					stations={mockStations}
+					selectedIndex={0}
+					filter="xyz123"
+				/>
+			</ThemedWrapper>,
+		);
+
+		expect(lastFrame()).toContain('No stations match "xyz123"');
+	});
+
+	it("should show filter indicator when filter is active but input is not focused", () => {
+		const { lastFrame } = render(
+			<ThemedWrapper>
+				<StationList
+					stations={mockStations}
+					selectedIndex={0}
+					filter="rock"
+					isFilterActive={false}
+				/>
+			</ThemedWrapper>,
+		);
+
+		expect(lastFrame()).toContain("Filter:");
+		expect(lastFrame()).toContain("rock");
+	});
+
+	it("should show all stations when filter is empty", () => {
+		const { lastFrame } = render(
+			<ThemedWrapper>
+				<StationList stations={mockStations} selectedIndex={0} filter="" />
+			</ThemedWrapper>,
+		);
+
+		// All stations should be visible
+		expect(lastFrame()).toContain("Pink Floyd Radio");
+		expect(lastFrame()).toContain("Led Zeppelin Radio");
+		expect(lastFrame()).toContain("Pink Martini Radio");
+		expect(lastFrame()).toContain("Queen Radio");
+		expect(lastFrame()).toContain("The Beatles Radio");
+		// Should show normal footer (not "filtered")
+		expect(lastFrame()).toContain("5 stations");
+		expect(lastFrame()).not.toContain("filtered");
+	});
+
+	it("should handle whitespace-only filter as empty", () => {
+		const { lastFrame } = render(
+			<ThemedWrapper>
+				<StationList stations={mockStations} selectedIndex={0} filter="   " />
+			</ThemedWrapper>,
+		);
+
+		// All stations should be visible
+		expect(lastFrame()).toContain("5 stations");
+		expect(lastFrame()).not.toContain("filtered");
+	});
+});

@@ -45,6 +45,7 @@ type PyxisState = {
 	readonly stations: readonly Station[];
 	readonly selectedStationIndex: number;
 	readonly stationFilter: string;
+	readonly isFilterActive: boolean;
 	readonly isLoadingStations: boolean;
 
 	// UI
@@ -69,8 +70,16 @@ type PyxisAction =
 	| { type: "SET_STATIONS"; payload: readonly Station[] }
 	| { type: "SET_LOADING_STATIONS"; payload: boolean }
 	| { type: "SELECT_STATION"; payload: number }
-	| { type: "MOVE_SELECTION"; payload: "up" | "down" | "top" | "bottom" }
+	| {
+			type: "MOVE_SELECTION";
+			payload: {
+				direction: "up" | "down" | "top" | "bottom";
+				maxIndex: number;
+			};
+	  }
 	| { type: "SET_STATION_FILTER"; payload: string }
+	| { type: "SET_FILTER_ACTIVE"; payload: boolean }
+	| { type: "CLEAR_FILTER" }
 	| { type: "SET_THEME"; payload: string }
 	| {
 			type: "SHOW_NOTIFICATION";
@@ -87,6 +96,7 @@ export const initialState: PyxisState = {
 	stations: [],
 	selectedStationIndex: 0,
 	stationFilter: "",
+	isFilterActive: false,
 	isLoadingStations: false,
 	themeName: "pyxis",
 	notification: null,
@@ -113,10 +123,11 @@ export const pyxisReducer = (
 		case "SELECT_STATION":
 			return { ...state, selectedStationIndex: action.payload };
 		case "MOVE_SELECTION": {
-			const { stations, selectedStationIndex } = state;
-			const max = stations.length - 1;
+			const { selectedStationIndex } = state;
+			const { direction, maxIndex } = action.payload;
+			const max = maxIndex;
 			let newIndex = selectedStationIndex;
-			switch (action.payload) {
+			switch (direction) {
 				case "up":
 					newIndex = Math.max(0, selectedStationIndex - 1);
 					break;
@@ -136,6 +147,15 @@ export const pyxisReducer = (
 			return {
 				...state,
 				stationFilter: action.payload,
+				selectedStationIndex: 0,
+			};
+		case "SET_FILTER_ACTIVE":
+			return { ...state, isFilterActive: action.payload };
+		case "CLEAR_FILTER":
+			return {
+				...state,
+				stationFilter: "",
+				isFilterActive: false,
 				selectedStationIndex: 0,
 			};
 		case "SET_THEME":
@@ -194,8 +214,8 @@ export const usePyxis = (initialTheme?: string) => {
 			[],
 		),
 		moveSelection: useCallback(
-			(direction: "up" | "down" | "top" | "bottom") =>
-				dispatch({ type: "MOVE_SELECTION", payload: direction }),
+			(direction: "up" | "down" | "top" | "bottom", maxIndex: number) =>
+				dispatch({ type: "MOVE_SELECTION", payload: { direction, maxIndex } }),
 			[],
 		),
 		setStationFilter: useCallback(
@@ -203,6 +223,12 @@ export const usePyxis = (initialTheme?: string) => {
 				dispatch({ type: "SET_STATION_FILTER", payload: filter }),
 			[],
 		),
+		setFilterActive: useCallback(
+			(active: boolean) =>
+				dispatch({ type: "SET_FILTER_ACTIVE", payload: active }),
+			[],
+		),
+		clearFilter: useCallback(() => dispatch({ type: "CLEAR_FILTER" }), []),
 		setTheme: useCallback(
 			(theme: string) => dispatch({ type: "SET_THEME", payload: theme }),
 			[],
