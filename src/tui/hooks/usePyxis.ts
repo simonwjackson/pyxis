@@ -3,6 +3,7 @@ import { useCallback, useReducer } from "react";
 // View types
 type View =
 	| "stations"
+	| "stationDetails"
 	| "nowPlaying"
 	| "search"
 	| "settings"
@@ -60,6 +61,10 @@ type PyxisState = {
 	readonly selectedStationForSeeds: string | null; // stationToken
 	readonly selectedStationNameForSeeds: string | null; // stationName for display
 
+	// Station Details
+	readonly selectedStationForDetails: string | null; // stationToken
+	readonly selectedStationNameForDetails: string | null; // stationName for display
+
 	// QuickMix
 	readonly quickMixStationIds: readonly string[]; // stations currently in QuickMix
 
@@ -109,7 +114,12 @@ type PyxisAction =
 	| {
 			readonly type: "SET_QUICKMIX_STATION_IDS";
 			readonly payload: readonly string[];
-	  };
+	  }
+	| {
+			readonly type: "OPEN_STATION_DETAILS";
+			readonly payload: { stationToken: string; stationName: string };
+	  }
+	| { readonly type: "CLOSE_STATION_DETAILS" };
 
 // Initial state - exported for testing
 export const initialState: PyxisState = {
@@ -124,6 +134,8 @@ export const initialState: PyxisState = {
 	isLoadingStations: false,
 	selectedStationForSeeds: null,
 	selectedStationNameForSeeds: null,
+	selectedStationForDetails: null,
+	selectedStationNameForDetails: null,
 	quickMixStationIds: [],
 	themeName: "pyxis",
 	notification: null,
@@ -207,6 +219,20 @@ export const pyxisReducer = (
 			};
 		case "SET_QUICKMIX_STATION_IDS":
 			return { ...state, quickMixStationIds: action.payload };
+		case "OPEN_STATION_DETAILS":
+			return {
+				...state,
+				currentView: "stationDetails",
+				selectedStationForDetails: action.payload.stationToken,
+				selectedStationNameForDetails: action.payload.stationName,
+			};
+		case "CLOSE_STATION_DETAILS":
+			return {
+				...state,
+				currentView: "stations",
+				selectedStationForDetails: null,
+				selectedStationNameForDetails: null,
+			};
 		default:
 			return state;
 	}
@@ -300,6 +326,18 @@ export const usePyxis = (initialTheme?: string) => {
 		setQuickMixStationIds: useCallback(
 			(ids: readonly string[]) =>
 				dispatch({ type: "SET_QUICKMIX_STATION_IDS", payload: ids }),
+			[],
+		),
+		openStationDetails: useCallback(
+			(stationToken: string, stationName: string) =>
+				dispatch({
+					type: "OPEN_STATION_DETAILS",
+					payload: { stationToken, stationName },
+				}),
+			[],
+		),
+		closeStationDetails: useCallback(
+			() => dispatch({ type: "CLOSE_STATION_DETAILS" }),
 			[],
 		),
 	};

@@ -19,6 +19,7 @@ import { GenreBrowserView } from "./components/genres/index.js";
 import { QuickMixManagerView } from "./components/quickmix/index.js";
 import { SeedManagerView } from "./components/seeds/index.js";
 import { SettingsView } from "./components/settings/index.js";
+import { StationDetailsView } from "./components/station-details/index.js";
 import { NowPlayingBar, NowPlayingView } from "./components/playback/index.js";
 import { SearchView } from "./components/search/index.js";
 import { StationList } from "./components/stations/index.js";
@@ -102,6 +103,11 @@ const hintsByView: Record<
 		{ key: "Space", action: "toggle" },
 		{ key: "s", action: "save" },
 		{ key: "Esc", action: "cancel" },
+	],
+	stationDetails: [
+		{ key: "Esc", action: "back" },
+		{ key: "Tab", action: "switch section" },
+		{ key: "j/k", action: "navigate" },
 	],
 };
 
@@ -687,6 +693,14 @@ export const App: FC<AppProps> = ({ initialTheme = "pyxis" }) => {
 			manageQuickMix: () => {
 				actions.setView("quickmix");
 			},
+			stationDetails: () => {
+				if (selectedStation) {
+					actions.openStationDetails(
+						selectedStation.stationId,
+						selectedStation.stationName,
+					);
+				}
+			},
 
 			// Debug
 			toggleLog: () => {
@@ -969,6 +983,18 @@ export const App: FC<AppProps> = ({ initialTheme = "pyxis" }) => {
 					<SettingsView
 						isVisible={state.currentView === "settings"}
 						onClose={() => actions.setView("stations")}
+						onNotification={actions.showNotification}
+						{...(authSession && { authState: authSession })}
+					/>
+				);
+
+			case "stationDetails":
+				return (
+					<StationDetailsView
+						isVisible={state.currentView === "stationDetails"}
+						onClose={actions.closeStationDetails}
+						stationToken={state.selectedStationForDetails}
+						stationName={state.selectedStationNameForDetails}
 						onNotification={actions.showNotification}
 						{...(authSession && { authState: authSession })}
 					/>

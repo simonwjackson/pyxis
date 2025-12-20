@@ -28,9 +28,9 @@ const keybinds = {
 		{ key: "c", action: "Create station" },
 		{ key: "r", action: "Rename station" },
 		{ key: "x", action: "Delete station" },
+		{ key: "d", action: "Station details" },
 		{ key: "s", action: "Manage seeds" },
 		{ key: "m", action: "QuickMix" },
-		{ key: "→", action: "Skip track" },
 	],
 	system: [
 		{ key: ":", action: "Command palette" },
