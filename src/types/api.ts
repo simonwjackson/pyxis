@@ -32,6 +32,12 @@ export type Station = {
 	readonly stationToken: string;
 	readonly stationName: string;
 	readonly stationId: string;
+	readonly isQuickMix?: boolean;
+	readonly quickMixStationIds?: readonly string[];
+	readonly isShared?: boolean;
+	readonly allowAddMusic?: boolean;
+	readonly allowDelete?: boolean;
+	readonly allowRename?: boolean;
 };
 
 export type StationListResponse = {

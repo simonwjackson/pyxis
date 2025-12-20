@@ -39,6 +39,7 @@ interface KeybindConfig {
 	readonly renameStation?: () => void;
 	readonly filterStations?: () => void;
 	readonly manageSeeds?: () => void;
+	readonly manageQuickMix?: () => void;
 
 	// Playback
 	readonly playPause?: () => void;
@@ -275,6 +276,10 @@ export function useKeybinds(
 			}
 			if (input === "s") {
 				config.manageSeeds?.();
+				return;
+			}
+			if (input === "m") {
+				config.manageQuickMix?.();
 				return;
 			}
 

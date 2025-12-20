@@ -29,6 +29,7 @@ const keybinds = {
 		{ key: "r", action: "Rename station" },
 		{ key: "x", action: "Delete station" },
 		{ key: "s", action: "Manage seeds" },
+		{ key: "m", action: "QuickMix" },
 		{ key: "→", action: "Skip track" },
 	],
 	system: [

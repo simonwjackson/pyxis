@@ -16,6 +16,7 @@ import {
 } from "./components/overlays/index.js";
 import { BookmarksView } from "./components/bookmarks/index.js";
 import { GenreBrowserView } from "./components/genres/index.js";
+import { QuickMixManagerView } from "./components/quickmix/index.js";
 import { SeedManagerView } from "./components/seeds/index.js";
 import { NowPlayingBar, NowPlayingView } from "./components/playback/index.js";
 import { SearchView } from "./components/search/index.js";
@@ -37,6 +38,7 @@ import {
 	deleteStation,
 	getStationList,
 	renameStation,
+	setQuickMix,
 	sleepSong,
 } from "../client.js";
 
@@ -94,6 +96,11 @@ const hintsByView: Record<
 		{ key: "j/k", action: "navigate" },
 		{ key: "x", action: "delete seed" },
 		{ key: "a", action: "add seed" },
+	],
+	quickmix: [
+		{ key: "Space", action: "toggle" },
+		{ key: "s", action: "save" },
+		{ key: "Esc", action: "cancel" },
 	],
 };
 
@@ -237,9 +244,17 @@ export const App: FC<AppProps> = ({ initialTheme = "pyxis" }) => {
 					const stations = stationsResult.right.stations.map((s) => ({
 						stationId: s.stationId,
 						stationName: s.stationName,
-						isQuickMix: s.stationName.toLowerCase().includes("shuffle"),
+						isQuickMix: s.isQuickMix ?? false,
 					}));
 					actions.setStations(stations);
+
+					// Extract QuickMix station IDs
+					const quickMixStation = stationsResult.right.stations.find(
+						(s) => s.isQuickMix,
+					);
+					if (quickMixStation?.quickMixStationIds) {
+						actions.setQuickMixStationIds(quickMixStation.quickMixStationIds);
+					}
 				} else {
 					// API error
 					actions.showNotification(
@@ -434,6 +449,36 @@ export const App: FC<AppProps> = ({ initialTheme = "pyxis" }) => {
 
 	const handleCancelRename = () => {
 		actions.closeOverlay();
+	};
+
+	// Handle QuickMix save
+	const handleQuickMixSave = async (selectedIds: readonly string[]) => {
+		try {
+			const session = await getSession();
+			if (!session) {
+				actions.showNotification("Not logged in", "error");
+				return;
+			}
+
+			const result = await Effect.runPromise(
+				setQuickMix(session, selectedIds).pipe(Effect.either),
+			);
+
+			if (result._tag === "Right") {
+				actions.setQuickMixStationIds(selectedIds);
+				actions.showNotification(
+					`QuickMix updated with ${selectedIds.length} stations`,
+					"success",
+				);
+				actions.setView("stations");
+			} else {
+				actions.showNotification("Failed to update QuickMix", "error");
+				log("QuickMix update failed:", result.left);
+			}
+		} catch (err) {
+			actions.showNotification("An error occurred", "error");
+			log("QuickMix save error:", err);
+		}
 	};
 
 	// Handle playing a station - now delegates to useQueue
@@ -637,6 +682,9 @@ export const App: FC<AppProps> = ({ initialTheme = "pyxis" }) => {
 						selectedStation.stationName,
 					);
 				}
+			},
+			manageQuickMix: () => {
+				actions.setView("quickmix");
 			},
 
 			// Debug
@@ -899,6 +947,18 @@ export const App: FC<AppProps> = ({ initialTheme = "pyxis" }) => {
 						stationName={state.selectedStationNameForSeeds}
 						onNotification={actions.showNotification}
 						{...(authSession && { authState: authSession })}
+					/>
+				);
+
+			case "quickmix":
+				return (
+					<QuickMixManagerView
+						isVisible={state.currentView === "quickmix"}
+						onClose={() => actions.setView("stations")}
+						stations={state.stations}
+						initialSelectedIds={state.quickMixStationIds}
+						onSave={handleQuickMixSave}
+						onNotification={actions.showNotification}
 					/>
 				);
 

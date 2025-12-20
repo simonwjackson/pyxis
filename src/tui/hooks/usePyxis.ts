@@ -8,7 +8,8 @@ type View =
 	| "settings"
 	| "bookmarks"
 	| "genres"
-	| "seeds";
+	| "seeds"
+	| "quickmix";
 type Overlay =
 	| "commandPalette"
 	| "themePicker"
@@ -59,6 +60,9 @@ type PyxisState = {
 	readonly selectedStationForSeeds: string | null; // stationToken
 	readonly selectedStationNameForSeeds: string | null; // stationName for display
 
+	// QuickMix
+	readonly quickMixStationIds: readonly string[]; // stations currently in QuickMix
+
 	// UI
 	readonly themeName: string;
 
@@ -101,7 +105,11 @@ type PyxisAction =
 			readonly type: "OPEN_SEED_MANAGER";
 			readonly payload: { stationToken: string; stationName: string };
 	  }
-	| { readonly type: "CLOSE_SEED_MANAGER" };
+	| { readonly type: "CLOSE_SEED_MANAGER" }
+	| {
+			readonly type: "SET_QUICKMIX_STATION_IDS";
+			readonly payload: readonly string[];
+	  };
 
 // Initial state - exported for testing
 export const initialState: PyxisState = {
@@ -116,6 +124,7 @@ export const initialState: PyxisState = {
 	isLoadingStations: false,
 	selectedStationForSeeds: null,
 	selectedStationNameForSeeds: null,
+	quickMixStationIds: [],
 	themeName: "pyxis",
 	notification: null,
 };
@@ -196,6 +205,8 @@ export const pyxisReducer = (
 				selectedStationForSeeds: null,
 				selectedStationNameForSeeds: null,
 			};
+		case "SET_QUICKMIX_STATION_IDS":
+			return { ...state, quickMixStationIds: action.payload };
 		default:
 			return state;
 	}
@@ -284,6 +295,11 @@ export const usePyxis = (initialTheme?: string) => {
 		),
 		closeSeedManager: useCallback(
 			() => dispatch({ type: "CLOSE_SEED_MANAGER" }),
+			[],
+		),
+		setQuickMixStationIds: useCallback(
+			(ids: readonly string[]) =>
+				dispatch({ type: "SET_QUICKMIX_STATION_IDS", payload: ids }),
 			[],
 		),
 	};
