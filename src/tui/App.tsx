@@ -16,6 +16,7 @@ import {
 } from "./components/overlays/index.js";
 import { BookmarksView } from "./components/bookmarks/index.js";
 import { GenreBrowserView } from "./components/genres/index.js";
+import { SeedManagerView } from "./components/seeds/index.js";
 import { NowPlayingBar, NowPlayingView } from "./components/playback/index.js";
 import { SearchView } from "./components/search/index.js";
 import { StationList } from "./components/stations/index.js";
@@ -87,6 +88,12 @@ const hintsByView: Record<
 		{ key: "Tab", action: "switch panel" },
 		{ key: "j/k", action: "navigate" },
 		{ key: "⏎", action: "create station" },
+	],
+	seeds: [
+		{ key: "Esc", action: "back" },
+		{ key: "j/k", action: "navigate" },
+		{ key: "x", action: "delete seed" },
+		{ key: "a", action: "add seed" },
 	],
 };
 
@@ -623,6 +630,14 @@ export const App: FC<AppProps> = ({ initialTheme = "pyxis" }) => {
 			deleteStation: handleDeleteStation,
 			renameStation: handleRenameStation,
 			filterStations: () => actions.setFilterActive(true),
+			manageSeeds: () => {
+				if (selectedStation) {
+					actions.openSeedManager(
+						selectedStation.stationId,
+						selectedStation.stationName,
+					);
+				}
+			},
 
 			// Debug
 			toggleLog: () => {
@@ -872,6 +887,18 @@ export const App: FC<AppProps> = ({ initialTheme = "pyxis" }) => {
 							actions.setView("stations");
 						}}
 						onNotification={actions.showNotification}
+					/>
+				);
+
+			case "seeds":
+				return (
+					<SeedManagerView
+						isVisible={state.currentView === "seeds"}
+						onClose={actions.closeSeedManager}
+						stationToken={state.selectedStationForSeeds}
+						stationName={state.selectedStationNameForSeeds}
+						onNotification={actions.showNotification}
+						{...(authSession && { authState: authSession })}
 					/>
 				);
 

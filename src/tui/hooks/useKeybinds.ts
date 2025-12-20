@@ -38,6 +38,7 @@ interface KeybindConfig {
 	readonly deleteStation?: () => void;
 	readonly renameStation?: () => void;
 	readonly filterStations?: () => void;
+	readonly manageSeeds?: () => void;
 
 	// Playback
 	readonly playPause?: () => void;
@@ -270,6 +271,10 @@ export function useKeybinds(
 			}
 			if (input === "f") {
 				config.filterStations?.();
+				return;
+			}
+			if (input === "s") {
+				config.manageSeeds?.();
 				return;
 			}
 

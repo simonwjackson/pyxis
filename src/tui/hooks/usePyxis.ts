@@ -7,7 +7,8 @@ type View =
 	| "search"
 	| "settings"
 	| "bookmarks"
-	| "genres";
+	| "genres"
+	| "seeds";
 type Overlay =
 	| "commandPalette"
 	| "themePicker"
@@ -54,6 +55,10 @@ type PyxisState = {
 	readonly isFilterActive: boolean;
 	readonly isLoadingStations: boolean;
 
+	// Seed Manager
+	readonly selectedStationForSeeds: string | null; // stationToken
+	readonly selectedStationNameForSeeds: string | null; // stationName for display
+
 	// UI
 	readonly themeName: string;
 
@@ -91,7 +96,12 @@ type PyxisAction =
 			type: "SHOW_NOTIFICATION";
 			payload: { message: string; variant: "success" | "error" | "info" };
 	  }
-	| { type: "CLEAR_NOTIFICATION" };
+	| { type: "CLEAR_NOTIFICATION" }
+	| {
+			readonly type: "OPEN_SEED_MANAGER";
+			readonly payload: { stationToken: string; stationName: string };
+	  }
+	| { readonly type: "CLOSE_SEED_MANAGER" };
 
 // Initial state - exported for testing
 export const initialState: PyxisState = {
@@ -104,6 +114,8 @@ export const initialState: PyxisState = {
 	stationFilter: "",
 	isFilterActive: false,
 	isLoadingStations: false,
+	selectedStationForSeeds: null,
+	selectedStationNameForSeeds: null,
 	themeName: "pyxis",
 	notification: null,
 };
@@ -170,6 +182,20 @@ export const pyxisReducer = (
 			return { ...state, notification: action.payload };
 		case "CLEAR_NOTIFICATION":
 			return { ...state, notification: null };
+		case "OPEN_SEED_MANAGER":
+			return {
+				...state,
+				currentView: "seeds",
+				selectedStationForSeeds: action.payload.stationToken,
+				selectedStationNameForSeeds: action.payload.stationName,
+			};
+		case "CLOSE_SEED_MANAGER":
+			return {
+				...state,
+				currentView: "stations",
+				selectedStationForSeeds: null,
+				selectedStationNameForSeeds: null,
+			};
 		default:
 			return state;
 	}
@@ -246,6 +272,18 @@ export const usePyxis = (initialTheme?: string) => {
 		),
 		clearNotification: useCallback(
 			() => dispatch({ type: "CLEAR_NOTIFICATION" }),
+			[],
+		),
+		openSeedManager: useCallback(
+			(stationToken: string, stationName: string) =>
+				dispatch({
+					type: "OPEN_SEED_MANAGER",
+					payload: { stationToken, stationName },
+				}),
+			[],
+		),
+		closeSeedManager: useCallback(
+			() => dispatch({ type: "CLOSE_SEED_MANAGER" }),
 			[],
 		),
 	};
