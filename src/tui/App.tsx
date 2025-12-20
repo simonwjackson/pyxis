@@ -15,6 +15,7 @@ import {
 	type Command,
 } from "./components/overlays/index.js";
 import { BookmarksView } from "./components/bookmarks/index.js";
+import { GenreBrowserView } from "./components/genres/index.js";
 import { NowPlayingBar, NowPlayingView } from "./components/playback/index.js";
 import { SearchView } from "./components/search/index.js";
 import { StationList } from "./components/stations/index.js";
@@ -51,6 +52,7 @@ const hintsByView: Record<
 		{ key: "f", action: "filter" },
 		{ key: "/", action: "search" },
 		{ key: "b", action: "bookmarks" },
+		{ key: "^x g", action: "genres" },
 		{ key: "n", action: "now playing" },
 		{ key: "j/k", action: "navigate" },
 		{ key: "⏎", action: "play" },
@@ -79,6 +81,12 @@ const hintsByView: Record<
 		{ key: "j/k", action: "navigate" },
 		{ key: "⏎", action: "create station" },
 		{ key: "x", action: "delete" },
+	],
+	genres: [
+		{ key: "Esc", action: "back" },
+		{ key: "Tab", action: "switch panel" },
+		{ key: "j/k", action: "navigate" },
+		{ key: "⏎", action: "create station" },
 	],
 };
 
@@ -629,6 +637,7 @@ export const App: FC<AppProps> = ({ initialTheme = "pyxis" }) => {
 			leader: {
 				theme: () => actions.openOverlay("themePicker"),
 				bookmarks: () => actions.setView("bookmarks"),
+				genres: () => actions.setView("genres"),
 				refresh: async () => {
 					actions.setLoadingStations(true);
 					const session = await getSession();
@@ -833,6 +842,33 @@ export const App: FC<AppProps> = ({ initialTheme = "pyxis" }) => {
 						onClose={() => actions.setView("stations")}
 						onStationCreated={() => {
 							// Refresh stations after creating from bookmark
+							actions.setView("stations");
+						}}
+						onNotification={actions.showNotification}
+					/>
+				);
+
+			case "genres":
+				return (
+					<GenreBrowserView
+						isVisible={state.currentView === "genres"}
+						onClose={() => actions.setView("stations")}
+						onStationCreated={async () => {
+							// Refresh stations after creating from genre
+							const session = await getSession();
+							if (session) {
+								const result = await Effect.runPromise(
+									getStationList(session).pipe(Effect.either),
+								);
+								if (result._tag === "Right") {
+									const stations = result.right.stations.map((s) => ({
+										stationId: s.stationId,
+										stationName: s.stationName,
+										isQuickMix: s.stationName.toLowerCase().includes("shuffle"),
+									}));
+									actions.setStations(stations);
+								}
+							}
 							actions.setView("stations");
 						}}
 						onNotification={actions.showNotification}

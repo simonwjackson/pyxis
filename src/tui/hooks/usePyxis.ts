@@ -1,7 +1,13 @@
 import { useCallback, useReducer } from "react";
 
 // View types
-type View = "stations" | "nowPlaying" | "search" | "settings" | "bookmarks";
+type View =
+	| "stations"
+	| "nowPlaying"
+	| "search"
+	| "settings"
+	| "bookmarks"
+	| "genres";
 type Overlay =
 	| "commandPalette"
 	| "themePicker"

@@ -10,6 +10,7 @@ interface LeaderCommands {
 	readonly account: () => void;
 	readonly bookmarks: () => void;
 	readonly refresh: () => void;
+	readonly genres: () => void;
 }
 
 interface KeybindConfig {
@@ -74,6 +75,7 @@ const LEADER_KEY_MAP: LeaderKeyMap = {
 	account: "a",
 	bookmarks: "b",
 	refresh: "r",
+	genres: "g",
 };
 
 export function useKeybinds(

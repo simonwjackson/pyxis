@@ -33,6 +33,7 @@ const keybinds = {
 	system: [
 		{ key: ":", action: "Command palette" },
 		{ key: "ctrl+x t", action: "Theme picker" },
+		{ key: "ctrl+x g", action: "Genre browser" },
 		{ key: "?", action: "This help" },
 		{ key: "q", action: "Quit" },
 	],
