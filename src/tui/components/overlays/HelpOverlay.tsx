@@ -36,6 +36,7 @@ const keybinds = {
 		{ key: ":", action: "Command palette" },
 		{ key: "ctrl+x t", action: "Theme picker" },
 		{ key: "ctrl+x g", action: "Genre browser" },
+		{ key: "ctrl+x o", action: "Settings" },
 		{ key: "?", action: "This help" },
 		{ key: "q", action: "Quit" },
 	],

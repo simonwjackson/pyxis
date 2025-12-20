@@ -18,6 +18,7 @@ import { BookmarksView } from "./components/bookmarks/index.js";
 import { GenreBrowserView } from "./components/genres/index.js";
 import { QuickMixManagerView } from "./components/quickmix/index.js";
 import { SeedManagerView } from "./components/seeds/index.js";
+import { SettingsView } from "./components/settings/index.js";
 import { NowPlayingBar, NowPlayingView } from "./components/playback/index.js";
 import { SearchView } from "./components/search/index.js";
 import { StationList } from "./components/stations/index.js";
@@ -701,6 +702,7 @@ export const App: FC<AppProps> = ({ initialTheme = "pyxis" }) => {
 				theme: () => actions.openOverlay("themePicker"),
 				bookmarks: () => actions.setView("bookmarks"),
 				genres: () => actions.setView("genres"),
+				settings: () => actions.setView("settings"),
 				refresh: async () => {
 					actions.setLoadingStations(true);
 					const session = await getSession();
@@ -959,6 +961,16 @@ export const App: FC<AppProps> = ({ initialTheme = "pyxis" }) => {
 						initialSelectedIds={state.quickMixStationIds}
 						onSave={handleQuickMixSave}
 						onNotification={actions.showNotification}
+					/>
+				);
+
+			case "settings":
+				return (
+					<SettingsView
+						isVisible={state.currentView === "settings"}
+						onClose={() => actions.setView("stations")}
+						onNotification={actions.showNotification}
+						{...(authSession && { authState: authSession })}
 					/>
 				);
 
