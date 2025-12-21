@@ -1,4 +1,4 @@
-import { Box, Text } from "ink";
+import { Box, Text, useInput } from "ink";
 import { useMemo } from "react";
 import type { FC } from "react";
 
@@ -69,14 +69,46 @@ export const NowPlayingView: FC<NowPlayingViewProps> = ({
 	queue,
 	position,
 	isPlaying,
-	onLike: _onLike,
-	onDislike: _onDislike,
-	onSleep: _onSleep,
-	onNext: _onNext,
+	onLike,
+	onDislike,
+	onSleep,
+	onNext,
 	onPrev: _onPrev,
-	onTogglePlay: _onTogglePlay,
+	onTogglePlay,
 }) => {
 	const theme = useTheme();
+
+	// Keyboard input handling
+	useInput(
+		(input, key) => {
+			// Like with +
+			if (input === "+") {
+				onLike?.();
+				return;
+			}
+			// Dislike with -
+			if (input === "-") {
+				onDislike?.();
+				return;
+			}
+			// Sleep with z
+			if (input === "z") {
+				onSleep?.();
+				return;
+			}
+			// Next with n or right arrow
+			if (input === "n" || key.rightArrow) {
+				onNext?.();
+				return;
+			}
+			// Play/pause with space
+			if (input === " ") {
+				onTogglePlay?.();
+				return;
+			}
+		},
+		{ isActive: true },
+	);
 
 	// Calculate progress bar
 	const progressBar = useMemo(() => {
@@ -169,15 +201,15 @@ export const NowPlayingView: FC<NowPlayingViewProps> = ({
 			{/* Playback controls */}
 			<Box marginBottom={2} gap={3}>
 				<Text color={theme.colors.secondary}>{icons.prev}</Text>
-				<Text color={theme.colors.primary}>{playPauseIcon}</Text>
-				<Text color={theme.colors.secondary}>{icons.next}</Text>
+				<Text color={theme.colors.primary}>{playPauseIcon} (space)</Text>
+				<Text color={theme.colors.secondary}>{icons.next} (n)</Text>
 			</Box>
 
 			{/* Action buttons */}
 			<Box marginBottom={3} gap={4}>
-				<Text color={theme.colors.liked}>{icons.liked} Like</Text>
-				<Text color={theme.colors.disliked}>{icons.disliked} Dislike</Text>
-				<Text color={theme.colors.textMuted}>💤 Sleep</Text>
+				<Text color={theme.colors.liked}>{icons.liked} Like (+)</Text>
+				<Text color={theme.colors.disliked}>{icons.disliked} Dislike (-)</Text>
+				<Text color={theme.colors.textMuted}>💤 Sleep (z)</Text>
 			</Box>
 
 			{/* Up Next panel */}

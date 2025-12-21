@@ -911,6 +911,39 @@ export const App: FC<AppProps> = ({ initialTheme = "pyxis" }) => {
 						queue={queue.state.queue}
 						position={queue.state.position}
 						isPlaying={queue.state.isPlaying}
+						onLike={() => {
+							queue.likeTrack();
+							actions.showNotification("Track liked!", "success");
+						}}
+						onDislike={() => {
+							queue.dislikeTrack();
+							actions.showNotification("Track skipped", "info");
+						}}
+						onSleep={async () => {
+							const track = queue.state.currentTrack;
+							if (!track) return;
+							const trackName = track.songName;
+							queue.skip();
+							try {
+								const session = await getSession();
+								if (!session) return;
+								const result = await Effect.runPromise(
+									sleepSong(session, track.trackToken).pipe(Effect.either),
+								);
+								if (result._tag === "Right") {
+									actions.showNotification(
+										`"${trackName}" will be skipped for 30 days`,
+										"success",
+									);
+								} else {
+									actions.showNotification("Failed to sleep track", "error");
+								}
+							} catch {
+								actions.showNotification("An error occurred", "error");
+							}
+						}}
+						onNext={() => queue.skip()}
+						onTogglePlay={() => queue.togglePause()}
 					/>
 				);
 
