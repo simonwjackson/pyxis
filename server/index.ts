@@ -8,7 +8,7 @@ import {
 	handleWSClose,
 } from "./handlers/websocket.js";
 
-const PORT = 3847;
+const PORT = 8765;
 
 const server = Bun.serve({
 	port: PORT,
@@ -46,10 +46,7 @@ const server = Bun.serve({
 			}).then((response) => {
 				// Add CORS headers
 				const headers = new Headers(response.headers);
-				headers.set(
-					"Access-Control-Allow-Origin",
-					"http://localhost:5173",
-				);
+				headers.set("Access-Control-Allow-Origin", "http://localhost:5173");
 				headers.set("Access-Control-Allow-Credentials", "true");
 
 				// Set session cookie if login response contains sessionId

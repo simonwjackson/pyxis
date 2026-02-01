@@ -6,15 +6,16 @@ import orchestraSource from "./plugins/vite-plugin-orchestra-source/index";
 export default defineConfig({
 	plugins: [orchestraSource(), react(), tailwindcss()],
 	server: {
-		port: 5173,
+		port: 5678,
+		host: "0.0.0.0",
 		allowedHosts: ["aka"],
 		proxy: {
 			"/trpc": {
-				target: "http://localhost:3847",
+				target: "http://localhost:8765",
 				changeOrigin: true,
 			},
 			"/ws": {
-				target: "ws://localhost:3847",
+				target: "ws://localhost:8765",
 				ws: true,
 			},
 		},

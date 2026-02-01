@@ -1,0 +1,35 @@
+{
+  "f15e7d74-a6ed-4d19-a0c7-6490a851b16b": {
+    "lastViewedAt": 1769919804442,
+    "mode": "plan"
+  },
+  "3cc365d8-ee6f-4cfd-875b-af4851fb4484": {
+    "lastViewedAt": 1769925631032,
+    "parentId": "f15e7d74-a6ed-4d19-a0c7-6490a851b16b",
+    "title": "Converting Pyxis to Web Application",
+    "titleGeneratedAt": 1769918460252,
+    "titleModel": "llama-3.1-8b-instant"
+  },
+  "5231ca87-b07f-4b48-8654-533fe6ac3b0f": {
+    "lastViewedAt": 1769925585169,
+    "parentId": "f15e7d74-a6ed-4d19-a0c7-6490a851b16b",
+    "title": "Converting Pyxis to a Modern Web Application",
+    "titleGeneratedAt": 1769921023925,
+    "titleModel": "llama-3.1-8b-instant"
+  },
+  "9704b5ca-baf7-4c52-b251-3ea2f27f8418": {
+    "lastViewedAt": 1769925637339,
+    "parentId": "3cc365d8-ee6f-4cfd-875b-af4851fb4484",
+    "title": "Configure Vite Dev Server and Plugin Setup",
+    "titleGeneratedAt": 1769920437121,
+    "titleModel": "llama-3.1-8b-instant",
+    "mode": "build"
+  },
+  "568cf9b5-8d67-46fe-8b04-b85bc5a04a94": {
+    "lastViewedAt": 0,
+    "parentId": "f15e7d74-a6ed-4d19-a0c7-6490a851b16b",
+    "title": "Converting Pyxis to Modern Web Application",
+    "titleGeneratedAt": 1769926418267,
+    "titleModel": "llama-3.1-8b-instant"
+  }
+}
