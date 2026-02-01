@@ -1,19 +1,40 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { Link, useRouterState } from "@tanstack/react-router";
+import {
+	Radio,
+	Search,
+	Bookmark,
+	LayoutGrid,
+	Settings,
+	Menu,
+	X,
+} from "lucide-react";
 import { cn } from "../../lib/utils";
 
 type NavItem = {
 	readonly label: string;
 	readonly path: string;
-	readonly icon: string;
+	readonly icon: ReactNode;
 };
 
 const navItems: readonly NavItem[] = [
-	{ label: "Stations", path: "/", icon: "📻" },
-	{ label: "Search", path: "/search", icon: "🔍" },
-	{ label: "Bookmarks", path: "/bookmarks", icon: "🔖" },
-	{ label: "Genres", path: "/genres", icon: "🎵" },
-	{ label: "Settings", path: "/settings", icon: "⚙️" },
+	{ label: "Stations", path: "/", icon: <Radio className="w-5 h-5" /> },
+	{ label: "Search", path: "/search", icon: <Search className="w-5 h-5" /> },
+	{
+		label: "Bookmarks",
+		path: "/bookmarks",
+		icon: <Bookmark className="w-5 h-5" />,
+	},
+	{
+		label: "Genres",
+		path: "/genres",
+		icon: <LayoutGrid className="w-5 h-5" />,
+	},
+	{
+		label: "Settings",
+		path: "/settings",
+		icon: <Settings className="w-5 h-5" />,
+	},
 ];
 
 export function MobileNav() {
@@ -28,10 +49,14 @@ export function MobileNav() {
 				</Link>
 				<button
 					onClick={() => setIsOpen(!isOpen)}
-					className="text-zinc-400 hover:text-zinc-200"
+					className="p-2 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800 rounded-lg transition-colors"
 					type="button"
 				>
-					{isOpen ? "✕" : "☰"}
+					{isOpen ? (
+						<X className="w-6 h-6" />
+					) : (
+						<Menu className="w-6 h-6" />
+					)}
 				</button>
 			</div>
 			{isOpen && (
@@ -49,7 +74,7 @@ export function MobileNav() {
 										: "text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200",
 								)}
 							>
-								<span>{item.icon}</span>
+								{item.icon}
 								<span>{item.label}</span>
 							</Link>
 						))}

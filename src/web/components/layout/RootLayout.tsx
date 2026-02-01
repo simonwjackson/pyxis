@@ -1,13 +1,32 @@
-import { Outlet, useRouterState } from "@tanstack/react-router";
+import { useEffect } from "react";
+import { Outlet, useRouterState, useNavigate } from "@tanstack/react-router";
 import { Sidebar } from "./Sidebar";
 import { MobileNav } from "./MobileNav";
 import { NowPlayingBar } from "./NowPlayingBar";
-import { usePlayback } from "../../hooks/usePlayback";
+import { usePlaybackContext } from "../../contexts/PlaybackContext";
+import { trpc } from "../../lib/trpc";
 
 export function RootLayout() {
 	const { location } = useRouterState();
+	const navigate = useNavigate();
 	const isLoginPage = location.pathname === "/login";
-	const playback = usePlayback();
+	const playback = usePlaybackContext();
+
+	const authStatus = trpc.auth.status.useQuery(undefined, {
+		retry: false,
+		refetchOnWindowFocus: false,
+	});
+
+	// Redirect to login if not authenticated
+	useEffect(() => {
+		if (
+			!authStatus.isLoading &&
+			!authStatus.data?.authenticated &&
+			!isLoginPage
+		) {
+			navigate({ to: "/login" });
+		}
+	}, [authStatus.isLoading, authStatus.data?.authenticated, isLoginPage, navigate]);
 
 	if (isLoginPage) {
 		return <Outlet />;

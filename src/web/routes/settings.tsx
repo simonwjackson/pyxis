@@ -1,3 +1,5 @@
+import { LogOut } from "lucide-react";
+import { toast } from "sonner";
 import { trpc } from "../lib/trpc";
 import { Spinner } from "../components/ui/spinner";
 import { Button } from "../components/ui/button";
@@ -10,11 +12,16 @@ export function SettingsPage() {
 	const utils = trpc.useUtils();
 
 	const setExplicit = trpc.user.setExplicitFilter.useMutation({
-		onSuccess: () => utils.user.settings.invalidate(),
+		onSuccess: () => {
+			utils.user.settings.invalidate();
+			toast.success("Setting updated");
+		},
 	});
 
 	const logoutMutation = trpc.auth.logout.useMutation({
 		onSuccess() {
+			document.cookie =
+				"pyxis_session=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT";
 			navigate({ to: "/login" });
 		},
 	});
@@ -35,27 +42,30 @@ export function SettingsPage() {
 			<h2 className="text-lg font-semibold">Settings</h2>
 
 			{settings && (
-				<section className="space-y-3">
-					<h3 className="text-sm font-semibold text-zinc-400 uppercase">
+				<section className="space-y-4">
+					<h3 className="text-sm font-medium text-zinc-400">
 						Account
 					</h3>
 					{settings.username && (
-						<p className="text-zinc-300 text-sm">
-							Email: {settings.username}
-						</p>
+						<div className="flex items-center justify-between py-2">
+							<span className="text-zinc-300 text-sm">Email</span>
+							<span className="text-zinc-400 text-sm">
+								{settings.username}
+							</span>
+						</div>
 					)}
-					<div className="flex items-center justify-between">
+					<div className="flex items-center justify-between py-2">
 						<span className="text-zinc-300 text-sm">
 							Explicit content filter
 						</span>
 						<button
 							onClick={() =>
 								setExplicit.mutate({
-									isExplicitContentFilterEnabled:
+									enabled:
 										!settings.isExplicitContentFilterEnabled,
 								})
 							}
-							className={`w-12 h-6 rounded-full transition-colors ${
+							className={`w-12 h-6 rounded-full transition-colors relative ${
 								settings.isExplicitContentFilterEnabled
 									? "bg-cyan-600"
 									: "bg-zinc-700"
@@ -63,7 +73,7 @@ export function SettingsPage() {
 							type="button"
 						>
 							<div
-								className={`w-5 h-5 rounded-full bg-white transition-transform ${
+								className={`w-5 h-5 rounded-full bg-white transition-transform absolute top-0.5 ${
 									settings.isExplicitContentFilterEnabled
 										? "translate-x-6"
 										: "translate-x-0.5"
@@ -76,29 +86,43 @@ export function SettingsPage() {
 
 			{usage && (
 				<section className="space-y-2">
-					<h3 className="text-sm font-semibold text-zinc-400 uppercase">
+					<h3 className="text-sm font-medium text-zinc-400">
 						Usage
 					</h3>
 					{usage.accountMonthlyListening !== undefined && (
-						<p className="text-zinc-300 text-sm">
-							Listening this month:{" "}
-							{Math.round(usage.accountMonthlyListening / 3600)}h
-						</p>
+						<div className="flex items-center justify-between py-2">
+							<span className="text-zinc-300 text-sm">
+								Listening this month
+							</span>
+							<span className="text-zinc-400 text-sm">
+								{Math.round(
+									usage.accountMonthlyListening / 3600,
+								)}
+								h
+							</span>
+						</div>
 					)}
 					{usage.monthlyCapHours !== undefined && (
-						<p className="text-zinc-300 text-sm">
-							Monthly cap: {usage.monthlyCapHours}h
-						</p>
+						<div className="flex items-center justify-between py-2">
+							<span className="text-zinc-300 text-sm">
+								Monthly cap
+							</span>
+							<span className="text-zinc-400 text-sm">
+								{usage.monthlyCapHours}h
+							</span>
+						</div>
 					)}
 				</section>
 			)}
 
-			<section>
+			<section className="pt-4 border-t border-zinc-800">
 				<Button
 					variant="destructive"
+					className="gap-2"
 					onClick={() => logoutMutation.mutate()}
 					disabled={logoutMutation.isPending}
 				>
+					<LogOut className="w-4 h-4" />
 					Sign Out
 				</Button>
 			</section>

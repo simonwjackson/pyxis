@@ -1,5 +1,14 @@
 import type { ServerWebSocket } from "bun";
 import { getPandoraSession } from "../services/session.js";
+import {
+	startPlayback,
+	skipTrack,
+	pausePlayback,
+	resumePlayback,
+	getPlaybackState,
+} from "../services/playback.js";
+import * as Pandora from "../../src/client.js";
+import { Effect } from "effect";
 
 type WSData = {
 	sessionId: string;
@@ -57,6 +66,27 @@ export function handleWSOpen(ws: ServerWebSocket<WSData>) {
 	ws.send(JSON.stringify({ type: "connected" } satisfies ServerMessage));
 }
 
+function sendToClient(
+	ws: ServerWebSocket<WSData>,
+	message: ServerMessage,
+): void {
+	ws.send(JSON.stringify(message));
+}
+
+function getAudioUrl(track: {
+	audioUrlMap?: {
+		highQuality?: { audioUrl: string };
+		mediumQuality?: { audioUrl: string };
+		lowQuality?: { audioUrl: string };
+	};
+}): string | undefined {
+	return (
+		track.audioUrlMap?.highQuality?.audioUrl ??
+		track.audioUrlMap?.mediumQuality?.audioUrl ??
+		track.audioUrlMap?.lowQuality?.audioUrl
+	);
+}
+
 export function handleWSMessage(
 	ws: ServerWebSocket<WSData>,
 	message: string | Buffer,
@@ -65,15 +95,167 @@ export function handleWSMessage(
 		const data = JSON.parse(
 			typeof message === "string" ? message : message.toString(),
 		) as ClientMessage;
-		// Playback handling will be implemented with the playback service
-		console.log("WS message:", data.type);
-	} catch {
-		ws.send(
-			JSON.stringify({
+
+		const sessionId = ws.data.sessionId;
+		const pandoraSession = getPandoraSession(sessionId);
+		if (!pandoraSession) {
+			sendToClient(ws, {
 				type: "playback:error",
-				error: "Invalid message format",
-			} satisfies ServerMessage),
-		);
+				error: "Session expired",
+			});
+			return;
+		}
+
+		switch (data.type) {
+			case "playback:play": {
+				startPlayback(sessionId, pandoraSession, data.stationId)
+					.then((track) => {
+						if (track) {
+							const audioUrl = getAudioUrl(track);
+							if (audioUrl) {
+								sendToClient(ws, {
+									type: "playback:track",
+									track: {
+										trackToken: track.trackToken,
+										songName: track.songName,
+										artistName: track.artistName,
+										albumName: track.albumName,
+										audioUrl,
+									},
+								});
+							}
+							sendToClient(ws, {
+								type: "playback:state",
+								state: "playing",
+							});
+						}
+					})
+					.catch(() => {
+						sendToClient(ws, {
+							type: "playback:error",
+							error: "Failed to start playback",
+						});
+					});
+				break;
+			}
+			case "playback:skip": {
+				skipTrack(sessionId, pandoraSession)
+					.then((track) => {
+						if (track) {
+							const audioUrl = getAudioUrl(track);
+							if (audioUrl) {
+								sendToClient(ws, {
+									type: "playback:track",
+									track: {
+										trackToken: track.trackToken,
+										songName: track.songName,
+										artistName: track.artistName,
+										albumName: track.albumName,
+										audioUrl,
+									},
+								});
+							}
+							sendToClient(ws, {
+								type: "playback:state",
+								state: "playing",
+							});
+						} else {
+							sendToClient(ws, {
+								type: "playback:state",
+								state: "stopped",
+							});
+						}
+					})
+					.catch(() => {
+						sendToClient(ws, {
+							type: "playback:error",
+							error: "Failed to skip track",
+						});
+					});
+				break;
+			}
+			case "playback:pause": {
+				pausePlayback(sessionId);
+				sendToClient(ws, {
+					type: "playback:state",
+					state: "paused",
+				});
+				break;
+			}
+			case "playback:resume": {
+				resumePlayback(sessionId);
+				sendToClient(ws, {
+					type: "playback:state",
+					state: "playing",
+				});
+				break;
+			}
+			case "playback:like": {
+				const state = getPlaybackState(sessionId);
+				if (state?.currentTrack) {
+					Effect.runPromise(
+						Pandora.addFeedback(
+							pandoraSession,
+							state.stationToken,
+							state.currentTrack.trackToken,
+							true,
+						),
+					).catch(() => {
+						sendToClient(ws, {
+							type: "playback:error",
+							error: "Failed to add feedback",
+						});
+					});
+				}
+				break;
+			}
+			case "playback:dislike": {
+				const state = getPlaybackState(sessionId);
+				if (state?.currentTrack) {
+					Effect.runPromise(
+						Pandora.addFeedback(
+							pandoraSession,
+							state.stationToken,
+							state.currentTrack.trackToken,
+							false,
+						),
+					)
+						.then(() => {
+							// Auto-skip after dislike
+							return skipTrack(sessionId, pandoraSession);
+						})
+						.then((track) => {
+							if (track) {
+								const audioUrl = getAudioUrl(track);
+								if (audioUrl) {
+									sendToClient(ws, {
+										type: "playback:track",
+										track: {
+											trackToken: track.trackToken,
+											songName: track.songName,
+											artistName: track.artistName,
+											albumName: track.albumName,
+											audioUrl,
+										},
+									});
+								}
+							}
+						})
+						.catch(() => {
+							sendToClient(ws, {
+								type: "playback:error",
+								error: "Failed to add feedback",
+							});
+						});
+				}
+				break;
+			}
+		}
+	} catch {
+		sendToClient(ws, {
+			type: "playback:error",
+			error: "Invalid message format",
+		});
 	}
 }
 

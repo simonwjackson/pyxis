@@ -1,3 +1,5 @@
+import { User, Music, Bookmark, Trash2 } from "lucide-react";
+import { toast } from "sonner";
 import { trpc } from "../lib/trpc";
 import { Spinner } from "../components/ui/spinner";
 import { Button } from "../components/ui/button";
@@ -7,11 +9,17 @@ export function BookmarksPage() {
 	const utils = trpc.useUtils();
 
 	const deleteArtist = trpc.bookmarks.deleteArtist.useMutation({
-		onSuccess: () => utils.bookmarks.list.invalidate(),
+		onSuccess: () => {
+			utils.bookmarks.list.invalidate();
+			toast.success("Artist bookmark removed");
+		},
 	});
 
 	const deleteSong = trpc.bookmarks.deleteSong.useMutation({
-		onSuccess: () => utils.bookmarks.list.invalidate(),
+		onSuccess: () => {
+			utils.bookmarks.list.invalidate();
+			toast.success("Song bookmark removed");
+		},
 	});
 
 	if (bookmarksQuery.isLoading) {
@@ -31,26 +39,32 @@ export function BookmarksPage() {
 
 			{artists.length > 0 && (
 				<section>
-					<h3 className="text-sm font-semibold text-zinc-400 uppercase mb-2">
+					<h3 className="text-sm font-medium text-zinc-400 mb-2">
 						Artists
 					</h3>
 					<ul className="space-y-1">
 						{artists.map((a) => (
 							<li
 								key={a.bookmarkToken}
-								className="flex items-center justify-between px-3 py-2 rounded-md hover:bg-zinc-800"
+								className="flex items-center gap-3 p-3 rounded-lg hover:bg-zinc-800 group"
 							>
-								<span className="text-zinc-200">{a.artistName}</span>
+								<div className="w-10 h-10 rounded-full bg-zinc-700 flex items-center justify-center shrink-0">
+									<User className="w-5 h-5 text-zinc-400" />
+								</div>
+								<span className="flex-1 text-zinc-200">
+									{a.artistName}
+								</span>
 								<Button
 									variant="ghost"
-									size="sm"
+									size="icon"
+									className="opacity-0 group-hover:opacity-100 transition-opacity text-zinc-400 hover:text-red-400"
 									onClick={() =>
 										deleteArtist.mutate({
 											bookmarkToken: a.bookmarkToken,
 										})
 									}
 								>
-									Remove
+									<Trash2 className="w-4 h-4" />
 								</Button>
 							</li>
 						))}
@@ -60,29 +74,37 @@ export function BookmarksPage() {
 
 			{songs.length > 0 && (
 				<section>
-					<h3 className="text-sm font-semibold text-zinc-400 uppercase mb-2">
+					<h3 className="text-sm font-medium text-zinc-400 mb-2">
 						Songs
 					</h3>
 					<ul className="space-y-1">
 						{songs.map((s) => (
 							<li
 								key={s.bookmarkToken}
-								className="flex items-center justify-between px-3 py-2 rounded-md hover:bg-zinc-800"
+								className="flex items-center gap-3 p-3 rounded-lg hover:bg-zinc-800 group"
 							>
-								<div>
-									<p className="text-zinc-200">{s.songName}</p>
-									<p className="text-xs text-zinc-500">{s.artistName}</p>
+								<div className="w-10 h-10 rounded bg-zinc-700 flex items-center justify-center shrink-0">
+									<Music className="w-5 h-5 text-zinc-400" />
+								</div>
+								<div className="flex-1 min-w-0">
+									<p className="text-zinc-200 truncate">
+										{s.songName}
+									</p>
+									<p className="text-xs text-zinc-500">
+										{s.artistName}
+									</p>
 								</div>
 								<Button
 									variant="ghost"
-									size="sm"
+									size="icon"
+									className="opacity-0 group-hover:opacity-100 transition-opacity text-zinc-400 hover:text-red-400"
 									onClick={() =>
 										deleteSong.mutate({
 											bookmarkToken: s.bookmarkToken,
 										})
 									}
 								>
-									Remove
+									<Trash2 className="w-4 h-4" />
 								</Button>
 							</li>
 						))}
@@ -91,7 +113,13 @@ export function BookmarksPage() {
 			)}
 
 			{artists.length === 0 && songs.length === 0 && (
-				<p className="text-zinc-500 text-sm">No bookmarks yet.</p>
+				<div className="text-center py-12 text-zinc-500">
+					<Bookmark className="w-12 h-12 mx-auto mb-4 text-zinc-600" />
+					<p>No bookmarks yet.</p>
+					<p className="text-sm mt-1">
+						Bookmark artists and songs from the now-playing view.
+					</p>
+				</div>
 			)}
 		</div>
 	);

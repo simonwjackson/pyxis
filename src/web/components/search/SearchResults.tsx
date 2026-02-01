@@ -1,3 +1,4 @@
+import { User, Music, LayoutGrid } from "lucide-react";
 import type {
 	SearchArtist,
 	SearchSong,
@@ -31,23 +32,31 @@ export function SearchResults({
 		<div className="space-y-6">
 			{artists && artists.length > 0 && (
 				<section>
-					<h3 className="text-sm font-semibold text-zinc-400 uppercase mb-2">
+					<h3 className="text-sm font-medium text-zinc-400 mb-2">
 						Artists
 					</h3>
 					<ul className="space-y-1">
 						{artists.map((artist) => (
-							<li
-								key={artist.musicToken}
-								className="flex items-center justify-between px-3 py-2 rounded-md hover:bg-zinc-800"
-							>
-								<span className="text-zinc-200">{artist.artistName}</span>
-								<Button
-									variant="ghost"
-									size="sm"
-									onClick={() => onCreateStation(artist.musicToken)}
+							<li key={artist.musicToken}>
+								<button
+									onClick={() =>
+										onCreateStation(artist.musicToken)
+									}
+									className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-zinc-800 text-left"
+									type="button"
 								>
-									+ Station
-								</Button>
+									<div className="w-10 h-10 rounded-full bg-zinc-700 flex items-center justify-center shrink-0">
+										<User className="w-5 h-5 text-zinc-400" />
+									</div>
+									<div className="flex-1">
+										<p className="font-medium text-zinc-200">
+											{artist.artistName}
+										</p>
+									</div>
+									<span className="text-xs text-zinc-500 bg-zinc-800 px-2 py-1 rounded">
+										Create station
+									</span>
+								</button>
 							</li>
 						))}
 					</ul>
@@ -55,26 +64,34 @@ export function SearchResults({
 			)}
 			{songs && songs.length > 0 && (
 				<section>
-					<h3 className="text-sm font-semibold text-zinc-400 uppercase mb-2">
+					<h3 className="text-sm font-medium text-zinc-400 mb-2">
 						Songs
 					</h3>
 					<ul className="space-y-1">
 						{songs.map((song) => (
-							<li
-								key={song.musicToken}
-								className="flex items-center justify-between px-3 py-2 rounded-md hover:bg-zinc-800"
-							>
-								<div>
-									<p className="text-zinc-200">{song.songName}</p>
-									<p className="text-xs text-zinc-500">{song.artistName}</p>
-								</div>
-								<Button
-									variant="ghost"
-									size="sm"
-									onClick={() => onCreateStation(song.musicToken)}
+							<li key={song.musicToken}>
+								<button
+									onClick={() =>
+										onCreateStation(song.musicToken)
+									}
+									className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-zinc-800 text-left"
+									type="button"
 								>
-									+ Station
-								</Button>
+									<div className="w-10 h-10 rounded bg-zinc-700 flex items-center justify-center shrink-0">
+										<Music className="w-5 h-5 text-zinc-400" />
+									</div>
+									<div className="flex-1">
+										<p className="font-medium text-zinc-200">
+											{song.songName}
+										</p>
+										<p className="text-sm text-zinc-400">
+											{song.artistName}
+										</p>
+									</div>
+									<span className="text-xs text-zinc-500 bg-zinc-800 px-2 py-1 rounded">
+										Create station
+									</span>
+								</button>
 							</li>
 						))}
 					</ul>
@@ -82,23 +99,31 @@ export function SearchResults({
 			)}
 			{genreStations && genreStations.length > 0 && (
 				<section>
-					<h3 className="text-sm font-semibold text-zinc-400 uppercase mb-2">
+					<h3 className="text-sm font-medium text-zinc-400 mb-2">
 						Genres
 					</h3>
 					<ul className="space-y-1">
 						{genreStations.map((genre) => (
-							<li
-								key={genre.musicToken}
-								className="flex items-center justify-between px-3 py-2 rounded-md hover:bg-zinc-800"
-							>
-								<span className="text-zinc-200">{genre.stationName}</span>
-								<Button
-									variant="ghost"
-									size="sm"
-									onClick={() => onCreateStation(genre.musicToken)}
+							<li key={genre.musicToken}>
+								<button
+									onClick={() =>
+										onCreateStation(genre.musicToken)
+									}
+									className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-zinc-800 text-left"
+									type="button"
 								>
-									+ Station
-								</Button>
+									<div className="w-10 h-10 rounded bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center shrink-0">
+										<LayoutGrid className="w-5 h-5 text-white" />
+									</div>
+									<div className="flex-1">
+										<p className="font-medium text-zinc-200">
+											{genre.stationName}
+										</p>
+									</div>
+									<span className="text-xs text-zinc-500 bg-zinc-800 px-2 py-1 rounded">
+										Create station
+									</span>
+								</button>
 							</li>
 						))}
 					</ul>

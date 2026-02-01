@@ -1,4 +1,6 @@
 import { useState, useCallback } from "react";
+import { Search as SearchIcon } from "lucide-react";
+import { toast } from "sonner";
 import { trpc } from "../lib/trpc";
 import { SearchInput } from "../components/search/SearchInput";
 import { SearchResults } from "../components/search/SearchResults";
@@ -6,6 +8,7 @@ import { Spinner } from "../components/ui/spinner";
 
 export function SearchPage() {
 	const [query, setQuery] = useState("");
+	const utils = trpc.useUtils();
 
 	const searchQuery = trpc.search.search.useQuery(
 		{ searchText: query },
@@ -14,7 +17,11 @@ export function SearchPage() {
 
 	const createStation = trpc.stations.create.useMutation({
 		onSuccess() {
-			// Could show a toast or redirect
+			toast.success("Station created");
+			utils.stations.list.invalidate();
+		},
+		onError(err) {
+			toast.error(`Failed to create station: ${err.message}`);
 		},
 	});
 
@@ -43,11 +50,20 @@ export function SearchPage() {
 			)}
 			{searchQuery.data && (
 				<SearchResults
-					artists={searchQuery.data.artists}
-					songs={searchQuery.data.songs}
-					genreStations={searchQuery.data.genreStations}
+					{...(searchQuery.data.artists ? { artists: searchQuery.data.artists } : {})}
+					{...(searchQuery.data.songs ? { songs: searchQuery.data.songs } : {})}
+					{...(searchQuery.data.genreStations ? { genreStations: searchQuery.data.genreStations } : {})}
 					onCreateStation={handleCreateStation}
 				/>
+			)}
+			{!searchQuery.data && query.length < 2 && (
+				<div className="text-center py-12 text-zinc-500">
+					<SearchIcon className="w-12 h-12 mx-auto mb-4 text-zinc-600" />
+					<p>
+						Search for artists, songs, or genres to create a new
+						station
+					</p>
+				</div>
 			)}
 		</div>
 	);
