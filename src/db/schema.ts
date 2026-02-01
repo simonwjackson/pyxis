@@ -48,3 +48,10 @@ export const playlists = pgTable("playlists", {
 	artworkUrl: text("artwork_url"),
 	createdAt: timestamp("created_at").defaultNow().notNull(),
 });
+
+export const credentials = pgTable("credentials", {
+	id: text("id").primaryKey(),
+	username: text("username").notNull(),
+	password: text("password").notNull(),
+	createdAt: timestamp("created_at").defaultNow().notNull(),
+});

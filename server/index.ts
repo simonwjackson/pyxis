@@ -9,6 +9,7 @@ import {
 } from "./handlers/websocket.js";
 import { handleStreamRequest } from "./services/stream.js";
 import { ensureSourceManager } from "./services/sourceManager.js";
+import { tryAutoLogin } from "./services/autoLogin.js";
 
 const PORT = 8765;
 
@@ -84,3 +85,8 @@ const server = Bun.serve({
 });
 
 console.log(`Server running on http://aka:${PORT}`);
+
+// Attempt auto-login from stored credentials
+tryAutoLogin().catch(() => {
+	// Silently ignore — server starts normally without auth
+});
