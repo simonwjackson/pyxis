@@ -275,6 +275,14 @@ export function applyTheme(themeName: string) {
 	root.style.setProperty("--color-disliked", c.disliked);
 	root.style.setProperty("--color-progress", c.progress);
 	root.style.setProperty("--color-progress-track", c.progressTrack);
+
+	updateThemeColor(c.background);
+}
+
+export function updateThemeColor(color: string) {
+	document
+		.querySelector('meta[name="theme-color"]')
+		?.setAttribute("content", color);
 }
 
 const STORAGE_KEY = "pyxis-theme";

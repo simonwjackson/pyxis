@@ -1,6 +1,7 @@
 import { useState, type ReactNode } from "react";
 import { Link, useRouterState } from "@tanstack/react-router";
 import {
+	Home,
 	Radio,
 	Search,
 	Bookmark,
@@ -18,7 +19,8 @@ type NavItem = {
 };
 
 const navItems: readonly NavItem[] = [
-	{ label: "Stations", path: "/", icon: <Radio className="w-5 h-5" /> },
+	{ label: "Home", path: "/", icon: <Home className="w-5 h-5" /> },
+	{ label: "Stations", path: "/stations", icon: <Radio className="w-5 h-5" /> },
 	{ label: "Search", path: "/search", icon: <Search className="w-5 h-5" /> },
 	{
 		label: "Bookmarks",
@@ -43,7 +45,7 @@ export function MobileNav() {
 
 	return (
 		<div className="md:hidden">
-			<div className="flex items-center justify-between p-4 border-b border-[var(--color-border)]">
+			<div className="flex items-center justify-between p-4 border-b border-[var(--color-border)] safe-top">
 				<Link to="/" className="text-xl font-bold text-[var(--color-primary)]">
 					pyxis
 				</Link>

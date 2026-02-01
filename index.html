@@ -2,11 +2,49 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover, interactive-widget=resizes-content" />
+    <meta name="theme-color" content="#18181b" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Pyxis" />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="apple-touch-icon" href="/icons/icon-192.png" />
     <title>Pyxis</title>
+    <script>
+      // Prevent theme flash: apply saved theme CSS vars before React renders
+      (function() {
+        try {
+          var t = localStorage.getItem('pyxis-theme');
+          if (!t || t === 'system') return;
+          var themes = {
+            pyxis: { bg: '#1a1a2e', panel: '#16213e' },
+            tokyonight: { bg: '#1a1b26', panel: '#16161e' },
+            catppuccin: { bg: '#1e1e2e', panel: '#181825' },
+            nord: { bg: '#2e3440', panel: '#3b4252' },
+            gruvbox: { bg: '#282828', panel: '#1d2021' },
+            dracula: { bg: '#282a36', panel: '#21222c' },
+            'rose-pine': { bg: '#191724', panel: '#1f1d2e' },
+          };
+          var c = themes[t];
+          if (c) {
+            document.documentElement.style.setProperty('--color-bg', c.bg);
+            document.documentElement.style.setProperty('--color-bg-panel', c.panel);
+            document.querySelector('meta[name="theme-color"]').setAttribute('content', c.bg);
+          }
+        } catch(e) {}
+      })();
+    </script>
   </head>
   <body class="bg-zinc-900 text-zinc-100">
     <div id="root"></div>
     <script type="module" src="/src/web/main.tsx"></script>
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', function() {
+          navigator.serviceWorker.register('/sw.js');
+        });
+      }
+    </script>
   </body>
 </html>

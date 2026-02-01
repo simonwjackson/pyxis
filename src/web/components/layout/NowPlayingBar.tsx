@@ -28,7 +28,7 @@ export function NowPlayingBar({
 	const progressPercent = duration > 0 ? (progress / duration) * 100 : 0;
 
 	return (
-		<div className="fixed bottom-0 left-0 right-0 backdrop-blur border-t border-[var(--color-border)]" style={{ backgroundColor: "color-mix(in srgb, var(--color-bg-panel) 95%, transparent)" }} role="region" aria-label="Now playing">
+		<div className="fixed bottom-0 left-0 right-0 backdrop-blur border-t border-[var(--color-border)] safe-bottom" style={{ backgroundColor: "color-mix(in srgb, var(--color-bg-panel) 95%, transparent)" }} role="region" aria-label="Now playing">
 			<div className="h-1 bg-[var(--color-progress-track)]">
 				<div
 					className="h-full bg-[var(--color-progress)] transition-all duration-300"
