@@ -14,7 +14,6 @@ import {
 	registerSearchCommand,
 	registerStationsCommands,
 	registerTrackCommands,
-	registerTuiCommand,
 } from "./commands/index.js";
 
 // Version injected at build time for compiled binaries, fallback to package.json
@@ -93,7 +92,6 @@ function main(): void {
 	registerSearchCommand(program);
 	registerStationsCommands(program);
 	registerTrackCommands(program);
-	registerTuiCommand(program);
 
 	program.addHelpText(
 		"after",

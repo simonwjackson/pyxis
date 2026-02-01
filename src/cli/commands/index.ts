@@ -6,4 +6,3 @@ export { registerPlaylistCommands } from "./playlist/index.js";
 export { registerSearchCommand } from "./search/index.js";
 export { registerStationsCommands } from "./stations/index.js";
 export { registerTrackCommands } from "./track/index.js";
-export { registerTuiCommand } from "./tui/index.js";
