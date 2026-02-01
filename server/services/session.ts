@@ -1,7 +1,7 @@
 import type { PandoraSession } from "../../src/sources/pandora/client.js";
 
 type SessionData = {
-	pandoraSession: PandoraSession;
+	pandoraSession: PandoraSession | undefined;
 	username: string;
 	createdAt: number;
 };
@@ -15,8 +15,8 @@ function generateSessionId(): string {
 }
 
 export function createSession(
-	pandoraSession: PandoraSession,
 	username: string,
+	pandoraSession?: PandoraSession,
 ): string {
 	const sessionId = generateSessionId();
 	sessions.set(sessionId, {
@@ -29,14 +29,24 @@ export function createSession(
 
 export function createSessionWithId(
 	sessionId: string,
-	pandoraSession: PandoraSession,
 	username: string,
+	pandoraSession?: PandoraSession,
 ): void {
 	sessions.set(sessionId, {
 		pandoraSession,
 		username,
 		createdAt: Date.now(),
 	});
+}
+
+export function updateSessionPandora(
+	sessionId: string,
+	pandoraSession: PandoraSession,
+): void {
+	const existing = sessions.get(sessionId);
+	if (existing) {
+		existing.pandoraSession = pandoraSession;
+	}
 }
 
 export function getSession(sessionId: string): SessionData | undefined {

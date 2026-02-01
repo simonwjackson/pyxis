@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { Effect } from "effect";
-import { router, protectedProcedure, publicProcedure } from "../trpc.js";
+import { router, pandoraProtectedProcedure, publicProcedure } from "../trpc.js";
 import { encodeId, decodeId, buildStreamUrl } from "../lib/ids.js";
 import * as Pandora from "../../src/sources/pandora/client.js";
 
@@ -23,7 +23,7 @@ export const trackRouter = router({
 			return { url: buildStreamUrl(input.id, input.nextId) };
 		}),
 
-	feedback: protectedProcedure
+	feedback: pandoraProtectedProcedure
 		.input(
 			z.object({
 				id: z.string(),
@@ -49,7 +49,7 @@ export const trackRouter = router({
 			};
 		}),
 
-	removeFeedback: protectedProcedure
+	removeFeedback: pandoraProtectedProcedure
 		.input(z.object({ feedbackId: z.string() }))
 		.mutation(async ({ ctx, input }) => {
 			const { id: feedbackId } = decodeId(input.feedbackId);
@@ -59,7 +59,7 @@ export const trackRouter = router({
 			return { success: true };
 		}),
 
-	sleep: protectedProcedure
+	sleep: pandoraProtectedProcedure
 		.input(z.object({ id: z.string() }))
 		.mutation(async ({ ctx, input }) => {
 			const { id: trackToken } = decodeId(input.id);
@@ -69,7 +69,7 @@ export const trackRouter = router({
 			return { success: true };
 		}),
 
-	explain: protectedProcedure
+	explain: pandoraProtectedProcedure
 		.input(z.object({ id: z.string() }))
 		.query(async ({ ctx, input }) => {
 			const { id: trackToken } = decodeId(input.id);

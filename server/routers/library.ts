@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { Effect } from "effect";
-import { router, protectedProcedure, publicProcedure } from "../trpc.js";
+import { router, pandoraProtectedProcedure, publicProcedure } from "../trpc.js";
 import { encodeId, decodeId } from "../lib/ids.js";
 import { getDb, schema } from "../../src/db/index.js";
 import { eq, and } from "drizzle-orm";
@@ -125,13 +125,13 @@ export const libraryRouter = router({
 			return { success: true };
 		}),
 
-	bookmarks: protectedProcedure.query(async ({ ctx }) => {
+	bookmarks: pandoraProtectedProcedure.query(async ({ ctx }) => {
 		return Effect.runPromise(
 			Pandora.getBookmarks(ctx.pandoraSession),
 		);
 	}),
 
-	addBookmark: protectedProcedure
+	addBookmark: pandoraProtectedProcedure
 		.input(
 			z.object({
 				id: z.string(),
@@ -155,7 +155,7 @@ export const libraryRouter = router({
 			);
 		}),
 
-	removeBookmark: protectedProcedure
+	removeBookmark: pandoraProtectedProcedure
 		.input(
 			z.object({
 				bookmarkToken: z.string(),

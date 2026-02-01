@@ -1,10 +1,11 @@
 import { z } from "zod";
 import { Effect } from "effect";
-import { router, protectedProcedure } from "../trpc.js";
+import { router, protectedProcedure, pandoraProtectedProcedure } from "../trpc.js";
 import { encodeId } from "../lib/ids.js";
 import * as Pandora from "../../src/sources/pandora/client.js";
-import { getSourceManager } from "../services/sourceManager.js";
+import { ensureSourceManager } from "../services/sourceManager.js";
 import type { CanonicalTrack, CanonicalAlbum } from "../../src/sources/types.js";
+import type { SearchArtist, SearchGenreStation } from "../../src/sources/pandora/types/api.js";
 
 function encodeTrack(track: CanonicalTrack) {
 	return {
@@ -36,7 +37,7 @@ function encodeAlbum(album: CanonicalAlbum) {
 }
 
 export const searchRouter = router({
-	search: protectedProcedure
+	search: pandoraProtectedProcedure
 		.input(z.object({ searchText: z.string().min(1) }))
 		.query(async ({ ctx, input }) => {
 			return Effect.runPromise(
@@ -47,18 +48,25 @@ export const searchRouter = router({
 	unified: protectedProcedure
 		.input(z.object({ query: z.string().min(1) }))
 		.query(async ({ ctx, input }) => {
-			const sourceManager = await getSourceManager(ctx.pandoraSession);
+			const sourceManager = ctx.sourceManager ?? await ensureSourceManager();
 			const results = await sourceManager.searchAll(input.query);
 
-			const pandoraResults = await Effect.runPromise(
-				Pandora.search(ctx.pandoraSession, input.query),
-			);
+			// Include Pandora-specific results if session is available
+			let pandoraArtists: readonly SearchArtist[] = [];
+			let pandoraGenres: readonly SearchGenreStation[] = [];
+			if (ctx.pandoraSession) {
+				const pandoraResults = await Effect.runPromise(
+					Pandora.search(ctx.pandoraSession, input.query),
+				);
+				pandoraArtists = pandoraResults.artists ?? [];
+				pandoraGenres = pandoraResults.genreStations ?? [];
+			}
 
 			return {
 				tracks: results.tracks.map(encodeTrack),
 				albums: results.albums.map(encodeAlbum),
-				pandoraArtists: pandoraResults.artists ?? [],
-				pandoraGenres: pandoraResults.genreStations ?? [],
+				pandoraArtists,
+				pandoraGenres,
 			};
 		}),
 });

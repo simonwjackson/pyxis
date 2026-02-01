@@ -60,6 +60,16 @@ CREATE TABLE IF NOT EXISTS credentials (
 );
 
 ALTER TABLE credentials ADD COLUMN IF NOT EXISTS session_id TEXT;
+
+CREATE TABLE IF NOT EXISTS source_credentials (
+	id TEXT PRIMARY KEY,
+	source TEXT NOT NULL,
+	username TEXT NOT NULL,
+	password TEXT NOT NULL,
+	session_data TEXT,
+	created_at TIMESTAMP DEFAULT NOW() NOT NULL,
+	updated_at TIMESTAMP DEFAULT NOW() NOT NULL
+);
 `;
 
 export async function getDb() {

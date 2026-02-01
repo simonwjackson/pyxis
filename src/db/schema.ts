@@ -56,3 +56,13 @@ export const credentials = pgTable("credentials", {
 	sessionId: text("session_id"),
 	createdAt: timestamp("created_at").defaultNow().notNull(),
 });
+
+export const sourceCredentials = pgTable("source_credentials", {
+	id: text("id").primaryKey(),
+	source: text("source").notNull(),
+	username: text("username").notNull(),
+	password: text("password").notNull(),
+	sessionData: text("session_data"),
+	createdAt: timestamp("created_at").defaultNow().notNull(),
+	updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});

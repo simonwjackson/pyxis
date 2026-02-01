@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { Effect } from "effect";
-import { router, protectedProcedure } from "../trpc.js";
+import { router, pandoraProtectedProcedure } from "../trpc.js";
 import { encodeId, decodeId, buildStreamUrl } from "../lib/ids.js";
 import * as Pandora from "../../src/sources/pandora/client.js";
 import type { PlaylistItem } from "../../src/sources/pandora/types/api.js";
@@ -20,7 +20,7 @@ function encodePlaylistItem(item: PlaylistItem) {
 }
 
 export const radioRouter = router({
-	list: protectedProcedure.query(async ({ ctx }) => {
+	list: pandoraProtectedProcedure.query(async ({ ctx }) => {
 		const result = await Effect.runPromise(
 			Pandora.getStationList(ctx.pandoraSession),
 		);
@@ -37,7 +37,7 @@ export const radioRouter = router({
 		}));
 	}),
 
-	getStation: protectedProcedure
+	getStation: pandoraProtectedProcedure
 		.input(z.object({ id: z.string() }))
 		.query(async ({ ctx, input }) => {
 			const { id: stationToken } = decodeId(input.id);
@@ -88,7 +88,7 @@ export const radioRouter = router({
 			};
 		}),
 
-	getTracks: protectedProcedure
+	getTracks: pandoraProtectedProcedure
 		.input(
 			z.object({
 				id: z.string(),
@@ -109,7 +109,7 @@ export const radioRouter = router({
 			return result.items.map(encodePlaylistItem);
 		}),
 
-	create: protectedProcedure
+	create: pandoraProtectedProcedure
 		.input(
 			z.object({
 				seedId: z.string().optional(),
@@ -138,7 +138,7 @@ export const radioRouter = router({
 			);
 		}),
 
-	delete: protectedProcedure
+	delete: pandoraProtectedProcedure
 		.input(z.object({ id: z.string() }))
 		.mutation(async ({ ctx, input }) => {
 			const { id: stationToken } = decodeId(input.id);
@@ -148,7 +148,7 @@ export const radioRouter = router({
 			return { success: true };
 		}),
 
-	rename: protectedProcedure
+	rename: pandoraProtectedProcedure
 		.input(z.object({ id: z.string(), name: z.string() }))
 		.mutation(async ({ ctx, input }) => {
 			const { id: stationToken } = decodeId(input.id);
@@ -160,14 +160,14 @@ export const radioRouter = router({
 			);
 		}),
 
-	genres: protectedProcedure.query(async ({ ctx }) => {
+	genres: pandoraProtectedProcedure.query(async ({ ctx }) => {
 		const result = await Effect.runPromise(
 			Pandora.getGenreStations(ctx.pandoraSession),
 		);
 		return result.categories;
 	}),
 
-	quickMix: protectedProcedure
+	quickMix: pandoraProtectedProcedure
 		.input(z.object({ radioIds: z.array(z.string()) }))
 		.mutation(async ({ ctx, input }) => {
 			const stationIds = input.radioIds.map(
@@ -179,7 +179,7 @@ export const radioRouter = router({
 			return { success: true };
 		}),
 
-	addSeed: protectedProcedure
+	addSeed: pandoraProtectedProcedure
 		.input(
 			z.object({
 				radioId: z.string(),
@@ -196,7 +196,7 @@ export const radioRouter = router({
 			);
 		}),
 
-	removeSeed: protectedProcedure
+	removeSeed: pandoraProtectedProcedure
 		.input(z.object({ radioId: z.string(), seedId: z.string() }))
 		.mutation(async ({ ctx, input }) => {
 			const { id: seedId } = decodeId(input.seedId);

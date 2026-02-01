@@ -1,18 +1,24 @@
 import { z } from "zod";
 import { Effect } from "effect";
-import { router, publicProcedure, protectedProcedure } from "../trpc.js";
-import { login } from "../../src/sources/pandora/client.js";
+import { router, publicProcedure, pandoraProtectedProcedure } from "../trpc.js";
 import * as Pandora from "../../src/sources/pandora/client.js";
 import {
 	createSession,
 	deleteSession,
 	getSession,
 } from "../services/session.js";
+import {
+	addCredential,
+} from "../services/credentials.js";
 import { getSourceManager, setGlobalSourceManager } from "../services/sourceManager.js";
 import { getDb, schema } from "../../src/db/index.js";
 import { TRPCError } from "@trpc/server";
 
 export const authRouter = router({
+	/**
+	 * Login to Pyxis. Accepts Pandora credentials.
+	 * Creates a Pyxis session and stores the source credential.
+	 */
 	login: publicProcedure
 		.input(
 			z.object({
@@ -22,12 +28,27 @@ export const authRouter = router({
 		)
 		.mutation(async ({ input }) => {
 			try {
-				const session = await Effect.runPromise(
-					login(input.username, input.password),
+				// Validate and store via credential service
+				const { session } = await addCredential(
+					"pandora",
+					input.username,
+					input.password,
 				);
-				const sessionId = createSession(session, input.username);
-				setGlobalSourceManager(await getSourceManager(session));
 
+				let pandoraSession: Pandora.PandoraSession | undefined;
+				if (session.type === "pandora") {
+					pandoraSession = session.session;
+				}
+
+				// Create a Pyxis-level session
+				const sessionId = createSession(input.username, pandoraSession);
+
+				// Update global source manager with authenticated sources
+				if (pandoraSession) {
+					setGlobalSourceManager(await getSourceManager(pandoraSession));
+				}
+
+				// Also maintain legacy credentials table for backwards compat during migration
 				const db = await getDb();
 				await db
 					.insert(schema.credentials)
@@ -55,8 +76,10 @@ export const authRouter = router({
 			}
 		}),
 
-	logout: protectedProcedure.mutation(async ({ ctx }) => {
-		deleteSession(ctx.sessionId);
+	logout: publicProcedure.mutation(async ({ ctx }) => {
+		if (ctx.sessionId) {
+			deleteSession(ctx.sessionId);
+		}
 
 		const db = await getDb();
 		await db.delete(schema.credentials);
@@ -75,19 +98,19 @@ export const authRouter = router({
 		return { authenticated: true, username: session.username };
 	}),
 
-	settings: protectedProcedure.query(async ({ ctx }) => {
+	settings: pandoraProtectedProcedure.query(async ({ ctx }) => {
 		return Effect.runPromise(
 			Pandora.getSettings(ctx.pandoraSession),
 		);
 	}),
 
-	usage: protectedProcedure.query(async ({ ctx }) => {
+	usage: pandoraProtectedProcedure.query(async ({ ctx }) => {
 		return Effect.runPromise(
 			Pandora.getUsageInfo(ctx.pandoraSession),
 		);
 	}),
 
-	changeSettings: protectedProcedure
+	changeSettings: pandoraProtectedProcedure
 		.input(
 			z.object({
 				isExplicitContentFilterEnabled: z.boolean().optional(),
@@ -106,7 +129,7 @@ export const authRouter = router({
 			return { success: true };
 		}),
 
-	setExplicitFilter: protectedProcedure
+	setExplicitFilter: pandoraProtectedProcedure
 		.input(z.object({ enabled: z.boolean() }))
 		.mutation(async ({ ctx, input }) => {
 			await Effect.runPromise(

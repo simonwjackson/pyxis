@@ -39,7 +39,7 @@ export function LoginPage() {
 						pyxis
 					</h1>
 					<p className="text-[var(--color-text-dim)]">
-						Pandora client for the modern web
+						Your personal music hub
 					</p>
 				</div>
 				<form onSubmit={handleSubmit} className="space-y-4">

@@ -2,9 +2,9 @@ import { z } from "zod";
 import { router, protectedProcedure, publicProcedure } from "../trpc.js";
 import { encodeId, decodeId } from "../lib/ids.js";
 import {
-	getSourceManager,
 	invalidateManagers,
 } from "../services/sourceManager.js";
+import { ensureSourceManager } from "../services/sourceManager.js";
 import { getDb, schema } from "../../src/db/index.js";
 import { generateRadioUrl } from "../../src/sources/ytmusic/index.js";
 import type { CanonicalTrack, CanonicalPlaylist } from "../../src/sources/types.js";
@@ -38,7 +38,7 @@ function encodePlaylist(playlist: CanonicalPlaylist) {
 
 export const playlistRouter = router({
 	list: protectedProcedure.query(async ({ ctx }) => {
-		const sourceManager = await getSourceManager(ctx.pandoraSession);
+		const sourceManager = ctx.sourceManager ?? await ensureSourceManager();
 		const playlists = await sourceManager.listAllPlaylists();
 		return playlists.map(encodePlaylist);
 	}),
@@ -51,7 +51,7 @@ export const playlistRouter = router({
 		)
 		.query(async ({ ctx, input }) => {
 			const { source, id: playlistId } = decodeId(input.id);
-			const sourceManager = await getSourceManager(ctx.pandoraSession);
+			const sourceManager = ctx.sourceManager ?? await ensureSourceManager();
 			const tracks = await sourceManager.getPlaylistTracks(
 				source,
 				playlistId,
