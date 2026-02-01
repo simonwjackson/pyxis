@@ -25,6 +25,15 @@ function formatTime(seconds: number): string {
 	return `${String(mins)}:${String(secs).padStart(2, "0")}`;
 }
 
+// Capability flags from server
+type TrackCapabilities = {
+	readonly feedback: boolean;
+	readonly sleep: boolean;
+	readonly bookmark: boolean;
+	readonly explain: boolean;
+	readonly radio: boolean;
+};
+
 // Unified track shape — all IDs are opaque
 type NowPlayingTrack = {
 	readonly id: string;
@@ -32,9 +41,8 @@ type NowPlayingTrack = {
 	readonly artistName: string;
 	readonly albumName: string;
 	readonly albumArtUrl?: string;
-	readonly isPandora: boolean;
+	readonly capabilities: TrackCapabilities;
 	readonly duration?: number;
-	readonly source: string;
 };
 
 // Convert a radio track to NowPlayingTrack
@@ -44,7 +52,7 @@ function radioTrackToNowPlaying(track: {
 	readonly artist: string;
 	readonly album: string;
 	readonly artworkUrl?: string;
-	readonly source: string;
+	readonly capabilities: TrackCapabilities;
 }): NowPlayingTrack {
 	return {
 		id: track.id,
@@ -52,8 +60,7 @@ function radioTrackToNowPlaying(track: {
 		artistName: track.artist,
 		albumName: track.album,
 		...(track.artworkUrl != null ? { albumArtUrl: track.artworkUrl } : {}),
-		isPandora: true,
-		source: track.source ?? "pandora",
+		capabilities: track.capabilities,
 	};
 }
 
@@ -65,7 +72,7 @@ function playlistTrackToNowPlaying(track: {
 	readonly album: string;
 	readonly artworkUrl?: string;
 	readonly duration?: number;
-	readonly source: string;
+	readonly capabilities: TrackCapabilities;
 }): NowPlayingTrack {
 	return {
 		id: track.id,
@@ -74,21 +81,19 @@ function playlistTrackToNowPlaying(track: {
 		albumName: track.album,
 		...(track.artworkUrl != null ? { albumArtUrl: track.artworkUrl } : {}),
 		...(track.duration != null ? { duration: track.duration } : {}),
-		isPandora: track.source === "pandora",
-		source: track.source,
+		capabilities: track.capabilities,
 	};
 }
 
-// Convert an album track DB row to NowPlayingTrack
+// Convert an album track row to NowPlayingTrack
 type AlbumTrackRow = {
 	readonly id: string;
 	readonly trackIndex: number;
 	readonly title: string;
 	readonly artist: string;
 	readonly duration: number | null;
-	readonly source: string;
-	readonly sourceTrackId: string;
 	readonly artworkUrl: string | null;
+	readonly capabilities: TrackCapabilities;
 };
 
 function albumTrackToNowPlaying(
@@ -103,9 +108,8 @@ function albumTrackToNowPlaying(
 		artistName: track.artist,
 		albumName,
 		...(artUrl != null ? { albumArtUrl: artUrl } : {}),
-		isPandora: track.source === "pandora",
+		capabilities: track.capabilities,
 		...(track.duration != null ? { duration: track.duration } : {}),
-		source: track.source,
 	};
 }
 
@@ -117,7 +121,6 @@ function tracksToQueuePayload(tracks: readonly NowPlayingTrack[]) {
 		album: t.albumName,
 		duration: t.duration ?? null,
 		artworkUrl: t.albumArtUrl ?? null,
-		source: t.source,
 	}));
 }
 
@@ -231,8 +234,6 @@ export function NowPlayingPage() {
 		albumId,
 	]);
 
-	const isPandora = !isAlbumMode && !isPlaylistMode && !!radioId;
-
 	const feedbackMutation = trpc.track.feedback.useMutation({
 		onError(err) {
 			toast.error(`Feedback failed: ${err.message}`);
@@ -321,34 +322,34 @@ export function NowPlayingPage() {
 	}, [playback, handleSkip]);
 
 	const handleLike = useCallback(() => {
-		if (!radioId || !currentTrack || !isPandora) return;
+		if (!radioId || !currentTrack?.capabilities.feedback) return;
 		feedbackMutation.mutate({
 			radioId,
 			id: currentTrack.id,
 			positive: true,
 		});
-	}, [radioId, currentTrack, feedbackMutation, isPandora]);
+	}, [radioId, currentTrack, feedbackMutation]);
 
 	const handleDislike = useCallback(() => {
-		if (!radioId || !currentTrack || !isPandora) return;
+		if (!radioId || !currentTrack?.capabilities.feedback) return;
 		feedbackMutation.mutate({
 			radioId,
 			id: currentTrack.id,
 			positive: false,
 		});
 		handleSkip();
-	}, [radioId, currentTrack, feedbackMutation, handleSkip, isPandora]);
+	}, [radioId, currentTrack, feedbackMutation, handleSkip]);
 
 	const handleSleep = useCallback(() => {
-		if (!currentTrack || !isPandora) return;
+		if (!currentTrack?.capabilities.sleep) return;
 		sleepMutation.mutate({ id: currentTrack.id });
 		handleSkip();
-	}, [currentTrack, sleepMutation, handleSkip, isPandora]);
+	}, [currentTrack, sleepMutation, handleSkip]);
 
 	const handleBookmark = useCallback(() => {
-		if (!currentTrack || !isPandora) return;
+		if (!currentTrack?.capabilities.bookmark) return;
 		bookmarkSongMutation.mutate({ id: currentTrack.id, type: "song" });
-	}, [currentTrack, bookmarkSongMutation, isPandora]);
+	}, [currentTrack, bookmarkSongMutation]);
 
 	if (!radioId && !isPlaylistMode && !isAlbumMode) {
 		return (
@@ -439,7 +440,7 @@ export function NowPlayingPage() {
 			</div>
 
 			<div className="flex items-center gap-6" role="group" aria-label="Playback controls">
-				{isPandora && (
+				{currentTrack.capabilities.feedback && (
 					<Button variant="ghost" size="icon" className="text-[var(--color-disliked)] h-12 w-12" onClick={handleDislike} aria-label="Dislike this track">
 						<ThumbsDown className="w-6 h-6" />
 					</Button>
@@ -455,24 +456,30 @@ export function NowPlayingPage() {
 				<Button variant="ghost" size="icon" className="h-12 w-12" onClick={handleSkip} disabled={isAlbumMode && trackIndex >= tracks.length - 1} aria-label="Skip to next track">
 					<SkipForward className="w-6 h-6" />
 				</Button>
-				{isPandora && (
+				{currentTrack.capabilities.feedback && (
 					<Button variant="ghost" size="icon" className="text-[var(--color-liked)] h-12 w-12" onClick={handleLike} aria-label="Like this track">
 						<ThumbsUp className="w-6 h-6" />
 					</Button>
 				)}
 			</div>
 
-			{isPandora && (
+			{(currentTrack.capabilities.explain || currentTrack.capabilities.bookmark || currentTrack.capabilities.sleep) && (
 				<div className="flex items-center gap-4 text-[var(--color-text-dim)]">
-					<Button variant="ghost" size="sm" className="gap-1.5" onClick={() => setShowTrackInfo(true)} title="Track info">
-						<Info className="w-4 h-4" /> Info
-					</Button>
-					<Button variant="ghost" size="sm" className="gap-1.5" onClick={handleBookmark} title="Bookmark song">
-						<Bookmark className="w-4 h-4" /> Bookmark
-					</Button>
-					<Button variant="ghost" size="sm" className="gap-1.5" onClick={handleSleep} title="Sleep song (30 days)">
-						<Moon className="w-4 h-4" /> Sleep
-					</Button>
+					{currentTrack.capabilities.explain && (
+						<Button variant="ghost" size="sm" className="gap-1.5" onClick={() => setShowTrackInfo(true)} title="Track info">
+							<Info className="w-4 h-4" /> Info
+						</Button>
+					)}
+					{currentTrack.capabilities.bookmark && (
+						<Button variant="ghost" size="sm" className="gap-1.5" onClick={handleBookmark} title="Bookmark song">
+							<Bookmark className="w-4 h-4" /> Bookmark
+						</Button>
+					)}
+					{currentTrack.capabilities.sleep && (
+						<Button variant="ghost" size="sm" className="gap-1.5" onClick={handleSleep} title="Sleep song (30 days)">
+							<Moon className="w-4 h-4" /> Sleep
+						</Button>
+					)}
 				</div>
 			)}
 
@@ -518,7 +525,7 @@ export function NowPlayingPage() {
 				</div>
 			)}
 
-			{isPandora && showTrackInfo && currentTrack && (
+			{currentTrack.capabilities.explain && showTrackInfo && (
 				<TrackInfoModal
 					trackId={currentTrack.id}
 					songName={currentTrack.songName}

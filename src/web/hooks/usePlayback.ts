@@ -204,7 +204,9 @@ export function usePlayback() {
 		} else {
 			const audio = audioRef.current;
 			if (audio) {
-				audio.play().catch(() => {});
+				audio.play().catch((err: unknown) => {
+					console.error("[usePlayback] play() rejected:", err);
+				});
 			}
 			setState((prev) => ({ ...prev, isPlaying: true }));
 			resumeMutation.mutate();

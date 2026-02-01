@@ -18,11 +18,11 @@ type SearchGenreStation = {
 
 type SearchTrack = {
 	readonly id: string;
-	readonly source: string;
 	readonly title: string;
 	readonly artist: string;
 	readonly album?: string;
 	readonly artworkUrl?: string | null;
+	readonly capabilities: { readonly radio: boolean };
 };
 
 type SearchAlbum = {
@@ -31,7 +31,7 @@ type SearchAlbum = {
 	readonly artist: string;
 	readonly year?: number | null;
 	readonly artworkUrl?: string | null;
-	readonly sourceIds: readonly { readonly id: string; readonly source: string }[];
+	readonly sourceIds: readonly string[];
 };
 
 type SearchResultsProps = {
@@ -79,9 +79,7 @@ export function SearchResults({
 						Albums
 					</h3>
 					<div className="space-y-1">
-						{albums.map((album) => {
-						const primarySource = album.sourceIds[0];
-						return (
+						{albums.map((album) => (
 							<div
 								key={album.id}
 								className="flex items-center gap-3 p-3 rounded-lg hover:bg-[var(--color-bg-highlight)] group"
@@ -106,7 +104,6 @@ export function SearchResults({
 										{album.year
 											? ` \u00B7 ${String(album.year)}`
 											: ""}
-										{` \u00B7 ${primarySource?.source === "ytmusic" ? "YouTube Music" : primarySource?.source ?? ""}`}
 									</p>
 								</div>
 								{onSaveAlbum && (
@@ -121,8 +118,7 @@ export function SearchResults({
 									</button>
 								)}
 							</div>
-						);
-					})}
+						))}
 					</div>
 				</section>
 			)}
@@ -156,34 +152,21 @@ export function SearchResults({
 									</p>
 									<p className="text-xs text-[var(--color-text-dim)]">
 										{track.artist}
-										{` \u00B7 ${track.source === "ytmusic" ? "YouTube Music" : track.source === "pandora" ? "Pandora" : track.source}`}
 									</p>
 								</div>
 								<div className="flex items-center gap-1.5 shrink-0">
-									{track.source === "pandora" && (
+									{track.capabilities.radio && onStartRadio && (
 										<button
 											type="button"
 											onClick={() =>
-												onCreateStation(track.id)
+												onStartRadio(track)
 											}
-											className="text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text)] bg-[var(--color-bg-highlight)] hover:bg-[var(--color-border)] px-2.5 py-1.5 rounded transition-colors"
+											className="text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text)] bg-[var(--color-bg-highlight)] hover:bg-[var(--color-border)] px-2.5 py-1.5 rounded transition-colors flex items-center gap-1"
 										>
-											Create station
+											<Radio className="w-3 h-3" />
+											Start Radio
 										</button>
 									)}
-									{track.source === "ytmusic" &&
-										onStartRadio && (
-											<button
-												type="button"
-												onClick={() =>
-													onStartRadio(track)
-												}
-												className="text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text)] bg-[var(--color-bg-highlight)] hover:bg-[var(--color-border)] px-2.5 py-1.5 rounded transition-colors flex items-center gap-1"
-											>
-												<Radio className="w-3 h-3" />
-												Start Radio
-											</button>
-										)}
 								</div>
 							</li>
 						))}

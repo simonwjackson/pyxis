@@ -1,15 +1,15 @@
 import { z } from "zod";
 import { Effect } from "effect";
 import { router, pandoraProtectedProcedure, publicProcedure } from "../trpc.js";
-import { encodeId, decodeId, buildStreamUrl } from "../lib/ids.js";
+import { encodeId, decodeId, buildStreamUrl, trackCapabilities } from "../lib/ids.js";
 import * as Pandora from "../../src/sources/pandora/client.js";
 
 export const trackRouter = router({
 	get: publicProcedure
 		.input(z.object({ id: z.string() }))
 		.query(({ input }) => {
-			const { source, id } = decodeId(input.id);
-			return { source, id, opaqueId: input.id };
+			const { source } = decodeId(input.id);
+			return { id: input.id, capabilities: trackCapabilities(source) };
 		}),
 
 	streamUrl: publicProcedure

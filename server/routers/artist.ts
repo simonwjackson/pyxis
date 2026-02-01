@@ -1,17 +1,38 @@
 import { z } from "zod";
-import { router, publicProcedure } from "../trpc.js";
+import { TRPCError } from "@trpc/server";
+import { router, publicProcedure, protectedProcedure } from "../trpc.js";
+import { decodeId, encodeId } from "../lib/ids.js";
+import { ensureSourceManager } from "../services/sourceManager.js";
 
-// Stub router for Phase 3+ — artist entity operations
 export const artistRouter = router({
 	get: publicProcedure
 		.input(z.object({ id: z.string() }))
 		.query(({ input }) => {
-			return { id: input.id };
+			// Validate the opaque ID is decodable
+			decodeId(input.id);
+			throw new TRPCError({
+				code: "NOT_IMPLEMENTED",
+				message: "Artist detail lookup is not yet supported",
+			});
 		}),
 
-	search: publicProcedure
-		.input(z.object({ query: z.string() }))
-		.query(() => {
-			return { artists: [] };
+	search: protectedProcedure
+		.input(z.object({ query: z.string().min(1) }))
+		.query(async ({ ctx, input }) => {
+			const sourceManager = ctx.sourceManager ?? await ensureSourceManager();
+			const results = await sourceManager.searchAll(input.query);
+			// Filter to extract artist-like results from tracks (no dedicated artist search yet)
+			const seen = new Set<string>();
+			const artists = results.tracks
+				.filter((t) => {
+					if (seen.has(t.artist)) return false;
+					seen.add(t.artist);
+					return true;
+				})
+				.map((t) => ({
+					id: encodeId(t.sourceId.source, t.sourceId.id),
+					name: t.artist,
+				}));
+			return { artists };
 		}),
 });

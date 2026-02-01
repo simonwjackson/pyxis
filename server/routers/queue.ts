@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { observable } from "@trpc/server/observable";
 import { router, publicProcedure, protectedProcedure } from "../trpc.js";
+import { decodeId } from "../lib/ids.js";
 import * as QueueService from "../services/queue.js";
 import type { QueueState } from "../services/queue.js";
 
@@ -35,15 +36,18 @@ export const queueRouter = router({
 						album: z.string(),
 						duration: z.number().nullable(),
 						artworkUrl: z.string().nullable(),
-						source: z.enum(["pandora", "ytmusic", "local"]),
 					}),
 				),
 				insertNext: z.boolean().optional(),
 			}),
 		)
 		.mutation(({ input }) => {
+			const tracksWithSource = input.tracks.map((track) => ({
+				...track,
+				source: decodeId(track.id).source,
+			}));
 			QueueService.addTracks(
-				input.tracks,
+				tracksWithSource,
 				input.insertNext,
 			);
 			return serializeQueueState(QueueService.getState());
@@ -60,6 +64,13 @@ export const queueRouter = router({
 		QueueService.clear();
 		return serializeQueueState(QueueService.getState());
 	}),
+
+	jump: protectedProcedure
+		.input(z.object({ index: z.number() }))
+		.mutation(({ input }) => {
+			QueueService.jumpTo(input.index);
+			return serializeQueueState(QueueService.getState());
+		}),
 
 	shuffle: protectedProcedure.mutation(() => {
 		QueueService.shuffle();

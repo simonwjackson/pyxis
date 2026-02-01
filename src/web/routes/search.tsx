@@ -8,11 +8,11 @@ import { Spinner } from "../components/ui/spinner";
 
 type SearchTrack = {
 	readonly id: string;
-	readonly source: string;
 	readonly title: string;
 	readonly artist: string;
 	readonly album?: string;
 	readonly artworkUrl?: string | null;
+	readonly capabilities: { readonly radio: boolean };
 };
 
 export function SearchPage() {

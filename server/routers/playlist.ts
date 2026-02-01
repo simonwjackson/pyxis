@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { router, protectedProcedure, publicProcedure } from "../trpc.js";
-import { encodeId, decodeId } from "../lib/ids.js";
+import { encodeId, decodeId, trackCapabilities, playlistCapabilities } from "../lib/ids.js";
 import {
 	invalidateManagers,
 } from "../services/sourceManager.js";
@@ -18,7 +18,7 @@ function encodeTrack(track: CanonicalTrack) {
 		album: track.album,
 		...(track.duration != null ? { duration: track.duration } : {}),
 		...(track.artworkUrl != null ? { artworkUrl: track.artworkUrl } : {}),
-		source: track.sourceId.source,
+		capabilities: trackCapabilities(track.sourceId.source),
 	};
 }
 
@@ -26,7 +26,7 @@ function encodePlaylist(playlist: CanonicalPlaylist) {
 	return {
 		id: encodeId(playlist.source, playlist.id),
 		name: playlist.name,
-		source: playlist.source,
+		capabilities: playlistCapabilities(playlist.source),
 		...(playlist.description != null
 			? { description: playlist.description }
 			: {}),

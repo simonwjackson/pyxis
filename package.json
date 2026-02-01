@@ -38,6 +38,7 @@
 		"zod": "^4.1.13"
 	},
 	"devDependencies": {
+		"@types/bun": "^1.x",
 		"@types/node": "^20.x",
 		"@types/proper-lockfile": "^4.1.4",
 		"@types/react": "^18.0.0",

@@ -13,10 +13,18 @@ export function LoginPage() {
 
 	const loginMutation = trpc.auth.login.useMutation({
 		async onSuccess(data) {
-			// Set session cookie for subsequent requests
 			document.cookie = `pyxis_session=${data.sessionId}; path=/; SameSite=Lax`;
-			// Wait for the status query to refetch with the new cookie
-			// before navigating, so RootLayout sees authenticated=true
+			await utils.auth.status.invalidate();
+			navigate({ to: "/" });
+		},
+		onError(err) {
+			setError(err.message);
+		},
+	});
+
+	const guestLoginMutation = trpc.auth.guestLogin.useMutation({
+		async onSuccess(data) {
+			document.cookie = `pyxis_session=${data.sessionId}; path=/; SameSite=Lax`;
 			await utils.auth.status.invalidate();
 			navigate({ to: "/" });
 		},
@@ -86,6 +94,29 @@ export function LoginPage() {
 						)}
 					</Button>
 				</form>
+				<div className="relative my-6">
+					<div className="absolute inset-0 flex items-center">
+						<div className="w-full border-t border-[var(--color-border)]" />
+					</div>
+					<div className="relative flex justify-center text-xs">
+						<span className="bg-[var(--color-bg)] px-2 text-[var(--color-text-dim)]">
+							or
+						</span>
+					</div>
+				</div>
+				<Button
+					type="button"
+					variant="outline"
+					className="w-full"
+					disabled={guestLoginMutation.isPending}
+					onClick={() => guestLoginMutation.mutate()}
+				>
+					{guestLoginMutation.isPending ? (
+						<Spinner className="h-4 w-4" />
+					) : (
+						"Continue without Pandora"
+					)}
+				</Button>
 				<p className="text-center text-xs text-[var(--color-text-dim)] mt-8">
 					This is an unofficial client. Use at your own risk.
 				</p>

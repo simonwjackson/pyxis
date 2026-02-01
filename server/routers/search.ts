@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { Effect } from "effect";
 import { router, protectedProcedure, pandoraProtectedProcedure } from "../trpc.js";
-import { encodeId } from "../lib/ids.js";
+import { encodeId, trackCapabilities } from "../lib/ids.js";
 import * as Pandora from "../../src/sources/pandora/client.js";
 import { ensureSourceManager } from "../services/sourceManager.js";
 import type { CanonicalTrack, CanonicalAlbum } from "../../src/sources/types.js";
@@ -15,7 +15,7 @@ function encodeTrack(track: CanonicalTrack) {
 		album: track.album,
 		...(track.duration != null ? { duration: track.duration } : {}),
 		...(track.artworkUrl != null ? { artworkUrl: track.artworkUrl } : {}),
-		source: track.sourceId.source,
+		capabilities: trackCapabilities(track.sourceId.source),
 	};
 }
 
@@ -29,10 +29,7 @@ function encodeAlbum(album: CanonicalAlbum) {
 		artist: album.artist,
 		...(album.year != null ? { year: album.year } : {}),
 		...(album.artworkUrl != null ? { artworkUrl: album.artworkUrl } : {}),
-		sourceIds: album.sourceIds.map((sid) => ({
-			id: encodeId(sid.source, sid.id),
-			source: sid.source,
-		})),
+		sourceIds: album.sourceIds.map((sid) => encodeId(sid.source, sid.id)),
 	};
 }
 

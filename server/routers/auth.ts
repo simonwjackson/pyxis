@@ -10,7 +10,7 @@ import {
 import {
 	addCredential,
 } from "../services/credentials.js";
-import { getSourceManager, setGlobalSourceManager } from "../services/sourceManager.js";
+import { getSourceManager, setGlobalSourceManager, ensureSourceManager } from "../services/sourceManager.js";
 import { getDb, schema } from "../../src/db/index.js";
 import { TRPCError } from "@trpc/server";
 
@@ -75,6 +75,19 @@ export const authRouter = router({
 				});
 			}
 		}),
+
+	/**
+	 * Create a session without Pandora credentials.
+	 * Enables YTMusic-only usage.
+	 */
+	guestLogin: publicProcedure.mutation(async () => {
+		const sessionId = createSession("guest");
+
+		// Initialize source manager with YTMusic only
+		await ensureSourceManager();
+
+		return { sessionId, username: "guest" };
+	}),
 
 	logout: publicProcedure.mutation(async ({ ctx }) => {
 		if (ctx.sessionId) {

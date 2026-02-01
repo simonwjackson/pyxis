@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { Effect } from "effect";
 import { router, pandoraProtectedProcedure } from "../trpc.js";
-import { encodeId, decodeId, buildStreamUrl } from "../lib/ids.js";
+import { encodeId, decodeId, buildStreamUrl, trackCapabilities } from "../lib/ids.js";
 import * as Pandora from "../../src/sources/pandora/client.js";
 import type { PlaylistItem } from "../../src/sources/pandora/types/api.js";
 
@@ -15,7 +15,7 @@ function encodePlaylistItem(item: PlaylistItem) {
 		...(item.albumArtUrl != null
 			? { artworkUrl: item.albumArtUrl }
 			: {}),
-		source: "pandora" as const,
+		capabilities: trackCapabilities("pandora"),
 	};
 }
 

@@ -30,9 +30,7 @@ const server = Bun.serve({
 
 		// Stream endpoint: /stream/:opaqueId (accepts opaque base64 IDs)
 		if (url.pathname.startsWith("/stream/")) {
-			const opaqueId = decodeURIComponent(
-				url.pathname.slice("/stream/".length),
-			);
+			const opaqueId = url.pathname.slice("/stream/".length);
 			// Decode opaque ID to composite format for internal use
 			let compositeId: string;
 			try {
@@ -51,10 +49,10 @@ const server = Bun.serve({
 					if (nextHint) {
 						let nextCompositeId: string;
 						try {
-							const decoded = decodeId(decodeURIComponent(nextHint));
+							const decoded = decodeId(nextHint);
 							nextCompositeId = `${decoded.source}:${decoded.id}`;
 						} catch {
-							nextCompositeId = decodeURIComponent(nextHint);
+							nextCompositeId = nextHint;
 						}
 						prefetchToCache(sourceManager, nextCompositeId).catch((err: unknown) => {
 							const msg = err instanceof Error ? err.message : String(err);

@@ -3,47 +3,11 @@ import { Play, Plus, Music, ListMusic, Disc3 } from "lucide-react";
 import { trpc } from "../lib/trpc";
 import { usePlaybackContext } from "../contexts/PlaybackContext";
 
-type SourceType = "pandora" | "ytmusic" | "local";
-
 type PlaylistData = {
 	readonly id: string;
 	readonly name: string;
-	readonly source: SourceType;
 	readonly artworkUrl?: string | null;
 };
-
-function sourceLabel(source: SourceType): string {
-	switch (source) {
-		case "pandora":
-			return "Pandora";
-		case "ytmusic":
-			return "YouTube Music";
-		case "local":
-			return "Local";
-	}
-}
-
-function sourceGradient(source: SourceType): string {
-	switch (source) {
-		case "pandora":
-			return "from-indigo-600 to-purple-800";
-		case "ytmusic":
-			return "from-red-600 to-red-900";
-		case "local":
-			return "from-emerald-600 to-teal-800";
-	}
-}
-
-function sourceLabelColor(source: SourceType): string {
-	switch (source) {
-		case "pandora":
-			return "text-indigo-200/60";
-		case "ytmusic":
-			return "text-red-200/60";
-		case "local":
-			return "text-emerald-200/60";
-	}
-}
 
 function PlaylistCard({
 	playlist,
@@ -59,7 +23,7 @@ function PlaylistCard({
 			className="group cursor-pointer text-left"
 		>
 			<div
-				className={`aspect-square bg-gradient-to-br ${sourceGradient(playlist.source)} rounded-lg mb-2 flex items-center justify-center relative overflow-hidden`}
+				className="aspect-square bg-gradient-to-br from-indigo-600 to-purple-800 rounded-lg mb-2 flex items-center justify-center relative overflow-hidden"
 			>
 				{playlist.artworkUrl ? (
 					<img
@@ -69,7 +33,7 @@ function PlaylistCard({
 					/>
 				) : (
 					<ListMusic
-						className={`w-8 h-8 ${sourceLabelColor(playlist.source)}`}
+						className="w-8 h-8 text-indigo-200/60"
 					/>
 				)}
 				<div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center">
@@ -82,7 +46,7 @@ function PlaylistCard({
 				{playlist.name}
 			</p>
 			<p className="text-xs text-[var(--color-text-dim)]">
-				{sourceLabel(playlist.source)}
+				Playlist
 			</p>
 		</button>
 	);

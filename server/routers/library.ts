@@ -1,7 +1,8 @@
 import { z } from "zod";
 import { Effect } from "effect";
 import { router, pandoraProtectedProcedure, publicProcedure } from "../trpc.js";
-import { encodeId, decodeId } from "../lib/ids.js";
+import { encodeId, decodeId, trackCapabilities } from "../lib/ids.js";
+import type { SourceType } from "../../src/sources/types.js";
 import { getDb, schema } from "../../src/db/index.js";
 import { eq, and } from "drizzle-orm";
 import { ensureSourceManager } from "../services/sourceManager.js";
@@ -21,10 +22,7 @@ export const libraryRouter = router({
 				artist: album.artist,
 				year: album.year,
 				artworkUrl: album.artworkUrl,
-				sourceRefs: refs.map((ref) => ({
-					source: ref.source,
-					sourceId: ref.sourceId,
-				})),
+				sourceIds: refs.map((ref) => encodeId(ref.source as SourceType, ref.sourceId)),
 			};
 		});
 	}),
@@ -40,8 +38,13 @@ export const libraryRouter = router({
 			return tracks
 				.sort((a, b) => a.trackIndex - b.trackIndex)
 				.map((t) => ({
-					...t,
-					id: encodeId(t.source as "pandora" | "ytmusic" | "local", t.sourceTrackId),
+					id: encodeId(t.source as SourceType, t.sourceTrackId),
+					trackIndex: t.trackIndex,
+					title: t.title,
+					artist: t.artist,
+					duration: t.duration,
+					artworkUrl: t.artworkUrl,
+					capabilities: trackCapabilities(t.source as SourceType),
 				}));
 		}),
 

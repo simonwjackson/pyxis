@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { observable } from "@trpc/server/observable";
 import { router, publicProcedure, protectedProcedure } from "../trpc.js";
-import { buildStreamUrl } from "../lib/ids.js";
+import { buildStreamUrl, decodeId } from "../lib/ids.js";
 import * as PlayerService from "../services/player.js";
 
 function serializePlayerState(state: PlayerService.PlayerState) {
@@ -45,7 +45,6 @@ export const playerRouter = router({
 								album: z.string(),
 								duration: z.number().nullable(),
 								artworkUrl: z.string().nullable(),
-								source: z.enum(["pandora", "ytmusic", "local"]),
 							}),
 						)
 						.optional(),
@@ -66,7 +65,11 @@ export const playerRouter = router({
 		)
 		.mutation(({ input }) => {
 			if (input?.tracks && input.context) {
-				PlayerService.play(input.tracks, input.context, input.startIndex);
+				const tracksWithSource = input.tracks.map((track) => ({
+					...track,
+					source: decodeId(track.id).source,
+				}));
+				PlayerService.play(tracksWithSource, input.context, input.startIndex);
 			} else {
 				PlayerService.play();
 			}
