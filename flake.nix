@@ -68,6 +68,7 @@
         packages = with pkgs; [
           bun
           mpv
+          yt-dlp
           beads.packages.${system}.default
         ];
       };
