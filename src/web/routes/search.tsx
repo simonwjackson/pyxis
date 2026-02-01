@@ -5,7 +5,7 @@ import { trpc } from "../lib/trpc";
 import { SearchInput } from "../components/search/SearchInput";
 import { SearchResults } from "../components/search/SearchResults";
 import { Spinner } from "../components/ui/spinner";
-import type { CanonicalAlbum, CanonicalTrack } from "../../sources/types";
+import type { CanonicalTrack, SourceType } from "../../sources/types";
 
 export function SearchPage() {
 	const [query, setQuery] = useState("");
@@ -26,20 +26,19 @@ export function SearchPage() {
 		},
 	});
 
-	const addAlbumWithTracks =
-		trpc.collection.addAlbumWithTracks.useMutation({
-			onSuccess(data) {
-				if (data.alreadyExists) {
-					toast.info("Album already in your collection");
-				} else {
-					toast.success("Album saved to collection");
-				}
-				utils.collection.listAlbums.invalidate();
-			},
-			onError(err) {
-				toast.error(`Failed to save album: ${err.message}`);
-			},
-		});
+	const saveAlbum = trpc.collection.saveAlbum.useMutation({
+		onSuccess(data) {
+			if (data.alreadyExists) {
+				toast.info("Album already in your collection");
+			} else {
+				toast.success("Album saved to collection");
+			}
+			utils.collection.listAlbums.invalidate();
+		},
+		onError(err) {
+			toast.error(`Failed to save album: ${err.message}`);
+		},
+	});
 
 	const createRadio = trpc.playlists.createRadio.useMutation({
 		onSuccess() {
@@ -63,35 +62,10 @@ export function SearchPage() {
 	);
 
 	const handleSaveAlbum = useCallback(
-		(album: CanonicalAlbum) => {
-			addAlbumWithTracks.mutate({
-				id: album.id,
-				title: album.title,
-				artist: album.artist,
-				...(album.year != null ? { year: album.year } : {}),
-				...(album.artworkUrl != null
-					? { artworkUrl: album.artworkUrl }
-					: {}),
-				sourceRefs: album.sourceIds.map((sid) => ({
-					source: sid.source,
-					sourceId: sid.id,
-				})),
-				tracks: album.tracks.map((track, index) => ({
-					trackIndex: index,
-					title: track.title,
-					artist: track.artist,
-					...(track.duration != null
-						? { duration: Math.round(track.duration) }
-						: {}),
-					source: track.sourceId.source,
-					sourceTrackId: track.sourceId.id,
-					...(track.artworkUrl != null
-						? { artworkUrl: track.artworkUrl }
-						: {}),
-				})),
-			});
+		(source: SourceType, albumId: string) => {
+			saveAlbum.mutate({ source, albumId });
 		},
-		[addAlbumWithTracks],
+		[saveAlbum],
 	);
 
 	const handleStartRadio = useCallback(

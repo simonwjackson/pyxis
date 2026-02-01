@@ -4,7 +4,11 @@ import type {
 	SearchSong,
 	SearchGenreStation,
 } from "../../../types/api";
-import type { CanonicalTrack, CanonicalAlbum } from "../../../sources/types";
+import type {
+	CanonicalTrack,
+	CanonicalAlbum,
+	SourceType,
+} from "../../../sources/types";
 
 type SearchResultsProps = {
 	readonly artists?: readonly SearchArtist[];
@@ -13,7 +17,7 @@ type SearchResultsProps = {
 	readonly tracks?: readonly CanonicalTrack[];
 	readonly albums?: readonly CanonicalAlbum[];
 	readonly onCreateStation: (musicToken: string) => void;
-	readonly onSaveAlbum?: (album: CanonicalAlbum) => void;
+	readonly onSaveAlbum?: (source: SourceType, albumId: string) => void;
 	readonly onStartRadio?: (track: CanonicalTrack) => void;
 };
 
@@ -51,7 +55,9 @@ export function SearchResults({
 						Albums
 					</h3>
 					<div className="space-y-1">
-						{albums.map((album) => (
+						{albums.map((album) => {
+						const primarySource = album.sourceIds[0];
+						return (
 							<div
 								key={album.id}
 								className="flex items-center gap-3 p-3 rounded-lg hover:bg-[var(--color-bg-highlight)] group"
@@ -76,20 +82,26 @@ export function SearchResults({
 										{album.year
 											? ` \u00B7 ${String(album.year)}`
 											: ""}
-										{` \u00B7 ${album.sourceIds[0]?.source === "ytmusic" ? "YouTube Music" : album.sourceIds[0]?.source ?? ""}`}
+										{` \u00B7 ${primarySource?.source === "ytmusic" ? "YouTube Music" : primarySource?.source ?? ""}`}
 									</p>
 								</div>
-								{onSaveAlbum && (
+								{onSaveAlbum && primarySource && (
 									<button
 										type="button"
-										onClick={() => onSaveAlbum(album)}
+										onClick={() =>
+											onSaveAlbum(
+												primarySource.source,
+												primarySource.id,
+											)
+										}
 										className="text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text)] bg-[var(--color-bg-highlight)] hover:bg-[var(--color-border)] px-2.5 py-1.5 rounded transition-colors shrink-0"
 									>
 										Save
 									</button>
 								)}
 							</div>
-						))}
+						);
+					})}
 					</div>
 				</section>
 			)}

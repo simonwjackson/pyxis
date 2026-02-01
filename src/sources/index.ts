@@ -3,12 +3,14 @@ import type {
 	SourceType,
 	CanonicalPlaylist,
 	CanonicalTrack,
+	CanonicalAlbum,
 	SearchResult,
 } from "./types.js";
 import {
 	hasPlaylistCapability,
 	hasStreamCapability,
 	hasSearchCapability,
+	hasAlbumCapability,
 } from "./types.js";
 
 export type SourceManager = {
@@ -24,6 +26,13 @@ export type SourceManager = {
 		trackId: string,
 	) => Promise<string>;
 	readonly searchAll: (query: string) => Promise<SearchResult>;
+	readonly getAlbumTracks: (
+		source: SourceType,
+		albumId: string,
+	) => Promise<{
+		readonly album: CanonicalAlbum;
+		readonly tracks: readonly CanonicalTrack[];
+	}>;
 };
 
 export function createSourceManager(
@@ -72,6 +81,16 @@ export function createSourceManager(
 				);
 			}
 			return source.getStreamUrl(trackId);
+		},
+
+		async getAlbumTracks(sourceType, albumId) {
+			const source = sourceMap.get(sourceType);
+			if (!source || !hasAlbumCapability(source)) {
+				throw new Error(
+					`Source "${sourceType}" does not support album tracks`,
+				);
+			}
+			return source.getAlbumTracks(albumId);
 		},
 
 		async searchAll(query: string): Promise<SearchResult> {

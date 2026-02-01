@@ -1,7 +1,9 @@
 import { z } from "zod";
+import { TRPCError } from "@trpc/server";
 import { router, publicProcedure } from "../trpc.js";
 import { getDb, schema } from "../../src/db/index.js";
 import { eq, and } from "drizzle-orm";
+import { getGlobalSourceManager } from "../services/sourceManager.js";
 
 const albumInput = z.object({
 	id: z.string(),
@@ -151,6 +153,84 @@ export const collectionRouter = router({
 			}
 
 			return { id: input.id, alreadyExists: false };
+		}),
+
+	saveAlbum: publicProcedure
+		.input(
+			z.object({
+				source: z.enum(["pandora", "ytmusic", "local"]),
+				albumId: z.string(),
+			}),
+		)
+		.mutation(async ({ input }) => {
+			const sourceManager = getGlobalSourceManager();
+			if (!sourceManager) {
+				throw new TRPCError({
+					code: "PRECONDITION_FAILED",
+					message: "No active session — cannot fetch album tracks",
+				});
+			}
+
+			// Duplicate detection: check if album already exists by source ref
+			const db = await getDb();
+			const existing = await db
+				.select()
+				.from(schema.albumSourceRefs)
+				.where(
+					and(
+						eq(schema.albumSourceRefs.source, input.source),
+						eq(schema.albumSourceRefs.sourceId, input.albumId),
+					),
+				);
+			const first = existing[0];
+			if (first) {
+				return { id: first.albumId, alreadyExists: true };
+			}
+
+			// Fetch full album details + tracks from the source
+			const { album, tracks } = await sourceManager.getAlbumTracks(
+				input.source,
+				input.albumId,
+			);
+
+			await db.insert(schema.albums).values({
+				id: album.id,
+				title: album.title,
+				artist: album.artist,
+				...(album.year != null ? { year: album.year } : {}),
+				...(album.artworkUrl != null
+					? { artworkUrl: album.artworkUrl }
+					: {}),
+			});
+
+			for (const sid of album.sourceIds) {
+				await db.insert(schema.albumSourceRefs).values({
+					id: `${album.id}-${sid.source}-${sid.id}`,
+					albumId: album.id,
+					source: sid.source,
+					sourceId: sid.id,
+				});
+			}
+
+			for (const [index, track] of tracks.entries()) {
+				await db.insert(schema.albumTracks).values({
+					id: `${album.id}-track-${String(index)}`,
+					albumId: album.id,
+					trackIndex: index,
+					title: track.title,
+					artist: track.artist,
+					...(track.duration != null
+						? { duration: Math.round(track.duration) }
+						: {}),
+					source: track.sourceId.source,
+					sourceTrackId: track.sourceId.id,
+					...(track.artworkUrl != null
+						? { artworkUrl: track.artworkUrl }
+						: {}),
+				});
+			}
+
+			return { id: album.id, alreadyExists: false };
 		}),
 
 	removeAlbum: publicProcedure
