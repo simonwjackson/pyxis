@@ -3,16 +3,16 @@
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
-    beads = {
-      url = "github:steveyegge/beads";
-      inputs.nixpkgs.follows = "nixpkgs";
+    yt-dlp-src = {
+      url = "github:yt-dlp/yt-dlp";
+      flake = false;
     };
   };
 
   outputs = {
     self,
     nixpkgs,
-    beads,
+    yt-dlp-src,
   }: let
     systems = ["x86_64-linux" "aarch64-linux" "x86_64-darwin" "aarch64-darwin"];
     forAllSystems = nixpkgs.lib.genAttrs systems;
@@ -23,6 +23,14 @@
       then builtins.fromJSON (builtins.readFile hashesFile)
       else {};
     npmDepsHash = hashesData.npmDeps or defaultNpmDepsHash;
+    yt-dlp-overlay = final: prev: {
+      yt-dlp = prev.yt-dlp.overridePythonAttrs (old: {
+        src = yt-dlp-src;
+        version = "latest";
+        patches = [];
+        postPatch = "";
+      });
+    };
   in {
     packages = forAllSystems (system: let
       pkgs = nixpkgs.legacyPackages.${system};
@@ -62,14 +70,16 @@
     });
 
     devShells = forAllSystems (system: let
-      pkgs = nixpkgs.legacyPackages.${system};
+      pkgs = import nixpkgs {
+        inherit system;
+        overlays = [yt-dlp-overlay];
+      };
     in {
       default = pkgs.mkShell {
         packages = with pkgs; [
           bun
           mpv
           yt-dlp
-          beads.packages.${system}.default
         ];
       };
     });
