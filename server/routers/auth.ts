@@ -28,7 +28,7 @@ export const authRouter = router({
 				// Initialize source manager for stream endpoint
 				setGlobalSourceManager(await getSourceManager(session));
 
-				// Persist credentials for auto-login after restart
+				// Persist credentials + session ID for auto-login after restart
 				const db = await getDb();
 				await db
 					.insert(schema.credentials)
@@ -36,12 +36,14 @@ export const authRouter = router({
 						id: "default",
 						username: input.username,
 						password: input.password,
+						sessionId,
 					})
 					.onConflictDoUpdate({
 						target: schema.credentials.id,
 						set: {
 							username: input.username,
 							password: input.password,
+							sessionId,
 						},
 					});
 

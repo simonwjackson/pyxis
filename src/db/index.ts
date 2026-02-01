@@ -55,8 +55,11 @@ CREATE TABLE IF NOT EXISTS credentials (
 	id TEXT PRIMARY KEY DEFAULT 'default',
 	username TEXT NOT NULL,
 	password TEXT NOT NULL,
+	session_id TEXT,
 	created_at TIMESTAMP DEFAULT NOW() NOT NULL
 );
+
+ALTER TABLE credentials ADD COLUMN IF NOT EXISTS session_id TEXT;
 `;
 
 export async function getDb() {

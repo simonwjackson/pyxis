@@ -1,7 +1,7 @@
 import { Effect } from "effect";
 import { getDb, schema } from "../../src/db/index.js";
 import { login } from "../../src/client.js";
-import { createSession } from "./session.js";
+import { createSession, createSessionWithId } from "./session.js";
 import { getSourceManager, setGlobalSourceManager } from "./sourceManager.js";
 import type { Logger } from "../../src/logger.js";
 
@@ -15,7 +15,13 @@ export async function tryAutoLogin(logger: Logger): Promise<void> {
 		const session = await Effect.runPromise(
 			login(creds.username, creds.password),
 		);
-		createSession(session, creds.username);
+
+		if (creds.sessionId) {
+			createSessionWithId(creds.sessionId, session, creds.username);
+		} else {
+			createSession(session, creds.username);
+		}
+
 		setGlobalSourceManager(await getSourceManager(session));
 		logger.log(`Auto-login successful for ${creds.username}`);
 	} catch {

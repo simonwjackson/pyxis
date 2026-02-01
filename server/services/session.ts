@@ -27,6 +27,18 @@ export function createSession(
 	return sessionId;
 }
 
+export function createSessionWithId(
+	sessionId: string,
+	pandoraSession: PandoraSession,
+	username: string,
+): void {
+	sessions.set(sessionId, {
+		pandoraSession,
+		username,
+		createdAt: Date.now(),
+	});
+}
+
 export function getSession(sessionId: string): SessionData | undefined {
 	return sessions.get(sessionId);
 }
