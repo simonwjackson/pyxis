@@ -566,6 +566,53 @@ export function NowPlayingPage() {
 				</div>
 			)}
 
+			{/* Up Next queue - shown for station/playlist modes (not album mode) */}
+			{!isAlbumMode &&
+				(() => {
+					const upNextTracks = tracks.slice(
+						trackIndex + 1,
+						trackIndex + 5,
+					);
+					const remainingCount = tracks.length - trackIndex - 1;
+					if (upNextTracks.length === 0) return null;
+					return (
+						<div className="w-full max-w-md">
+							<h3 className="text-xs font-medium text-[var(--color-text-dim)] uppercase tracking-wider mb-2">
+								Up Next
+							</h3>
+							<div className="space-y-0.5">
+								{upNextTracks.map((track, i) => (
+									<button
+										key={track.trackToken}
+										type="button"
+										onClick={() =>
+											handleJumpToTrack(
+												trackIndex + 1 + i,
+											)
+										}
+										className="w-full flex items-center gap-3 px-3 py-2 rounded text-left text-sm text-[var(--color-text-dim)] hover:text-[var(--color-text)] hover:bg-[var(--color-bg-highlight)] transition-colors"
+									>
+										<span className="w-5 text-right text-xs text-[var(--color-text-dim)]">
+											{String(i + 1)}
+										</span>
+										<span className="flex-1 truncate">
+											{track.songName}
+										</span>
+										<span className="text-xs text-[var(--color-text-dim)] truncate max-w-[140px]">
+											{track.artistName}
+										</span>
+									</button>
+								))}
+								{remainingCount > 4 && (
+									<p className="text-xs text-[var(--color-text-dim)] px-3 py-1">
+										+{String(remainingCount - 4)} more
+									</p>
+								)}
+							</div>
+						</div>
+					);
+				})()}
+
 			{/* Album track list */}
 			{isAlbumMode && tracks.length > 0 && (
 				<div className="w-full max-w-md">

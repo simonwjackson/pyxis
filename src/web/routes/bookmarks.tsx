@@ -1,4 +1,4 @@
-import { User, Music, Bookmark, Trash2 } from "lucide-react";
+import { User, Music, Bookmark, Trash2, Plus } from "lucide-react";
 import { toast } from "sonner";
 import { trpc } from "../lib/trpc";
 import { Spinner } from "../components/ui/spinner";
@@ -19,6 +19,16 @@ export function BookmarksPage() {
 		onSuccess: () => {
 			utils.bookmarks.list.invalidate();
 			toast.success("Song bookmark removed");
+		},
+	});
+
+	const createStation = trpc.stations.create.useMutation({
+		onSuccess: () => {
+			utils.stations.list.invalidate();
+			toast.success("Station created");
+		},
+		onError: (err) => {
+			toast.error(`Failed to create station: ${err.message}`);
 		},
 	});
 
@@ -54,18 +64,35 @@ export function BookmarksPage() {
 								<span className="flex-1 text-[var(--color-text)]">
 									{a.artistName}
 								</span>
-								<Button
-									variant="ghost"
-									size="icon"
-									className="opacity-0 group-hover:opacity-100 transition-opacity text-[var(--color-text-muted)] hover:text-[var(--color-error)]"
-									onClick={() =>
-										deleteArtist.mutate({
-											bookmarkToken: a.bookmarkToken,
-										})
-									}
-								>
-									<Trash2 className="w-4 h-4" />
-								</Button>
+								<div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+									<Button
+										variant="ghost"
+										size="icon"
+										className="text-[var(--color-text-muted)] hover:text-emerald-400"
+										onClick={() =>
+											createStation.mutate({
+												musicToken: a.musicToken,
+												musicType: "artist",
+											})
+										}
+										title="Create station"
+									>
+										<Plus className="w-4 h-4" />
+									</Button>
+									<Button
+										variant="ghost"
+										size="icon"
+										className="text-[var(--color-text-muted)] hover:text-[var(--color-error)]"
+										onClick={() =>
+											deleteArtist.mutate({
+												bookmarkToken: a.bookmarkToken,
+											})
+										}
+										title="Remove bookmark"
+									>
+										<Trash2 className="w-4 h-4" />
+									</Button>
+								</div>
 							</li>
 						))}
 					</ul>
@@ -94,18 +121,35 @@ export function BookmarksPage() {
 										{s.artistName}
 									</p>
 								</div>
-								<Button
-									variant="ghost"
-									size="icon"
-									className="opacity-0 group-hover:opacity-100 transition-opacity text-[var(--color-text-muted)] hover:text-[var(--color-error)]"
-									onClick={() =>
-										deleteSong.mutate({
-											bookmarkToken: s.bookmarkToken,
-										})
-									}
-								>
-									<Trash2 className="w-4 h-4" />
-								</Button>
+								<div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+									<Button
+										variant="ghost"
+										size="icon"
+										className="text-[var(--color-text-muted)] hover:text-emerald-400"
+										onClick={() =>
+											createStation.mutate({
+												musicToken: s.musicToken,
+												musicType: "song",
+											})
+										}
+										title="Create station"
+									>
+										<Plus className="w-4 h-4" />
+									</Button>
+									<Button
+										variant="ghost"
+										size="icon"
+										className="text-[var(--color-text-muted)] hover:text-[var(--color-error)]"
+										onClick={() =>
+											deleteSong.mutate({
+												bookmarkToken: s.bookmarkToken,
+											})
+										}
+										title="Remove bookmark"
+									>
+										<Trash2 className="w-4 h-4" />
+									</Button>
+								</div>
 							</li>
 						))}
 					</ul>
