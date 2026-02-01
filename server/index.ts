@@ -1,12 +1,6 @@
 import { fetchRequestHandler } from "@trpc/server/adapters/fetch";
 import { appRouter } from "./router.js";
 import { createContext } from "./trpc.js";
-import {
-	handleWebSocketUpgrade,
-	handleWSOpen,
-	handleWSMessage,
-	handleWSClose,
-} from "./handlers/websocket.js";
 import { handleStreamRequest, prefetchToCache } from "./services/stream.js";
 import { ensureSourceManager } from "./services/sourceManager.js";
 import { tryAutoLogin } from "./services/autoLogin.js";
@@ -26,17 +20,8 @@ const CORS_HEADERS = {
 
 const server = Bun.serve({
 	port: PORT,
-	fetch(req, server) {
+	fetch(req) {
 		const url = new URL(req.url);
-
-		// WebSocket upgrade
-		if (url.pathname === "/ws") {
-			const wsData = handleWebSocketUpgrade(req);
-			if (wsData && server.upgrade(req, { data: wsData })) {
-				return;
-			}
-			return new Response("Unauthorized", { status: 401 });
-		}
 
 		// CORS preflight
 		if (req.method === "OPTIONS") {
@@ -89,7 +74,7 @@ const server = Bun.serve({
 				});
 		}
 
-		// tRPC handler
+		// tRPC handler (includes SSE subscriptions via GET)
 		if (url.pathname.startsWith("/trpc")) {
 			return fetchRequestHandler({
 				endpoint: "/trpc",
@@ -109,11 +94,6 @@ const server = Bun.serve({
 		}
 
 		return new Response("Not Found", { status: 404 });
-	},
-	websocket: {
-		open: handleWSOpen,
-		message: handleWSMessage,
-		close: handleWSClose,
 	},
 });
 

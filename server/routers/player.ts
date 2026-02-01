@@ -1,8 +1,153 @@
-import { router, publicProcedure } from "../trpc.js";
+import { z } from "zod";
+import { observable } from "@trpc/server/observable";
+import { router, publicProcedure, protectedProcedure } from "../trpc.js";
+import { buildStreamUrl } from "../lib/ids.js";
+import * as PlayerService from "../services/player.js";
 
-// Stub router for Phase 3 — player state management
+function serializePlayerState(state: PlayerService.PlayerState) {
+	const track = state.currentTrack;
+	const nextTrack = state.nextTrack;
+	return {
+		status: state.status,
+		currentTrack: track
+			? {
+					id: track.id,
+					title: track.title,
+					artist: track.artist,
+					album: track.album,
+					duration: track.duration,
+					artworkUrl: track.artworkUrl,
+					streamUrl: buildStreamUrl(track.id, nextTrack?.id),
+				}
+			: null,
+		progress: state.progress,
+		duration: state.duration,
+		volume: state.volume,
+		updatedAt: state.updatedAt,
+	};
+}
+
 export const playerRouter = router({
 	state: publicProcedure.query(() => {
-		return { playing: false, trackId: null };
+		return serializePlayerState(PlayerService.getState());
+	}),
+
+	play: protectedProcedure
+		.input(
+			z
+				.object({
+					tracks: z
+						.array(
+							z.object({
+								id: z.string(),
+								title: z.string(),
+								artist: z.string(),
+								album: z.string(),
+								duration: z.number().nullable(),
+								artworkUrl: z.string().nullable(),
+								source: z.enum(["pandora", "ytmusic", "local"]),
+							}),
+						)
+						.optional(),
+					context: z
+						.discriminatedUnion("type", [
+							z.object({ type: z.literal("radio"), seedId: z.string() }),
+							z.object({ type: z.literal("album"), albumId: z.string() }),
+							z.object({
+								type: z.literal("playlist"),
+								playlistId: z.string(),
+							}),
+							z.object({ type: z.literal("manual") }),
+						])
+						.optional(),
+					startIndex: z.number().optional(),
+				})
+				.optional(),
+		)
+		.mutation(({ input }) => {
+			if (input?.tracks && input.context) {
+				PlayerService.play(input.tracks, input.context, input.startIndex);
+			} else {
+				PlayerService.play();
+			}
+			return serializePlayerState(PlayerService.getState());
+		}),
+
+	pause: protectedProcedure.mutation(() => {
+		PlayerService.pause();
+		return serializePlayerState(PlayerService.getState());
+	}),
+
+	resume: protectedProcedure.mutation(() => {
+		PlayerService.resume();
+		return serializePlayerState(PlayerService.getState());
+	}),
+
+	stop: protectedProcedure.mutation(() => {
+		PlayerService.stop();
+		return serializePlayerState(PlayerService.getState());
+	}),
+
+	skip: protectedProcedure.mutation(() => {
+		PlayerService.skip();
+		return serializePlayerState(PlayerService.getState());
+	}),
+
+	previous: protectedProcedure.mutation(() => {
+		PlayerService.previousTrack();
+		return serializePlayerState(PlayerService.getState());
+	}),
+
+	jumpTo: protectedProcedure
+		.input(z.object({ index: z.number() }))
+		.mutation(({ input }) => {
+			PlayerService.jumpToIndex(input.index);
+			return serializePlayerState(PlayerService.getState());
+		}),
+
+	seek: protectedProcedure
+		.input(z.object({ position: z.number() }))
+		.mutation(({ input }) => {
+			PlayerService.seek(input.position);
+			return serializePlayerState(PlayerService.getState());
+		}),
+
+	volume: protectedProcedure
+		.input(z.object({ level: z.number().min(0).max(100) }))
+		.mutation(({ input }) => {
+			PlayerService.setVolume(input.level);
+			return serializePlayerState(PlayerService.getState());
+		}),
+
+	reportProgress: publicProcedure
+		.input(z.object({ progress: z.number() }))
+		.mutation(({ input }) => {
+			PlayerService.reportProgress(input.progress);
+			return { ok: true };
+		}),
+
+	reportDuration: publicProcedure
+		.input(z.object({ duration: z.number() }))
+		.mutation(({ input }) => {
+			PlayerService.setDuration(input.duration);
+			return { ok: true };
+		}),
+
+	trackEnded: protectedProcedure.mutation(() => {
+		PlayerService.trackEnded();
+		return serializePlayerState(PlayerService.getState());
+	}),
+
+	onStateChange: publicProcedure.subscription(() => {
+		return observable<ReturnType<typeof serializePlayerState>>((emit) => {
+			// Send current state immediately
+			emit.next(serializePlayerState(PlayerService.getState()));
+
+			const unsubscribe = PlayerService.subscribe((state) => {
+				emit.next(serializePlayerState(state));
+			});
+
+			return unsubscribe;
+		});
 	}),
 });

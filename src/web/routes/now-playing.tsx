@@ -25,13 +25,6 @@ function formatTime(seconds: number): string {
 	return `${String(mins)}:${String(secs).padStart(2, "0")}`;
 }
 
-// Build a stream URL using opaque IDs
-function buildStreamUrl(opaqueId: string, nextOpaqueId?: string): string {
-	const base = `/stream/${encodeURIComponent(opaqueId)}`;
-	if (!nextOpaqueId) return base;
-	return `${base}?next=${encodeURIComponent(nextOpaqueId)}`;
-}
-
 // Unified track shape — all IDs are opaque
 type NowPlayingTrack = {
 	readonly id: string;
@@ -41,15 +34,17 @@ type NowPlayingTrack = {
 	readonly albumArtUrl?: string;
 	readonly isPandora: boolean;
 	readonly duration?: number;
+	readonly source: string;
 };
 
-// Convert a radio track (from radio.getTracks) to NowPlayingTrack
+// Convert a radio track to NowPlayingTrack
 function radioTrackToNowPlaying(track: {
 	readonly id: string;
 	readonly title: string;
 	readonly artist: string;
 	readonly album: string;
 	readonly artworkUrl?: string;
+	readonly source: string;
 }): NowPlayingTrack {
 	return {
 		id: track.id,
@@ -58,6 +53,7 @@ function radioTrackToNowPlaying(track: {
 		albumName: track.album,
 		...(track.artworkUrl != null ? { albumArtUrl: track.artworkUrl } : {}),
 		isPandora: true,
+		source: track.source ?? "pandora",
 	};
 }
 
@@ -79,6 +75,7 @@ function playlistTrackToNowPlaying(track: {
 		...(track.artworkUrl != null ? { albumArtUrl: track.artworkUrl } : {}),
 		...(track.duration != null ? { duration: track.duration } : {}),
 		isPandora: track.source === "pandora",
+		source: track.source,
 	};
 }
 
@@ -108,30 +105,20 @@ function albumTrackToNowPlaying(
 		...(artUrl != null ? { albumArtUrl: artUrl } : {}),
 		isPandora: track.source === "pandora",
 		...(track.duration != null ? { duration: track.duration } : {}),
+		source: track.source,
 	};
 }
 
-function getAudioUrlForTrack(track: NowPlayingTrack, nextTrack?: NowPlayingTrack): string {
-	return buildStreamUrl(track.id, nextTrack?.id);
-}
-
-function playTrackAtIndex(
-	index: number,
-	tracks: readonly NowPlayingTrack[],
-	playback: ReturnType<typeof usePlaybackContext>,
-) {
-	const track = tracks[index];
-	if (!track) return;
-	const nextTrack = tracks[index + 1];
-	const audioUrl = getAudioUrlForTrack(track, nextTrack);
-	playback.playTrack({
-		trackToken: track.id,
-		songName: track.songName,
-		artistName: track.artistName,
-		albumName: track.albumName,
-		audioUrl,
-		...(track.albumArtUrl != null ? { artUrl: track.albumArtUrl } : {}),
-	});
+function tracksToQueuePayload(tracks: readonly NowPlayingTrack[]) {
+	return tracks.map((t) => ({
+		id: t.id,
+		title: t.songName,
+		artist: t.artistName,
+		album: t.albumName,
+		duration: t.duration ?? null,
+		artworkUrl: t.albumArtUrl ?? null,
+		source: t.source,
+	}));
 }
 
 export function NowPlayingPage() {
@@ -148,15 +135,22 @@ export function NowPlayingPage() {
 	const albumId = search.album ?? "";
 
 	const playback = usePlaybackContext();
-	const [trackIndex, setTrackIndex] = useState(0);
 	const [showTrackInfo, setShowTrackInfo] = useState(false);
 	const hasStartedRef = useRef(false);
 	const [tracks, setTracks] = useState<readonly NowPlayingTrack[]>([]);
+	const [trackIndex, setTrackIndex] = useState(0);
 	const [albumMeta, setAlbumMeta] = useState<{
 		readonly title: string;
 		readonly artist: string;
 		readonly artworkUrl: string | null;
 	} | null>(null);
+
+	// Subscribe to queue state to track current index
+	trpc.queue.onChange.useSubscription(undefined, {
+		onData(queueState) {
+			setTrackIndex(queueState.currentIndex);
+		},
+	});
 
 	// Album tracks query
 	const albumTracksQuery = trpc.library.albumTracks.useQuery(
@@ -179,7 +173,10 @@ export function NowPlayingPage() {
 		{ enabled: isPlaylistMode && !isAlbumMode },
 	);
 
+	// When tracks are fetched, send them to the server queue and start playback
 	useEffect(() => {
+		let newTracks: readonly NowPlayingTrack[] = [];
+
 		if (isAlbumMode && albumTracksQuery.data && albumsQuery.data) {
 			const albumInfo = albumsQuery.data.find((a) => a.id === albumId);
 			if (albumInfo) {
@@ -189,20 +186,41 @@ export function NowPlayingPage() {
 					artworkUrl: albumInfo.artworkUrl,
 				});
 			}
-			setTracks(
-				albumTracksQuery.data.map((t) =>
-					albumTrackToNowPlaying(
-						t,
-						albumInfo?.title ?? "",
-						albumInfo?.artworkUrl ?? null,
-					),
+			newTracks = albumTracksQuery.data.map((t) =>
+				albumTrackToNowPlaying(
+					t,
+					albumInfo?.title ?? "",
+					albumInfo?.artworkUrl ?? null,
 				),
 			);
 		} else if (!isAlbumMode && !isPlaylistMode && radioQuery.data) {
-			setTracks(radioQuery.data.map(radioTrackToNowPlaying));
+			newTracks = radioQuery.data.map(radioTrackToNowPlaying);
 		} else if (!isAlbumMode && isPlaylistMode && playlistQuery.data) {
-			setTracks(playlistQuery.data.map(playlistTrackToNowPlaying));
+			newTracks = playlistQuery.data.map(playlistTrackToNowPlaying);
 		}
+
+		if (newTracks.length > 0) {
+			setTracks(newTracks);
+
+			if (!hasStartedRef.current) {
+				hasStartedRef.current = true;
+
+				// Determine queue context
+				const context = isAlbumMode
+					? { type: "album" as const, albumId }
+					: isPlaylistMode
+						? { type: "playlist" as const, playlistId: playlistId ?? "" }
+						: { type: "radio" as const, seedId: radioId ?? "" };
+
+				// Send tracks to server and start playback
+				playback.playMutation.mutate({
+					tracks: tracksToQueuePayload(newTracks),
+					context,
+					startIndex: 0,
+				});
+			}
+		}
+		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [
 		isAlbumMode,
 		isPlaylistMode,
@@ -244,15 +262,6 @@ export function NowPlayingPage() {
 		}
 	}, [playback.error, playback.clearError]);
 
-	const currentTrack = tracks[trackIndex];
-
-	useEffect(() => {
-		if (currentTrack && !hasStartedRef.current) {
-			playTrackAtIndex(0, tracks, playback);
-			hasStartedRef.current = true;
-		}
-	}, [currentTrack, playback, tracks]);
-
 	useEffect(() => {
 		if (isAlbumMode) {
 			playback.setCurrentStationToken(albumId);
@@ -263,20 +272,21 @@ export function NowPlayingPage() {
 		}
 	}, [isAlbumMode, albumId, radioId, playlistId, playback]);
 
+	const currentTrack = tracks[trackIndex];
+
 	const handleSkip = useCallback(() => {
 		const nextIndex = trackIndex + 1;
 		if (nextIndex < tracks.length) {
-			setTrackIndex(nextIndex);
-			playTrackAtIndex(nextIndex, tracks, playback);
+			playback.jumpToMutation.mutate({ index: nextIndex });
 		} else if (isAlbumMode) {
 			playback.stop();
 		} else {
+			// Refetch more tracks for radio/playlist
 			if (!isPlaylistMode) {
 				radioQuery.refetch();
 			} else {
 				playlistQuery.refetch();
 			}
-			setTrackIndex(0);
 			hasStartedRef.current = false;
 		}
 	}, [
@@ -291,20 +301,18 @@ export function NowPlayingPage() {
 
 	const handlePrevious = useCallback(() => {
 		if (trackIndex > 0) {
-			const prevIndex = trackIndex - 1;
-			setTrackIndex(prevIndex);
-			playTrackAtIndex(prevIndex, tracks, playback);
+			playback.jumpToMutation.mutate({ index: trackIndex - 1 });
 		}
-	}, [trackIndex, tracks, playback]);
+	}, [trackIndex, playback]);
 
 	const handleJumpToTrack = useCallback(
 		(index: number) => {
-			setTrackIndex(index);
-			playTrackAtIndex(index, tracks, playback);
+			playback.jumpToMutation.mutate({ index });
 		},
-		[tracks, playback],
+		[playback],
 	);
 
+	// Register track-end handler for auto-skip on audio end
 	useEffect(() => {
 		playback.setOnTrackEnd(handleSkip);
 		return () => {

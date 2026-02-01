@@ -1,0 +1,146 @@
+import type { SourceType } from "../../src/sources/types.js";
+
+export type QueueTrack = {
+	readonly id: string; // opaque encoded ID
+	readonly title: string;
+	readonly artist: string;
+	readonly album: string;
+	readonly duration: number | null;
+	readonly artworkUrl: string | null;
+	readonly source: SourceType;
+};
+
+export type QueueContext =
+	| { readonly type: "radio"; readonly seedId: string }
+	| { readonly type: "album"; readonly albumId: string }
+	| { readonly type: "playlist"; readonly playlistId: string }
+	| { readonly type: "manual" };
+
+export type QueueState = {
+	readonly items: readonly QueueTrack[];
+	readonly currentIndex: number;
+	readonly context: QueueContext;
+};
+
+type QueueListener = (state: QueueState) => void;
+
+// In-memory queue state (singleton — single-user server)
+let items: QueueTrack[] = [];
+let currentIndex = 0;
+let context: QueueContext = { type: "manual" };
+const listeners = new Set<QueueListener>();
+
+function notify(): void {
+	const state = getState();
+	for (const listener of listeners) {
+		listener(state);
+	}
+}
+
+export function getState(): QueueState {
+	return { items, currentIndex, context };
+}
+
+export function subscribe(listener: QueueListener): () => void {
+	listeners.add(listener);
+	return () => {
+		listeners.delete(listener);
+	};
+}
+
+export function setQueue(
+	tracks: readonly QueueTrack[],
+	newContext: QueueContext,
+	startIndex = 0,
+): void {
+	items = [...tracks];
+	currentIndex = startIndex;
+	context = newContext;
+	notify();
+}
+
+export function addTracks(
+	tracks: readonly QueueTrack[],
+	insertNext = false,
+): void {
+	if (insertNext) {
+		items.splice(currentIndex + 1, 0, ...tracks);
+	} else {
+		items.push(...tracks);
+	}
+	notify();
+}
+
+export function removeTrack(index: number): void {
+	if (index < 0 || index >= items.length) return;
+	items.splice(index, 1);
+	if (index < currentIndex) {
+		currentIndex--;
+	} else if (index === currentIndex && currentIndex >= items.length) {
+		currentIndex = Math.max(0, items.length - 1);
+	}
+	notify();
+}
+
+export function jumpTo(index: number): QueueTrack | undefined {
+	if (index < 0 || index >= items.length) return undefined;
+	currentIndex = index;
+	notify();
+	return items[currentIndex];
+}
+
+export function next(): QueueTrack | undefined {
+	if (currentIndex + 1 >= items.length) return undefined;
+	currentIndex++;
+	notify();
+	return items[currentIndex];
+}
+
+export function previous(): QueueTrack | undefined {
+	if (currentIndex <= 0) return undefined;
+	currentIndex--;
+	notify();
+	return items[currentIndex];
+}
+
+export function currentTrack(): QueueTrack | undefined {
+	return items[currentIndex];
+}
+
+export function nextTrack(): QueueTrack | undefined {
+	return items[currentIndex + 1];
+}
+
+export function clear(): void {
+	items = [];
+	currentIndex = 0;
+	context = { type: "manual" };
+	notify();
+}
+
+export function shuffle(): void {
+	if (items.length <= 1) return;
+	const current = items[currentIndex];
+	const before = items.slice(0, currentIndex);
+	const after = items.slice(currentIndex + 1);
+	const rest = [...before, ...after];
+
+	for (let i = rest.length - 1; i > 0; i--) {
+		const j = Math.floor(Math.random() * (i + 1));
+		[rest[i], rest[j]] = [rest[j]!, rest[i]!];
+	}
+
+	if (current) {
+		items = [current, ...rest];
+		currentIndex = 0;
+	} else {
+		items = rest;
+		currentIndex = 0;
+	}
+	notify();
+}
+
+export function appendTracks(tracks: readonly QueueTrack[]): void {
+	items.push(...tracks);
+	notify();
+}

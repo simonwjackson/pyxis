@@ -41,19 +41,12 @@ export default defineConfig({
 			"/stream": {
 				target: "http://aka:8765",
 				changeOrigin: true,
-				// Disable WebSocket upgrade for stream endpoint
 				ws: false,
 				configure: (proxy) => {
-					// Ensure streaming responses are not buffered
 					proxy.on("proxyRes", (_proxyRes, _req, res) => {
-						// Disable response buffering for audio streaming
 						res.flushHeaders();
 					});
 				},
-			},
-			"/ws": {
-				target: "ws://aka:8765",
-				ws: true,
 			},
 		},
 	},
