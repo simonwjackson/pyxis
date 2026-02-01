@@ -11,6 +11,7 @@ import { BookmarksPage } from "./routes/bookmarks";
 import { GenresPage } from "./routes/genres";
 import { SettingsPage } from "./routes/settings";
 import { NowPlayingPage } from "./routes/now-playing";
+import { StationDetailsPage } from "./routes/station-details";
 
 const rootRoute = createRootRoute({
 	component: RootLayout,
@@ -58,6 +59,15 @@ const nowPlayingRoute = createRoute({
 	component: NowPlayingPage,
 });
 
+const stationDetailsRoute = createRoute({
+	getParentRoute: () => rootRoute,
+	path: "/station/$token",
+	component: function StationDetailsWrapper() {
+		const { token } = stationDetailsRoute.useParams();
+		return <StationDetailsPage stationToken={token} />;
+	},
+});
+
 const routeTree = rootRoute.addChildren([
 	loginRoute,
 	indexRoute,
@@ -66,6 +76,7 @@ const routeTree = rootRoute.addChildren([
 	genresRoute,
 	settingsRoute,
 	nowPlayingRoute,
+	stationDetailsRoute,
 ]);
 
 export const router = createRouter({ routeTree });

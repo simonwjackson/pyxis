@@ -1,17 +1,49 @@
 import { useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { Search } from "lucide-react";
+import { toast } from "sonner";
 import { trpc } from "../lib/trpc";
 import { StationList } from "../components/stations/StationList";
+import { DeleteStationDialog } from "../components/stations/DeleteStationDialog";
+import { RenameStationDialog } from "../components/stations/RenameStationDialog";
 import { StationListSkeleton } from "../components/ui/skeleton";
 import { usePlaybackContext } from "../contexts/PlaybackContext";
 import type { Station } from "../../types/api";
 
+type DialogState =
+	| { readonly type: "none" }
+	| { readonly type: "delete"; readonly station: Station }
+	| { readonly type: "rename"; readonly station: Station };
+
 export function StationsPage() {
 	const [filter, setFilter] = useState("");
+	const [dialog, setDialog] = useState<DialogState>({ type: "none" });
 	const navigate = useNavigate();
 	const stationsQuery = trpc.stations.list.useQuery();
+	const utils = trpc.useUtils();
 	const playback = usePlaybackContext();
+
+	const deleteMutation = trpc.stations.delete.useMutation({
+		onSuccess() {
+			utils.stations.list.invalidate();
+			toast.success("Station deleted");
+			setDialog({ type: "none" });
+		},
+		onError(err) {
+			toast.error(`Failed to delete station: ${err.message}`);
+		},
+	});
+
+	const renameMutation = trpc.stations.rename.useMutation({
+		onSuccess() {
+			utils.stations.list.invalidate();
+			toast.success("Station renamed");
+			setDialog({ type: "none" });
+		},
+		onError(err) {
+			toast.error(`Failed to rename station: ${err.message}`);
+		},
+	});
 
 	const filteredStations = (stationsQuery.data ?? []).filter(
 		(s: Station) =>
@@ -22,6 +54,13 @@ export function StationsPage() {
 		navigate({
 			to: "/now-playing",
 			search: { station: station.stationToken },
+		});
+	};
+
+	const handleDetails = (station: Station) => {
+		navigate({
+			to: "/station/$token",
+			params: { token: station.stationToken },
 		});
 	};
 
@@ -58,7 +97,41 @@ export function StationsPage() {
 				stations={filteredStations}
 				currentStationToken={playback.currentStationToken ?? undefined}
 				onSelect={handleSelect}
+				onDetails={handleDetails}
+				onRename={(station) =>
+					setDialog({ type: "rename", station })
+				}
+				onDelete={(station) =>
+					setDialog({ type: "delete", station })
+				}
 			/>
+
+			{dialog.type === "delete" && (
+				<DeleteStationDialog
+					stationName={dialog.station.stationName}
+					isDeleting={deleteMutation.isPending}
+					onConfirm={() =>
+						deleteMutation.mutate({
+							stationToken: dialog.station.stationToken,
+						})
+					}
+					onCancel={() => setDialog({ type: "none" })}
+				/>
+			)}
+
+			{dialog.type === "rename" && (
+				<RenameStationDialog
+					stationName={dialog.station.stationName}
+					isRenaming={renameMutation.isPending}
+					onConfirm={(newName) =>
+						renameMutation.mutate({
+							stationToken: dialog.station.stationToken,
+							stationName: newName,
+						})
+					}
+					onCancel={() => setDialog({ type: "none" })}
+				/>
+			)}
 		</div>
 	);
 }
