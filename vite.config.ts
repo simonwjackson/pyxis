@@ -11,11 +11,11 @@ export default defineConfig({
 		allowedHosts: ["aka"],
 		proxy: {
 			"/trpc": {
-				target: "http://localhost:8765",
+				target: "http://aka:8765",
 				changeOrigin: true,
 			},
 			"/ws": {
-				target: "ws://localhost:8765",
+				target: "ws://aka:8765",
 				ws: true,
 			},
 		},

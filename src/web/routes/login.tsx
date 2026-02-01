@@ -12,10 +12,12 @@ export function LoginPage() {
 	const utils = trpc.useUtils();
 
 	const loginMutation = trpc.auth.login.useMutation({
-		onSuccess(data) {
+		async onSuccess(data) {
 			// Set session cookie for subsequent requests
 			document.cookie = `pyxis_session=${data.sessionId}; path=/; SameSite=Lax`;
-			utils.auth.status.invalidate();
+			// Wait for the status query to refetch with the new cookie
+			// before navigating, so RootLayout sees authenticated=true
+			await utils.auth.status.invalidate();
 			navigate({ to: "/" });
 		},
 		onError(err) {

@@ -28,7 +28,7 @@ const server = Bun.serve({
 		if (req.method === "OPTIONS") {
 			return new Response(null, {
 				headers: {
-					"Access-Control-Allow-Origin": "http://localhost:5173",
+					"Access-Control-Allow-Origin": "http://aka:5678",
 					"Access-Control-Allow-Methods": "GET, POST, OPTIONS",
 					"Access-Control-Allow-Headers": "Content-Type",
 					"Access-Control-Allow-Credentials": "true",
@@ -46,7 +46,7 @@ const server = Bun.serve({
 			}).then((response) => {
 				// Add CORS headers
 				const headers = new Headers(response.headers);
-				headers.set("Access-Control-Allow-Origin", "http://localhost:5173");
+				headers.set("Access-Control-Allow-Origin", "http://aka:5678");
 				headers.set("Access-Control-Allow-Credentials", "true");
 
 				// Set session cookie if login response contains sessionId
@@ -66,4 +66,4 @@ const server = Bun.serve({
 	},
 });
 
-console.log(`Server running on http://localhost:${PORT}`);
+console.log(`Server running on http://aka:${PORT}`);

@@ -21,12 +21,13 @@ export function RootLayout() {
 	useEffect(() => {
 		if (
 			!authStatus.isLoading &&
+			!authStatus.isFetching &&
 			!authStatus.data?.authenticated &&
 			!isLoginPage
 		) {
 			navigate({ to: "/login" });
 		}
-	}, [authStatus.isLoading, authStatus.data?.authenticated, isLoginPage, navigate]);
+	}, [authStatus.isLoading, authStatus.isFetching, authStatus.data?.authenticated, isLoginPage, navigate]);
 
 	if (isLoginPage) {
 		return <Outlet />;
