@@ -9,12 +9,14 @@ import {
 	Bookmark,
 	Moon,
 	Music,
+	Info,
 } from "lucide-react";
 import { toast } from "sonner";
 import { trpc } from "../lib/trpc";
 import { NowPlayingSkeleton } from "../components/ui/skeleton";
 import { Button } from "../components/ui/button";
 import { usePlaybackContext } from "../contexts/PlaybackContext";
+import { TrackInfoModal } from "../components/playback/TrackInfoModal";
 
 function formatTime(seconds: number): string {
 	const mins = Math.floor(seconds / 60);
@@ -29,6 +31,7 @@ export function NowPlayingPage() {
 	const stationToken = search.station;
 	const playback = usePlaybackContext();
 	const [trackIndex, setTrackIndex] = useState(0);
+	const [showTrackInfo, setShowTrackInfo] = useState(false);
 	const hasStartedRef = useRef(false);
 
 	const playlistQuery = trpc.playback.getPlaylist.useQuery(
@@ -286,6 +289,16 @@ export function NowPlayingPage() {
 					variant="ghost"
 					size="sm"
 					className="gap-1.5"
+					onClick={() => setShowTrackInfo(true)}
+					title="Track info"
+				>
+					<Info className="w-4 h-4" />
+					Info
+				</Button>
+				<Button
+					variant="ghost"
+					size="sm"
+					className="gap-1.5"
 					onClick={handleBookmark}
 					title="Bookmark song"
 				>
@@ -303,6 +316,14 @@ export function NowPlayingPage() {
 					Sleep
 				</Button>
 			</div>
+
+			{showTrackInfo && (
+				<TrackInfoModal
+					track={currentTrack}
+					duration={playback.duration}
+					onClose={() => setShowTrackInfo(false)}
+				/>
+			)}
 		</div>
 	);
 }

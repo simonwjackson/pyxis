@@ -58,4 +58,12 @@ export const playbackRouter = router({
 			);
 			return { success: true };
 		}),
+
+	explainTrack: protectedProcedure
+		.input(z.object({ trackToken: z.string() }))
+		.query(async ({ ctx, input }) => {
+			return Effect.runPromise(
+				Pandora.explainTrack(ctx.pandoraSession, input.trackToken),
+			);
+		}),
 });
