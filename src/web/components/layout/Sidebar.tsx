@@ -47,7 +47,7 @@ export function Sidebar() {
 	});
 
 	return (
-		<aside className="hidden md:flex md:w-56 flex-col bg-zinc-950 border-r border-zinc-800">
+		<aside className="hidden md:flex md:w-56 flex-col bg-zinc-950 border-r border-zinc-800" aria-label="Main navigation">
 			<div className="p-4 border-b border-zinc-800">
 				<Link to="/" className="text-xl font-bold text-cyan-400">
 					pyxis

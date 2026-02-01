@@ -4,13 +4,13 @@ import type { Station } from "../../../types/api";
 
 type StationListProps = {
 	readonly stations: readonly Station[];
-	readonly currentStationId?: string;
+	readonly currentStationToken?: string | undefined;
 	readonly onSelect: (station: Station) => void;
 };
 
 export function StationList({
 	stations,
-	currentStationId,
+	currentStationToken,
 	onSelect,
 }: StationListProps) {
 	if (stations.length === 0) {
@@ -24,7 +24,7 @@ export function StationList({
 	return (
 		<ul className="space-y-1">
 			{stations.map((station) => {
-				const isActive = station.stationId === currentStationId;
+				const isActive = station.stationToken === currentStationToken;
 				return (
 					<li key={station.stationId}>
 						<button

@@ -10,8 +10,9 @@ import {
 	Moon,
 	Music,
 } from "lucide-react";
+import { toast } from "sonner";
 import { trpc } from "../lib/trpc";
-import { Spinner } from "../components/ui/spinner";
+import { NowPlayingSkeleton } from "../components/ui/skeleton";
 import { Button } from "../components/ui/button";
 import { usePlaybackContext } from "../contexts/PlaybackContext";
 
@@ -35,9 +36,27 @@ export function NowPlayingPage() {
 		{ enabled: !!stationToken },
 	);
 
-	const feedbackMutation = trpc.playback.addFeedback.useMutation();
-	const sleepMutation = trpc.playback.sleepSong.useMutation();
-	const bookmarkSongMutation = trpc.bookmarks.addSong.useMutation();
+	const feedbackMutation = trpc.playback.addFeedback.useMutation({
+		onError(err) {
+			toast.error(`Feedback failed: ${err.message}`);
+		},
+	});
+	const sleepMutation = trpc.playback.sleepSong.useMutation({
+		onSuccess() {
+			toast.success("Track will be skipped for 30 days");
+		},
+		onError(err) {
+			toast.error(`Sleep failed: ${err.message}`);
+		},
+	});
+	const bookmarkSongMutation = trpc.bookmarks.addSong.useMutation({
+		onSuccess() {
+			toast.success("Song bookmarked");
+		},
+		onError(err) {
+			toast.error(`Bookmark failed: ${err.message}`);
+		},
+	});
 
 	const items = playlistQuery.data ?? [];
 	const currentTrack = items[trackIndex];
@@ -61,6 +80,13 @@ export function NowPlayingPage() {
 			}
 		}
 	}, [currentTrack, playback]);
+
+	// Set the current station token when playing from a station
+	useEffect(() => {
+		if (stationToken) {
+			playback.setCurrentStationToken(stationToken);
+		}
+	}, [stationToken, playback]);
 
 	const handleSkip = useCallback(() => {
 		const nextIndex = trackIndex + 1;
@@ -89,6 +115,14 @@ export function NowPlayingPage() {
 			hasStartedRef.current = false;
 		}
 	}, [trackIndex, items, playback, playlistQuery]);
+
+	// Auto-advance to next track when current track ends
+	useEffect(() => {
+		playback.setOnTrackEnd(handleSkip);
+		return () => {
+			playback.setOnTrackEnd(null);
+		};
+	}, [playback, handleSkip]);
 
 	const handleLike = useCallback(() => {
 		if (!stationToken || !currentTrack) return;
@@ -133,11 +167,7 @@ export function NowPlayingPage() {
 	}
 
 	if (playlistQuery.isLoading) {
-		return (
-			<div className="flex-1 flex items-center justify-center">
-				<Spinner />
-			</div>
-		);
+		return <NowPlayingSkeleton />;
 	}
 
 	if (!currentTrack) {
@@ -191,13 +221,13 @@ export function NowPlayingPage() {
 			</div>
 
 			{/* Primary controls */}
-			<div className="flex items-center gap-6">
+			<div className="flex items-center gap-6" role="group" aria-label="Playback controls">
 				<Button
 					variant="ghost"
 					size="icon"
 					className="text-red-500 hover:text-red-400 h-12 w-12"
 					onClick={handleDislike}
-					title="Dislike"
+					aria-label="Dislike this track"
 				>
 					<ThumbsDown className="w-6 h-6" />
 				</Button>
@@ -205,7 +235,7 @@ export function NowPlayingPage() {
 					size="icon"
 					className="h-14 w-14 rounded-full bg-cyan-500 hover:bg-cyan-400 text-zinc-900"
 					onClick={playback.togglePlayPause}
-					title={playback.isPlaying ? "Pause" : "Play"}
+					aria-label={playback.isPlaying ? "Pause" : "Play"}
 				>
 					{playback.isPlaying ? (
 						<Pause className="w-7 h-7" />
@@ -218,7 +248,7 @@ export function NowPlayingPage() {
 					size="icon"
 					className="h-12 w-12"
 					onClick={handleSkip}
-					title="Skip"
+					aria-label="Skip to next track"
 				>
 					<SkipForward className="w-6 h-6" />
 				</Button>
@@ -227,7 +257,7 @@ export function NowPlayingPage() {
 					size="icon"
 					className="text-green-500 hover:text-green-400 h-12 w-12"
 					onClick={handleLike}
-					title="Like"
+					aria-label="Like this track"
 				>
 					<ThumbsUp className="w-6 h-6" />
 				</Button>

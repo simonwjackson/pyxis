@@ -11,6 +11,7 @@ type PlaybackTrack = {
 
 type PlaybackState = {
 	readonly currentTrack: PlaybackTrack | null;
+	readonly currentStationToken: string | null;
 	readonly isPlaying: boolean;
 	readonly progress: number;
 	readonly duration: number;
@@ -18,8 +19,10 @@ type PlaybackState = {
 
 export function usePlayback() {
 	const audioRef = useRef<HTMLAudioElement | null>(null);
+	const onTrackEndRef = useRef<(() => void) | null>(null);
 	const [state, setState] = useState<PlaybackState>({
 		currentTrack: null,
+		currentStationToken: null,
 		isPlaying: false,
 		progress: 0,
 		duration: 0,
@@ -37,6 +40,7 @@ export function usePlayback() {
 		};
 		const onEnded = () => {
 			setState((prev) => ({ ...prev, isPlaying: false }));
+			onTrackEndRef.current?.();
 		};
 
 		audio.addEventListener("timeupdate", onTimeUpdate);
@@ -56,12 +60,13 @@ export function usePlayback() {
 		if (!audio) return;
 		audio.src = track.audioUrl;
 		audio.play();
-		setState({
+		setState((prev) => ({
+			...prev,
 			currentTrack: track,
 			isPlaying: true,
 			progress: 0,
 			duration: 0,
-		});
+		}));
 	}, []);
 
 	const togglePlayPause = useCallback(() => {
@@ -83,11 +88,40 @@ export function usePlayback() {
 		audio.currentTime = 0;
 		setState({
 			currentTrack: null,
+			currentStationToken: null,
 			isPlaying: false,
 			progress: 0,
 			duration: 0,
 		});
 	}, []);
 
-	return { ...state, playTrack, togglePlayPause, stop };
+	const seek = useCallback((time: number) => {
+		const audio = audioRef.current;
+		if (!audio) return;
+		audio.currentTime = time;
+		setState((prev) => ({ ...prev, progress: time }));
+	}, []);
+
+	const setCurrentStationToken = useCallback((token: string | null) => {
+		setState((prev) => ({ ...prev, currentStationToken: token }));
+	}, []);
+
+	const triggerSkip = useCallback(() => {
+		onTrackEndRef.current?.();
+	}, []);
+
+	const setOnTrackEnd = useCallback((callback: (() => void) | null) => {
+		onTrackEndRef.current = callback;
+	}, []);
+
+	return {
+		...state,
+		playTrack,
+		togglePlayPause,
+		stop,
+		seek,
+		setCurrentStationToken,
+		setOnTrackEnd,
+		triggerSkip,
+	};
 }

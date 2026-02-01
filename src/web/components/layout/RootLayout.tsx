@@ -46,6 +46,7 @@ export function RootLayout() {
 					progress={playback.progress}
 					duration={playback.duration}
 					onTogglePlayPause={playback.togglePlayPause}
+					onSkip={playback.triggerSkip}
 				/>
 			</div>
 		</div>

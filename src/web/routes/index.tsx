@@ -3,7 +3,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { Search } from "lucide-react";
 import { trpc } from "../lib/trpc";
 import { StationList } from "../components/stations/StationList";
-import { Spinner } from "../components/ui/spinner";
+import { StationListSkeleton } from "../components/ui/skeleton";
 import { usePlaybackContext } from "../contexts/PlaybackContext";
 import type { Station } from "../../types/api";
 
@@ -26,11 +26,7 @@ export function StationsPage() {
 	};
 
 	if (stationsQuery.isLoading) {
-		return (
-			<div className="flex-1 flex items-center justify-center">
-				<Spinner />
-			</div>
-		);
+		return <StationListSkeleton />;
 	}
 
 	if (stationsQuery.error) {
@@ -54,12 +50,13 @@ export function StationsPage() {
 					placeholder="Filter stations..."
 					value={filter}
 					onChange={(e) => setFilter(e.target.value)}
+					aria-label="Filter stations"
 					className="w-full pl-10 pr-4 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-sm text-zinc-100 placeholder:text-zinc-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500"
 				/>
 			</div>
 			<StationList
 				stations={filteredStations}
-				{...(playback.currentTrack ? { currentStationId: playback.currentTrack.trackToken } : {})}
+				currentStationToken={playback.currentStationToken ?? undefined}
 				onSelect={handleSelect}
 			/>
 		</div>
