@@ -6,6 +6,10 @@ import type {
 	CanonicalAlbum,
 } from "../types.js";
 import * as ytdlp from "./yt-dlp.js";
+import {
+	createYTMusicApiClient,
+	type YTMusicApiClient,
+} from "./api-client.js";
 
 export type YtMusicPlaylistEntry = {
 	readonly id: string;
@@ -51,15 +55,47 @@ export function createYtMusicSource(config: YtMusicConfig): Source {
 		}
 	>();
 
+	// Internal API client for album search (no yt-dlp subprocess needed)
+	const apiClient: YTMusicApiClient = createYTMusicApiClient({
+		appName: "Pyxis",
+		version: "0.1.0",
+		contact: "https://github.com/simonwjackson/pyxis",
+	});
+
 	return {
 		type: "ytmusic",
 		name: "YouTube Music",
 
 		async search(query: string): Promise<SearchResult> {
-			const entries = await ytdlp.searchYtMusic(query, 10);
-			const tracks = entries.map(entryToCanonical);
-			// yt-dlp ytsearch returns individual videos, not albums
-			return { tracks, albums: [] };
+			// Track search via yt-dlp (individual videos)
+			const [entries, albumResults] = await Promise.allSettled([
+				ytdlp.searchYtMusic(query, 10),
+				apiClient.searchAlbums(query),
+			]);
+
+			const tracks =
+				entries.status === "fulfilled"
+					? entries.value.map(entryToCanonical)
+					: [];
+
+			const albums: readonly CanonicalAlbum[] =
+				albumResults.status === "fulfilled"
+					? albumResults.value.map((album) => ({
+							id: album.id,
+							title: album.name,
+							artist: album.artists?.[0]?.name ?? "Unknown",
+							...(album.year != null ? { year: album.year } : {}),
+							tracks: [],
+							sourceIds: [
+								{ source: "ytmusic" as const, id: album.id },
+							],
+							...(album.thumbnailUrl != null
+								? { artworkUrl: album.thumbnailUrl }
+								: {}),
+						}))
+					: [];
+
+			return { tracks, albums };
 		},
 
 		async listPlaylists(): Promise<readonly CanonicalPlaylist[]> {
@@ -128,20 +164,40 @@ export function createYtMusicSource(config: YtMusicConfig): Source {
 		},
 
 		async getAlbumTracks(albumId: string) {
-			const url = `https://music.youtube.com/playlist?list=${albumId}`;
-			const info = await ytdlp.getAlbumEntries(url);
-			const tracks = info.entries.map((entry, index) => ({
-				...entryToCanonical(entry),
-				trackIndex: index,
-			}));
+			// Use internal API client for album details (faster, no subprocess)
+			const albumDetails = await apiClient.getAlbum(albumId);
+			const tracks: readonly CanonicalTrack[] = albumDetails.tracks.map(
+				(track, index) => ({
+					id: track.videoId,
+					title: track.name,
+					artist:
+						track.artists?.[0]?.name ??
+						albumDetails.artists?.[0]?.name ??
+						"Unknown",
+					album: albumDetails.name,
+					sourceId: {
+						source: "ytmusic" as const,
+						id: track.videoId,
+					},
+					...(track.duration != null
+						? { duration: track.duration }
+						: {}),
+					trackIndex: index,
+				}),
+			);
 			const album: CanonicalAlbum = {
-				id: albumId,
-				title: info.title,
-				artist: info.artist,
+				id: albumDetails.id,
+				title: albumDetails.name,
+				artist: albumDetails.artists?.[0]?.name ?? "Unknown",
 				tracks,
-				sourceIds: [{ source: "ytmusic" as const, id: albumId }],
-				...(info.thumbnail != null
-					? { artworkUrl: info.thumbnail }
+				sourceIds: [
+					{ source: "ytmusic" as const, id: albumDetails.id },
+				],
+				...(albumDetails.year != null
+					? { year: albumDetails.year }
+					: {}),
+				...(albumDetails.thumbnailUrl != null
+					? { artworkUrl: albumDetails.thumbnailUrl }
 					: {}),
 			};
 			return { album, tracks };
