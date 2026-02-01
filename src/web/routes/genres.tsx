@@ -45,14 +45,14 @@ export function GenresPage() {
 										: cat.categoryName,
 								)
 							}
-							className="w-full text-left px-3 py-2.5 rounded-lg hover:bg-zinc-800 text-zinc-200 font-medium flex items-center justify-between transition-colors"
+							className="w-full text-left px-3 py-2.5 rounded-lg hover:bg-[var(--color-bg-highlight)] text-[var(--color-text)] font-medium flex items-center justify-between transition-colors"
 							type="button"
 						>
 							<span>{cat.categoryName}</span>
 							{expanded === cat.categoryName ? (
-								<ChevronDown className="w-4 h-4 text-zinc-500" />
+								<ChevronDown className="w-4 h-4 text-[var(--color-text-dim)]" />
 							) : (
-								<ChevronRight className="w-4 h-4 text-zinc-500" />
+								<ChevronRight className="w-4 h-4 text-[var(--color-text-dim)]" />
 							)}
 						</button>
 						{expanded === cat.categoryName && (
@@ -60,9 +60,9 @@ export function GenresPage() {
 								{cat.stations.map((station) => (
 									<li
 										key={station.stationToken}
-										className="flex items-center justify-between px-3 py-2 rounded-lg hover:bg-zinc-800"
+										className="flex items-center justify-between px-3 py-2 rounded-lg hover:bg-[var(--color-bg-highlight)]"
 									>
-										<span className="text-sm text-zinc-300">
+										<span className="text-sm text-[var(--color-text-muted)]">
 											{station.stationName}
 										</span>
 										<Button

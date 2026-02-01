@@ -57,8 +57,8 @@ export function SearchPage() {
 				/>
 			)}
 			{!searchQuery.data && query.length < 2 && (
-				<div className="text-center py-12 text-zinc-500">
-					<SearchIcon className="w-12 h-12 mx-auto mb-4 text-zinc-600" />
+				<div className="text-center py-12 text-[var(--color-text-dim)]">
+					<SearchIcon className="w-12 h-12 mx-auto mb-4 text-[var(--color-text-dim)]" />
 					<p>
 						Search for artists, songs, or genres to create a new
 						station

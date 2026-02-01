@@ -5,6 +5,7 @@ import { RouterProvider } from "@tanstack/react-router";
 import { Toaster } from "sonner";
 import { trpc, createTRPCClient } from "./lib/trpc";
 import { PlaybackProvider } from "./contexts/PlaybackContext";
+import { ThemeProvider } from "./contexts/ThemeContext";
 import { ErrorBoundary } from "./components/ui/error-boundary";
 import { router } from "./router";
 import "./index.css";
@@ -23,24 +24,26 @@ function App() {
 
 	return (
 		<ErrorBoundary>
-			<trpc.Provider client={trpcClient} queryClient={queryClient}>
-				<QueryClientProvider client={queryClient}>
-					<PlaybackProvider>
-						<RouterProvider router={router} />
-						<Toaster
-							theme="dark"
-							position="bottom-right"
-							toastOptions={{
-								style: {
-									background: "#18181b",
-									border: "1px solid #27272a",
-									color: "#f4f4f5",
-								},
-							}}
-						/>
-					</PlaybackProvider>
-				</QueryClientProvider>
-			</trpc.Provider>
+			<ThemeProvider>
+				<trpc.Provider client={trpcClient} queryClient={queryClient}>
+					<QueryClientProvider client={queryClient}>
+							<PlaybackProvider>
+							<RouterProvider router={router} />
+							<Toaster
+								theme="dark"
+								position="bottom-right"
+								toastOptions={{
+									style: {
+										background: "var(--color-bg)",
+										border: "1px solid var(--color-border)",
+										color: "var(--color-text)",
+									},
+								}}
+							/>
+						</PlaybackProvider>
+					</QueryClientProvider>
+				</trpc.Provider>
+			</ThemeProvider>
 		</ErrorBoundary>
 	);
 }

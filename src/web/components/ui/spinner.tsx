@@ -7,7 +7,7 @@ type SpinnerProps = {
 export function Spinner({ className }: SpinnerProps) {
 	return (
 		<svg
-			className={cn("h-5 w-5 animate-spin text-cyan-400", className)}
+			className={cn("h-5 w-5 animate-spin text-[var(--color-primary)]", className)}
 			xmlns="http://www.w3.org/2000/svg"
 			fill="none"
 			viewBox="0 0 24 24"

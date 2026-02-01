@@ -74,7 +74,7 @@ export function StationsPage() {
 	if (stationsQuery.error) {
 		return (
 			<div className="flex-1 p-4">
-				<p className="text-red-400">
+				<p className="text-[var(--color-error)]">
 					Failed to load stations:{" "}
 					{stationsQuery.error.message}
 				</p>
@@ -90,7 +90,7 @@ export function StationsPage() {
 					<button
 						type="button"
 						onClick={() => setDialog({ type: "quickmix" })}
-						className="flex items-center gap-2 px-3 py-1.5 text-sm text-purple-400 hover:bg-purple-500/10 rounded-lg transition-colors"
+						className="flex items-center gap-2 px-3 py-1.5 text-sm text-[var(--color-secondary)] hover:bg-[var(--color-bg-highlight)] rounded-lg transition-colors"
 					>
 						<Shuffle className="w-4 h-4" />
 						Manage Shuffle
@@ -98,14 +98,14 @@ export function StationsPage() {
 				)}
 			</div>
 			<div className="relative">
-				<Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-500" />
+				<Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-[var(--color-text-dim)]" />
 				<input
 					type="text"
 					placeholder="Filter stations..."
 					value={filter}
 					onChange={(e) => setFilter(e.target.value)}
 					aria-label="Filter stations"
-					className="w-full pl-10 pr-4 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-sm text-zinc-100 placeholder:text-zinc-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500"
+					className="w-full pl-10 pr-4 py-2 bg-[var(--color-bg-highlight)] border border-[var(--color-border)] rounded-lg text-sm text-[var(--color-text)] placeholder:text-[var(--color-text-dim)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-border-active)]"
 				/>
 			</div>
 			<StationList

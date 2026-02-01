@@ -43,12 +43,12 @@ export function StationContextMenu({
 	return (
 		<div
 			ref={menuRef}
-			className="absolute right-0 top-full mt-1 w-48 bg-zinc-800 border border-zinc-700 rounded-lg shadow-xl z-50 py-1"
+			className="absolute right-0 top-full mt-1 w-48 bg-[var(--color-bg-highlight)] border border-[var(--color-border)] rounded-lg shadow-xl z-50 py-1"
 		>
 			<button
 				type="button"
 				onClick={onDetails}
-				className="w-full flex items-center gap-2 px-3 py-2 text-sm text-zinc-300 hover:bg-zinc-700 text-left"
+				className="w-full flex items-center gap-2 px-3 py-2 text-sm text-[var(--color-text-muted)] hover:bg-[var(--color-bg-highlight)] text-left"
 			>
 				<Info className="w-4 h-4" />
 				Station Details
@@ -57,7 +57,7 @@ export function StationContextMenu({
 				<button
 					type="button"
 					onClick={onRename}
-					className="w-full flex items-center gap-2 px-3 py-2 text-sm text-zinc-300 hover:bg-zinc-700 text-left"
+					className="w-full flex items-center gap-2 px-3 py-2 text-sm text-[var(--color-text-muted)] hover:bg-[var(--color-bg-highlight)] text-left"
 				>
 					<Pencil className="w-4 h-4" />
 					Rename
@@ -65,11 +65,11 @@ export function StationContextMenu({
 			)}
 			{allowDelete && (
 				<>
-					<div className="border-t border-zinc-700 my-1" />
+					<div className="border-t border-[var(--color-border)] my-1" />
 					<button
 						type="button"
 						onClick={onDelete}
-						className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-400 hover:bg-zinc-700 text-left"
+						className="w-full flex items-center gap-2 px-3 py-2 text-sm text-[var(--color-error)] hover:bg-[var(--color-bg-highlight)] text-left"
 					>
 						<Trash2 className="w-4 h-4" />
 						Delete Station

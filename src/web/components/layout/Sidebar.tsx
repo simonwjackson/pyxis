@@ -47,9 +47,9 @@ export function Sidebar() {
 	});
 
 	return (
-		<aside className="hidden md:flex md:w-56 flex-col bg-zinc-950 border-r border-zinc-800" aria-label="Main navigation">
-			<div className="p-4 border-b border-zinc-800">
-				<Link to="/" className="text-xl font-bold text-cyan-400">
+		<aside className="hidden md:flex md:w-56 flex-col bg-[var(--color-bg-panel)] border-r border-[var(--color-border)]" aria-label="Main navigation">
+			<div className="p-4 border-b border-[var(--color-border)]">
+				<Link to="/" className="text-xl font-bold text-[var(--color-primary)]">
 					pyxis
 				</Link>
 			</div>
@@ -61,8 +61,8 @@ export function Sidebar() {
 						className={cn(
 							"flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors",
 							location.pathname === item.path
-								? "bg-zinc-800 text-cyan-400"
-								: "text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200",
+								? "bg-[var(--color-bg-highlight)] text-[var(--color-primary)]"
+								: "text-[var(--color-text-muted)] hover:bg-[var(--color-bg-highlight)] hover:text-[var(--color-text)]",
 						)}
 					>
 						{item.icon}
@@ -70,10 +70,10 @@ export function Sidebar() {
 					</Link>
 				))}
 			</nav>
-			<div className="p-4 border-t border-zinc-800">
+			<div className="p-4 border-t border-[var(--color-border)]">
 				<button
 					onClick={() => logoutMutation.mutate()}
-					className="flex items-center gap-2 text-sm text-zinc-400 hover:text-zinc-200 transition-colors"
+					className="flex items-center gap-2 text-sm text-[var(--color-text-muted)] hover:text-[var(--color-text)] transition-colors"
 					type="button"
 				>
 					<LogOut className="w-4 h-4" />

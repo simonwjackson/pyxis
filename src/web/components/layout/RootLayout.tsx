@@ -1,9 +1,11 @@
-import { useEffect } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { Outlet, useRouterState, useNavigate } from "@tanstack/react-router";
 import { Sidebar } from "./Sidebar";
 import { MobileNav } from "./MobileNav";
 import { NowPlayingBar } from "./NowPlayingBar";
+import { CommandPalette } from "../overlays/CommandPalette";
 import { usePlaybackContext } from "../../contexts/PlaybackContext";
+import { useKeyboardShortcuts } from "../../hooks/useKeyboardShortcuts";
 import { trpc } from "../../lib/trpc";
 
 export function RootLayout() {
@@ -11,10 +13,25 @@ export function RootLayout() {
 	const navigate = useNavigate();
 	const isLoginPage = location.pathname === "/login";
 	const playback = usePlaybackContext();
+	const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
 
 	const authStatus = trpc.auth.status.useQuery(undefined, {
 		retry: false,
 		refetchOnWindowFocus: false,
+	});
+
+	const handleCommandPalette = useCallback(() => {
+		setCommandPaletteOpen((prev) => !prev);
+	}, []);
+
+	const handleToggleHelp = useCallback(() => {
+		// Help opens the command palette as a shortcut reference
+		setCommandPaletteOpen(true);
+	}, []);
+
+	useKeyboardShortcuts({
+		onCommandPalette: handleCommandPalette,
+		onToggleHelp: handleToggleHelp,
 	});
 
 	// Redirect to login if not authenticated
@@ -34,7 +51,7 @@ export function RootLayout() {
 	}
 
 	return (
-		<div className="flex h-screen bg-zinc-900 text-zinc-100">
+		<div className="flex h-screen bg-[var(--color-bg)] text-[var(--color-text)]">
 			<Sidebar />
 			<div className="flex-1 flex flex-col min-w-0">
 				<MobileNav />
@@ -50,6 +67,10 @@ export function RootLayout() {
 					onSkip={playback.triggerSkip}
 				/>
 			</div>
+			<CommandPalette
+				isOpen={commandPaletteOpen}
+				onClose={() => setCommandPaletteOpen(false)}
+			/>
 		</div>
 	);
 }

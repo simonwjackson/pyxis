@@ -25,14 +25,14 @@ export function SearchResults({
 		(genreStations && genreStations.length > 0);
 
 	if (!hasResults) {
-		return <p className="text-zinc-500 text-sm">No results found.</p>;
+		return <p className="text-[var(--color-text-dim)] text-sm">No results found.</p>;
 	}
 
 	return (
 		<div className="space-y-6">
 			{artists && artists.length > 0 && (
 				<section>
-					<h3 className="text-sm font-medium text-zinc-400 mb-2">
+					<h3 className="text-sm font-medium text-[var(--color-text-muted)] mb-2">
 						Artists
 					</h3>
 					<ul className="space-y-1">
@@ -42,18 +42,18 @@ export function SearchResults({
 									onClick={() =>
 										onCreateStation(artist.musicToken)
 									}
-									className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-zinc-800 text-left"
+									className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-[var(--color-bg-highlight)] text-left"
 									type="button"
 								>
-									<div className="w-10 h-10 rounded-full bg-zinc-700 flex items-center justify-center shrink-0">
-										<User className="w-5 h-5 text-zinc-400" />
+									<div className="w-10 h-10 rounded-full bg-[var(--color-bg-highlight)] flex items-center justify-center shrink-0">
+										<User className="w-5 h-5 text-[var(--color-text-muted)]" />
 									</div>
 									<div className="flex-1">
-										<p className="font-medium text-zinc-200">
+										<p className="font-medium text-[var(--color-text)]">
 											{artist.artistName}
 										</p>
 									</div>
-									<span className="text-xs text-zinc-500 bg-zinc-800 px-2 py-1 rounded">
+									<span className="text-xs text-[var(--color-text-dim)] bg-[var(--color-bg-highlight)] px-2 py-1 rounded">
 										Create station
 									</span>
 								</button>
@@ -64,7 +64,7 @@ export function SearchResults({
 			)}
 			{songs && songs.length > 0 && (
 				<section>
-					<h3 className="text-sm font-medium text-zinc-400 mb-2">
+					<h3 className="text-sm font-medium text-[var(--color-text-muted)] mb-2">
 						Songs
 					</h3>
 					<ul className="space-y-1">
@@ -74,21 +74,21 @@ export function SearchResults({
 									onClick={() =>
 										onCreateStation(song.musicToken)
 									}
-									className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-zinc-800 text-left"
+									className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-[var(--color-bg-highlight)] text-left"
 									type="button"
 								>
-									<div className="w-10 h-10 rounded bg-zinc-700 flex items-center justify-center shrink-0">
-										<Music className="w-5 h-5 text-zinc-400" />
+									<div className="w-10 h-10 rounded bg-[var(--color-bg-highlight)] flex items-center justify-center shrink-0">
+										<Music className="w-5 h-5 text-[var(--color-text-muted)]" />
 									</div>
 									<div className="flex-1">
-										<p className="font-medium text-zinc-200">
+										<p className="font-medium text-[var(--color-text)]">
 											{song.songName}
 										</p>
-										<p className="text-sm text-zinc-400">
+										<p className="text-sm text-[var(--color-text-muted)]">
 											{song.artistName}
 										</p>
 									</div>
-									<span className="text-xs text-zinc-500 bg-zinc-800 px-2 py-1 rounded">
+									<span className="text-xs text-[var(--color-text-dim)] bg-[var(--color-bg-highlight)] px-2 py-1 rounded">
 										Create station
 									</span>
 								</button>
@@ -99,7 +99,7 @@ export function SearchResults({
 			)}
 			{genreStations && genreStations.length > 0 && (
 				<section>
-					<h3 className="text-sm font-medium text-zinc-400 mb-2">
+					<h3 className="text-sm font-medium text-[var(--color-text-muted)] mb-2">
 						Genres
 					</h3>
 					<ul className="space-y-1">
@@ -109,18 +109,18 @@ export function SearchResults({
 									onClick={() =>
 										onCreateStation(genre.musicToken)
 									}
-									className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-zinc-800 text-left"
+									className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-[var(--color-bg-highlight)] text-left"
 									type="button"
 								>
 									<div className="w-10 h-10 rounded bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center shrink-0">
 										<LayoutGrid className="w-5 h-5 text-white" />
 									</div>
 									<div className="flex-1">
-										<p className="font-medium text-zinc-200">
+										<p className="font-medium text-[var(--color-text)]">
 											{genre.stationName}
 										</p>
 									</div>
-									<span className="text-xs text-zinc-500 bg-zinc-800 px-2 py-1 rounded">
+									<span className="text-xs text-[var(--color-text-dim)] bg-[var(--color-bg-highlight)] px-2 py-1 rounded">
 										Create station
 									</span>
 								</button>

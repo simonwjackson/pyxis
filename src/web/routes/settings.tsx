@@ -43,19 +43,19 @@ export function SettingsPage() {
 
 			{settings && (
 				<section className="space-y-4">
-					<h3 className="text-sm font-medium text-zinc-400">
+					<h3 className="text-sm font-medium text-[var(--color-text-muted)]">
 						Account
 					</h3>
 					{settings.username && (
 						<div className="flex items-center justify-between py-2">
-							<span className="text-zinc-300 text-sm">Email</span>
-							<span className="text-zinc-400 text-sm">
+							<span className="text-[var(--color-text-muted)] text-sm">Email</span>
+							<span className="text-[var(--color-text-muted)] text-sm">
 								{settings.username}
 							</span>
 						</div>
 					)}
 					<div className="flex items-center justify-between py-2">
-						<span className="text-zinc-300 text-sm">
+						<span className="text-[var(--color-text-muted)] text-sm">
 							Explicit content filter
 						</span>
 						<button
@@ -67,8 +67,8 @@ export function SettingsPage() {
 							}
 							className={`w-12 h-6 rounded-full transition-colors relative ${
 								settings.isExplicitContentFilterEnabled
-									? "bg-cyan-600"
-									: "bg-zinc-700"
+									? "bg-[var(--color-primary)]"
+									: "bg-[var(--color-bg-highlight)]"
 							}`}
 							type="button"
 						>
@@ -86,15 +86,15 @@ export function SettingsPage() {
 
 			{usage && (
 				<section className="space-y-2">
-					<h3 className="text-sm font-medium text-zinc-400">
+					<h3 className="text-sm font-medium text-[var(--color-text-muted)]">
 						Usage
 					</h3>
 					{usage.accountMonthlyListening !== undefined && (
 						<div className="flex items-center justify-between py-2">
-							<span className="text-zinc-300 text-sm">
+							<span className="text-[var(--color-text-muted)] text-sm">
 								Listening this month
 							</span>
-							<span className="text-zinc-400 text-sm">
+							<span className="text-[var(--color-text-muted)] text-sm">
 								{Math.round(
 									usage.accountMonthlyListening / 3600,
 								)}
@@ -104,10 +104,10 @@ export function SettingsPage() {
 					)}
 					{usage.monthlyCapHours !== undefined && (
 						<div className="flex items-center justify-between py-2">
-							<span className="text-zinc-300 text-sm">
+							<span className="text-[var(--color-text-muted)] text-sm">
 								Monthly cap
 							</span>
-							<span className="text-zinc-400 text-sm">
+							<span className="text-[var(--color-text-muted)] text-sm">
 								{usage.monthlyCapHours}h
 							</span>
 						</div>
@@ -115,7 +115,7 @@ export function SettingsPage() {
 				</section>
 			)}
 
-			<section className="pt-4 border-t border-zinc-800">
+			<section className="pt-4 border-t border-[var(--color-border)]">
 				<Button
 					variant="destructive"
 					className="gap-2"

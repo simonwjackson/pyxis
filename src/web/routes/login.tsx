@@ -32,19 +32,19 @@ export function LoginPage() {
 	};
 
 	return (
-		<div className="min-h-screen flex items-center justify-center bg-zinc-900 p-4">
+		<div className="min-h-screen flex items-center justify-center bg-[var(--color-bg)] p-4">
 			<div className="w-full max-w-sm">
 				<div className="text-center mb-8">
-					<h1 className="text-3xl font-bold text-cyan-400 mb-2">
+					<h1 className="text-3xl font-bold text-[var(--color-primary)] mb-2">
 						pyxis
 					</h1>
-					<p className="text-zinc-500">
+					<p className="text-[var(--color-text-dim)]">
 						Pandora client for the modern web
 					</p>
 				</div>
 				<form onSubmit={handleSubmit} className="space-y-4">
 					<div>
-						<label className="block text-sm font-medium text-zinc-400 mb-1">
+						<label className="block text-sm font-medium text-[var(--color-text-muted)] mb-1">
 							Email
 						</label>
 						<input
@@ -53,11 +53,11 @@ export function LoginPage() {
 							value={email}
 							onChange={(e) => setEmail(e.target.value)}
 							required
-							className="w-full px-4 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-zinc-100 placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-cyan-500"
+							className="w-full px-4 py-2 bg-[var(--color-bg-highlight)] border border-[var(--color-border)] rounded-lg text-[var(--color-text)] placeholder:text-[var(--color-text-dim)] focus:outline-none focus:ring-2 focus:ring-[var(--color-border-active)]"
 						/>
 					</div>
 					<div>
-						<label className="block text-sm font-medium text-zinc-400 mb-1">
+						<label className="block text-sm font-medium text-[var(--color-text-muted)] mb-1">
 							Password
 						</label>
 						<input
@@ -66,11 +66,11 @@ export function LoginPage() {
 							value={password}
 							onChange={(e) => setPassword(e.target.value)}
 							required
-							className="w-full px-4 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-zinc-100 placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-cyan-500"
+							className="w-full px-4 py-2 bg-[var(--color-bg-highlight)] border border-[var(--color-border)] rounded-lg text-[var(--color-text)] placeholder:text-[var(--color-text-dim)] focus:outline-none focus:ring-2 focus:ring-[var(--color-border-active)]"
 						/>
 					</div>
 					{error && (
-						<div className="p-3 bg-red-500/10 border border-red-500/30 rounded-lg text-red-400 text-sm">
+						<div className="p-3 rounded-lg text-[var(--color-error)] text-sm" style={{ backgroundColor: "color-mix(in srgb, var(--color-error) 10%, transparent)", border: "1px solid color-mix(in srgb, var(--color-error) 30%, transparent)" }}>
 							{error}
 						</div>
 					)}
@@ -86,7 +86,7 @@ export function LoginPage() {
 						)}
 					</Button>
 				</form>
-				<p className="text-center text-xs text-zinc-600 mt-8">
+				<p className="text-center text-xs text-[var(--color-text-dim)] mt-8">
 					This is an unofficial client. Use at your own risk.
 				</p>
 			</div>

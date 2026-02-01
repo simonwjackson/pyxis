@@ -164,7 +164,7 @@ export function NowPlayingPage() {
 	if (!stationToken) {
 		return (
 			<div className="flex-1 flex items-center justify-center p-4">
-				<p className="text-zinc-500">
+				<p className="text-[var(--color-text-dim)]">
 					Select a station to start listening
 				</p>
 			</div>
@@ -178,7 +178,7 @@ export function NowPlayingPage() {
 	if (!currentTrack) {
 		return (
 			<div className="flex-1 flex items-center justify-center p-4">
-				<p className="text-zinc-500">No tracks available</p>
+				<p className="text-[var(--color-text-dim)]">No tracks available</p>
 			</div>
 		);
 	}
@@ -204,12 +204,12 @@ export function NowPlayingPage() {
 					/>
 				) : null}
 				<div
-					className={`w-full h-full bg-zinc-800 rounded-2xl shadow-2xl flex items-center justify-center ${playback.currentTrack?.artUrl ? "hidden absolute inset-0" : ""}`}
+					className={`w-full h-full bg-[var(--color-bg-highlight)] rounded-2xl shadow-2xl flex items-center justify-center ${playback.currentTrack?.artUrl ? "hidden absolute inset-0" : ""}`}
 				>
-					<Music className="w-20 h-20 text-zinc-600" />
+					<Music className="w-20 h-20 text-[var(--color-text-dim)]" />
 				</div>
 				{playback.isPlaying && (
-					<div className="absolute -bottom-2 left-1/2 -translate-x-1/2 px-3 py-1 bg-cyan-500 rounded-full text-xs font-medium text-zinc-900">
+					<div className="absolute -bottom-2 left-1/2 -translate-x-1/2 px-3 py-1 bg-[var(--color-playing)] rounded-full text-xs font-medium text-[var(--color-bg)]">
 						PLAYING
 					</div>
 				)}
@@ -217,24 +217,24 @@ export function NowPlayingPage() {
 
 			{/* Track info */}
 			<div className="text-center">
-				<h2 className="text-2xl md:text-3xl font-bold text-zinc-100">
+				<h2 className="text-2xl md:text-3xl font-bold text-[var(--color-text)]">
 					{currentTrack.songName}
 				</h2>
-				<p className="text-lg text-zinc-400 mt-1">
+				<p className="text-lg text-[var(--color-text-muted)] mt-1">
 					{currentTrack.artistName}
 				</p>
-				<p className="text-sm text-zinc-500">{currentTrack.albumName}</p>
+				<p className="text-sm text-[var(--color-text-dim)]">{currentTrack.albumName}</p>
 			</div>
 
 			{/* Progress bar */}
 			<div className="w-full max-w-md">
-				<div className="h-1 bg-zinc-800 rounded-full overflow-hidden">
+				<div className="h-1 bg-[var(--color-progress-track)] rounded-full overflow-hidden">
 					<div
-						className="h-full bg-cyan-500 transition-all duration-300"
+						className="h-full bg-[var(--color-progress)] transition-all duration-300"
 						style={{ width: `${String(progressPercent)}%` }}
 					/>
 				</div>
-				<div className="flex justify-between text-xs text-zinc-500 mt-1">
+				<div className="flex justify-between text-xs text-[var(--color-text-dim)] mt-1">
 					<span>{formatTime(playback.progress)}</span>
 					<span>{formatTime(playback.duration)}</span>
 				</div>
@@ -245,7 +245,7 @@ export function NowPlayingPage() {
 				<Button
 					variant="ghost"
 					size="icon"
-					className="text-red-500 hover:text-red-400 h-12 w-12"
+					className="text-[var(--color-disliked)] h-12 w-12"
 					onClick={handleDislike}
 					aria-label="Dislike this track"
 				>
@@ -253,7 +253,7 @@ export function NowPlayingPage() {
 				</Button>
 				<Button
 					size="icon"
-					className="h-14 w-14 rounded-full bg-cyan-500 hover:bg-cyan-400 text-zinc-900"
+					className="h-14 w-14 rounded-full bg-[var(--color-primary)] hover:brightness-110 text-[var(--color-bg)]"
 					onClick={playback.togglePlayPause}
 					aria-label={playback.isPlaying ? "Pause" : "Play"}
 				>
@@ -275,7 +275,7 @@ export function NowPlayingPage() {
 				<Button
 					variant="ghost"
 					size="icon"
-					className="text-green-500 hover:text-green-400 h-12 w-12"
+					className="text-[var(--color-liked)] h-12 w-12"
 					onClick={handleLike}
 					aria-label="Like this track"
 				>
@@ -284,7 +284,7 @@ export function NowPlayingPage() {
 			</div>
 
 			{/* Secondary actions */}
-			<div className="flex items-center gap-4 text-zinc-500">
+			<div className="flex items-center gap-4 text-[var(--color-text-dim)]">
 				<Button
 					variant="ghost"
 					size="sm"

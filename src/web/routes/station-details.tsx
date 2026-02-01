@@ -23,20 +23,20 @@ function SeedItem({
 	readonly isRemoving: boolean;
 }) {
 	return (
-		<div className="flex items-center gap-3 p-3 rounded-lg bg-zinc-800/50 group">
-			<div className="w-8 h-8 rounded-full bg-zinc-700 flex items-center justify-center shrink-0">
+		<div className="flex items-center gap-3 p-3 rounded-lg bg-[var(--color-bg-highlight)] group">
+			<div className="w-8 h-8 rounded-full bg-[var(--color-bg-highlight)] flex items-center justify-center shrink-0">
 				{type === "artist" ? (
-					<User className="w-4 h-4 text-zinc-400" />
+					<User className="w-4 h-4 text-[var(--color-text-muted)]" />
 				) : (
-					<Music className="w-4 h-4 text-zinc-400" />
+					<Music className="w-4 h-4 text-[var(--color-text-muted)]" />
 				)}
 			</div>
 			<div className="flex-1 min-w-0">
-				<p className="text-sm text-zinc-300 truncate">
+				<p className="text-sm text-[var(--color-text-muted)] truncate">
 					{type === "song" ? seed.songName : seed.artistName}
 				</p>
 				{type === "song" && seed.artistName && (
-					<p className="text-xs text-zinc-500 truncate">
+					<p className="text-xs text-[var(--color-text-dim)] truncate">
 						{seed.artistName}
 					</p>
 				)}
@@ -45,7 +45,7 @@ function SeedItem({
 				type="button"
 				onClick={() => onRemove(seed.seedId)}
 				disabled={isRemoving}
-				className="opacity-0 group-hover:opacity-100 p-1.5 text-zinc-500 hover:text-red-400 hover:bg-red-500/10 rounded transition-all disabled:opacity-50"
+				className="opacity-0 group-hover:opacity-100 p-1.5 text-[var(--color-text-dim)] hover:text-[var(--color-error)] hover:bg-[var(--color-bg-highlight)] rounded transition-all disabled:opacity-50"
 				title="Remove seed"
 			>
 				<X className="w-4 h-4" />
@@ -60,11 +60,11 @@ function FeedbackItem({
 	readonly feedback: StationFeedback;
 }) {
 	return (
-		<div className="flex items-center gap-3 p-2 rounded-lg bg-zinc-800/30">
-			<p className="text-sm text-zinc-300 flex-1 truncate">
+		<div className="flex items-center gap-3 p-2 rounded-lg bg-[var(--color-bg-highlight)]">
+			<p className="text-sm text-[var(--color-text-muted)] flex-1 truncate">
 				{feedback.songName}
 			</p>
-			<p className="text-xs text-zinc-500 shrink-0">
+			<p className="text-xs text-[var(--color-text-dim)] shrink-0">
 				{feedback.artistName}
 			</p>
 		</div>
@@ -128,7 +128,7 @@ export function StationDetailsPage({ stationToken }: StationDetailsPageProps) {
 	if (stationQuery.error) {
 		return (
 			<div className="flex-1 p-4">
-				<p className="text-red-400">
+				<p className="text-[var(--color-error)]">
 					Failed to load station details:{" "}
 					{stationQuery.error.message}
 				</p>
@@ -140,7 +140,7 @@ export function StationDetailsPage({ stationToken }: StationDetailsPageProps) {
 	if (!station) {
 		return (
 			<div className="flex-1 p-4">
-				<p className="text-zinc-500">Station not found.</p>
+				<p className="text-[var(--color-text-dim)]">Station not found.</p>
 			</div>
 		);
 	}
@@ -158,28 +158,28 @@ export function StationDetailsPage({ stationToken }: StationDetailsPageProps) {
 				<button
 					type="button"
 					onClick={() => navigate({ to: "/" })}
-					className="p-2 hover:bg-zinc-800 rounded-lg transition-colors"
+					className="p-2 hover:bg-[var(--color-bg-highlight)] rounded-lg transition-colors"
 					aria-label="Back to stations"
 				>
-					<ChevronLeft className="w-5 h-5 text-zinc-400" />
+					<ChevronLeft className="w-5 h-5 text-[var(--color-text-muted)]" />
 				</button>
 				<div>
-					<h2 className="text-lg font-semibold text-zinc-100">
+					<h2 className="text-lg font-semibold text-[var(--color-text)]">
 						{station.stationName}
 					</h2>
-					<p className="text-sm text-zinc-500">Station details</p>
+					<p className="text-sm text-[var(--color-text-dim)]">Station details</p>
 				</div>
 			</div>
 
 			<div>
 				<div className="flex items-center justify-between mb-3">
-					<h3 className="text-sm font-medium text-zinc-400 uppercase tracking-wide">
+					<h3 className="text-sm font-medium text-[var(--color-text-muted)] uppercase tracking-wide">
 						Seeds
 					</h3>
 					<button
 						type="button"
 						onClick={() => setShowAddSeed(true)}
-						className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-cyan-400 hover:bg-cyan-500/10 rounded-lg transition-colors"
+						className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-[var(--color-primary)] hover:bg-[var(--color-bg-highlight)] rounded-lg transition-colors"
 					>
 						<Plus className="w-4 h-4" />
 						Add Seed
@@ -187,14 +187,14 @@ export function StationDetailsPage({ stationToken }: StationDetailsPageProps) {
 				</div>
 
 				{!hasSeeds && (
-					<p className="py-6 text-center text-zinc-500 text-sm">
+					<p className="py-6 text-center text-[var(--color-text-dim)] text-sm">
 						No seeds found for this station.
 					</p>
 				)}
 
 				{artistSeeds.length > 0 && (
 					<div className="space-y-1 mb-4">
-						<p className="text-xs text-zinc-500 mb-1">Artists</p>
+						<p className="text-xs text-[var(--color-text-dim)] mb-1">Artists</p>
 						{artistSeeds.map((seed) => (
 							<SeedItem
 								key={seed.seedId}
@@ -209,7 +209,7 @@ export function StationDetailsPage({ stationToken }: StationDetailsPageProps) {
 
 				{songSeeds.length > 0 && (
 					<div className="space-y-1">
-						<p className="text-xs text-zinc-500 mb-1">Songs</p>
+						<p className="text-xs text-[var(--color-text-dim)] mb-1">Songs</p>
 						{songSeeds.map((seed) => (
 							<SeedItem
 								key={seed.seedId}
@@ -224,20 +224,20 @@ export function StationDetailsPage({ stationToken }: StationDetailsPageProps) {
 			</div>
 
 			<div>
-				<h3 className="text-sm font-medium text-zinc-400 uppercase tracking-wide mb-3">
+				<h3 className="text-sm font-medium text-[var(--color-text-muted)] uppercase tracking-wide mb-3">
 					Feedback
 				</h3>
 
 				{!hasFeedback && (
-					<p className="py-6 text-center text-zinc-500 text-sm">
+					<p className="py-6 text-center text-[var(--color-text-dim)] text-sm">
 						No feedback for this station yet.
 					</p>
 				)}
 
 				{thumbsUp.length > 0 && (
 					<div className="mb-4">
-						<p className="text-xs text-zinc-500 mb-1 flex items-center gap-1">
-							<ThumbsUp className="w-3 h-3 text-green-500" />
+						<p className="text-xs text-[var(--color-text-dim)] mb-1 flex items-center gap-1">
+							<ThumbsUp className="w-3 h-3 text-[var(--color-liked)]" />
 							Liked
 						</p>
 						<div className="space-y-1">
@@ -253,8 +253,8 @@ export function StationDetailsPage({ stationToken }: StationDetailsPageProps) {
 
 				{thumbsDown.length > 0 && (
 					<div>
-						<p className="text-xs text-zinc-500 mb-1 flex items-center gap-1">
-							<ThumbsDown className="w-3 h-3 text-red-500" />
+						<p className="text-xs text-[var(--color-text-dim)] mb-1 flex items-center gap-1">
+							<ThumbsDown className="w-3 h-3 text-[var(--color-error)]" />
 							Disliked
 						</p>
 						<div className="space-y-1">

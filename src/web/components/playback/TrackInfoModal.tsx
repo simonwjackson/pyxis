@@ -34,22 +34,22 @@ export function TrackInfoModal({
 		>
 			<div className="fixed inset-0 bg-black/60" />
 			<div
-				className="relative bg-zinc-900 border border-zinc-700 rounded-xl max-w-md w-full shadow-2xl mx-4 max-h-[80vh] flex flex-col"
+				className="relative bg-[var(--color-bg)] border border-[var(--color-border)] rounded-xl max-w-md w-full shadow-2xl mx-4 max-h-[80vh] flex flex-col"
 				onClick={(e) => e.stopPropagation()}
 				onKeyDown={() => {}}
 			>
 				{/* Header */}
-				<div className="flex items-center justify-between p-4 border-b border-zinc-800">
-					<h2 className="text-lg font-semibold text-zinc-100">
+				<div className="flex items-center justify-between p-4 border-b border-[var(--color-border)]">
+					<h2 className="text-lg font-semibold text-[var(--color-text)]">
 						Track Info
 					</h2>
 					<button
 						type="button"
 						onClick={onClose}
-						className="p-1.5 hover:bg-zinc-800 rounded-lg transition-colors"
+						className="p-1.5 hover:bg-[var(--color-bg-highlight)] rounded-lg transition-colors"
 						aria-label="Close"
 					>
-						<X className="w-5 h-5 text-zinc-400" />
+						<X className="w-5 h-5 text-[var(--color-text-muted)]" />
 					</button>
 				</div>
 
@@ -64,22 +64,22 @@ export function TrackInfoModal({
 								className="w-20 h-20 rounded-lg shrink-0 object-cover"
 							/>
 						) : (
-							<div className="w-20 h-20 rounded-lg shrink-0 bg-zinc-800 flex items-center justify-center">
-								<Music className="w-8 h-8 text-zinc-600" />
+							<div className="w-20 h-20 rounded-lg shrink-0 bg-[var(--color-bg-highlight)] flex items-center justify-center">
+								<Music className="w-8 h-8 text-[var(--color-text-dim)]" />
 							</div>
 						)}
 						<div className="min-w-0">
-							<p className="font-semibold text-zinc-100 truncate">
+							<p className="font-semibold text-[var(--color-text)] truncate">
 								{track.songName}
 							</p>
-							<p className="text-sm text-zinc-400 truncate">
+							<p className="text-sm text-[var(--color-text-muted)] truncate">
 								{track.artistName}
 							</p>
-							<p className="text-sm text-zinc-500 truncate">
+							<p className="text-sm text-[var(--color-text-dim)] truncate">
 								{track.albumName}
 							</p>
 							{duration > 0 && (
-								<p className="text-xs text-zinc-600 mt-1">
+								<p className="text-xs text-[var(--color-text-dim)] mt-1">
 									Duration: {formatDuration(duration)}
 								</p>
 							)}
@@ -88,19 +88,19 @@ export function TrackInfoModal({
 
 					{/* Music Genome Traits */}
 					<div>
-						<h3 className="text-sm font-medium text-zinc-400 uppercase tracking-wide mb-3">
+						<h3 className="text-sm font-medium text-[var(--color-text-muted)] uppercase tracking-wide mb-3">
 							Music Genome Traits
 						</h3>
 
 						{explainQuery.isLoading && (
-							<div className="flex items-center gap-2 py-3 text-zinc-500 text-sm">
+							<div className="flex items-center gap-2 py-3 text-[var(--color-text-dim)] text-sm">
 								<Loader2 className="w-4 h-4 animate-spin" />
 								Loading traits...
 							</div>
 						)}
 
 						{explainQuery.error && (
-							<p className="py-3 text-red-400 text-sm">
+							<p className="py-3 text-[var(--color-error)] text-sm">
 								Failed to load traits.
 							</p>
 						)}
@@ -109,7 +109,7 @@ export function TrackInfoModal({
 							<>
 								{explainQuery.data.explanations.length ===
 								0 ? (
-									<p className="py-3 text-zinc-500 text-sm">
+									<p className="py-3 text-[var(--color-text-dim)] text-sm">
 										No traits available for this track.
 									</p>
 								) : (
@@ -120,8 +120,8 @@ export function TrackInfoModal({
 													key={trait.focusTraitId}
 													className="flex items-center gap-2 text-sm"
 												>
-													<div className="w-1.5 h-1.5 rounded-full bg-cyan-500 shrink-0" />
-													<span className="text-zinc-300">
+													<div className="w-1.5 h-1.5 rounded-full bg-[var(--color-primary)] shrink-0" />
+													<span className="text-[var(--color-text-muted)]">
 														{trait.focusTraitName}
 													</span>
 												</div>

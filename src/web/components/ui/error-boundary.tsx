@@ -28,13 +28,13 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
 			}
 			return (
 				<div className="flex flex-col items-center justify-center p-8 text-center">
-					<div className="w-16 h-16 mb-4 rounded-full bg-red-500/10 flex items-center justify-center">
-						<svg className="w-8 h-8 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+					<div className="w-16 h-16 mb-4 rounded-full flex items-center justify-center" style={{ backgroundColor: "color-mix(in srgb, var(--color-error) 10%, transparent)" }}>
+						<svg className="w-8 h-8 text-[var(--color-error)]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
 							<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4.5c-.77-.833-2.694-.833-3.464 0L3.34 16.5c-.77.833.192 2.5 1.732 2.5z" />
 						</svg>
 					</div>
-					<h3 className="text-lg font-semibold text-zinc-200 mb-2">Something went wrong</h3>
-					<p className="text-sm text-zinc-400 mb-4 max-w-md">
+					<h3 className="text-lg font-semibold text-[var(--color-text)] mb-2">Something went wrong</h3>
+					<p className="text-sm text-[var(--color-text-muted)] mb-4 max-w-md">
 						{this.state.error?.message ?? "An unexpected error occurred"}
 					</p>
 					<Button

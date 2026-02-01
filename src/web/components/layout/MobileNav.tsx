@@ -43,13 +43,13 @@ export function MobileNav() {
 
 	return (
 		<div className="md:hidden">
-			<div className="flex items-center justify-between p-4 border-b border-zinc-800">
-				<Link to="/" className="text-xl font-bold text-cyan-400">
+			<div className="flex items-center justify-between p-4 border-b border-[var(--color-border)]">
+				<Link to="/" className="text-xl font-bold text-[var(--color-primary)]">
 					pyxis
 				</Link>
 				<button
 					onClick={() => setIsOpen(!isOpen)}
-					className="p-2 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800 rounded-lg transition-colors"
+					className="p-2 text-[var(--color-text-muted)] hover:text-[var(--color-text)] hover:bg-[var(--color-bg-highlight)] rounded-lg transition-colors"
 					type="button"
 					aria-label={isOpen ? "Close navigation menu" : "Open navigation menu"}
 					aria-expanded={isOpen}
@@ -62,7 +62,7 @@ export function MobileNav() {
 				</button>
 			</div>
 			{isOpen && (
-				<div className="absolute inset-x-0 top-14 z-50 bg-zinc-950 border-b border-zinc-800 shadow-lg">
+				<div className="absolute inset-x-0 top-14 z-50 bg-[var(--color-bg-panel)] border-b border-[var(--color-border)] shadow-lg">
 					<nav className="p-2 space-y-1" aria-label="Mobile navigation">
 						{navItems.map((item) => (
 							<Link
@@ -72,8 +72,8 @@ export function MobileNav() {
 								className={cn(
 									"flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors",
 									location.pathname === item.path
-										? "bg-zinc-800 text-cyan-400"
-										: "text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200",
+										? "bg-[var(--color-bg-highlight)] text-[var(--color-primary)]"
+										: "text-[var(--color-text-muted)] hover:bg-[var(--color-bg-highlight)] hover:text-[var(--color-text)]",
 								)}
 							>
 								{item.icon}
