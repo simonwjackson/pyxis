@@ -10,6 +10,9 @@ import {
 import { handleStreamRequest } from "./services/stream.js";
 import { ensureSourceManager } from "./services/sourceManager.js";
 import { tryAutoLogin } from "./services/autoLogin.js";
+import { createLogger } from "../src/logger.js";
+
+const serverLogger = createLogger("server");
 
 const PORT = 8765;
 
@@ -84,9 +87,10 @@ const server = Bun.serve({
 	},
 });
 
-console.log(`Server running on http://aka:${PORT}`);
+serverLogger.log(`Server running on http://aka:${PORT}`);
+serverLogger.log(`Logs: ${serverLogger.logFile}`);
 
 // Attempt auto-login from stored credentials
-tryAutoLogin().catch(() => {
+tryAutoLogin(serverLogger).catch(() => {
 	// Silently ignore — server starts normally without auth
 });
