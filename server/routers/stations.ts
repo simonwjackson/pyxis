@@ -57,4 +57,38 @@ export const stationsRouter = router({
 				Pandora.renameStation(ctx.pandoraSession, input),
 			);
 		}),
+
+	setQuickMix: protectedProcedure
+		.input(z.object({ quickMixStationIds: z.array(z.string()) }))
+		.mutation(async ({ ctx, input }) => {
+			await Effect.runPromise(
+				Pandora.setQuickMix(
+					ctx.pandoraSession,
+					input.quickMixStationIds,
+				),
+			);
+			return { success: true };
+		}),
+
+	addMusic: protectedProcedure
+		.input(
+			z.object({
+				stationToken: z.string(),
+				musicToken: z.string(),
+			}),
+		)
+		.mutation(async ({ ctx, input }) => {
+			return Effect.runPromise(
+				Pandora.addMusic(ctx.pandoraSession, input),
+			);
+		}),
+
+	deleteMusic: protectedProcedure
+		.input(z.object({ seedId: z.string() }))
+		.mutation(async ({ ctx, input }) => {
+			await Effect.runPromise(
+				Pandora.deleteMusic(ctx.pandoraSession, input),
+			);
+			return { success: true };
+		}),
 });

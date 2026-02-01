@@ -1,7 +1,10 @@
+import { useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
-import { ChevronLeft, User, Music, ThumbsUp, ThumbsDown } from "lucide-react";
+import { ChevronLeft, User, Music, ThumbsUp, ThumbsDown, Plus, X } from "lucide-react";
+import { toast } from "sonner";
 import { trpc } from "../lib/trpc";
 import { Skeleton } from "../components/ui/skeleton";
+import { AddSeedDialog } from "../components/stations/AddSeedDialog";
 import type { StationSeed, StationFeedback } from "../../types/api";
 
 type StationDetailsPageProps = {
@@ -11,12 +14,16 @@ type StationDetailsPageProps = {
 function SeedItem({
 	seed,
 	type,
+	onRemove,
+	isRemoving,
 }: {
 	readonly seed: StationSeed;
 	readonly type: "artist" | "song";
+	readonly onRemove: (seedId: string) => void;
+	readonly isRemoving: boolean;
 }) {
 	return (
-		<div className="flex items-center gap-3 p-3 rounded-lg bg-zinc-800/50">
+		<div className="flex items-center gap-3 p-3 rounded-lg bg-zinc-800/50 group">
 			<div className="w-8 h-8 rounded-full bg-zinc-700 flex items-center justify-center shrink-0">
 				{type === "artist" ? (
 					<User className="w-4 h-4 text-zinc-400" />
@@ -24,7 +31,7 @@ function SeedItem({
 					<Music className="w-4 h-4 text-zinc-400" />
 				)}
 			</div>
-			<div className="min-w-0">
+			<div className="flex-1 min-w-0">
 				<p className="text-sm text-zinc-300 truncate">
 					{type === "song" ? seed.songName : seed.artistName}
 				</p>
@@ -34,6 +41,15 @@ function SeedItem({
 					</p>
 				)}
 			</div>
+			<button
+				type="button"
+				onClick={() => onRemove(seed.seedId)}
+				disabled={isRemoving}
+				className="opacity-0 group-hover:opacity-100 p-1.5 text-zinc-500 hover:text-red-400 hover:bg-red-500/10 rounded transition-all disabled:opacity-50"
+				title="Remove seed"
+			>
+				<X className="w-4 h-4" />
+			</button>
 		</div>
 	);
 }
@@ -86,8 +102,24 @@ function DetailsSkeleton() {
 }
 
 export function StationDetailsPage({ stationToken }: StationDetailsPageProps) {
+	const [showAddSeed, setShowAddSeed] = useState(false);
 	const navigate = useNavigate();
 	const stationQuery = trpc.stations.getStation.useQuery({ stationToken });
+	const utils = trpc.useUtils();
+
+	const deleteMusicMutation = trpc.stations.deleteMusic.useMutation({
+		onSuccess() {
+			utils.stations.getStation.invalidate({ stationToken });
+			toast.success("Seed removed");
+		},
+		onError(err) {
+			toast.error(`Failed to remove seed: ${err.message}`);
+		},
+	});
+
+	const handleRemoveSeed = (seedId: string) => {
+		deleteMusicMutation.mutate({ seedId });
+	};
 
 	if (stationQuery.isLoading) {
 		return <DetailsSkeleton />;
@@ -140,9 +172,19 @@ export function StationDetailsPage({ stationToken }: StationDetailsPageProps) {
 			</div>
 
 			<div>
-				<h3 className="text-sm font-medium text-zinc-400 uppercase tracking-wide mb-3">
-					Seeds
-				</h3>
+				<div className="flex items-center justify-between mb-3">
+					<h3 className="text-sm font-medium text-zinc-400 uppercase tracking-wide">
+						Seeds
+					</h3>
+					<button
+						type="button"
+						onClick={() => setShowAddSeed(true)}
+						className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-cyan-400 hover:bg-cyan-500/10 rounded-lg transition-colors"
+					>
+						<Plus className="w-4 h-4" />
+						Add Seed
+					</button>
+				</div>
 
 				{!hasSeeds && (
 					<p className="py-6 text-center text-zinc-500 text-sm">
@@ -158,6 +200,8 @@ export function StationDetailsPage({ stationToken }: StationDetailsPageProps) {
 								key={seed.seedId}
 								seed={seed}
 								type="artist"
+								onRemove={handleRemoveSeed}
+								isRemoving={deleteMusicMutation.isPending}
 							/>
 						))}
 					</div>
@@ -171,6 +215,8 @@ export function StationDetailsPage({ stationToken }: StationDetailsPageProps) {
 								key={seed.seedId}
 								seed={seed}
 								type="song"
+								onRemove={handleRemoveSeed}
+								isRemoving={deleteMusicMutation.isPending}
 							/>
 						))}
 					</div>
@@ -222,6 +268,13 @@ export function StationDetailsPage({ stationToken }: StationDetailsPageProps) {
 					</div>
 				)}
 			</div>
+
+			{showAddSeed && (
+				<AddSeedDialog
+					stationToken={stationToken}
+					onClose={() => setShowAddSeed(false)}
+				/>
+			)}
 		</div>
 	);
 }

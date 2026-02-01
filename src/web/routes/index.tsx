@@ -1,11 +1,12 @@
 import { useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
-import { Search } from "lucide-react";
+import { Search, Shuffle } from "lucide-react";
 import { toast } from "sonner";
 import { trpc } from "../lib/trpc";
 import { StationList } from "../components/stations/StationList";
 import { DeleteStationDialog } from "../components/stations/DeleteStationDialog";
 import { RenameStationDialog } from "../components/stations/RenameStationDialog";
+import { QuickMixDialog } from "../components/stations/QuickMixDialog";
 import { StationListSkeleton } from "../components/ui/skeleton";
 import { usePlaybackContext } from "../contexts/PlaybackContext";
 import type { Station } from "../../types/api";
@@ -13,7 +14,8 @@ import type { Station } from "../../types/api";
 type DialogState =
 	| { readonly type: "none" }
 	| { readonly type: "delete"; readonly station: Station }
-	| { readonly type: "rename"; readonly station: Station };
+	| { readonly type: "rename"; readonly station: Station }
+	| { readonly type: "quickmix" };
 
 export function StationsPage() {
 	const [filter, setFilter] = useState("");
@@ -45,9 +47,10 @@ export function StationsPage() {
 		},
 	});
 
-	const filteredStations = (stationsQuery.data ?? []).filter(
-		(s: Station) =>
-			s.stationName.toLowerCase().includes(filter.toLowerCase()),
+	const allStations = stationsQuery.data ?? [];
+	const hasQuickMix = allStations.some((s: Station) => s.isQuickMix);
+	const filteredStations = allStations.filter((s: Station) =>
+		s.stationName.toLowerCase().includes(filter.toLowerCase()),
 	);
 
 	const handleSelect = (station: Station) => {
@@ -81,7 +84,19 @@ export function StationsPage() {
 
 	return (
 		<div className="flex-1 p-4 space-y-4">
-			<h2 className="text-lg font-semibold">Your Stations</h2>
+			<div className="flex items-center justify-between">
+				<h2 className="text-lg font-semibold">Your Stations</h2>
+				{hasQuickMix && (
+					<button
+						type="button"
+						onClick={() => setDialog({ type: "quickmix" })}
+						className="flex items-center gap-2 px-3 py-1.5 text-sm text-purple-400 hover:bg-purple-500/10 rounded-lg transition-colors"
+					>
+						<Shuffle className="w-4 h-4" />
+						Manage Shuffle
+					</button>
+				)}
+			</div>
 			<div className="relative">
 				<Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-500" />
 				<input
@@ -130,6 +145,13 @@ export function StationsPage() {
 						})
 					}
 					onCancel={() => setDialog({ type: "none" })}
+				/>
+			)}
+
+			{dialog.type === "quickmix" && (
+				<QuickMixDialog
+					stations={allStations}
+					onClose={() => setDialog({ type: "none" })}
 				/>
 			)}
 		</div>
