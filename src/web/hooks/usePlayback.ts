@@ -24,7 +24,6 @@ type PlaybackState = {
 
 export function usePlayback() {
 	const audioRef = useRef<HTMLAudioElement | null>(null);
-	const onTrackEndRef = useRef<(() => void) | null>(null);
 	const [state, setState] = useState<PlaybackState>({
 		currentTrack: null,
 		currentStationToken: null,
@@ -60,7 +59,6 @@ export function usePlayback() {
 		const onEnded = () => {
 			setState((prev) => ({ ...prev, isPlaying: false }));
 			trackEndedMutation.mutate();
-			onTrackEndRef.current?.();
 		};
 		const onError = () => {
 			const mediaError = audio.error;
@@ -254,7 +252,6 @@ export function usePlayback() {
 
 	const triggerSkip = useCallback(() => {
 		skipMutation.mutate();
-		onTrackEndRef.current?.();
 	}, [skipMutation]);
 
 	const triggerPrevious = useCallback(() => {
@@ -285,10 +282,6 @@ export function usePlayback() {
 		}));
 	}, []);
 
-	const setOnTrackEnd = useCallback((callback: (() => void) | null) => {
-		onTrackEndRef.current = callback;
-	}, []);
-
 	const clearError = useCallback(() => {
 		setState((prev) => ({ ...prev, error: null }));
 	}, []);
@@ -300,7 +293,6 @@ export function usePlayback() {
 		stop,
 		seek,
 		setCurrentStationToken,
-		setOnTrackEnd,
 		triggerSkip,
 		triggerPrevious,
 		clearError,

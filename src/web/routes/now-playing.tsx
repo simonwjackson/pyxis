@@ -281,29 +281,18 @@ export function NowPlayingPage() {
 	const currentTrack = tracks[trackIndex];
 
 	const handleSkip = useCallback(() => {
-		const nextIndex = trackIndex + 1;
-		if (nextIndex < tracks.length) {
-			playback.jumpToMutation.mutate({ index: nextIndex });
-		} else if (isAlbumMode) {
-			playback.stop();
-		} else {
-			// Refetch more tracks for radio/playlist
-			if (!isPlaylistMode) {
-				radioQuery.refetch();
+		if (isAlbumMode) {
+			const nextIndex = trackIndex + 1;
+			if (nextIndex < tracks.length) {
+				playback.jumpToMutation.mutate({ index: nextIndex });
 			} else {
-				playlistQuery.refetch();
+				playback.stop();
 			}
-			hasStartedRef.current = false;
+		} else {
+			// Radio/playlist: single server mutation handles queue advance + auto-fetch
+			playback.triggerSkip();
 		}
-	}, [
-		trackIndex,
-		tracks,
-		playback,
-		isAlbumMode,
-		isPlaylistMode,
-		radioQuery,
-		playlistQuery,
-	]);
+	}, [trackIndex, tracks, playback, isAlbumMode]);
 
 	const handlePrevious = useCallback(() => {
 		if (trackIndex > 0) {
@@ -317,14 +306,6 @@ export function NowPlayingPage() {
 		},
 		[playback],
 	);
-
-	// Register track-end handler for auto-skip on audio end
-	useEffect(() => {
-		playback.setOnTrackEnd(handleSkip);
-		return () => {
-			playback.setOnTrackEnd(null);
-		};
-	}, [playback, handleSkip]);
 
 	const handleLike = useCallback(() => {
 		if (!radioId || !currentTrack?.capabilities.feedback) return;
