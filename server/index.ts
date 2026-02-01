@@ -7,7 +7,7 @@ import {
 	handleWSMessage,
 	handleWSClose,
 } from "./handlers/websocket.js";
-import { handleStreamRequest } from "./services/stream.js";
+import { handleStreamRequest, prefetchToCache } from "./services/stream.js";
 import { ensureSourceManager } from "./services/sourceManager.js";
 import { tryAutoLogin } from "./services/autoLogin.js";
 import { createLogger } from "../src/logger.js";
@@ -48,11 +48,20 @@ const server = Bun.serve({
 				url.pathname.slice("/stream/".length),
 			);
 			const rangeHeader = req.headers.get("range");
-			serverLogger.log(`[stream] incoming ${compositeId} range=${rangeHeader ?? "none"}`);
+			const nextHint = url.searchParams.get("next");
+			serverLogger.log(`[stream] incoming ${compositeId} range=${rangeHeader ?? "none"} next=${nextHint ?? "none"}`);
 			return ensureSourceManager()
-				.then((sourceManager) =>
-					handleStreamRequest(sourceManager, compositeId, rangeHeader),
-				)
+				.then((sourceManager) => {
+					const responsePromise = handleStreamRequest(sourceManager, compositeId, rangeHeader);
+					// Fire-and-forget prefetch for the next track
+					if (nextHint) {
+						prefetchToCache(sourceManager, decodeURIComponent(nextHint)).catch((err: unknown) => {
+							const msg = err instanceof Error ? err.message : String(err);
+							serverLogger.error(`[stream] prefetch error next=${nextHint}: ${msg}`);
+						});
+					}
+					return responsePromise;
+				})
 				.catch((err: unknown) => {
 					const message =
 						err instanceof Error ? err.message : "Stream error";

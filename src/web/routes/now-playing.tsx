@@ -28,9 +28,11 @@ function formatTime(seconds: number): string {
 	return `${String(mins)}:${String(secs).padStart(2, "0")}`;
 }
 
-// Build a stream URL for a track from any source
-function buildStreamUrl(source: SourceType, trackId: string): string {
-	return `/stream/${encodeURIComponent(`${source}:${trackId}`)}`;
+// Build a stream URL for a track from any source, with optional next-track prefetch hint
+function buildStreamUrl(source: SourceType, trackId: string, nextCompositeId?: string): string {
+	const base = `/stream/${encodeURIComponent(`${source}:${trackId}`)}`;
+	if (!nextCompositeId) return base;
+	return `${base}?next=${encodeURIComponent(nextCompositeId)}`;
 }
 
 // Unified track shape used by NowPlayingPage
@@ -105,9 +107,10 @@ function albumTrackToNowPlaying(
 	};
 }
 
-// Get the audio URL for a track, using stream proxy for all sources
-function getAudioUrlForTrack(track: NowPlayingTrack): string {
-	return buildStreamUrl(track.source, track.trackToken);
+// Get the audio URL for a track, with optional next-track prefetch hint
+function getAudioUrlForTrack(track: NowPlayingTrack, nextTrack?: NowPlayingTrack): string {
+	const nextCompositeId = nextTrack ? `${nextTrack.source}:${nextTrack.trackToken}` : undefined;
+	return buildStreamUrl(track.source, track.trackToken, nextCompositeId);
 }
 
 function playTrackAtIndex(
@@ -117,7 +120,8 @@ function playTrackAtIndex(
 ) {
 	const track = tracks[index];
 	if (!track) return;
-	const audioUrl = getAudioUrlForTrack(track);
+	const nextTrack = tracks[index + 1];
+	const audioUrl = getAudioUrlForTrack(track, nextTrack);
 	playback.playTrack({
 		trackToken: track.trackToken,
 		songName: track.songName,

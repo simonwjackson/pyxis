@@ -1,8 +1,61 @@
+import { mkdirSync, existsSync, readFileSync, writeFileSync, renameSync, unlinkSync } from "node:fs";
+import { join } from "node:path";
+import envPaths from "env-paths";
 import type { SourceManager } from "../../src/sources/index.js";
 import type { SourceType } from "../../src/sources/types.js";
 import { createLogger } from "../../src/logger.js";
 
 const streamLogger = createLogger("stream");
+
+// --- Audio cache ---
+
+type CacheMeta = {
+	readonly contentType: string;
+	readonly contentLength: number;
+	readonly cachedAt: string;
+};
+
+const CACHE_BASE = join(envPaths("pyxis", { suffix: "" }).cache, "audio");
+
+function extensionForContentType(contentType: string): string {
+	if (contentType.includes("webm")) return ".webm";
+	if (contentType.includes("mp4") || contentType.includes("m4a")) return ".m4a";
+	if (contentType.includes("ogg")) return ".ogg";
+	if (contentType.includes("mpeg")) return ".mp3";
+	return ".audio";
+}
+
+function cacheDirForSource(source: SourceType): string {
+	return join(CACHE_BASE, source);
+}
+
+const KNOWN_EXTENSIONS = [".webm", ".m4a", ".ogg", ".mp3", ".audio"] as const;
+
+function findCachedFile(source: SourceType, trackId: string): { filePath: string; metaPath: string } | null {
+	const dir = cacheDirForSource(source);
+	if (!existsSync(dir)) return null;
+	for (const ext of KNOWN_EXTENSIONS) {
+		const filePath = join(dir, `${trackId}${ext}`);
+		const metaPath = `${filePath}.meta`;
+		if (existsSync(filePath) && existsSync(metaPath)) {
+			return { filePath, metaPath };
+		}
+	}
+	return null;
+}
+
+function readMeta(metaPath: string): CacheMeta {
+	return JSON.parse(readFileSync(metaPath, "utf-8")) as CacheMeta;
+}
+
+function ensureCacheDir(source: SourceType): void {
+	mkdirSync(cacheDirForSource(source), { recursive: true });
+}
+
+// Active prefetches to avoid duplicate work
+const activePrefetches = new Set<string>();
+
+// --- Stream request types ---
 
 export type StreamRequest = {
 	readonly source: SourceType;
@@ -33,6 +86,179 @@ export async function resolveStreamUrl(
 	return sourceManager.getStreamUrl(source, trackId);
 }
 
+// --- Cache hit: serve from disk ---
+
+function serveCachedFile(
+	filePath: string,
+	meta: CacheMeta,
+	rangeHeader: string | null,
+): Response {
+	const responseHeaders = new Headers();
+	responseHeaders.set("Content-Type", meta.contentType);
+	responseHeaders.set("Accept-Ranges", "bytes");
+	responseHeaders.set("Access-Control-Allow-Origin", "*");
+	responseHeaders.set("Access-Control-Expose-Headers", "Content-Range, Accept-Ranges, Content-Length");
+
+	const fileSize = meta.contentLength;
+
+	if (rangeHeader) {
+		const match = rangeHeader.match(/^bytes=(\d+)-(\d*)$/);
+		if (match?.[1]) {
+			const start = Number.parseInt(match[1], 10);
+			const end = match[2] ? Number.parseInt(match[2], 10) : fileSize - 1;
+			const chunkSize = end - start + 1;
+
+			responseHeaders.set("Content-Length", String(chunkSize));
+			responseHeaders.set("Content-Range", `bytes ${String(start)}-${String(end)}/${String(fileSize)}`);
+
+			const file = Bun.file(filePath);
+			const slice = file.slice(start, end + 1);
+			return new Response(slice, { status: 206, headers: responseHeaders });
+		}
+	}
+
+	responseHeaders.set("Content-Length", String(fileSize));
+	return new Response(Bun.file(filePath), { status: 200, headers: responseHeaders });
+}
+
+// --- Cache miss: stream-through (tee to client + cache file) ---
+
+async function streamThroughAndCache(
+	upstream: globalThis.Response,
+	source: SourceType,
+	trackId: string,
+	contentType: string,
+	contentLength: number | null,
+): Promise<Response> {
+	ensureCacheDir(source);
+	const ext = extensionForContentType(contentType);
+	const finalPath = join(cacheDirForSource(source), `${trackId}${ext}`);
+	const partialPath = `${finalPath}.partial`;
+	const metaPath = `${finalPath}.meta`;
+
+	const upstreamBody = upstream.body;
+	if (!upstreamBody) {
+		return new Response(null, { status: upstream.status, headers: upstream.headers });
+	}
+
+	const writer = Bun.file(partialPath).writer();
+	let totalWritten = 0;
+
+	const teeStream = new ReadableStream({
+		async start(controller) {
+			const reader = upstreamBody.getReader();
+			try {
+				for (;;) {
+					const { done, value } = await reader.read();
+					if (done) break;
+					controller.enqueue(value);
+					writer.write(value);
+					totalWritten += value.byteLength;
+				}
+				controller.close();
+				await writer.end();
+
+				renameSync(partialPath, finalPath);
+				const meta: CacheMeta = {
+					contentType,
+					contentLength: totalWritten,
+					cachedAt: new Date().toISOString(),
+				};
+				writeFileSync(metaPath, JSON.stringify(meta));
+				streamLogger.log(`[stream] cached trackId=${trackId} size=${String(totalWritten)}`);
+			} catch (err) {
+				controller.error(err);
+				try { await writer.end(); } catch { /* ignore cleanup failure */ }
+				try { unlinkSync(partialPath); } catch { /* ignore cleanup failure */ }
+			}
+		},
+	});
+
+	const responseHeaders = new Headers();
+	responseHeaders.set("Content-Type", contentType);
+	if (contentLength !== null) responseHeaders.set("Content-Length", String(contentLength));
+
+	const contentRange = upstream.headers.get("content-range");
+	if (contentRange) responseHeaders.set("Content-Range", contentRange);
+
+	responseHeaders.set("Accept-Ranges", "bytes");
+	responseHeaders.set("Access-Control-Allow-Origin", "*");
+	responseHeaders.set("Access-Control-Expose-Headers", "Content-Range, Accept-Ranges, Content-Length");
+
+	return new Response(teeStream, {
+		status: upstream.status,
+		headers: responseHeaders,
+	});
+}
+
+// --- Prefetch ---
+
+export async function prefetchToCache(
+	sourceManager: SourceManager,
+	compositeId: string,
+): Promise<void> {
+	const { source, trackId } = parseTrackId(compositeId);
+
+	// Skip Pandora (short-lived URLs)
+	if (source === "pandora") return;
+
+	if (findCachedFile(source, trackId)) {
+		streamLogger.log(`[stream] prefetch skip (cached) compositeId=${compositeId}`);
+		return;
+	}
+
+	if (activePrefetches.has(compositeId)) {
+		streamLogger.log(`[stream] prefetch skip (in-flight) compositeId=${compositeId}`);
+		return;
+	}
+
+	activePrefetches.add(compositeId);
+	streamLogger.log(`[stream] prefetch start compositeId=${compositeId}`);
+
+	try {
+		const url = await resolveStreamUrl(sourceManager, compositeId);
+		const upstream = await fetch(url);
+
+		if (!upstream.ok || !upstream.body) {
+			streamLogger.error(`[stream] prefetch upstream error status=${String(upstream.status)} compositeId=${compositeId}`);
+			return;
+		}
+
+		const contentType = upstream.headers.get("content-type") ?? "audio/webm";
+		ensureCacheDir(source);
+		const ext = extensionForContentType(contentType);
+		const finalPath = join(cacheDirForSource(source), `${trackId}${ext}`);
+		const partialPath = `${finalPath}.partial`;
+		const metaPath = `${finalPath}.meta`;
+
+		const writer = Bun.file(partialPath).writer();
+		const reader = upstream.body.getReader();
+		let totalWritten = 0;
+
+		for (;;) {
+			const { done, value } = await reader.read();
+			if (done) break;
+			writer.write(value);
+			totalWritten += value.byteLength;
+		}
+		await writer.end();
+
+		renameSync(partialPath, finalPath);
+		const meta: CacheMeta = {
+			contentType,
+			contentLength: totalWritten,
+			cachedAt: new Date().toISOString(),
+		};
+		writeFileSync(metaPath, JSON.stringify(meta));
+		streamLogger.log(`[stream] prefetch complete compositeId=${compositeId} size=${String(totalWritten)}`);
+	} catch (err) {
+		const message = err instanceof Error ? err.message : String(err);
+		streamLogger.error(`[stream] prefetch failed compositeId=${compositeId}: ${message}`);
+	} finally {
+		activePrefetches.delete(compositeId);
+	}
+}
+
 // Handle the stream proxy - fetches from source and pipes through
 export async function handleStreamRequest(
 	sourceManager: SourceManager,
@@ -40,7 +266,22 @@ export async function handleStreamRequest(
 	rangeHeader: string | null,
 ): Promise<Response> {
 	const startTime = Date.now();
+	const { source, trackId } = parseTrackId(compositeId);
 	streamLogger.log(`[stream] request compositeId=${compositeId} range=${rangeHeader ?? "none"}`);
+
+	// Only cache non-Pandora sources (Pandora URLs are short-lived)
+	if (source !== "pandora") {
+		const cached = findCachedFile(source, trackId);
+		if (cached) {
+			const meta = readMeta(cached.metaPath);
+			const elapsed = Date.now() - startTime;
+			streamLogger.log(`[stream] cache hit compositeId=${compositeId} elapsed=${String(elapsed)}ms`);
+			return serveCachedFile(cached.filePath, meta, rangeHeader);
+		}
+	}
+
+	// Cache miss (or Pandora) — resolve URL and fetch upstream
+	streamLogger.log(`[stream] cache miss compositeId=${compositeId}`);
 
 	let url: string;
 	try {
@@ -51,7 +292,6 @@ export async function handleStreamRequest(
 		throw err;
 	}
 
-	// Log redacted URL (show host only)
 	try {
 		const parsedUrl = new URL(url);
 		streamLogger.log(`[stream] upstream host=${parsedUrl.host} path=${parsedUrl.pathname.slice(0, 40)}...`);
@@ -59,7 +299,6 @@ export async function handleStreamRequest(
 		streamLogger.log("[stream] upstream url=(non-parseable)");
 	}
 
-	// Proxy the request to the actual audio URL
 	const headers: Record<string, string> = {};
 	if (rangeHeader) {
 		headers["Range"] = rangeHeader;
@@ -79,9 +318,24 @@ export async function handleStreamRequest(
 		streamLogger.error(
 			`[stream] upstream error status=${upstream.status} compositeId=${compositeId}`,
 		);
+		const responseHeaders = new Headers();
+		if (contentType) responseHeaders.set("Content-Type", contentType);
+		responseHeaders.set("Access-Control-Allow-Origin", "*");
+		return new Response(upstream.body, { status: upstream.status, headers: responseHeaders });
 	}
 
-	// Forward relevant headers
+	// For non-Pandora sources on full (non-range) requests, tee the stream to cache
+	if (source !== "pandora" && !rangeHeader && contentType) {
+		return streamThroughAndCache(
+			upstream,
+			source,
+			trackId,
+			contentType,
+			contentLength ? Number.parseInt(contentLength, 10) : null,
+		);
+	}
+
+	// Pandora or range requests on uncached files: pass through without caching
 	const responseHeaders = new Headers();
 	if (contentType) responseHeaders.set("Content-Type", contentType);
 	if (contentLength) responseHeaders.set("Content-Length", contentLength);
