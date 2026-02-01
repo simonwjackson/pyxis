@@ -25,7 +25,7 @@ export const authRouter = router({
 				);
 				const sessionId = createSession(session, input.username);
 				// Initialize source manager for stream endpoint
-				setGlobalSourceManager(getSourceManager(session));
+				setGlobalSourceManager(await getSourceManager(session));
 				return { sessionId, username: input.username };
 			} catch {
 				throw new TRPCError({

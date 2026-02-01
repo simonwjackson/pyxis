@@ -205,7 +205,10 @@ export function HomePage() {
 							key={album.id}
 							album={album}
 							onPlay={() => {
-								// Future: navigate to album playback
+								navigate({
+									to: "/now-playing",
+									search: { album: album.id },
+								});
 							}}
 						/>
 					))}

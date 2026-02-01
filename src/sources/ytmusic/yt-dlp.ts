@@ -93,6 +93,99 @@ export async function getTrackInfo(
 	};
 }
 
+export async function searchYtMusic(
+	query: string,
+	maxResults = 10,
+): Promise<readonly YtDlpPlaylistEntry[]> {
+	const output = await runYtDlp([
+		"--dump-json",
+		"--flat-playlist",
+		"--no-download",
+		`ytsearch${String(maxResults)}:${query}`,
+	]);
+
+	const lines = output.split("\n").filter((line) => line.trim().length > 0);
+	const entries: YtDlpPlaylistEntry[] = [];
+
+	for (const line of lines) {
+		const data = JSON.parse(line) as {
+			id: string;
+			title: string;
+			uploader?: string;
+			album?: string;
+			duration?: number;
+			thumbnail?: string;
+		};
+		entries.push({
+			id: data.id,
+			title: data.title,
+			...(data.uploader != null ? { uploader: data.uploader } : {}),
+			...(data.album != null ? { album: data.album } : {}),
+			...(data.duration != null ? { duration: data.duration } : {}),
+			...(data.thumbnail != null ? { thumbnail: data.thumbnail } : {}),
+		});
+	}
+
+	return entries;
+}
+
+export async function getAlbumEntries(
+	albumUrl: string,
+): Promise<{
+	readonly id: string;
+	readonly title: string;
+	readonly artist: string;
+	readonly entries: readonly YtDlpPlaylistEntry[];
+	readonly thumbnail?: string;
+}> {
+	const output = await runYtDlp([
+		"--dump-json",
+		"--flat-playlist",
+		albumUrl,
+	]);
+
+	const lines = output.split("\n").filter((line) => line.trim().length > 0);
+	const entries: YtDlpPlaylistEntry[] = [];
+	let albumId = "";
+	let albumTitle = "Unknown Album";
+	let albumArtist = "Unknown Artist";
+	let albumThumbnail: string | undefined;
+
+	for (const line of lines) {
+		const data = JSON.parse(line) as {
+			id: string;
+			title: string;
+			uploader?: string;
+			album?: string;
+			duration?: number;
+			thumbnail?: string;
+			playlist_id?: string;
+			playlist_title?: string;
+			playlist_uploader?: string;
+		};
+		if (data.playlist_id) albumId = data.playlist_id;
+		if (data.playlist_title) albumTitle = data.playlist_title;
+		if (data.playlist_uploader) albumArtist = data.playlist_uploader;
+		if (data.thumbnail && !albumThumbnail) albumThumbnail = data.thumbnail;
+		entries.push({
+			id: data.id,
+			title: data.title,
+			...(data.uploader != null ? { uploader: data.uploader } : {}),
+			...(data.album != null ? { album: data.album } : {}),
+			...(data.duration != null ? { duration: data.duration } : {}),
+			...(data.thumbnail != null ? { thumbnail: data.thumbnail } : {}),
+		});
+	}
+
+	return {
+		id: albumId,
+		title: albumTitle,
+		artist: albumArtist,
+		entries,
+		...(albumThumbnail != null ? { thumbnail: albumThumbnail } : {}),
+	};
+}
+
 export async function getPlaylistEntries(
 	playlistUrl: string,
 ): Promise<YtDlpPlaylistInfo> {

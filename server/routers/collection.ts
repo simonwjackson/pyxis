@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { router, publicProcedure } from "../trpc.js";
 import { getDb, schema } from "../../src/db/index.js";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 
 const albumInput = z.object({
 	id: z.string(),
@@ -13,6 +13,31 @@ const albumInput = z.object({
 		z.object({
 			source: z.string(),
 			sourceId: z.string(),
+		}),
+	),
+});
+
+const albumWithTracksInput = z.object({
+	id: z.string(),
+	title: z.string(),
+	artist: z.string(),
+	year: z.number().optional(),
+	artworkUrl: z.string().optional(),
+	sourceRefs: z.array(
+		z.object({
+			source: z.string(),
+			sourceId: z.string(),
+		}),
+	),
+	tracks: z.array(
+		z.object({
+			trackIndex: z.number(),
+			title: z.string(),
+			artist: z.string(),
+			duration: z.number().optional(),
+			source: z.string(),
+			sourceTrackId: z.string(),
+			artworkUrl: z.string().optional(),
 		}),
 	),
 });
@@ -31,6 +56,17 @@ export const collectionRouter = router({
 		}));
 	}),
 
+	getAlbumTracks: publicProcedure
+		.input(z.object({ albumId: z.string() }))
+		.query(async ({ input }) => {
+			const db = await getDb();
+			const tracks = await db
+				.select()
+				.from(schema.albumTracks)
+				.where(eq(schema.albumTracks.albumId, input.albumId));
+			return tracks.sort((a, b) => a.trackIndex - b.trackIndex);
+		}),
+
 	addAlbum: publicProcedure.input(albumInput).mutation(async ({ input }) => {
 		const db = await getDb();
 		await db.insert(schema.albums).values({
@@ -38,7 +74,9 @@ export const collectionRouter = router({
 			title: input.title,
 			artist: input.artist,
 			...(input.year != null ? { year: input.year } : {}),
-			...(input.artworkUrl != null ? { artworkUrl: input.artworkUrl } : {}),
+			...(input.artworkUrl != null
+				? { artworkUrl: input.artworkUrl }
+				: {}),
 		});
 
 		for (const ref of input.sourceRefs) {
@@ -53,11 +91,75 @@ export const collectionRouter = router({
 		return { id: input.id };
 	}),
 
+	addAlbumWithTracks: publicProcedure
+		.input(albumWithTracksInput)
+		.mutation(async ({ input }) => {
+			const db = await getDb();
+
+			// Duplicate detection: check if album already exists by source ref
+			for (const ref of input.sourceRefs) {
+				const existing = await db
+					.select()
+					.from(schema.albumSourceRefs)
+					.where(
+						and(
+							eq(schema.albumSourceRefs.source, ref.source),
+							eq(schema.albumSourceRefs.sourceId, ref.sourceId),
+						),
+					);
+				const first = existing[0];
+				if (first) {
+					return { id: first.albumId, alreadyExists: true };
+				}
+			}
+
+			await db.insert(schema.albums).values({
+				id: input.id,
+				title: input.title,
+				artist: input.artist,
+				...(input.year != null ? { year: input.year } : {}),
+				...(input.artworkUrl != null
+					? { artworkUrl: input.artworkUrl }
+					: {}),
+			});
+
+			for (const ref of input.sourceRefs) {
+				await db.insert(schema.albumSourceRefs).values({
+					id: `${input.id}-${ref.source}-${ref.sourceId}`,
+					albumId: input.id,
+					source: ref.source,
+					sourceId: ref.sourceId,
+				});
+			}
+
+			for (const track of input.tracks) {
+				await db.insert(schema.albumTracks).values({
+					id: `${input.id}-track-${String(track.trackIndex)}`,
+					albumId: input.id,
+					trackIndex: track.trackIndex,
+					title: track.title,
+					artist: track.artist,
+					...(track.duration != null
+						? { duration: track.duration }
+						: {}),
+					source: track.source,
+					sourceTrackId: track.sourceTrackId,
+					...(track.artworkUrl != null
+						? { artworkUrl: track.artworkUrl }
+						: {}),
+				});
+			}
+
+			return { id: input.id, alreadyExists: false };
+		}),
+
 	removeAlbum: publicProcedure
 		.input(z.object({ id: z.string() }))
 		.mutation(async ({ input }) => {
 			const db = await getDb();
-			await db.delete(schema.albums).where(eq(schema.albums.id, input.id));
+			await db
+				.delete(schema.albums)
+				.where(eq(schema.albums.id, input.id));
 			return { success: true };
 		}),
 });

@@ -1,4 +1,10 @@
-import { pgTable, text, integer, timestamp } from "drizzle-orm/pg-core";
+import {
+	pgTable,
+	text,
+	integer,
+	timestamp,
+	boolean,
+} from "drizzle-orm/pg-core";
 
 export const albums = pgTable("albums", {
 	id: text("id").primaryKey(),
@@ -30,4 +36,15 @@ export const albumTracks = pgTable("album_tracks", {
 	source: text("source").notNull(),
 	sourceTrackId: text("source_track_id").notNull(),
 	artworkUrl: text("artwork_url"),
+});
+
+export const playlists = pgTable("playlists", {
+	id: text("id").primaryKey(),
+	name: text("name").notNull(),
+	source: text("source").notNull(),
+	url: text("url").notNull(),
+	isRadio: boolean("is_radio").default(false).notNull(),
+	seedTrackId: text("seed_track_id"),
+	artworkUrl: text("artwork_url"),
+	createdAt: timestamp("created_at").defaultNow().notNull(),
 });

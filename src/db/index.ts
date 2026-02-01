@@ -33,6 +33,17 @@ CREATE TABLE IF NOT EXISTS album_tracks (
 	source_track_id TEXT NOT NULL,
 	artwork_url TEXT
 );
+
+CREATE TABLE IF NOT EXISTS playlists (
+	id TEXT PRIMARY KEY,
+	name TEXT NOT NULL,
+	source TEXT NOT NULL,
+	url TEXT NOT NULL,
+	is_radio BOOLEAN NOT NULL DEFAULT FALSE,
+	seed_track_id TEXT,
+	artwork_url TEXT,
+	created_at TIMESTAMP DEFAULT NOW() NOT NULL
+);
 `;
 
 export async function getDb() {

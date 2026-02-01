@@ -3,35 +3,44 @@ import { createSourceManager } from "../../src/sources/index.js";
 import type { SourceManager } from "../../src/sources/index.js";
 import { createPandoraSource } from "../../src/sources/pandora/index.js";
 import { createYtMusicSource } from "../../src/sources/ytmusic/index.js";
+import type { YtMusicPlaylistEntry } from "../../src/sources/ytmusic/index.js";
 import type { Source } from "../../src/sources/types.js";
+import { getDb, schema } from "../../src/db/index.js";
+import { eq } from "drizzle-orm";
 
 // Per-session source managers (Pandora needs session auth)
 const managers = new Map<string, SourceManager>();
 
-// YTMusic config - could come from a config file in the future
-const ytmusicConfig = {
-	playlists: [] as { url: string; name?: string }[],
-};
+async function loadYtMusicPlaylistsFromDb(): Promise<YtMusicPlaylistEntry[]> {
+	const db = await getDb();
+	const rows = await db
+		.select()
+		.from(schema.playlists)
+		.where(eq(schema.playlists.source, "ytmusic"));
+	return rows.map((row) => ({
+		id: row.id,
+		url: row.url,
+		name: row.name,
+		isRadio: row.isRadio,
+	}));
+}
 
-export function configureYtMusic(
-	playlists: readonly { readonly url: string; readonly name?: string }[],
-): void {
-	ytmusicConfig.playlists = [...playlists];
-	// Clear cached managers to pick up new config
+export function invalidateManagers(): void {
 	managers.clear();
 }
 
-export function getSourceManager(session: PandoraSession): SourceManager {
-	// Use session's userAuthToken as cache key since it's unique per session
+export async function getSourceManager(
+	session: PandoraSession,
+): Promise<SourceManager> {
 	const cacheKey = session.userAuthToken;
 	const cached = managers.get(cacheKey);
 	if (cached) return cached;
 
 	const sources: Source[] = [createPandoraSource(session)];
 
-	if (ytmusicConfig.playlists.length > 0) {
-		sources.push(createYtMusicSource(ytmusicConfig));
-	}
+	// Always include YTMusic source — DB-backed playlists + search + streaming
+	const dbPlaylists = await loadYtMusicPlaylistsFromDb();
+	sources.push(createYtMusicSource({ playlists: dbPlaylists }));
 
 	const manager = createSourceManager(sources);
 	managers.set(cacheKey, manager);
@@ -39,12 +48,10 @@ export function getSourceManager(session: PandoraSession): SourceManager {
 }
 
 // For the stream endpoint which may not have a session context
-// This retrieves the first available source manager or creates a minimal one
 let globalManager: SourceManager | undefined;
 
 export function getGlobalSourceManager(): SourceManager | undefined {
 	if (globalManager) return globalManager;
-	// Return the first cached manager if any exist
 	const first = managers.values().next();
 	if (!first.done) {
 		globalManager = first.value;

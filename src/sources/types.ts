@@ -58,10 +58,24 @@ export type StreamCapability = {
 	readonly getStreamUrl: (trackId: string) => Promise<string>;
 };
 
+export type AlbumCapability = {
+	readonly getAlbumTracks: (
+		albumId: string,
+	) => Promise<{
+		readonly album: CanonicalAlbum;
+		readonly tracks: readonly CanonicalTrack[];
+	}>;
+};
+
 export type Source = {
 	readonly type: SourceType;
 	readonly name: string;
-} & Partial<SearchCapability & PlaylistCapability & StreamCapability>;
+} & Partial<
+	SearchCapability &
+		PlaylistCapability &
+		StreamCapability &
+		AlbumCapability
+>;
 
 // Type guards for capability checking
 
@@ -84,4 +98,10 @@ export function hasStreamCapability(
 	source: Source,
 ): source is Source & StreamCapability {
 	return typeof source.getStreamUrl === "function";
+}
+
+export function hasAlbumCapability(
+	source: Source,
+): source is Source & AlbumCapability {
+	return typeof source.getAlbumTracks === "function";
 }

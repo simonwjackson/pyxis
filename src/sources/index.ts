@@ -3,10 +3,12 @@ import type {
 	SourceType,
 	CanonicalPlaylist,
 	CanonicalTrack,
+	SearchResult,
 } from "./types.js";
 import {
 	hasPlaylistCapability,
 	hasStreamCapability,
+	hasSearchCapability,
 } from "./types.js";
 
 export type SourceManager = {
@@ -21,6 +23,7 @@ export type SourceManager = {
 		source: SourceType,
 		trackId: string,
 	) => Promise<string>;
+	readonly searchAll: (query: string) => Promise<SearchResult>;
 };
 
 export function createSourceManager(
@@ -69,6 +72,23 @@ export function createSourceManager(
 				);
 			}
 			return source.getStreamUrl(trackId);
+		},
+
+		async searchAll(query: string): Promise<SearchResult> {
+			const results = await Promise.allSettled(
+				sources
+					.filter(hasSearchCapability)
+					.map((source) => source.search(query)),
+			);
+			const allTracks: CanonicalTrack[] = [];
+			const allAlbums: SearchResult["albums"][number][] = [];
+			for (const result of results) {
+				if (result.status === "fulfilled") {
+					allTracks.push(...result.value.tracks);
+					allAlbums.push(...result.value.albums);
+				}
+			}
+			return { tracks: allTracks, albums: allAlbums };
 		},
 	};
 }
