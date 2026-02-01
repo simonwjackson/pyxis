@@ -63,3 +63,19 @@ export function getGlobalSourceManager(): SourceManager | undefined {
 export function setGlobalSourceManager(manager: SourceManager): void {
 	globalManager = manager;
 }
+
+/**
+ * Returns the existing source manager, or lazily creates a YTMusic-only
+ * source manager when none exists (e.g. after a server restart before login).
+ * When a user logs in later, the full manager (Pandora + YTMusic) replaces it.
+ */
+export async function ensureSourceManager(): Promise<SourceManager> {
+	const existing = getGlobalSourceManager();
+	if (existing) return existing;
+
+	const dbPlaylists = await loadYtMusicPlaylistsFromDb();
+	const sources: Source[] = [createYtMusicSource({ playlists: dbPlaylists })];
+	const manager = createSourceManager(sources);
+	globalManager = manager;
+	return manager;
+}

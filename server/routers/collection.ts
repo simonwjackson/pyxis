@@ -1,9 +1,8 @@
 import { z } from "zod";
-import { TRPCError } from "@trpc/server";
 import { router, publicProcedure } from "../trpc.js";
 import { getDb, schema } from "../../src/db/index.js";
 import { eq, and } from "drizzle-orm";
-import { getGlobalSourceManager } from "../services/sourceManager.js";
+import { ensureSourceManager } from "../services/sourceManager.js";
 
 const albumInput = z.object({
 	id: z.string(),
@@ -163,13 +162,7 @@ export const collectionRouter = router({
 			}),
 		)
 		.mutation(async ({ input }) => {
-			const sourceManager = getGlobalSourceManager();
-			if (!sourceManager) {
-				throw new TRPCError({
-					code: "PRECONDITION_FAILED",
-					message: "No active session — cannot fetch album tracks",
-				});
-			}
+			const sourceManager = await ensureSourceManager();
 
 			// Duplicate detection: check if album already exists by source ref
 			const db = await getDb();

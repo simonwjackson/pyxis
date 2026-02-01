@@ -8,7 +8,7 @@ import {
 	handleWSClose,
 } from "./handlers/websocket.js";
 import { handleStreamRequest } from "./services/stream.js";
-import { getGlobalSourceManager } from "./services/sourceManager.js";
+import { ensureSourceManager } from "./services/sourceManager.js";
 
 const PORT = 8765;
 
@@ -43,20 +43,16 @@ const server = Bun.serve({
 			const compositeId = decodeURIComponent(
 				url.pathname.slice("/stream/".length),
 			);
-			const sourceManager = getGlobalSourceManager();
-			if (!sourceManager) {
-				return new Response("No active session", { status: 503 });
-			}
 			const rangeHeader = req.headers.get("range");
-			return handleStreamRequest(
-				sourceManager,
-				compositeId,
-				rangeHeader,
-			).catch((err: unknown) => {
-				const message =
-					err instanceof Error ? err.message : "Stream error";
-				return new Response(message, { status: 502 });
-			});
+			return ensureSourceManager()
+				.then((sourceManager) =>
+					handleStreamRequest(sourceManager, compositeId, rangeHeader),
+				)
+				.catch((err: unknown) => {
+					const message =
+						err instanceof Error ? err.message : "Stream error";
+					return new Response(message, { status: 502 });
+				});
 		}
 
 		// tRPC handler
