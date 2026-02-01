@@ -9,25 +9,25 @@ import { RenameStationDialog } from "../components/stations/RenameStationDialog"
 import { QuickMixDialog } from "../components/stations/QuickMixDialog";
 import { StationListSkeleton } from "../components/ui/skeleton";
 import { usePlaybackContext } from "../contexts/PlaybackContext";
-import type { Station } from "../../types/api";
+import type { RadioStation } from "../components/stations/StationList";
 
 type DialogState =
 	| { readonly type: "none" }
-	| { readonly type: "delete"; readonly station: Station }
-	| { readonly type: "rename"; readonly station: Station }
+	| { readonly type: "delete"; readonly station: RadioStation }
+	| { readonly type: "rename"; readonly station: RadioStation }
 	| { readonly type: "quickmix" };
 
 export function StationsPage() {
 	const [filter, setFilter] = useState("");
 	const [dialog, setDialog] = useState<DialogState>({ type: "none" });
 	const navigate = useNavigate();
-	const stationsQuery = trpc.stations.list.useQuery();
+	const stationsQuery = trpc.radio.list.useQuery();
 	const utils = trpc.useUtils();
 	const playback = usePlaybackContext();
 
-	const deleteMutation = trpc.stations.delete.useMutation({
+	const deleteMutation = trpc.radio.delete.useMutation({
 		onSuccess() {
-			utils.stations.list.invalidate();
+			utils.radio.list.invalidate();
 			toast.success("Station deleted");
 			setDialog({ type: "none" });
 		},
@@ -36,9 +36,9 @@ export function StationsPage() {
 		},
 	});
 
-	const renameMutation = trpc.stations.rename.useMutation({
+	const renameMutation = trpc.radio.rename.useMutation({
 		onSuccess() {
-			utils.stations.list.invalidate();
+			utils.radio.list.invalidate();
 			toast.success("Station renamed");
 			setDialog({ type: "none" });
 		},
@@ -48,22 +48,22 @@ export function StationsPage() {
 	});
 
 	const allStations = stationsQuery.data ?? [];
-	const hasQuickMix = allStations.some((s: Station) => s.isQuickMix);
-	const filteredStations = allStations.filter((s: Station) =>
-		s.stationName.toLowerCase().includes(filter.toLowerCase()),
+	const hasQuickMix = allStations.some((s: RadioStation) => s.isQuickMix);
+	const filteredStations = allStations.filter((s: RadioStation) =>
+		s.name.toLowerCase().includes(filter.toLowerCase()),
 	);
 
-	const handleSelect = (station: Station) => {
+	const handleSelect = (station: RadioStation) => {
 		navigate({
 			to: "/now-playing",
-			search: { station: station.stationToken },
+			search: { station: station.id },
 		});
 	};
 
-	const handleDetails = (station: Station) => {
+	const handleDetails = (station: RadioStation) => {
 		navigate({
 			to: "/station/$token",
-			params: { token: station.stationToken },
+			params: { token: station.id },
 		});
 	};
 
@@ -110,7 +110,7 @@ export function StationsPage() {
 			</div>
 			<StationList
 				stations={filteredStations}
-				currentStationToken={playback.currentStationToken ?? undefined}
+				currentStationId={playback.currentStationToken ?? undefined}
 				onSelect={handleSelect}
 				onDetails={handleDetails}
 				onRename={(station) =>
@@ -123,11 +123,11 @@ export function StationsPage() {
 
 			{dialog.type === "delete" && (
 				<DeleteStationDialog
-					stationName={dialog.station.stationName}
+					stationName={dialog.station.name}
 					isDeleting={deleteMutation.isPending}
 					onConfirm={() =>
 						deleteMutation.mutate({
-							stationToken: dialog.station.stationToken,
+							id: dialog.station.id,
 						})
 					}
 					onCancel={() => setDialog({ type: "none" })}
@@ -136,12 +136,12 @@ export function StationsPage() {
 
 			{dialog.type === "rename" && (
 				<RenameStationDialog
-					stationName={dialog.station.stationName}
+					stationName={dialog.station.name}
 					isRenaming={renameMutation.isPending}
 					onConfirm={(newName) =>
 						renameMutation.mutate({
-							stationToken: dialog.station.stationToken,
-							stationName: newName,
+							id: dialog.station.id,
+							name: newName,
 						})
 					}
 					onCancel={() => setDialog({ type: "none" })}

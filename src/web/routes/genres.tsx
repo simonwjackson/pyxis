@@ -7,13 +7,13 @@ import { Button } from "../components/ui/button";
 
 export function GenresPage() {
 	const [expanded, setExpanded] = useState<string | null>(null);
-	const genresQuery = trpc.genres.list.useQuery();
+	const genresQuery = trpc.radio.genres.useQuery();
 	const utils = trpc.useUtils();
 
-	const createStation = trpc.stations.create.useMutation({
+	const createStation = trpc.radio.create.useMutation({
 		onSuccess() {
 			toast.success("Station created");
-			utils.stations.list.invalidate();
+			utils.radio.list.invalidate();
 		},
 		onError(err) {
 			toast.error(`Failed to create station: ${err.message}`);
@@ -28,7 +28,7 @@ export function GenresPage() {
 		);
 	}
 
-	// genres.list returns result.categories, so data IS the categories array
+	// radio.genres returns result.categories, so data IS the categories array
 	const categories = genresQuery.data ?? [];
 
 	return (

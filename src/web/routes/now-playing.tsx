@@ -18,9 +18,6 @@ import { NowPlayingSkeleton } from "../components/ui/skeleton";
 import { Button } from "../components/ui/button";
 import { usePlaybackContext } from "../contexts/PlaybackContext";
 import { TrackInfoModal } from "../components/playback/TrackInfoModal";
-import type { CanonicalTrack } from "../../sources/types";
-import type { SourceType } from "../../sources/types";
-import type { PlaylistItem } from "../../types/api";
 
 function formatTime(seconds: number): string {
 	const mins = Math.floor(seconds / 60);
@@ -28,53 +25,60 @@ function formatTime(seconds: number): string {
 	return `${String(mins)}:${String(secs).padStart(2, "0")}`;
 }
 
-// Build a stream URL for a track from any source, with optional next-track prefetch hint
-function buildStreamUrl(source: SourceType, trackId: string, nextCompositeId?: string): string {
-	const base = `/stream/${encodeURIComponent(`${source}:${trackId}`)}`;
-	if (!nextCompositeId) return base;
-	return `${base}?next=${encodeURIComponent(nextCompositeId)}`;
+// Build a stream URL using opaque IDs
+function buildStreamUrl(opaqueId: string, nextOpaqueId?: string): string {
+	const base = `/stream/${encodeURIComponent(opaqueId)}`;
+	if (!nextOpaqueId) return base;
+	return `${base}?next=${encodeURIComponent(nextOpaqueId)}`;
 }
 
-// Unified track shape used by NowPlayingPage
+// Unified track shape — all IDs are opaque
 type NowPlayingTrack = {
-	readonly trackToken: string;
+	readonly id: string;
 	readonly songName: string;
 	readonly artistName: string;
 	readonly albumName: string;
 	readonly albumArtUrl?: string;
-	readonly source: SourceType;
+	readonly isPandora: boolean;
 	readonly duration?: number;
 };
 
-// Convert a Pandora PlaylistItem to NowPlayingTrack
-function pandoraItemToTrack(item: PlaylistItem): NowPlayingTrack {
+// Convert a radio track (from radio.getTracks) to NowPlayingTrack
+function radioTrackToNowPlaying(track: {
+	readonly id: string;
+	readonly title: string;
+	readonly artist: string;
+	readonly album: string;
+	readonly artworkUrl?: string;
+}): NowPlayingTrack {
 	return {
-		trackToken: item.trackToken,
-		songName: item.songName,
-		artistName: item.artistName,
-		albumName: item.albumName,
-		...(item.albumArtUrl != null
-			? { albumArtUrl: item.albumArtUrl }
-			: {}),
-		source: "pandora",
-	};
-}
-
-// Convert a CanonicalTrack to NowPlayingTrack
-function canonicalToTrack(
-	track: CanonicalTrack,
-	source: SourceType,
-): NowPlayingTrack {
-	return {
-		trackToken: track.id,
+		id: track.id,
 		songName: track.title,
 		artistName: track.artist,
 		albumName: track.album,
-		...(track.artworkUrl != null
-			? { albumArtUrl: track.artworkUrl }
-			: {}),
+		...(track.artworkUrl != null ? { albumArtUrl: track.artworkUrl } : {}),
+		isPandora: true,
+	};
+}
+
+// Convert a playlist track to NowPlayingTrack
+function playlistTrackToNowPlaying(track: {
+	readonly id: string;
+	readonly title: string;
+	readonly artist: string;
+	readonly album: string;
+	readonly artworkUrl?: string;
+	readonly duration?: number;
+	readonly source: string;
+}): NowPlayingTrack {
+	return {
+		id: track.id,
+		songName: track.title,
+		artistName: track.artist,
+		albumName: track.album,
+		...(track.artworkUrl != null ? { albumArtUrl: track.artworkUrl } : {}),
 		...(track.duration != null ? { duration: track.duration } : {}),
-		source,
+		isPandora: track.source === "pandora",
 	};
 }
 
@@ -97,20 +101,18 @@ function albumTrackToNowPlaying(
 ): NowPlayingTrack {
 	const artUrl = track.artworkUrl ?? albumArtUrl;
 	return {
-		trackToken: track.sourceTrackId,
+		id: track.id,
 		songName: track.title,
 		artistName: track.artist,
 		albumName,
 		...(artUrl != null ? { albumArtUrl: artUrl } : {}),
-		source: track.source as SourceType,
+		isPandora: track.source === "pandora",
 		...(track.duration != null ? { duration: track.duration } : {}),
 	};
 }
 
-// Get the audio URL for a track, with optional next-track prefetch hint
 function getAudioUrlForTrack(track: NowPlayingTrack, nextTrack?: NowPlayingTrack): string {
-	const nextCompositeId = nextTrack ? `${nextTrack.source}:${nextTrack.trackToken}` : undefined;
-	return buildStreamUrl(track.source, track.trackToken, nextCompositeId);
+	return buildStreamUrl(track.id, nextTrack?.id);
 }
 
 function playTrackAtIndex(
@@ -123,30 +125,26 @@ function playTrackAtIndex(
 	const nextTrack = tracks[index + 1];
 	const audioUrl = getAudioUrlForTrack(track, nextTrack);
 	playback.playTrack({
-		trackToken: track.trackToken,
+		trackToken: track.id,
 		songName: track.songName,
 		artistName: track.artistName,
 		albumName: track.albumName,
 		audioUrl,
 		...(track.albumArtUrl != null ? { artUrl: track.albumArtUrl } : {}),
-		source: track.source,
 	});
 }
 
 export function NowPlayingPage() {
 	const search = useSearch({ strict: false }) as {
 		station?: string;
-		source?: SourceType;
 		playlist?: string;
 		album?: string;
 	};
 
-	// Determine playback mode
 	const isAlbumMode = !!search.album;
-	const isUnifiedMode = !!search.source && !!search.playlist;
-	const stationToken = search.station;
-	const playlistSource = search.source ?? "pandora";
-	const playlistId = search.playlist ?? stationToken ?? "";
+	const isPlaylistMode = !!search.playlist;
+	const radioId = search.station;
+	const playlistId = search.playlist;
 	const albumId = search.album ?? "";
 
 	const playback = usePlaybackContext();
@@ -161,27 +159,26 @@ export function NowPlayingPage() {
 	} | null>(null);
 
 	// Album tracks query
-	const albumTracksQuery = trpc.collection.getAlbumTracks.useQuery(
+	const albumTracksQuery = trpc.library.albumTracks.useQuery(
 		{ albumId },
 		{ enabled: isAlbumMode },
 	);
-	const albumsQuery = trpc.collection.listAlbums.useQuery(undefined, {
+	const albumsQuery = trpc.library.albums.useQuery(undefined, {
 		enabled: isAlbumMode,
 	});
 
-	// Legacy Pandora playlist query
-	const pandoraPlaylistQuery = trpc.playback.getPlaylist.useQuery(
-		{ stationToken: stationToken ?? "", quality: "high" },
-		{ enabled: !!stationToken && !isUnifiedMode && !isAlbumMode },
+	// Radio (Pandora station) query
+	const radioQuery = trpc.radio.getTracks.useQuery(
+		{ id: radioId ?? "", quality: "high" },
+		{ enabled: !!radioId && !isPlaylistMode && !isAlbumMode },
 	);
 
-	// Unified playlist query
-	const unifiedPlaylistQuery = trpc.playlists.getTracks.useQuery(
-		{ source: playlistSource, playlistId },
-		{ enabled: isUnifiedMode && !isAlbumMode },
+	// Playlist query
+	const playlistQuery = trpc.playlist.getTracks.useQuery(
+		{ id: playlistId ?? "" },
+		{ enabled: isPlaylistMode && !isAlbumMode },
 	);
 
-	// Normalize tracks from either query
 	useEffect(() => {
 		if (isAlbumMode && albumTracksQuery.data && albumsQuery.data) {
 			const albumInfo = albumsQuery.data.find((a) => a.id === albumId);
@@ -201,35 +198,29 @@ export function NowPlayingPage() {
 					),
 				),
 			);
-		} else if (!isAlbumMode && !isUnifiedMode && pandoraPlaylistQuery.data) {
-			setTracks(pandoraPlaylistQuery.data.map(pandoraItemToTrack));
-		} else if (!isAlbumMode && isUnifiedMode && unifiedPlaylistQuery.data) {
-			setTracks(
-				unifiedPlaylistQuery.data.map((t) =>
-					canonicalToTrack(t, playlistSource),
-				),
-			);
+		} else if (!isAlbumMode && !isPlaylistMode && radioQuery.data) {
+			setTracks(radioQuery.data.map(radioTrackToNowPlaying));
+		} else if (!isAlbumMode && isPlaylistMode && playlistQuery.data) {
+			setTracks(playlistQuery.data.map(playlistTrackToNowPlaying));
 		}
 	}, [
 		isAlbumMode,
-		isUnifiedMode,
+		isPlaylistMode,
 		albumTracksQuery.data,
 		albumsQuery.data,
-		pandoraPlaylistQuery.data,
-		unifiedPlaylistQuery.data,
-		playlistSource,
+		radioQuery.data,
+		playlistQuery.data,
 		albumId,
 	]);
 
-	const isPandora =
-		!isAlbumMode && !isUnifiedMode && playlistSource === "pandora";
+	const isPandora = !isAlbumMode && !isPlaylistMode && !!radioId;
 
-	const feedbackMutation = trpc.playback.addFeedback.useMutation({
+	const feedbackMutation = trpc.track.feedback.useMutation({
 		onError(err) {
 			toast.error(`Feedback failed: ${err.message}`);
 		},
 	});
-	const sleepMutation = trpc.playback.sleepSong.useMutation({
+	const sleepMutation = trpc.track.sleep.useMutation({
 		onSuccess() {
 			toast.success("Track will be skipped for 30 days");
 		},
@@ -237,7 +228,7 @@ export function NowPlayingPage() {
 			toast.error(`Sleep failed: ${err.message}`);
 		},
 	});
-	const bookmarkSongMutation = trpc.bookmarks.addSong.useMutation({
+	const bookmarkSongMutation = trpc.library.addBookmark.useMutation({
 		onSuccess() {
 			toast.success("Song bookmarked");
 		},
@@ -246,7 +237,6 @@ export function NowPlayingPage() {
 		},
 	});
 
-	// Surface audio errors as toast notifications
 	useEffect(() => {
 		if (playback.error) {
 			toast.error(`Audio error: ${playback.error}`);
@@ -256,7 +246,6 @@ export function NowPlayingPage() {
 
 	const currentTrack = tracks[trackIndex];
 
-	// Auto-play first track when tracks load
 	useEffect(() => {
 		if (currentTrack && !hasStartedRef.current) {
 			playTrackAtIndex(0, tracks, playback);
@@ -264,16 +253,15 @@ export function NowPlayingPage() {
 		}
 	}, [currentTrack, playback, tracks]);
 
-	// Set the current station token when playing from a station
 	useEffect(() => {
 		if (isAlbumMode) {
 			playback.setCurrentStationToken(albumId);
-		} else if (stationToken) {
-			playback.setCurrentStationToken(stationToken);
+		} else if (radioId) {
+			playback.setCurrentStationToken(radioId);
 		} else if (playlistId) {
 			playback.setCurrentStationToken(playlistId);
 		}
-	}, [isAlbumMode, albumId, stationToken, playlistId, playback]);
+	}, [isAlbumMode, albumId, radioId, playlistId, playback]);
 
 	const handleSkip = useCallback(() => {
 		const nextIndex = trackIndex + 1;
@@ -281,14 +269,12 @@ export function NowPlayingPage() {
 			setTrackIndex(nextIndex);
 			playTrackAtIndex(nextIndex, tracks, playback);
 		} else if (isAlbumMode) {
-			// Album mode: stop at end
 			playback.stop();
 		} else {
-			// Playlist/station mode: refetch for more tracks
-			if (!isUnifiedMode) {
-				pandoraPlaylistQuery.refetch();
+			if (!isPlaylistMode) {
+				radioQuery.refetch();
 			} else {
-				unifiedPlaylistQuery.refetch();
+				playlistQuery.refetch();
 			}
 			setTrackIndex(0);
 			hasStartedRef.current = false;
@@ -298,9 +284,9 @@ export function NowPlayingPage() {
 		tracks,
 		playback,
 		isAlbumMode,
-		isUnifiedMode,
-		pandoraPlaylistQuery,
-		unifiedPlaylistQuery,
+		isPlaylistMode,
+		radioQuery,
+		playlistQuery,
 	]);
 
 	const handlePrevious = useCallback(() => {
@@ -319,7 +305,6 @@ export function NowPlayingPage() {
 		[tracks, playback],
 	);
 
-	// Auto-advance to next track when current track ends
 	useEffect(() => {
 		playback.setOnTrackEnd(handleSkip);
 		return () => {
@@ -328,44 +313,36 @@ export function NowPlayingPage() {
 	}, [playback, handleSkip]);
 
 	const handleLike = useCallback(() => {
-		if (!stationToken || !currentTrack || !isPandora) return;
+		if (!radioId || !currentTrack || !isPandora) return;
 		feedbackMutation.mutate({
-			stationToken,
-			trackToken: currentTrack.trackToken,
-			isPositive: true,
+			radioId,
+			id: currentTrack.id,
+			positive: true,
 		});
-	}, [stationToken, currentTrack, feedbackMutation, isPandora]);
+	}, [radioId, currentTrack, feedbackMutation, isPandora]);
 
 	const handleDislike = useCallback(() => {
-		if (!stationToken || !currentTrack || !isPandora) return;
+		if (!radioId || !currentTrack || !isPandora) return;
 		feedbackMutation.mutate({
-			stationToken,
-			trackToken: currentTrack.trackToken,
-			isPositive: false,
+			radioId,
+			id: currentTrack.id,
+			positive: false,
 		});
 		handleSkip();
-	}, [
-		stationToken,
-		currentTrack,
-		feedbackMutation,
-		handleSkip,
-		isPandora,
-	]);
+	}, [radioId, currentTrack, feedbackMutation, handleSkip, isPandora]);
 
 	const handleSleep = useCallback(() => {
 		if (!currentTrack || !isPandora) return;
-		sleepMutation.mutate({ trackToken: currentTrack.trackToken });
+		sleepMutation.mutate({ id: currentTrack.id });
 		handleSkip();
 	}, [currentTrack, sleepMutation, handleSkip, isPandora]);
 
 	const handleBookmark = useCallback(() => {
 		if (!currentTrack || !isPandora) return;
-		bookmarkSongMutation.mutate({
-			trackToken: currentTrack.trackToken,
-		});
+		bookmarkSongMutation.mutate({ id: currentTrack.id, type: "song" });
 	}, [currentTrack, bookmarkSongMutation, isPandora]);
 
-	if (!stationToken && !isUnifiedMode && !isAlbumMode) {
+	if (!radioId && !isPlaylistMode && !isAlbumMode) {
 		return (
 			<div className="flex-1 flex items-center justify-center p-4">
 				<p className="text-[var(--color-text-dim)]">
@@ -377,9 +354,9 @@ export function NowPlayingPage() {
 
 	const isLoading = isAlbumMode
 		? albumTracksQuery.isLoading || albumsQuery.isLoading
-		: isUnifiedMode
-			? unifiedPlaylistQuery.isLoading
-			: pandoraPlaylistQuery.isLoading;
+		: isPlaylistMode
+			? playlistQuery.isLoading
+			: radioQuery.isLoading;
 
 	if (isLoading) {
 		return <NowPlayingSkeleton />;
@@ -402,7 +379,6 @@ export function NowPlayingPage() {
 
 	return (
 		<div className="flex-1 flex flex-col items-center justify-center p-8 space-y-6">
-			{/* Album art */}
 			<div className="w-56 h-56 md:w-72 md:h-72 relative">
 				{playback.currentTrack?.artUrl ? (
 					<img
@@ -411,9 +387,7 @@ export function NowPlayingPage() {
 						className="w-full h-full rounded-2xl shadow-2xl object-cover"
 						onError={(e) => {
 							e.currentTarget.style.display = "none";
-							e.currentTarget.nextElementSibling?.classList.remove(
-								"hidden",
-							);
+							e.currentTarget.nextElementSibling?.classList.remove("hidden");
 						}}
 					/>
 				) : null}
@@ -429,7 +403,6 @@ export function NowPlayingPage() {
 				)}
 			</div>
 
-			{/* Track info */}
 			<div className="text-center">
 				<h2 className="text-2xl md:text-3xl font-bold text-[var(--color-text)]">
 					{currentTrack.songName}
@@ -438,24 +411,17 @@ export function NowPlayingPage() {
 					{currentTrack.artistName}
 				</p>
 				{isAlbumMode && albumMeta ? (
-					<p className="text-sm text-[var(--color-text-dim)]">
-						{albumMeta.title}
-					</p>
+					<p className="text-sm text-[var(--color-text-dim)]">{albumMeta.title}</p>
 				) : (
-					<p className="text-sm text-[var(--color-text-dim)]">
-						{currentTrack.albumName}
-					</p>
+					<p className="text-sm text-[var(--color-text-dim)]">{currentTrack.albumName}</p>
 				)}
 			</div>
 
-			{/* Progress bar */}
 			<div className="w-full max-w-md">
 				<div className="h-1 bg-[var(--color-progress-track)] rounded-full overflow-hidden">
 					<div
 						className="h-full bg-[var(--color-progress)] transition-all duration-300"
-						style={{
-							width: `${String(progressPercent)}%`,
-						}}
+						style={{ width: `${String(progressPercent)}%` }}
 					/>
 				</div>
 				<div className="flex justify-between text-xs text-[var(--color-text-dim)] mt-1">
@@ -464,186 +430,79 @@ export function NowPlayingPage() {
 				</div>
 			</div>
 
-			{/* Primary controls */}
-			<div
-				className="flex items-center gap-6"
-				role="group"
-				aria-label="Playback controls"
-			>
+			<div className="flex items-center gap-6" role="group" aria-label="Playback controls">
 				{isPandora && (
-					<Button
-						variant="ghost"
-						size="icon"
-						className="text-[var(--color-disliked)] h-12 w-12"
-						onClick={handleDislike}
-						aria-label="Dislike this track"
-					>
+					<Button variant="ghost" size="icon" className="text-[var(--color-disliked)] h-12 w-12" onClick={handleDislike} aria-label="Dislike this track">
 						<ThumbsDown className="w-6 h-6" />
 					</Button>
 				)}
 				{isAlbumMode && (
-					<Button
-						variant="ghost"
-						size="icon"
-						className="h-12 w-12"
-						onClick={handlePrevious}
-						disabled={trackIndex === 0}
-						aria-label="Previous track"
-					>
+					<Button variant="ghost" size="icon" className="h-12 w-12" onClick={handlePrevious} disabled={trackIndex === 0} aria-label="Previous track">
 						<SkipBack className="w-6 h-6" />
 					</Button>
 				)}
-				<Button
-					size="icon"
-					className="h-14 w-14 rounded-full bg-[var(--color-primary)] hover:brightness-110 text-[var(--color-bg)]"
-					onClick={playback.togglePlayPause}
-					aria-label={playback.isPlaying ? "Pause" : "Play"}
-				>
-					{playback.isPlaying ? (
-						<Pause className="w-7 h-7" />
-					) : (
-						<Play className="w-7 h-7 ml-0.5" />
-					)}
+				<Button size="icon" className="h-14 w-14 rounded-full bg-[var(--color-primary)] hover:brightness-110 text-[var(--color-bg)]" onClick={playback.togglePlayPause} aria-label={playback.isPlaying ? "Pause" : "Play"}>
+					{playback.isPlaying ? <Pause className="w-7 h-7" /> : <Play className="w-7 h-7 ml-0.5" />}
 				</Button>
-				<Button
-					variant="ghost"
-					size="icon"
-					className="h-12 w-12"
-					onClick={handleSkip}
-					disabled={
-						isAlbumMode && trackIndex >= tracks.length - 1
-					}
-					aria-label="Skip to next track"
-				>
+				<Button variant="ghost" size="icon" className="h-12 w-12" onClick={handleSkip} disabled={isAlbumMode && trackIndex >= tracks.length - 1} aria-label="Skip to next track">
 					<SkipForward className="w-6 h-6" />
 				</Button>
 				{isPandora && (
-					<Button
-						variant="ghost"
-						size="icon"
-						className="text-[var(--color-liked)] h-12 w-12"
-						onClick={handleLike}
-						aria-label="Like this track"
-					>
+					<Button variant="ghost" size="icon" className="text-[var(--color-liked)] h-12 w-12" onClick={handleLike} aria-label="Like this track">
 						<ThumbsUp className="w-6 h-6" />
 					</Button>
 				)}
 			</div>
 
-			{/* Secondary actions - Pandora only */}
 			{isPandora && (
 				<div className="flex items-center gap-4 text-[var(--color-text-dim)]">
-					<Button
-						variant="ghost"
-						size="sm"
-						className="gap-1.5"
-						onClick={() => setShowTrackInfo(true)}
-						title="Track info"
-					>
-						<Info className="w-4 h-4" />
-						Info
+					<Button variant="ghost" size="sm" className="gap-1.5" onClick={() => setShowTrackInfo(true)} title="Track info">
+						<Info className="w-4 h-4" /> Info
 					</Button>
-					<Button
-						variant="ghost"
-						size="sm"
-						className="gap-1.5"
-						onClick={handleBookmark}
-						title="Bookmark song"
-					>
-						<Bookmark className="w-4 h-4" />
-						Bookmark
+					<Button variant="ghost" size="sm" className="gap-1.5" onClick={handleBookmark} title="Bookmark song">
+						<Bookmark className="w-4 h-4" /> Bookmark
 					</Button>
-					<Button
-						variant="ghost"
-						size="sm"
-						className="gap-1.5"
-						onClick={handleSleep}
-						title="Sleep song (30 days)"
-					>
-						<Moon className="w-4 h-4" />
-						Sleep
+					<Button variant="ghost" size="sm" className="gap-1.5" onClick={handleSleep} title="Sleep song (30 days)">
+						<Moon className="w-4 h-4" /> Sleep
 					</Button>
 				</div>
 			)}
 
-			{/* Up Next queue - shown for station/playlist modes (not album mode) */}
 			{!isAlbumMode &&
 				(() => {
-					const upNextTracks = tracks.slice(
-						trackIndex + 1,
-						trackIndex + 5,
-					);
+					const upNextTracks = tracks.slice(trackIndex + 1, trackIndex + 5);
 					const remainingCount = tracks.length - trackIndex - 1;
 					if (upNextTracks.length === 0) return null;
 					return (
 						<div className="w-full max-w-md">
-							<h3 className="text-xs font-medium text-[var(--color-text-dim)] uppercase tracking-wider mb-2">
-								Up Next
-							</h3>
+							<h3 className="text-xs font-medium text-[var(--color-text-dim)] uppercase tracking-wider mb-2">Up Next</h3>
 							<div className="space-y-0.5">
 								{upNextTracks.map((track, i) => (
-									<button
-										key={track.trackToken}
-										type="button"
-										onClick={() =>
-											handleJumpToTrack(
-												trackIndex + 1 + i,
-											)
-										}
-										className="w-full flex items-center gap-3 px-3 py-2 rounded text-left text-sm text-[var(--color-text-dim)] hover:text-[var(--color-text)] hover:bg-[var(--color-bg-highlight)] transition-colors"
-									>
-										<span className="w-5 text-right text-xs text-[var(--color-text-dim)]">
-											{String(i + 1)}
-										</span>
-										<span className="flex-1 truncate">
-											{track.songName}
-										</span>
-										<span className="text-xs text-[var(--color-text-dim)] truncate max-w-[140px]">
-											{track.artistName}
-										</span>
+									<button key={track.id} type="button" onClick={() => handleJumpToTrack(trackIndex + 1 + i)} className="w-full flex items-center gap-3 px-3 py-2 rounded text-left text-sm text-[var(--color-text-dim)] hover:text-[var(--color-text)] hover:bg-[var(--color-bg-highlight)] transition-colors">
+										<span className="w-5 text-right text-xs text-[var(--color-text-dim)]">{String(i + 1)}</span>
+										<span className="flex-1 truncate">{track.songName}</span>
+										<span className="text-xs text-[var(--color-text-dim)] truncate max-w-[140px]">{track.artistName}</span>
 									</button>
 								))}
 								{remainingCount > 4 && (
-									<p className="text-xs text-[var(--color-text-dim)] px-3 py-1">
-										+{String(remainingCount - 4)} more
-									</p>
+									<p className="text-xs text-[var(--color-text-dim)] px-3 py-1">+{String(remainingCount - 4)} more</p>
 								)}
 							</div>
 						</div>
 					);
 				})()}
 
-			{/* Album track list */}
 			{isAlbumMode && tracks.length > 0 && (
 				<div className="w-full max-w-md">
-					<h3 className="text-xs font-medium text-[var(--color-text-dim)] uppercase tracking-wider mb-2">
-						Tracklist
-					</h3>
+					<h3 className="text-xs font-medium text-[var(--color-text-dim)] uppercase tracking-wider mb-2">Tracklist</h3>
 					<div className="space-y-0.5 max-h-48 overflow-y-auto">
 						{tracks.map((track, index) => {
 							const isActive = index === trackIndex;
 							return (
-								<button
-									key={track.trackToken}
-									type="button"
-									onClick={() => handleJumpToTrack(index)}
-									className={`w-full flex items-center gap-3 px-3 py-2 rounded text-left text-sm transition-colors ${
-										isActive
-											? "bg-[var(--color-primary)]/10 text-[var(--color-primary)] font-medium"
-											: "text-[var(--color-text-dim)] hover:text-[var(--color-text)] hover:bg-[var(--color-bg-highlight)]"
-									}`}
-								>
-									<span className="w-5 text-right text-xs">
-										{String(index + 1)}
-									</span>
-									<span className="flex-1 truncate">
-										{track.songName}
-									</span>
-									{track.duration != null && (
-										<span className="text-xs">
-											{formatTime(track.duration)}
-										</span>
-									)}
+								<button key={track.id} type="button" onClick={() => handleJumpToTrack(index)} className={`w-full flex items-center gap-3 px-3 py-2 rounded text-left text-sm transition-colors ${isActive ? "bg-[var(--color-primary)]/10 text-[var(--color-primary)] font-medium" : "text-[var(--color-text-dim)] hover:text-[var(--color-text)] hover:bg-[var(--color-bg-highlight)]"}`}>
+									<span className="w-5 text-right text-xs">{String(index + 1)}</span>
+									<span className="flex-1 truncate">{track.songName}</span>
+									{track.duration != null && <span className="text-xs">{formatTime(track.duration)}</span>}
 								</button>
 							);
 						})}
@@ -653,15 +512,11 @@ export function NowPlayingPage() {
 
 			{isPandora && showTrackInfo && currentTrack && (
 				<TrackInfoModal
-					track={{
-						trackToken: currentTrack.trackToken,
-						songName: currentTrack.songName,
-						artistName: currentTrack.artistName,
-						albumName: currentTrack.albumName,
-						...(currentTrack.albumArtUrl != null
-							? { albumArtUrl: currentTrack.albumArtUrl }
-							: {}),
-					}}
+					trackId={currentTrack.id}
+					songName={currentTrack.songName}
+					artistName={currentTrack.artistName}
+					albumName={currentTrack.albumName}
+					albumArtUrl={currentTrack.albumArtUrl}
 					duration={playback.duration}
 					onClose={() => setShowTrackInfo(false)}
 				/>

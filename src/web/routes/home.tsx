@@ -2,8 +2,15 @@ import { useNavigate } from "@tanstack/react-router";
 import { Play, Plus, Music, ListMusic, Disc3 } from "lucide-react";
 import { trpc } from "../lib/trpc";
 import { usePlaybackContext } from "../contexts/PlaybackContext";
-import type { CanonicalPlaylist } from "../../sources/types";
-import type { SourceType } from "../../sources/types";
+
+type SourceType = "pandora" | "ytmusic" | "local";
+
+type PlaylistData = {
+	readonly id: string;
+	readonly name: string;
+	readonly source: SourceType;
+	readonly artworkUrl?: string | null;
+};
 
 function sourceLabel(source: SourceType): string {
 	switch (source) {
@@ -42,7 +49,7 @@ function PlaylistCard({
 	playlist,
 	onPlay,
 }: {
-	readonly playlist: CanonicalPlaylist;
+	readonly playlist: PlaylistData;
 	readonly onPlay: () => void;
 }) {
 	return (
@@ -133,17 +140,16 @@ function AlbumCard({
 
 export function HomePage() {
 	const navigate = useNavigate();
-	const playlistsQuery = trpc.playlists.list.useQuery();
-	const albumsQuery = trpc.collection.listAlbums.useQuery();
+	const playlistsQuery = trpc.playlist.list.useQuery();
+	const albumsQuery = trpc.library.albums.useQuery();
 
 	const playlists = playlistsQuery.data ?? [];
 	const albums = albumsQuery.data ?? [];
 
-	const handlePlayPlaylist = (playlist: CanonicalPlaylist) => {
+	const handlePlayPlaylist = (playlist: PlaylistData) => {
 		navigate({
 			to: "/now-playing",
 			search: {
-				source: playlist.source,
 				playlist: playlist.id,
 			},
 		});
@@ -183,7 +189,7 @@ export function HomePage() {
 					<div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
 						{playlists.map((playlist) => (
 							<PlaylistCard
-								key={`${playlist.source}-${playlist.id}`}
+								key={playlist.id}
 								playlist={playlist}
 								onPlay={() => handlePlayPlaylist(playlist)}
 							/>

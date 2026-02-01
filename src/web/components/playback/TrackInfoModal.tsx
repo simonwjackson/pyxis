@@ -1,9 +1,12 @@
 import { X, Loader2, Music } from "lucide-react";
 import { trpc } from "../../lib/trpc";
-import type { PlaylistItem } from "../../../types/api";
 
 type TrackInfoModalProps = {
-	readonly track: PlaylistItem;
+	readonly trackId: string;
+	readonly songName: string;
+	readonly artistName: string;
+	readonly albumName: string;
+	readonly albumArtUrl?: string | undefined;
 	readonly duration: number;
 	readonly onClose: () => void;
 };
@@ -15,12 +18,16 @@ function formatDuration(seconds: number): string {
 }
 
 export function TrackInfoModal({
-	track,
+	trackId,
+	songName,
+	artistName,
+	albumName,
+	albumArtUrl,
 	duration,
 	onClose,
 }: TrackInfoModalProps) {
-	const explainQuery = trpc.playback.explainTrack.useQuery(
-		{ trackToken: track.trackToken },
+	const explainQuery = trpc.track.explain.useQuery(
+		{ id: trackId },
 		{ retry: 1 },
 	);
 
@@ -57,10 +64,10 @@ export function TrackInfoModal({
 				<div className="flex-1 overflow-y-auto p-4 space-y-6">
 					{/* Track details */}
 					<div className="flex gap-4">
-						{track.albumArtUrl ? (
+						{albumArtUrl ? (
 							<img
-								src={track.albumArtUrl}
-								alt={`${track.albumName} album art`}
+								src={albumArtUrl}
+								alt={`${albumName} album art`}
 								className="w-20 h-20 rounded-lg shrink-0 object-cover"
 							/>
 						) : (
@@ -70,13 +77,13 @@ export function TrackInfoModal({
 						)}
 						<div className="min-w-0">
 							<p className="font-semibold text-[var(--color-text)] truncate">
-								{track.songName}
+								{songName}
 							</p>
 							<p className="text-sm text-[var(--color-text-muted)] truncate">
-								{track.artistName}
+								{artistName}
 							</p>
 							<p className="text-sm text-[var(--color-text-dim)] truncate">
-								{track.albumName}
+								{albumName}
 							</p>
 							{duration > 0 && (
 								<p className="text-xs text-[var(--color-text-dim)] mt-1">

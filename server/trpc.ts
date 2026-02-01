@@ -1,13 +1,16 @@
 import { initTRPC, TRPCError } from "@trpc/server";
 import { getPandoraSession } from "./services/session.js";
+import { getSourceManager, ensureSourceManager } from "./services/sourceManager.js";
 import type { PandoraSession } from "../src/sources/pandora/client.js";
+import type { SourceManager } from "../src/sources/index.js";
 
 export type Context = {
-	sessionId: string | undefined;
-	pandoraSession: PandoraSession | undefined;
+	readonly sessionId: string | undefined;
+	readonly pandoraSession: PandoraSession | undefined;
+	readonly sourceManager: SourceManager | undefined;
 };
 
-export function createContext(req: Request): Context {
+export async function createContext(req: Request): Promise<Context> {
 	const cookies = req.headers.get("cookie") ?? "";
 	const sessionId = cookies
 		.split(";")
@@ -19,7 +22,12 @@ export function createContext(req: Request): Context {
 		? getPandoraSession(sessionId)
 		: undefined;
 
-	return { sessionId, pandoraSession };
+	// Full (Pandora + YTMusic) if authenticated, YTMusic-only fallback otherwise
+	const sourceManager = pandoraSession
+		? await getSourceManager(pandoraSession)
+		: await ensureSourceManager();
+
+	return { sessionId, pandoraSession, sourceManager };
 }
 
 const t = initTRPC.context<Context>().create();
@@ -39,6 +47,7 @@ export const protectedProcedure = t.procedure.use(({ ctx, next }) => {
 			...ctx,
 			pandoraSession: ctx.pandoraSession,
 			sessionId: ctx.sessionId!,
+			sourceManager: ctx.sourceManager!,
 		},
 	});
 });

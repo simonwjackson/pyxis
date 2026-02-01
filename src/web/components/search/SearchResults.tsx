@@ -1,24 +1,48 @@
 import { User, Music, LayoutGrid, Disc3, Radio } from "lucide-react";
-import type {
-	SearchArtist,
-	SearchSong,
-	SearchGenreStation,
-} from "../../../types/api";
-import type {
-	CanonicalTrack,
-	CanonicalAlbum,
-	SourceType,
-} from "../../../sources/types";
+
+type SearchArtist = {
+	readonly musicToken: string;
+	readonly artistName: string;
+};
+
+type SearchSong = {
+	readonly musicToken: string;
+	readonly songName: string;
+	readonly artistName: string;
+};
+
+type SearchGenreStation = {
+	readonly musicToken: string;
+	readonly stationName: string;
+};
+
+type SearchTrack = {
+	readonly id: string;
+	readonly source: string;
+	readonly title: string;
+	readonly artist: string;
+	readonly album?: string;
+	readonly artworkUrl?: string | null;
+};
+
+type SearchAlbum = {
+	readonly id: string;
+	readonly title: string;
+	readonly artist: string;
+	readonly year?: number | null;
+	readonly artworkUrl?: string | null;
+	readonly sourceIds: readonly { readonly id: string; readonly source: string }[];
+};
 
 type SearchResultsProps = {
 	readonly artists?: readonly SearchArtist[];
 	readonly songs?: readonly SearchSong[];
 	readonly genreStations?: readonly SearchGenreStation[];
-	readonly tracks?: readonly CanonicalTrack[];
-	readonly albums?: readonly CanonicalAlbum[];
+	readonly tracks?: readonly SearchTrack[];
+	readonly albums?: readonly SearchAlbum[];
 	readonly onCreateStation: (musicToken: string) => void;
-	readonly onSaveAlbum?: (source: SourceType, albumId: string) => void;
-	readonly onStartRadio?: (track: CanonicalTrack) => void;
+	readonly onSaveAlbum?: (albumId: string) => void;
+	readonly onStartRadio?: (track: SearchTrack) => void;
 };
 
 export function SearchResults({
@@ -85,14 +109,11 @@ export function SearchResults({
 										{` \u00B7 ${primarySource?.source === "ytmusic" ? "YouTube Music" : primarySource?.source ?? ""}`}
 									</p>
 								</div>
-								{onSaveAlbum && primarySource && (
+								{onSaveAlbum && (
 									<button
 										type="button"
 										onClick={() =>
-											onSaveAlbum(
-												primarySource.source,
-												primarySource.id,
-											)
+											onSaveAlbum(album.id)
 										}
 										className="text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text)] bg-[var(--color-bg-highlight)] hover:bg-[var(--color-border)] px-2.5 py-1.5 rounded transition-colors shrink-0"
 									>
@@ -115,7 +136,7 @@ export function SearchResults({
 					<ul className="space-y-1">
 						{tracks.map((track) => (
 							<li
-								key={`${track.sourceId.source}-${track.id}`}
+								key={track.id}
 								className="flex items-center gap-3 p-3 rounded-lg hover:bg-[var(--color-bg-highlight)]"
 							>
 								<div className="w-10 h-10 rounded bg-[var(--color-bg-highlight)] flex items-center justify-center shrink-0 overflow-hidden">
@@ -135,11 +156,11 @@ export function SearchResults({
 									</p>
 									<p className="text-xs text-[var(--color-text-dim)]">
 										{track.artist}
-										{` \u00B7 ${track.sourceId.source === "ytmusic" ? "YouTube Music" : track.sourceId.source === "pandora" ? "Pandora" : track.sourceId.source}`}
+										{` \u00B7 ${track.source === "ytmusic" ? "YouTube Music" : track.source === "pandora" ? "Pandora" : track.source}`}
 									</p>
 								</div>
 								<div className="flex items-center gap-1.5 shrink-0">
-									{track.sourceId.source === "pandora" && (
+									{track.source === "pandora" && (
 										<button
 											type="button"
 											onClick={() =>
@@ -150,7 +171,7 @@ export function SearchResults({
 											Create station
 										</button>
 									)}
-									{track.sourceId.source === "ytmusic" &&
+									{track.source === "ytmusic" &&
 										onStartRadio && (
 											<button
 												type="button"

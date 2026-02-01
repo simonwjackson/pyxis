@@ -5,7 +5,15 @@ import { trpc } from "../lib/trpc";
 import { SearchInput } from "../components/search/SearchInput";
 import { SearchResults } from "../components/search/SearchResults";
 import { Spinner } from "../components/ui/spinner";
-import type { CanonicalTrack, SourceType } from "../../sources/types";
+
+type SearchTrack = {
+	readonly id: string;
+	readonly source: string;
+	readonly title: string;
+	readonly artist: string;
+	readonly album?: string;
+	readonly artworkUrl?: string | null;
+};
 
 export function SearchPage() {
 	const [query, setQuery] = useState("");
@@ -16,34 +24,34 @@ export function SearchPage() {
 		{ enabled: query.length >= 2 },
 	);
 
-	const createStation = trpc.stations.create.useMutation({
+	const createStation = trpc.radio.create.useMutation({
 		onSuccess() {
 			toast.success("Station created");
-			utils.stations.list.invalidate();
+			utils.radio.list.invalidate();
 		},
 		onError(err) {
 			toast.error(`Failed to create station: ${err.message}`);
 		},
 	});
 
-	const saveAlbum = trpc.collection.saveAlbum.useMutation({
+	const saveAlbum = trpc.library.saveAlbum.useMutation({
 		onSuccess(data) {
 			if (data.alreadyExists) {
 				toast.info("Album already in your collection");
 			} else {
 				toast.success("Album saved to collection");
 			}
-			utils.collection.listAlbums.invalidate();
+			utils.library.albums.invalidate();
 		},
 		onError(err) {
 			toast.error(`Failed to save album: ${err.message}`);
 		},
 	});
 
-	const createRadio = trpc.playlists.createRadio.useMutation({
+	const createRadio = trpc.playlist.createRadio.useMutation({
 		onSuccess() {
 			toast.success("Radio created");
-			utils.playlists.list.invalidate();
+			utils.playlist.list.invalidate();
 		},
 		onError(err) {
 			toast.error(`Failed to create radio: ${err.message}`);
@@ -62,16 +70,16 @@ export function SearchPage() {
 	);
 
 	const handleSaveAlbum = useCallback(
-		(source: SourceType, albumId: string) => {
-			saveAlbum.mutate({ source, albumId });
+		(albumId: string) => {
+			saveAlbum.mutate({ id: albumId });
 		},
 		[saveAlbum],
 	);
 
 	const handleStartRadio = useCallback(
-		(track: CanonicalTrack) => {
+		(track: SearchTrack) => {
 			createRadio.mutate({
-				seedTrackId: track.id,
+				trackId: track.id,
 				name: `${track.title} Radio`,
 				...(track.artworkUrl != null
 					? { artworkUrl: track.artworkUrl }

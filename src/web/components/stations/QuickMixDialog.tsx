@@ -2,10 +2,10 @@ import { useState, useMemo } from "react";
 import { Shuffle } from "lucide-react";
 import { toast } from "sonner";
 import { trpc } from "../../lib/trpc";
-import type { Station } from "../../../types/api";
+import type { RadioStation } from "./StationList";
 
 type QuickMixDialogProps = {
-	readonly stations: readonly Station[];
+	readonly stations: readonly RadioStation[];
 	readonly onClose: () => void;
 };
 
@@ -20,9 +20,9 @@ export function QuickMixDialog({ stations, onClose }: QuickMixDialogProps) {
 	);
 	const utils = trpc.useUtils();
 
-	const mutation = trpc.stations.setQuickMix.useMutation({
+	const mutation = trpc.radio.quickMix.useMutation({
 		onSuccess() {
-			utils.stations.list.invalidate();
+			utils.radio.list.invalidate();
 			toast.success("Shuffle stations updated");
 			onClose();
 		},
@@ -54,7 +54,7 @@ export function QuickMixDialog({ stations, onClose }: QuickMixDialogProps) {
 	};
 
 	const handleSave = () => {
-		mutation.mutate({ quickMixStationIds: [...selectedIds] });
+		mutation.mutate({ radioIds: [...selectedIds] });
 	};
 
 	return (
@@ -120,7 +120,7 @@ export function QuickMixDialog({ stations, onClose }: QuickMixDialogProps) {
 								<span
 									className={`text-sm ${checked ? "text-[var(--color-text)]" : "text-[var(--color-text-muted)]"}`}
 								>
-									{station.stationName}
+									{station.name}
 								</span>
 							</label>
 						);

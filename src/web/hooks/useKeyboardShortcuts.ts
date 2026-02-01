@@ -16,16 +16,16 @@ export function useKeyboardShortcuts({ onCommandPalette, onToggleHelp }: Keyboar
 	const handlersRef = useRef({ onCommandPalette, onToggleHelp });
 	handlersRef.current = { onCommandPalette, onToggleHelp };
 
-	const feedbackMutation = trpc.playback.addFeedback.useMutation({
+	const feedbackMutation = trpc.track.feedback.useMutation({
 		onSuccess(_data, variables) {
-			toast.success(variables.isPositive ? "Track liked" : "Track disliked");
+			toast.success(variables.positive ? "Track liked" : "Track disliked");
 		},
 		onError(err) {
 			toast.error(`Feedback failed: ${err.message}`);
 		},
 	});
 
-	const sleepMutation = trpc.playback.sleepSong.useMutation({
+	const sleepMutation = trpc.track.sleep.useMutation({
 		onSuccess() {
 			toast.success("Track will be skipped for 30 days");
 		},
@@ -34,7 +34,7 @@ export function useKeyboardShortcuts({ onCommandPalette, onToggleHelp }: Keyboar
 		},
 	});
 
-	const bookmarkSongMutation = trpc.bookmarks.addSong.useMutation({
+	const bookmarkSongMutation = trpc.library.addBookmark.useMutation({
 		onSuccess() {
 			toast.success("Song bookmarked");
 		},
@@ -72,9 +72,9 @@ export function useKeyboardShortcuts({ onCommandPalette, onToggleHelp }: Keyboar
 					e.preventDefault();
 					if (playback.currentTrack && playback.currentStationToken) {
 						feedbackMutation.mutate({
-							stationToken: playback.currentStationToken,
-							trackToken: playback.currentTrack.trackToken,
-							isPositive: true,
+							id: playback.currentTrack.trackToken,
+							radioId: playback.currentStationToken,
+							positive: true,
 						});
 					}
 					break;
@@ -82,9 +82,9 @@ export function useKeyboardShortcuts({ onCommandPalette, onToggleHelp }: Keyboar
 					e.preventDefault();
 					if (playback.currentTrack && playback.currentStationToken) {
 						feedbackMutation.mutate({
-							stationToken: playback.currentStationToken,
-							trackToken: playback.currentTrack.trackToken,
-							isPositive: false,
+							id: playback.currentTrack.trackToken,
+							radioId: playback.currentStationToken,
+							positive: false,
 						});
 						playback.triggerSkip();
 					}
@@ -92,7 +92,7 @@ export function useKeyboardShortcuts({ onCommandPalette, onToggleHelp }: Keyboar
 				case "sleepTrack":
 					e.preventDefault();
 					if (playback.currentTrack) {
-						sleepMutation.mutate({ trackToken: playback.currentTrack.trackToken });
+						sleepMutation.mutate({ id: playback.currentTrack.trackToken });
 						playback.triggerSkip();
 					}
 					break;
@@ -102,7 +102,7 @@ export function useKeyboardShortcuts({ onCommandPalette, onToggleHelp }: Keyboar
 				case "bookmarkSong":
 					e.preventDefault();
 					if (playback.currentTrack) {
-						bookmarkSongMutation.mutate({ trackToken: playback.currentTrack.trackToken });
+						bookmarkSongMutation.mutate({ id: playback.currentTrack.trackToken, type: "song" });
 					}
 					break;
 				case "bookmarkArtist":

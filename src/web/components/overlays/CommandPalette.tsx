@@ -54,17 +54,17 @@ export function CommandPalette({ isOpen, onClose }: CommandPaletteProps) {
 	const { theme: currentTheme, setTheme } = useTheme();
 	const playback = usePlaybackContext();
 
-	const feedbackMutation = trpc.playback.addFeedback.useMutation({
+	const feedbackMutation = trpc.track.feedback.useMutation({
 		onSuccess(_data, variables) {
-			toast.success(variables.isPositive ? "Track liked" : "Track disliked");
+			toast.success(variables.positive ? "Track liked" : "Track disliked");
 		},
 	});
-	const sleepMutation = trpc.playback.sleepSong.useMutation({
+	const sleepMutation = trpc.track.sleep.useMutation({
 		onSuccess() {
 			toast.success("Track will be skipped for 30 days");
 		},
 	});
-	const bookmarkMutation = trpc.bookmarks.addSong.useMutation({
+	const bookmarkMutation = trpc.library.addBookmark.useMutation({
 		onSuccess() {
 			toast.success("Song bookmarked");
 		},
@@ -107,31 +107,31 @@ export function CommandPalette({ isOpen, onClose }: CommandPaletteProps) {
 				case "likeTrack":
 					if (playback.currentTrack && playback.currentStationToken) {
 						feedbackMutation.mutate({
-							stationToken: playback.currentStationToken,
-							trackToken: playback.currentTrack.trackToken,
-							isPositive: true,
+							id: playback.currentTrack.trackToken,
+							radioId: playback.currentStationToken,
+							positive: true,
 						});
 					}
 					break;
 				case "dislikeTrack":
 					if (playback.currentTrack && playback.currentStationToken) {
 						feedbackMutation.mutate({
-							stationToken: playback.currentStationToken,
-							trackToken: playback.currentTrack.trackToken,
-							isPositive: false,
+							id: playback.currentTrack.trackToken,
+							radioId: playback.currentStationToken,
+							positive: false,
 						});
 						playback.triggerSkip();
 					}
 					break;
 				case "sleepTrack":
 					if (playback.currentTrack) {
-						sleepMutation.mutate({ trackToken: playback.currentTrack.trackToken });
+						sleepMutation.mutate({ id: playback.currentTrack.trackToken });
 						playback.triggerSkip();
 					}
 					break;
 				case "bookmarkSong":
 					if (playback.currentTrack) {
-						bookmarkMutation.mutate({ trackToken: playback.currentTrack.trackToken });
+						bookmarkMutation.mutate({ id: playback.currentTrack.trackToken, type: "song" });
 					}
 					break;
 				case "goToStations":

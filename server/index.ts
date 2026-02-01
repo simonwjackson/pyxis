@@ -10,6 +10,7 @@ import {
 import { handleStreamRequest, prefetchToCache } from "./services/stream.js";
 import { ensureSourceManager } from "./services/sourceManager.js";
 import { tryAutoLogin } from "./services/autoLogin.js";
+import { decodeId } from "./lib/ids.js";
 import { createLogger } from "../src/logger.js";
 
 const serverLogger = createLogger("server");
@@ -42,20 +43,35 @@ const server = Bun.serve({
 			return new Response(null, { headers: CORS_HEADERS });
 		}
 
-		// Stream endpoint: /stream/:compositeTrackId
+		// Stream endpoint: /stream/:opaqueId (accepts opaque base64 IDs)
 		if (url.pathname.startsWith("/stream/")) {
-			const compositeId = decodeURIComponent(
+			const opaqueId = decodeURIComponent(
 				url.pathname.slice("/stream/".length),
 			);
+			// Decode opaque ID to composite format for internal use
+			let compositeId: string;
+			try {
+				const decoded = decodeId(opaqueId);
+				compositeId = `${decoded.source}:${decoded.id}`;
+			} catch {
+				// Fallback: treat as raw composite ID for backwards compatibility
+				compositeId = opaqueId;
+			}
 			const rangeHeader = req.headers.get("range");
 			const nextHint = url.searchParams.get("next");
 			serverLogger.log(`[stream] incoming ${compositeId} range=${rangeHeader ?? "none"} next=${nextHint ?? "none"}`);
 			return ensureSourceManager()
 				.then((sourceManager) => {
 					const responsePromise = handleStreamRequest(sourceManager, compositeId, rangeHeader);
-					// Fire-and-forget prefetch for the next track
 					if (nextHint) {
-						prefetchToCache(sourceManager, decodeURIComponent(nextHint)).catch((err: unknown) => {
+						let nextCompositeId: string;
+						try {
+							const decoded = decodeId(decodeURIComponent(nextHint));
+							nextCompositeId = `${decoded.source}:${decoded.id}`;
+						} catch {
+							nextCompositeId = decodeURIComponent(nextHint);
+						}
+						prefetchToCache(sourceManager, nextCompositeId).catch((err: unknown) => {
 							const msg = err instanceof Error ? err.message : String(err);
 							serverLogger.error(`[stream] prefetch error next=${nextHint}: ${msg}`);
 						});

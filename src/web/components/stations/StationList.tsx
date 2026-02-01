@@ -2,26 +2,35 @@ import { useState } from "react";
 import { Radio, Shuffle, MoreVertical } from "lucide-react";
 import { cn } from "../../lib/utils";
 import { StationContextMenu } from "./StationContextMenu";
-import type { Station } from "../../../types/api";
+
+export type RadioStation = {
+	readonly id: string;
+	readonly stationId: string;
+	readonly name: string;
+	readonly isQuickMix: boolean;
+	readonly allowDelete?: boolean;
+	readonly allowRename?: boolean;
+	readonly quickMixStationIds?: readonly string[];
+};
 
 type StationListProps = {
-	readonly stations: readonly Station[];
-	readonly currentStationToken?: string | undefined;
-	readonly onSelect: (station: Station) => void;
-	readonly onDetails: (station: Station) => void;
-	readonly onRename: (station: Station) => void;
-	readonly onDelete: (station: Station) => void;
+	readonly stations: readonly RadioStation[];
+	readonly currentStationId?: string | undefined;
+	readonly onSelect: (station: RadioStation) => void;
+	readonly onDetails: (station: RadioStation) => void;
+	readonly onRename: (station: RadioStation) => void;
+	readonly onDelete: (station: RadioStation) => void;
 };
 
 export function StationList({
 	stations,
-	currentStationToken,
+	currentStationId,
 	onSelect,
 	onDetails,
 	onRename,
 	onDelete,
 }: StationListProps) {
-	const [openMenuToken, setOpenMenuToken] = useState<string | null>(null);
+	const [openMenuId, setOpenMenuId] = useState<string | null>(null);
 
 	if (stations.length === 0) {
 		return (
@@ -34,8 +43,8 @@ export function StationList({
 	return (
 		<ul className="space-y-1">
 			{stations.map((station) => {
-				const isActive = station.stationToken === currentStationToken;
-				const isMenuOpen = openMenuToken === station.stationToken;
+				const isActive = station.id === currentStationId;
+				const isMenuOpen = openMenuId === station.id;
 				return (
 					<li key={station.stationId}>
 						<div
@@ -90,7 +99,7 @@ export function StationList({
 												: "text-[var(--color-text-muted)]",
 										)}
 									>
-										{station.stationName}
+										{station.name}
 									</p>
 									{station.isQuickMix && (
 										<p className="text-sm text-[var(--color-secondary)]">
@@ -109,14 +118,14 @@ export function StationList({
 								<button
 									type="button"
 									onClick={() =>
-										setOpenMenuToken(
+										setOpenMenuId(
 											isMenuOpen
 												? null
-												: station.stationToken,
+												: station.id,
 										)
 									}
 									className="p-1.5 rounded hover:bg-[var(--color-bg-highlight)] opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity md:opacity-0 max-md:opacity-100"
-									aria-label={`Actions for ${station.stationName}`}
+									aria-label={`Actions for ${station.name}`}
 								>
 									<MoreVertical className="w-4 h-4 text-[var(--color-text-muted)]" />
 								</button>
@@ -130,19 +139,19 @@ export function StationList({
 											station.allowRename ?? false
 										}
 										onDetails={() => {
-											setOpenMenuToken(null);
+											setOpenMenuId(null);
 											onDetails(station);
 										}}
 										onRename={() => {
-											setOpenMenuToken(null);
+											setOpenMenuId(null);
 											onRename(station);
 										}}
 										onDelete={() => {
-											setOpenMenuToken(null);
+											setOpenMenuId(null);
 											onDelete(station);
 										}}
 										onClose={() =>
-											setOpenMenuToken(null)
+											setOpenMenuId(null)
 										}
 									/>
 								)}

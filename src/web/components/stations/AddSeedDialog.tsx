@@ -4,11 +4,11 @@ import { toast } from "sonner";
 import { trpc } from "../../lib/trpc";
 
 type AddSeedDialogProps = {
-	readonly stationToken: string;
+	readonly radioId: string;
 	readonly onClose: () => void;
 };
 
-export function AddSeedDialog({ stationToken, onClose }: AddSeedDialogProps) {
+export function AddSeedDialog({ radioId, onClose }: AddSeedDialogProps) {
 	const [query, setQuery] = useState("");
 	const [debouncedQuery, setDebouncedQuery] = useState("");
 	const inputRef = useRef<HTMLInputElement>(null);
@@ -30,9 +30,9 @@ export function AddSeedDialog({ stationToken, onClose }: AddSeedDialogProps) {
 		{ enabled: debouncedQuery.length > 0 },
 	);
 
-	const addMutation = trpc.stations.addMusic.useMutation({
+	const addMutation = trpc.radio.addSeed.useMutation({
 		onSuccess(data) {
-			utils.stations.getStation.invalidate({ stationToken });
+			utils.radio.getStation.invalidate({ id: radioId });
 			const name = data.songName ?? data.artistName ?? "Seed";
 			toast.success(`Added "${name}" as a seed`);
 		},
@@ -42,7 +42,7 @@ export function AddSeedDialog({ stationToken, onClose }: AddSeedDialogProps) {
 	});
 
 	const handleAdd = (musicToken: string) => {
-		addMutation.mutate({ stationToken, musicToken });
+		addMutation.mutate({ radioId, musicToken });
 	};
 
 	const artists = searchQuery.data?.artists ?? [];

@@ -5,7 +5,19 @@ import { toast } from "sonner";
 import { trpc } from "../lib/trpc";
 import { Skeleton } from "../components/ui/skeleton";
 import { AddSeedDialog } from "../components/stations/AddSeedDialog";
-import type { StationSeed, StationFeedback } from "../../types/api";
+
+type StationSeed = {
+	readonly seedId: string;
+	readonly musicToken?: string;
+	readonly songName?: string;
+	readonly artistName?: string;
+};
+
+type StationFeedback = {
+	readonly feedbackId: string;
+	readonly songName: string;
+	readonly artistName: string;
+};
 
 type StationDetailsPageProps = {
 	readonly stationToken: string;
@@ -104,12 +116,12 @@ function DetailsSkeleton() {
 export function StationDetailsPage({ stationToken }: StationDetailsPageProps) {
 	const [showAddSeed, setShowAddSeed] = useState(false);
 	const navigate = useNavigate();
-	const stationQuery = trpc.stations.getStation.useQuery({ stationToken });
+	const stationQuery = trpc.radio.getStation.useQuery({ id: stationToken });
 	const utils = trpc.useUtils();
 
-	const deleteMusicMutation = trpc.stations.deleteMusic.useMutation({
+	const removeSeedMutation = trpc.radio.removeSeed.useMutation({
 		onSuccess() {
-			utils.stations.getStation.invalidate({ stationToken });
+			utils.radio.getStation.invalidate({ id: stationToken });
 			toast.success("Seed removed");
 		},
 		onError(err) {
@@ -118,7 +130,7 @@ export function StationDetailsPage({ stationToken }: StationDetailsPageProps) {
 	});
 
 	const handleRemoveSeed = (seedId: string) => {
-		deleteMusicMutation.mutate({ seedId });
+		removeSeedMutation.mutate({ radioId: stationToken, seedId });
 	};
 
 	if (stationQuery.isLoading) {
@@ -165,7 +177,7 @@ export function StationDetailsPage({ stationToken }: StationDetailsPageProps) {
 				</button>
 				<div>
 					<h2 className="text-lg font-semibold text-[var(--color-text)]">
-						{station.stationName}
+						{station.name}
 					</h2>
 					<p className="text-sm text-[var(--color-text-dim)]">Station details</p>
 				</div>
@@ -201,7 +213,7 @@ export function StationDetailsPage({ stationToken }: StationDetailsPageProps) {
 								seed={seed}
 								type="artist"
 								onRemove={handleRemoveSeed}
-								isRemoving={deleteMusicMutation.isPending}
+								isRemoving={removeSeedMutation.isPending}
 							/>
 						))}
 					</div>
@@ -216,7 +228,7 @@ export function StationDetailsPage({ stationToken }: StationDetailsPageProps) {
 								seed={seed}
 								type="song"
 								onRemove={handleRemoveSeed}
-								isRemoving={deleteMusicMutation.isPending}
+								isRemoving={removeSeedMutation.isPending}
 							/>
 						))}
 					</div>
@@ -271,7 +283,7 @@ export function StationDetailsPage({ stationToken }: StationDetailsPageProps) {
 
 			{showAddSeed && (
 				<AddSeedDialog
-					stationToken={stationToken}
+					radioId={stationToken}
 					onClose={() => setShowAddSeed(false)}
 				/>
 			)}

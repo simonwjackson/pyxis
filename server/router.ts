@@ -1,26 +1,28 @@
 import { router } from "./trpc.js";
 import { authRouter } from "./routers/auth.js";
-import { stationsRouter } from "./routers/stations.js";
-import { playbackRouter } from "./routers/playback.js";
+import { trackRouter } from "./routers/track.js";
+import { albumRouter } from "./routers/album.js";
+import { artistRouter } from "./routers/artist.js";
+import { radioRouter } from "./routers/radio.js";
+import { playlistRouter } from "./routers/playlist.js";
+import { libraryRouter } from "./routers/library.js";
 import { searchRouter } from "./routers/search.js";
-import { bookmarksRouter } from "./routers/bookmarks.js";
-import { genresRouter } from "./routers/genres.js";
-import { userRouter } from "./routers/user.js";
-import { streamRouter } from "./routers/stream.js";
-import { playlistsRouter } from "./routers/playlists.js";
-import { collectionRouter } from "./routers/collection.js";
+import { playerRouter } from "./routers/player.js";
+import { queueRouter } from "./routers/queue.js";
+import { credentialsRouter } from "./routers/credentials.js";
 
 export const appRouter = router({
 	auth: authRouter,
-	stations: stationsRouter,
-	playback: playbackRouter,
+	track: trackRouter,
+	album: albumRouter,
+	artist: artistRouter,
+	radio: radioRouter,
+	playlist: playlistRouter,
+	library: libraryRouter,
 	search: searchRouter,
-	bookmarks: bookmarksRouter,
-	genres: genresRouter,
-	user: userRouter,
-	stream: streamRouter,
-	playlists: playlistsRouter,
-	collection: collectionRouter,
+	player: playerRouter,
+	queue: queueRouter,
+	credentials: credentialsRouter,
 });
 
 export type AppRouter = typeof appRouter;

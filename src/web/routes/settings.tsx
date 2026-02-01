@@ -7,13 +7,13 @@ import { useNavigate } from "@tanstack/react-router";
 
 export function SettingsPage() {
 	const navigate = useNavigate();
-	const settingsQuery = trpc.user.settings.useQuery();
-	const usageQuery = trpc.user.usage.useQuery();
+	const settingsQuery = trpc.auth.settings.useQuery();
+	const usageQuery = trpc.auth.usage.useQuery();
 	const utils = trpc.useUtils();
 
-	const setExplicit = trpc.user.setExplicitFilter.useMutation({
+	const setExplicit = trpc.auth.setExplicitFilter.useMutation({
 		onSuccess: () => {
-			utils.user.settings.invalidate();
+			utils.auth.settings.invalidate();
 			toast.success("Setting updated");
 		},
 	});

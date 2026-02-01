@@ -5,26 +5,23 @@ import { Spinner } from "../components/ui/spinner";
 import { Button } from "../components/ui/button";
 
 export function BookmarksPage() {
-	const bookmarksQuery = trpc.bookmarks.list.useQuery();
+	const bookmarksQuery = trpc.library.bookmarks.useQuery();
 	const utils = trpc.useUtils();
 
-	const deleteArtist = trpc.bookmarks.deleteArtist.useMutation({
-		onSuccess: () => {
-			utils.bookmarks.list.invalidate();
-			toast.success("Artist bookmark removed");
+	const removeBookmark = trpc.library.removeBookmark.useMutation({
+		onSuccess: (_data, variables) => {
+			utils.library.bookmarks.invalidate();
+			toast.success(
+				variables.type === "artist"
+					? "Artist bookmark removed"
+					: "Song bookmark removed",
+			);
 		},
 	});
 
-	const deleteSong = trpc.bookmarks.deleteSong.useMutation({
+	const createStation = trpc.radio.create.useMutation({
 		onSuccess: () => {
-			utils.bookmarks.list.invalidate();
-			toast.success("Song bookmark removed");
-		},
-	});
-
-	const createStation = trpc.stations.create.useMutation({
-		onSuccess: () => {
-			utils.stations.list.invalidate();
+			utils.radio.list.invalidate();
 			toast.success("Station created");
 		},
 		onError: (err) => {
@@ -84,8 +81,9 @@ export function BookmarksPage() {
 										size="icon"
 										className="text-[var(--color-text-muted)] hover:text-[var(--color-error)]"
 										onClick={() =>
-											deleteArtist.mutate({
+											removeBookmark.mutate({
 												bookmarkToken: a.bookmarkToken,
+												type: "artist",
 											})
 										}
 										title="Remove bookmark"
@@ -141,8 +139,9 @@ export function BookmarksPage() {
 										size="icon"
 										className="text-[var(--color-text-muted)] hover:text-[var(--color-error)]"
 										onClick={() =>
-											deleteSong.mutate({
+											removeBookmark.mutate({
 												bookmarkToken: s.bookmarkToken,
+												type: "song",
 											})
 										}
 										title="Remove bookmark"

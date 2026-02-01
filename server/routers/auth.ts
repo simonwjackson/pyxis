@@ -2,6 +2,7 @@ import { z } from "zod";
 import { Effect } from "effect";
 import { router, publicProcedure, protectedProcedure } from "../trpc.js";
 import { login } from "../../src/sources/pandora/client.js";
+import * as Pandora from "../../src/sources/pandora/client.js";
 import {
 	createSession,
 	deleteSession,
@@ -25,10 +26,8 @@ export const authRouter = router({
 					login(input.username, input.password),
 				);
 				const sessionId = createSession(session, input.username);
-				// Initialize source manager for stream endpoint
 				setGlobalSourceManager(await getSourceManager(session));
 
-				// Persist credentials + session ID for auto-login after restart
 				const db = await getDb();
 				await db
 					.insert(schema.credentials)
@@ -59,7 +58,6 @@ export const authRouter = router({
 	logout: protectedProcedure.mutation(async ({ ctx }) => {
 		deleteSession(ctx.sessionId);
 
-		// Clear stored credentials so next restart requires manual login
 		const db = await getDb();
 		await db.delete(schema.credentials);
 
@@ -76,4 +74,47 @@ export const authRouter = router({
 		}
 		return { authenticated: true, username: session.username };
 	}),
+
+	settings: protectedProcedure.query(async ({ ctx }) => {
+		return Effect.runPromise(
+			Pandora.getSettings(ctx.pandoraSession),
+		);
+	}),
+
+	usage: protectedProcedure.query(async ({ ctx }) => {
+		return Effect.runPromise(
+			Pandora.getUsageInfo(ctx.pandoraSession),
+		);
+	}),
+
+	changeSettings: protectedProcedure
+		.input(
+			z.object({
+				isExplicitContentFilterEnabled: z.boolean().optional(),
+				isProfilePrivate: z.boolean().optional(),
+				zipCode: z.string().optional(),
+			}),
+		)
+		.mutation(async ({ ctx, input }) => {
+			const settings: Record<string, unknown> = {};
+			if (input.isExplicitContentFilterEnabled != null) settings.isExplicitContentFilterEnabled = input.isExplicitContentFilterEnabled;
+			if (input.isProfilePrivate != null) settings.isProfilePrivate = input.isProfilePrivate;
+			if (input.zipCode != null) settings.zipCode = input.zipCode;
+			await Effect.runPromise(
+				Pandora.changeSettings(ctx.pandoraSession, settings as Parameters<typeof Pandora.changeSettings>[1]),
+			);
+			return { success: true };
+		}),
+
+	setExplicitFilter: protectedProcedure
+		.input(z.object({ enabled: z.boolean() }))
+		.mutation(async ({ ctx, input }) => {
+			await Effect.runPromise(
+				Pandora.setExplicitContentFilter(
+					ctx.pandoraSession,
+					input.enabled,
+				),
+			);
+			return { success: true };
+		}),
 });
