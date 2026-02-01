@@ -1,0 +1,47 @@
+import { PGlite } from "@electric-sql/pglite";
+import { drizzle } from "drizzle-orm/pglite";
+import * as schema from "./schema.js";
+
+let dbInstance: ReturnType<typeof drizzle<typeof schema>> | undefined;
+let pgliteInstance: PGlite | undefined;
+
+const MIGRATION_SQL = `
+CREATE TABLE IF NOT EXISTS albums (
+	id TEXT PRIMARY KEY,
+	title TEXT NOT NULL,
+	artist TEXT NOT NULL,
+	year INTEGER,
+	artwork_url TEXT,
+	created_at TIMESTAMP DEFAULT NOW() NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS album_source_refs (
+	id TEXT PRIMARY KEY,
+	album_id TEXT NOT NULL REFERENCES albums(id) ON DELETE CASCADE,
+	source TEXT NOT NULL,
+	source_id TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS album_tracks (
+	id TEXT PRIMARY KEY,
+	album_id TEXT NOT NULL REFERENCES albums(id) ON DELETE CASCADE,
+	track_index INTEGER NOT NULL,
+	title TEXT NOT NULL,
+	artist TEXT NOT NULL,
+	duration INTEGER,
+	source TEXT NOT NULL,
+	source_track_id TEXT NOT NULL,
+	artwork_url TEXT
+);
+`;
+
+export async function getDb() {
+	if (dbInstance) return dbInstance;
+
+	pgliteInstance = new PGlite();
+	await pgliteInstance.exec(MIGRATION_SQL);
+	dbInstance = drizzle(pgliteInstance, { schema });
+	return dbInstance;
+}
+
+export { schema };

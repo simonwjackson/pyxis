@@ -14,6 +14,10 @@ export default defineConfig({
 				target: "http://aka:8765",
 				changeOrigin: true,
 			},
+			"/stream": {
+				target: "http://aka:8765",
+				changeOrigin: true,
+			},
 			"/ws": {
 				target: "ws://aka:8765",
 				ws: true,

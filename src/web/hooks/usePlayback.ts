@@ -1,12 +1,14 @@
 import { useState, useRef, useCallback, useEffect } from "react";
+import type { SourceType } from "../../sources/types.js";
 
-type PlaybackTrack = {
+export type PlaybackTrack = {
 	readonly trackToken: string;
 	readonly songName: string;
 	readonly artistName: string;
 	readonly albumName: string;
 	readonly audioUrl: string;
 	readonly artUrl?: string;
+	readonly source?: SourceType;
 };
 
 type PlaybackState = {

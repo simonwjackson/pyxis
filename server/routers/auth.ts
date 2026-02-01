@@ -7,6 +7,7 @@ import {
 	deleteSession,
 	getSession,
 } from "../services/session.js";
+import { getSourceManager, setGlobalSourceManager } from "../services/sourceManager.js";
 import { TRPCError } from "@trpc/server";
 
 export const authRouter = router({
@@ -23,8 +24,10 @@ export const authRouter = router({
 					login(input.username, input.password),
 				);
 				const sessionId = createSession(session, input.username);
+				// Initialize source manager for stream endpoint
+				setGlobalSourceManager(getSourceManager(session));
 				return { sessionId, username: input.username };
-			} catch (error) {
+			} catch {
 				throw new TRPCError({
 					code: "UNAUTHORIZED",
 					message: "Invalid credentials",

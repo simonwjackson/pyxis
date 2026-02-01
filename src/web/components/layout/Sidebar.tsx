@@ -1,6 +1,7 @@
 import { type ReactNode } from "react";
 import { Link, useRouterState, useNavigate } from "@tanstack/react-router";
 import {
+	Home,
 	Radio,
 	Search,
 	Bookmark,
@@ -18,7 +19,8 @@ type NavItem = {
 };
 
 const navItems: readonly NavItem[] = [
-	{ label: "Stations", path: "/", icon: <Radio className="w-5 h-5" /> },
+	{ label: "Home", path: "/", icon: <Home className="w-5 h-5" /> },
+	{ label: "Stations", path: "/stations", icon: <Radio className="w-5 h-5" /> },
 	{ label: "Search", path: "/search", icon: <Search className="w-5 h-5" /> },
 	{
 		label: "Bookmarks",

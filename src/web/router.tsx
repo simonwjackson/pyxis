@@ -5,6 +5,7 @@ import {
 } from "@tanstack/react-router";
 import { RootLayout } from "./components/layout/RootLayout";
 import { LoginPage } from "./routes/login";
+import { HomePage } from "./routes/home";
 import { StationsPage } from "./routes/index";
 import { SearchPage } from "./routes/search";
 import { BookmarksPage } from "./routes/bookmarks";
@@ -23,9 +24,15 @@ const loginRoute = createRoute({
 	component: LoginPage,
 });
 
-const indexRoute = createRoute({
+const homeRoute = createRoute({
 	getParentRoute: () => rootRoute,
 	path: "/",
+	component: HomePage,
+});
+
+const stationsRoute = createRoute({
+	getParentRoute: () => rootRoute,
+	path: "/stations",
 	component: StationsPage,
 });
 
@@ -70,7 +77,8 @@ const stationDetailsRoute = createRoute({
 
 const routeTree = rootRoute.addChildren([
 	loginRoute,
-	indexRoute,
+	homeRoute,
+	stationsRoute,
 	searchRoute,
 	bookmarksRoute,
 	genresRoute,

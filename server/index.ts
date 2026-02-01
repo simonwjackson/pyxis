@@ -7,8 +7,17 @@ import {
 	handleWSMessage,
 	handleWSClose,
 } from "./handlers/websocket.js";
+import { handleStreamRequest } from "./services/stream.js";
+import { getGlobalSourceManager } from "./services/sourceManager.js";
 
 const PORT = 8765;
+
+const CORS_HEADERS = {
+	"Access-Control-Allow-Origin": "http://aka:5678",
+	"Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+	"Access-Control-Allow-Headers": "Content-Type, Range",
+	"Access-Control-Allow-Credentials": "true",
+} as const;
 
 const server = Bun.serve({
 	port: PORT,
@@ -26,13 +35,27 @@ const server = Bun.serve({
 
 		// CORS preflight
 		if (req.method === "OPTIONS") {
-			return new Response(null, {
-				headers: {
-					"Access-Control-Allow-Origin": "http://aka:5678",
-					"Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-					"Access-Control-Allow-Headers": "Content-Type",
-					"Access-Control-Allow-Credentials": "true",
-				},
+			return new Response(null, { headers: CORS_HEADERS });
+		}
+
+		// Stream endpoint: /stream/:compositeTrackId
+		if (url.pathname.startsWith("/stream/")) {
+			const compositeId = decodeURIComponent(
+				url.pathname.slice("/stream/".length),
+			);
+			const sourceManager = getGlobalSourceManager();
+			if (!sourceManager) {
+				return new Response("No active session", { status: 503 });
+			}
+			const rangeHeader = req.headers.get("range");
+			return handleStreamRequest(
+				sourceManager,
+				compositeId,
+				rangeHeader,
+			).catch((err: unknown) => {
+				const message =
+					err instanceof Error ? err.message : "Stream error";
+				return new Response(message, { status: 502 });
 			});
 		}
 
@@ -44,12 +67,10 @@ const server = Bun.serve({
 				router: appRouter,
 				createContext: () => createContext(req),
 			}).then((response) => {
-				// Add CORS headers
 				const headers = new Headers(response.headers);
 				headers.set("Access-Control-Allow-Origin", "http://aka:5678");
 				headers.set("Access-Control-Allow-Credentials", "true");
 
-				// Set session cookie if login response contains sessionId
 				return new Response(response.body, {
 					status: response.status,
 					headers,
