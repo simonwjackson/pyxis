@@ -1,4 +1,5 @@
 import type { SourceType } from "../../src/sources/types.js";
+import { scheduleQueueSave, loadQueueState } from "./persistence.js";
 
 export type QueueTrack = {
 	readonly id: string; // opaque encoded ID
@@ -23,18 +24,51 @@ export type QueueState = {
 };
 
 type QueueListener = (state: QueueState) => void;
+type AutoFetchHandler = (context: QueueContext) => Promise<readonly QueueTrack[]>;
 
 // In-memory queue state (singleton — single-user server)
 let items: QueueTrack[] = [];
 let currentIndex = 0;
 let context: QueueContext = { type: "manual" };
 const listeners = new Set<QueueListener>();
+let autoFetchHandler: AutoFetchHandler | undefined;
+let autoFetchInFlight = false;
+const AUTO_FETCH_THRESHOLD = 2;
+
+export function setAutoFetchHandler(handler: AutoFetchHandler): void {
+	autoFetchHandler = handler;
+}
 
 function notify(): void {
 	const state = getState();
+	scheduleQueueSave(state);
 	for (const listener of listeners) {
 		listener(state);
 	}
+}
+
+function maybeAutoFetch(): void {
+	if (!autoFetchHandler) return;
+	if (autoFetchInFlight) return;
+	if (context.type !== "radio") return;
+	const remaining = items.length - currentIndex - 1;
+	if (remaining > AUTO_FETCH_THRESHOLD) return;
+
+	autoFetchInFlight = true;
+	const handler = autoFetchHandler;
+	const ctx = context;
+	handler(ctx)
+		.then((tracks) => {
+			if (tracks.length > 0) {
+				appendTracks(tracks);
+			}
+		})
+		.catch(() => {
+			// Silently ignore — next track advance will retry
+		})
+		.finally(() => {
+			autoFetchInFlight = false;
+		});
 }
 
 export function getState(): QueueState {
@@ -57,6 +91,7 @@ export function setQueue(
 	currentIndex = startIndex;
 	context = newContext;
 	notify();
+	maybeAutoFetch();
 }
 
 export function addTracks(
@@ -86,6 +121,7 @@ export function jumpTo(index: number): QueueTrack | undefined {
 	if (index < 0 || index >= items.length) return undefined;
 	currentIndex = index;
 	notify();
+	maybeAutoFetch();
 	return items[currentIndex];
 }
 
@@ -93,6 +129,7 @@ export function next(): QueueTrack | undefined {
 	if (currentIndex + 1 >= items.length) return undefined;
 	currentIndex++;
 	notify();
+	maybeAutoFetch();
 	return items[currentIndex];
 }
 
@@ -143,4 +180,14 @@ export function shuffle(): void {
 export function appendTracks(tracks: readonly QueueTrack[]): void {
 	items.push(...tracks);
 	notify();
+}
+
+export async function restoreFromDb(): Promise<boolean> {
+	const saved = await loadQueueState();
+	if (!saved || saved.items.length === 0) return false;
+	items = [...saved.items];
+	currentIndex = saved.currentIndex;
+	context = saved.context;
+	// Don't notify — player restore handles the notification
+	return true;
 }

@@ -4,6 +4,7 @@ import {
 	integer,
 	timestamp,
 	boolean,
+	real,
 } from "drizzle-orm/pg-core";
 
 export const albums = pgTable("albums", {
@@ -65,4 +66,32 @@ export const sourceCredentials = pgTable("source_credentials", {
 	sessionData: text("session_data"),
 	createdAt: timestamp("created_at").defaultNow().notNull(),
 	updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const playerState = pgTable("player_state", {
+	id: text("id").primaryKey(),
+	status: text("status").notNull(),
+	progress: real("progress").notNull().default(0),
+	duration: real("duration").notNull().default(0),
+	volume: integer("volume").notNull().default(100),
+	updatedAt: real("updated_at").notNull(),
+});
+
+export const queueItems = pgTable("queue_items", {
+	id: text("id").primaryKey(),
+	queueIndex: integer("queue_index").notNull(),
+	opaqueTrackId: text("opaque_track_id").notNull(),
+	source: text("source").notNull(),
+	title: text("title").notNull(),
+	artist: text("artist").notNull(),
+	album: text("album").notNull(),
+	duration: integer("duration"),
+	artworkUrl: text("artwork_url"),
+});
+
+export const queueState = pgTable("queue_state", {
+	id: text("id").primaryKey(),
+	currentIndex: integer("current_index").notNull().default(0),
+	contextType: text("context_type").notNull(),
+	contextId: text("context_id"),
 });

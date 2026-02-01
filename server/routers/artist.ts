@@ -1,5 +1,4 @@
 import { z } from "zod";
-import { TRPCError } from "@trpc/server";
 import { router, publicProcedure, protectedProcedure } from "../trpc.js";
 import { decodeId, encodeId } from "../lib/ids.js";
 import { ensureSourceManager } from "../services/sourceManager.js";
@@ -8,12 +7,14 @@ export const artistRouter = router({
 	get: publicProcedure
 		.input(z.object({ id: z.string() }))
 		.query(({ input }) => {
-			// Validate the opaque ID is decodable
-			decodeId(input.id);
-			throw new TRPCError({
-				code: "NOT_IMPLEMENTED",
-				message: "Artist detail lookup is not yet supported",
-			});
+			// Artist IDs are encoded track IDs (artist.search derives artists from
+			// track results). No dedicated artist API in Pandora or YTMusic.
+			const decoded = decodeId(input.id);
+			return {
+				id: input.id,
+				name: "Unknown",
+				source: decoded.source,
+			};
 		}),
 
 	search: protectedProcedure

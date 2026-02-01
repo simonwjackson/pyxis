@@ -1,4 +1,5 @@
 import * as Queue from "./queue.js";
+import { schedulePlayerSave, loadPlayerState } from "./persistence.js";
 
 export type PlayerStatus = "playing" | "paused" | "stopped";
 
@@ -26,6 +27,13 @@ const listeners = new Set<PlayerListener>();
 
 function notify(): void {
 	const state = getState();
+	schedulePlayerSave({
+		status: state.status,
+		progress: state.progress,
+		duration: state.duration,
+		volume: state.volume,
+		updatedAt: state.updatedAt,
+	});
 	for (const listener of listeners) {
 		listener(state);
 	}
@@ -182,4 +190,34 @@ export function reportProgress(p: number): void {
  */
 export function trackEnded(): Queue.QueueTrack | undefined {
 	return skip();
+}
+
+/**
+ * Restore player + queue state from DB.
+ * Always restores to "paused" since there's no audio element on the server.
+ */
+export async function restoreFromDb(): Promise<boolean> {
+	const queueRestored = await Queue.restoreFromDb();
+	if (!queueRestored) return false;
+
+	const saved = await loadPlayerState();
+	if (saved) {
+		// Restore to paused — server can't play audio
+		status = "paused";
+		progress = saved.progress;
+		duration = saved.duration;
+		volume = saved.volume;
+		updatedAt = Date.now();
+	} else {
+		// Queue was restored but no player state — set defaults
+		const track = Queue.currentTrack();
+		status = "paused";
+		progress = 0;
+		duration = track?.duration ?? 0;
+		volume = 100;
+		updatedAt = Date.now();
+	}
+
+	notify();
+	return true;
 }

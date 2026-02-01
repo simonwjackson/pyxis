@@ -70,6 +70,34 @@ CREATE TABLE IF NOT EXISTS source_credentials (
 	created_at TIMESTAMP DEFAULT NOW() NOT NULL,
 	updated_at TIMESTAMP DEFAULT NOW() NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS player_state (
+	id TEXT PRIMARY KEY,
+	status TEXT NOT NULL,
+	progress REAL NOT NULL DEFAULT 0,
+	duration REAL NOT NULL DEFAULT 0,
+	volume INTEGER NOT NULL DEFAULT 100,
+	updated_at REAL NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS queue_items (
+	id TEXT PRIMARY KEY,
+	queue_index INTEGER NOT NULL,
+	opaque_track_id TEXT NOT NULL,
+	source TEXT NOT NULL,
+	title TEXT NOT NULL,
+	artist TEXT NOT NULL,
+	album TEXT NOT NULL,
+	duration INTEGER,
+	artwork_url TEXT
+);
+
+CREATE TABLE IF NOT EXISTS queue_state (
+	id TEXT PRIMARY KEY,
+	current_index INTEGER NOT NULL DEFAULT 0,
+	context_type TEXT NOT NULL,
+	context_id TEXT
+);
 `;
 
 export async function getDb() {
