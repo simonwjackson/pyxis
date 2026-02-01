@@ -148,6 +148,11 @@ export function NowPlayingPage() {
 		readonly artworkUrl: string | null;
 	} | null>(null);
 
+	// Reset playback gate when switching context (album, playlist, or station)
+	useEffect(() => {
+		hasStartedRef.current = false;
+	}, [radioId, playlistId, albumId]);
+
 	// Subscribe to queue state to track current index
 	trpc.queue.onChange.useSubscription(undefined, {
 		onData(queueState) {
