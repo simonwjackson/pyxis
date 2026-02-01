@@ -2,26 +2,11 @@
 	"name": "@pyxis/client",
 	"version": "0.1.0",
 	"type": "module",
-	"main": "dist/index.js",
-	"types": "dist/index.d.ts",
-	"bin": {
-		"pyxis": "./dist/cli/bin.js"
-	},
-	"exports": {
-		".": {
-			"import": "./dist/index.js",
-			"types": "./dist/index.d.ts"
-		}
-	},
 	"scripts": {
-		"build": "tsc",
-		"dev": "tsc --watch",
 		"dev:web": "vite",
 		"dev:server": "bun --watch server/index.ts",
 		"build:web": "vite build",
 		"typecheck": "tsc --noEmit",
-		"cli": "bun run dist/cli/index.js",
-		"start:cli": "bun run build && node dist/cli/bin.js",
 		"test": "bun test",
 		"test:watch": "bun test --watch",
 		"test:coverage": "bun test --coverage"
@@ -37,15 +22,12 @@
 		"@trpc/react-query": "^11.8.1",
 		"@trpc/server": "^11.8.1",
 		"class-variance-authority": "^0.7.1",
-		"cli-table3": "^0.6.5",
 		"clsx": "^2.1.1",
-		"commander": "^14.0.2",
 		"drizzle-orm": "^0.36.0",
 		"effect": "^3.x",
 		"env-paths": "^3.0.0",
 		"framer-motion": "^12.28.1",
 		"lucide-react": "^0.562.0",
-		"picocolors": "^1.1.1",
 		"proper-lockfile": "^4.1.2",
 		"react": "^18.0.0",
 		"react-dom": "^18.0.0",

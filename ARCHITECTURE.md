@@ -3,43 +3,55 @@
 ## System Overview
 
 ```
-CLI Layer (src/cli/)
-  commands/     Command handlers (auth, stations, etc)
-  config/       YAML config loading + validation
-  cache/        Session persistence
-  output/       Formatters (table, JSON, M3U)
-  errors/       Error handling + display
+Web Frontend (src/web/)
+  React + TanStack Router + tRPC client
+  Connects to backend via proxied /trpc endpoint
             ↓
-Client Layer (src/client.ts)
-  Public API facade
-  Session management
-  Quality selection
+tRPC Server (server/)
+  router.ts         Combined tRPC router
+  trpc.ts           Context factory, auth middleware
+  routers/          Route handlers by domain
+  services/         Business logic (session, playback, stream, source manager)
+  handlers/         WebSocket handler
             ↓
-API Layer (src/api/)
-  auth.ts       Partner + user login
-  station.ts    Station CRUD, seeds, feedback
-  user.ts       Settings, bookmarks, usage
-  music.ts      Search, track info, sharing
-  bookmark.ts   Bookmark add/delete
-  track.ts      Track explanations
-  call.ts       Base API call abstraction
+Source Manager (src/sources/)
+  index.ts          SourceManager aggregates all sources
+  types.ts          Canonical types, capability interfaces
+  pandora/          Pandora source (full client library)
+  ytmusic/          YouTube Music source (yt-dlp + internal API)
             ↓
-Crypto Layer (src/crypto/)
-  blowfish.ts   Blowfish cipher (Dojo Toolkit)
-  index.ts      encrypt/decrypt wrappers
-            ↓
-HTTP Layer (src/http/client.ts)
-  fetch wrapper with Effect error handling
-            ↓
-Pandora JSON API v5
-  https://tuner.pandora.com/services/json/
+Pandora JSON API v5         YouTube Music (yt-dlp)
 ```
 
-## Authentication Flow
+## Source Abstraction Layer (src/sources/)
+
+Unified interface for multiple music backends. Sources implement capability
+interfaces: `SearchCapability`, `PlaylistCapability`, `StreamCapability`, `AlbumCapability`.
+
+### Pandora Source (src/sources/pandora/)
+
+Self-contained Pandora client library:
+- `client.ts` — Public API facade (login, getStationList, getPlaylist, search, etc.)
+- `api/` — One file per Pandora API domain (auth, station, user, music, bookmark, track, call)
+- `crypto/` — Blowfish ECB encryption for API payloads
+- `http/` — HTTP client wrapper with fixture mode support
+- `types/` — Pandora API request/response types, tagged errors, config types
+- `quality.ts` — Audio quality abstraction
+- `constants.ts` — API URL, device credentials
+- `index.ts` — Source adapter wrapping client.ts into canonical Source interface
+
+### YouTube Music Source (src/sources/ytmusic/)
+
+- `index.ts` — Source adapter with search, playlist, album, stream capabilities
+- `yt-dlp.ts` — Subprocess wrapper for yt-dlp calls
+- `api-client.ts` — Internal YouTube Music API client
+- `api-config.ts` — API base context and headers
+
+## Authentication Flow (Pandora)
 
 1. **Partner Login** (unencrypted)
    - POST auth.partnerLogin
-   - Send device credentials (android/iphone/palm)
+   - Send device credentials (android)
    - Receive encrypted syncTime + partnerAuthToken
    - Decrypt syncTime, calculate offset
 
@@ -55,63 +67,37 @@ Pandora JSON API v5
    - Encrypt JSON payload with Blowfish ECB
    - Include syncTime in payload
 
-## Data Flow
+## Server Data Flow
 
 ```
-User Input → Commander.js → Command Handler
-                                    ↓
-                              Load Session
-                                    ↓
-                              API Call (Effect pipeline)
-                                → Build request params
-                                → Encrypt payload (if needed)
-                                → HTTP POST
-                                → Parse response
-                                    ↓
-                              Format Output
-                                    ↓
-                              stdout (table/JSON/M3U)
+Client Request → tRPC Router → Service Layer
+                                     ↓
+                               Source Manager
+                                     ↓
+                            Pandora / YTMusic Source
+                                     ↓
+                               API Response → Client
 ```
 
-## Module Structure
+## Database (src/db/)
 
-**src/cli/** - Command-line interface
-- index.ts - Entry point, command registration
-- commands/ - Command handlers by domain (auth, stations, playlist, search, bookmarks, track, account, config)
-- config/ - schema.ts (Zod), loader.ts (YAML + env), paths.ts (XDG)
-- cache/ - session.ts (persistence with file locking)
-
-**src/api/** - One file per API domain
-- auth.ts, station.ts, user.ts, music.ts, bookmark.ts, track.ts, call.ts
-
-**src/crypto/** - Blowfish encryption
-- blowfish.ts (Dojo Toolkit cipher), index.ts (wrappers)
-
-**src/http/** - HTTP client wrapper
-
-**src/types/** - TypeScript types
-- api.ts (request/response), errors.ts (tagged errors), config.ts
-
-**src/** - Root modules
-- client.ts (public API facade), quality.ts (audio mapping), constants.ts (API URL, device credentials)
+PGlite (in-browser Postgres) with Drizzle ORM. Schema defines: albums,
+album_source_refs, album_tracks, playlists, credentials.
 
 ## Error Handling
 
-All errors use Effect's tagged error pattern:
+All Pandora errors use Effect's tagged error pattern:
 
 ```typescript
-// Defined in src/types/errors.ts
+// Defined in src/sources/pandora/types/errors.ts
 ApiCallError | SessionError | EncryptionError | DecryptionError |
 PartnerLoginError | UserLoginError | ConfigError | NotFoundError
-
-// Handled in src/cli/errors/handler.ts
-runEffect() wraps Effect execution with formatted error output
 ```
 
 ## Key Patterns
 
-1. **Effect-TS everywhere** - All async ops return `Effect.Effect<T, E>`
-2. **Readonly types** - All API types use `readonly` modifiers
-3. **Tagged errors** - Discriminated union for type-safe error handling
-4. **Session caching** - Auth tokens persisted to `~/.cache/pyxis/`
-5. **Config priority** - Defaults → YAML file → Environment variables
+1. **Effect-TS** — All Pandora API operations return `Effect.Effect<T, E>`
+2. **Readonly types** — All API types use `readonly` modifiers
+3. **Tagged errors** — Discriminated union for type-safe error handling
+4. **Source abstraction** — Canonical types normalize data across backends
+5. **Session management** — Auth tokens managed server-side in memory, persisted to DB for auto-login

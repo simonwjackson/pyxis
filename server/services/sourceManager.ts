@@ -1,4 +1,4 @@
-import type { PandoraSession } from "../../src/client.js";
+import type { PandoraSession } from "../../src/sources/pandora/client.js";
 import { createSourceManager } from "../../src/sources/index.js";
 import type { SourceManager } from "../../src/sources/index.js";
 import { createPandoraSource } from "../../src/sources/pandora/index.js";

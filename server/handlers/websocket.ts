@@ -7,7 +7,7 @@ import {
 	resumePlayback,
 	getPlaybackState,
 } from "../services/playback.js";
-import * as Pandora from "../../src/client.js";
+import * as Pandora from "../../src/sources/pandora/client.js";
 import { Effect } from "effect";
 
 type WSData = {

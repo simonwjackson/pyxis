@@ -1,5 +1,5 @@
 {
-  description = "Pyxis - Pandora music service CLI client";
+  description = "Pyxis - Personal unified music hub";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
@@ -33,7 +33,10 @@
     };
   in {
     packages = forAllSystems (system: let
-      pkgs = nixpkgs.legacyPackages.${system};
+      pkgs = import nixpkgs {
+        inherit system;
+        overlays = [yt-dlp-overlay];
+      };
     in {
       default = pkgs.buildNpmPackage {
         pname = "pyxis";
@@ -47,23 +50,26 @@
 
         buildPhase = ''
           runHook preBuild
-          npm run build
+          npm run build:web
           runHook postBuild
         '';
 
         installPhase = ''
           runHook preInstall
           mkdir -p $out/lib/pyxis $out/bin
-          cp -r dist $out/lib/pyxis/
+          cp -r dist-web $out/lib/pyxis/
+          cp -r server $out/lib/pyxis/
+          cp -r src $out/lib/pyxis/
           cp -r node_modules $out/lib/pyxis/
           cp package.json $out/lib/pyxis/
           makeWrapper ${pkgs.bun}/bin/bun $out/bin/pyxis \
-            --add-flags "$out/lib/pyxis/dist/cli/bin.js"
+            --prefix PATH : ${pkgs.lib.makeBinPath [pkgs.yt-dlp]} \
+            --add-flags "$out/lib/pyxis/server/index.ts"
           runHook postInstall
         '';
 
         meta = {
-          description = "Unofficial Pandora music service CLI client";
+          description = "Personal unified music hub";
           mainProgram = "pyxis";
         };
       };

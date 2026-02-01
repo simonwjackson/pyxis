@@ -1,4 +1,4 @@
-import type { PandoraSession } from "../../src/client.js";
+import type { PandoraSession } from "../../src/sources/pandora/client.js";
 
 type SessionData = {
 	pandoraSession: PandoraSession;

@@ -7,7 +7,7 @@
 		"jsx": "react-jsx",
 		"resolveJsonModule": true,
 		"outDir": "dist",
-		"rootDir": "src",
+		"rootDir": ".",
 		"strict": true,
 		"exactOptionalPropertyTypes": true,
 		"noUncheckedIndexedAccess": true,
@@ -17,6 +17,6 @@
 		"esModuleInterop": true,
 		"skipLibCheck": true
 	},
-	"include": ["src/**/*"],
-	"exclude": ["node_modules", "dist", "**/*.test.ts", "**/*.test.tsx"]
+	"include": ["src/sources/**/*", "src/db/**/*", "src/logger.ts", "server/**/*"],
+	"exclude": ["node_modules", "dist", "dist-web", "**/*.test.ts", "**/*.test.tsx", "src/web/**/*"]
 }

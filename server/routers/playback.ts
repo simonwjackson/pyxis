@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { Effect } from "effect";
 import { router, protectedProcedure } from "../trpc.js";
-import * as Pandora from "../../src/client.js";
+import * as Pandora from "../../src/sources/pandora/client.js";
 
 export const playbackRouter = router({
 	getPlaylist: protectedProcedure

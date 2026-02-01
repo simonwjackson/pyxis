@@ -192,11 +192,12 @@
     "archived": true
   },
   "0491b7c0-ff55-4e12-8ed9-17c8caa3ad9c": {
-    "lastViewedAt": 1769968430861,
+    "lastViewedAt": 1769969292003,
     "title": "Comparing TUI and Web Interface Features",
     "titleGeneratedAt": 1769967549599,
     "titleModel": "llama-3.1-8b-instant",
-    "providerEcosystem": "native"
+    "providerEcosystem": "native",
+    "archived": true
   },
   "323d18a5-479f-47c6-b4f2-588846089923": {
     "lastViewedAt": 0,
@@ -207,7 +208,22 @@
     "archived": true
   },
   "127d9624-158b-46d1-becf-76e715423186": {
-    "lastViewedAt": 0,
-    "parentId": "0491b7c0-ff55-4e12-8ed9-17c8caa3ad9c"
+    "lastViewedAt": 1769969275564,
+    "parentId": "0491b7c0-ff55-4e12-8ed9-17c8caa3ad9c",
+    "title": "Removing Ink-based TUI Application",
+    "titleGeneratedAt": 1769969054227,
+    "titleModel": "llama-3.1-8b-instant",
+    "archived": true
+  },
+  "7c4c4577-2ca6-4bdc-b13c-047dca243297": {
+    "lastViewedAt": 1769974288564,
+    "title": "Planning Session in Orchestration Mode",
+    "titleGeneratedAt": 1769969065934,
+    "titleModel": "llama-3.1-8b-instant",
+    "providerEcosystem": "native"
+  },
+  "ac42319b-60c6-47be-bf3a-3ad88317d992": {
+    "lastViewedAt": 1769974934803,
+    "parentId": "7c4c4577-2ca6-4bdc-b13c-047dca243297"
   }
 }

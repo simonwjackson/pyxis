@@ -1,6 +1,6 @@
 import { Effect } from "effect";
 import { getDb, schema } from "../../src/db/index.js";
-import { login } from "../../src/client.js";
+import { login } from "../../src/sources/pandora/client.js";
 import { createSession, createSessionWithId } from "./session.js";
 import { getSourceManager, setGlobalSourceManager } from "./sourceManager.js";
 import type { Logger } from "../../src/logger.js";

@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { Effect } from "effect";
 import { router, publicProcedure, protectedProcedure } from "../trpc.js";
-import { login } from "../../src/client.js";
+import { login } from "../../src/sources/pandora/client.js";
 import {
 	createSession,
 	deleteSession,

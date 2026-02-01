@@ -10,7 +10,6 @@ bun run dev:web     # Vite dev server on port 5678
 bun run dev:server  # Bun server on port 8765
 
 # Build
-bun run build       # TypeScript compilation (CLI)
 bun run build:web   # Vite production build
 nix build           # Full Nix package
 
@@ -25,17 +24,15 @@ just update-hashes  # Update Nix npm dependency hash
 
 ## Architecture
 
-### Three-Layer System
+### Two-Layer System
 
 ```
-CLI (src/cli/)                    Web Frontend (src/web/)
+Web Frontend (src/web/)              tRPC Server (server/)
        ↓                                    ↓
-Pandora Client Library (src/)     tRPC Server (server/)
-       ↓                                    ↓
-Pandora JSON API                  Source Manager (multi-source abstraction)
+tRPC Client ──────────────────→ Source Manager (src/sources/)
+                                       ↓              ↓
+                                 Pandora Source   YTMusic Source
 ```
-
-**CLI**: Commander.js-based tool for direct Pandora API access. Entry point at `src/cli/bin.ts`.
 
 **Web Frontend**: React + TanStack Router + tRPC client. Connects to backend via proxied `/trpc` endpoint.
 
@@ -44,27 +41,26 @@ Pandora JSON API                  Source Manager (multi-source abstraction)
 ### Source Abstraction Layer (src/sources/)
 
 Unified interface for multiple music backends:
-- `pandora/` - Pandora radio integration
+- `pandora/` - Self-contained Pandora client library (API, crypto, HTTP, types)
 - `ytmusic/` - YouTube Music via yt-dlp
 - `types.ts` - Canonical types: `CanonicalTrack`, `CanonicalAlbum`, `CanonicalPlaylist`
 - `index.ts` - `SourceManager` aggregates all sources
 
 Sources implement capability interfaces: `SearchCapability`, `PlaylistCapability`, `StreamCapability`, `AlbumCapability`.
 
-### Pandora API Implementation
+### Pandora Source (src/sources/pandora/)
 
-Authentication flow in `src/api/auth.ts`:
+Authentication flow in `src/sources/pandora/api/auth.ts`:
 1. Partner login (unencrypted) → receive syncTime + partnerAuthToken
 2. User login (Blowfish ECB encrypted) → receive userAuthToken
 3. All subsequent calls encrypted with `syncTime` offset
 
-Crypto layer (`src/crypto/`): Blowfish ECB encryption for API payloads using Dojo Toolkit cipher.
+Crypto layer (`src/sources/pandora/crypto/`): Blowfish ECB encryption for API payloads using Dojo Toolkit cipher.
 
 ### Effect-TS Patterns
 
-All async operations use Effect for type-safe error handling:
-- Tagged errors in `src/types/errors.ts` (ApiCallError, SessionError, etc.)
-- Error handling via `src/cli/errors/handler.ts`
+All Pandora API operations use Effect for type-safe error handling:
+- Tagged errors in `src/sources/pandora/types/errors.ts` (ApiCallError, SessionError, etc.)
 
 ### Database (src/db/)
 
@@ -73,15 +69,13 @@ PGlite (in-browser Postgres) with Drizzle ORM. Schema defines: albums, album_sou
 ### TypeScript Configuration
 
 Two configs:
-- `tsconfig.json` - CLI (NodeNext modules, output to `dist/`)
+- `tsconfig.json` - Server + sources (NodeNext modules)
 - `tsconfig.web.json` - Web frontend (ESNext/bundler, `@/*` path alias)
 
 Both use strict mode with `exactOptionalPropertyTypes` and `noUncheckedIndexedAccess`.
 
 ## Key Conventions
 
-- Config file: `~/.config/pyxis/config.yaml` (YAML + environment variable override)
-- Session cache: `~/.cache/pyxis/session.json`
 - Logs directory: `~/.local/state/pyxis/` (XDG_STATE_HOME)
   - `server.log` - backend server logs
   - `web.log` - Vite dev server logs

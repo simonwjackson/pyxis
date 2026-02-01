@@ -1,5 +1,5 @@
 import { Effect, Console } from "effect"
-import * as Pandora from "../src/index.js"
+import * as Pandora from "../src/sources/pandora/public.js"
 
 const program = Effect.gen(function* () {
   // Login

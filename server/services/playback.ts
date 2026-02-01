@@ -1,7 +1,7 @@
 import { Effect } from "effect";
-import * as Pandora from "../../src/client.js";
-import type { PandoraSession } from "../../src/client.js";
-import type { PlaylistItem } from "../../src/types/api.js";
+import * as Pandora from "../../src/sources/pandora/client.js";
+import type { PandoraSession } from "../../src/sources/pandora/client.js";
+import type { PlaylistItem } from "../../src/sources/pandora/types/api.js";
 
 type PlaybackState = {
 	stationToken: string;

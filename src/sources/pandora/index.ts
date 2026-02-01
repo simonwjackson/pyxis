@@ -1,12 +1,12 @@
 import { Effect } from "effect";
-import type { PandoraSession } from "../../client.js";
-import * as Pandora from "../../client.js";
+import type { PandoraSession } from "./client.js";
+import * as Pandora from "./client.js";
 import type {
 	Source,
 	CanonicalTrack,
 	CanonicalPlaylist,
 } from "../types.js";
-import type { PlaylistItem, Station } from "../../types/api.js";
+import type { PlaylistItem, Station } from "./types/api.js";
 
 function playlistItemToCanonical(item: PlaylistItem): CanonicalTrack {
 	const track: CanonicalTrack = {

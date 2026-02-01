@@ -1,6 +1,6 @@
 import { initTRPC, TRPCError } from "@trpc/server";
 import { getPandoraSession } from "./services/session.js";
-import type { PandoraSession } from "../src/client.js";
+import type { PandoraSession } from "../src/sources/pandora/client.js";
 
 export type Context = {
 	sessionId: string | undefined;

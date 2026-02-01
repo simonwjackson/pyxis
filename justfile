@@ -16,6 +16,9 @@ test:
 typecheck:
     bun run typecheck
 
-# Dev mode (watch typescript)
-dev:
-    bun run dev
+# Dev mode (web frontend + server)
+dev-web:
+    bun run dev:web
+
+dev-server:
+    bun run dev:server
