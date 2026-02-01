@@ -75,6 +75,7 @@ export function NowPlayingPage() {
 					artistName: currentTrack.artistName,
 					albumName: currentTrack.albumName,
 					audioUrl,
+					...(currentTrack.albumArtUrl != null && { artUrl: currentTrack.albumArtUrl }),
 				});
 				hasStartedRef.current = true;
 			}
@@ -105,6 +106,7 @@ export function NowPlayingPage() {
 						artistName: next.artistName,
 						albumName: next.albumName,
 						audioUrl,
+						...(next.albumArtUrl != null && { artUrl: next.albumArtUrl }),
 					});
 				}
 			}
@@ -185,9 +187,24 @@ export function NowPlayingPage() {
 
 	return (
 		<div className="flex-1 flex flex-col items-center justify-center p-8 space-y-6">
-			{/* Album art placeholder */}
-			<div className="w-64 h-64 md:w-80 md:h-80 bg-zinc-800 rounded-2xl shadow-2xl flex items-center justify-center relative">
-				<Music className="w-20 h-20 text-zinc-600" />
+			{/* Album art */}
+			<div className="w-64 h-64 md:w-80 md:h-80 relative">
+				{playback.currentTrack?.artUrl ? (
+					<img
+						src={playback.currentTrack.artUrl}
+						alt={`${currentTrack.albumName} album art`}
+						className="w-full h-full rounded-2xl shadow-2xl object-cover"
+						onError={(e) => {
+							e.currentTarget.style.display = "none";
+							e.currentTarget.nextElementSibling?.classList.remove("hidden");
+						}}
+					/>
+				) : null}
+				<div
+					className={`w-full h-full bg-zinc-800 rounded-2xl shadow-2xl flex items-center justify-center ${playback.currentTrack?.artUrl ? "hidden absolute inset-0" : ""}`}
+				>
+					<Music className="w-20 h-20 text-zinc-600" />
+				</div>
 				{playback.isPlaying && (
 					<div className="absolute -bottom-2 left-1/2 -translate-x-1/2 px-3 py-1 bg-cyan-500 rounded-full text-xs font-medium text-zinc-900">
 						PLAYING

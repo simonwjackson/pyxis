@@ -91,6 +91,7 @@ export type PlaylistItem = {
 	readonly artistName: string;
 	readonly songName: string;
 	readonly albumName: string;
+	readonly albumArtUrl?: string;
 	readonly audioUrlMap?: {
 		readonly highQuality: AudioQuality;
 		readonly mediumQuality: AudioQuality;

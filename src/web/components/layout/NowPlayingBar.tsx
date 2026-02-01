@@ -1,4 +1,4 @@
-import { Play, Pause, SkipForward } from "lucide-react";
+import { Play, Pause, SkipForward, Music } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 
 type NowPlayingBarProps = {
@@ -6,6 +6,7 @@ type NowPlayingBarProps = {
 		readonly songName: string;
 		readonly artistName: string;
 		readonly albumName: string;
+		readonly artUrl?: string;
 	} | null;
 	readonly isPlaying: boolean;
 	readonly progress: number;
@@ -35,6 +36,22 @@ export function NowPlayingBar({
 				/>
 			</div>
 			<div className="flex items-center gap-4 px-4 py-2">
+				{currentTrack.artUrl ? (
+					<img
+						src={currentTrack.artUrl}
+						alt=""
+						className="w-10 h-10 rounded object-cover"
+						onError={(e) => {
+							e.currentTarget.style.display = "none";
+							e.currentTarget.nextElementSibling?.classList.remove("hidden");
+						}}
+					/>
+				) : null}
+				<div
+					className={`w-10 h-10 rounded bg-zinc-800 flex items-center justify-center shrink-0 ${currentTrack.artUrl ? "hidden" : ""}`}
+				>
+					<Music className="w-5 h-5 text-zinc-600" />
+				</div>
 				<Link
 					to="/now-playing"
 					className="flex-1 min-w-0 cursor-pointer"
