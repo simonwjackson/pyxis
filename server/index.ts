@@ -48,6 +48,7 @@ const server = Bun.serve({
 				url.pathname.slice("/stream/".length),
 			);
 			const rangeHeader = req.headers.get("range");
+			serverLogger.log(`[stream] incoming ${compositeId} range=${rangeHeader ?? "none"}`);
 			return ensureSourceManager()
 				.then((sourceManager) =>
 					handleStreamRequest(sourceManager, compositeId, rangeHeader),
@@ -55,7 +56,11 @@ const server = Bun.serve({
 				.catch((err: unknown) => {
 					const message =
 						err instanceof Error ? err.message : "Stream error";
-					return new Response(message, { status: 502 });
+					serverLogger.error(`[stream] error compositeId=${compositeId}: ${message}`);
+					return new Response(message, {
+						status: 502,
+						headers: { "Access-Control-Allow-Origin": "*" },
+					});
 				});
 		}
 

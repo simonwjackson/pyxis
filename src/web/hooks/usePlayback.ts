@@ -17,6 +17,7 @@ type PlaybackState = {
 	readonly isPlaying: boolean;
 	readonly progress: number;
 	readonly duration: number;
+	readonly error: string | null;
 };
 
 export function usePlayback() {
@@ -28,6 +29,7 @@ export function usePlayback() {
 		isPlaying: false,
 		progress: 0,
 		duration: 0,
+		error: null,
 	});
 
 	useEffect(() => {
@@ -44,15 +46,39 @@ export function usePlayback() {
 			setState((prev) => ({ ...prev, isPlaying: false }));
 			onTrackEndRef.current?.();
 		};
+		const onError = () => {
+			const mediaError = audio.error;
+			let message = "Audio playback failed";
+			if (mediaError) {
+				const codeMessages: Record<number, string> = {
+					[MediaError.MEDIA_ERR_ABORTED]: "Playback aborted",
+					[MediaError.MEDIA_ERR_NETWORK]: "Network error loading audio",
+					[MediaError.MEDIA_ERR_DECODE]: "Audio decoding error",
+					[MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED]: "Audio format not supported",
+				};
+				message = codeMessages[mediaError.code] ?? message;
+				if (mediaError.message) {
+					message += `: ${mediaError.message}`;
+				}
+			}
+			console.error("[usePlayback] Audio error:", message, audio.src);
+			setState((prev) => ({
+				...prev,
+				isPlaying: false,
+				error: message,
+			}));
+		};
 
 		audio.addEventListener("timeupdate", onTimeUpdate);
 		audio.addEventListener("durationchange", onDurationChange);
 		audio.addEventListener("ended", onEnded);
+		audio.addEventListener("error", onError);
 
 		return () => {
 			audio.removeEventListener("timeupdate", onTimeUpdate);
 			audio.removeEventListener("durationchange", onDurationChange);
 			audio.removeEventListener("ended", onEnded);
+			audio.removeEventListener("error", onError);
 			audio.pause();
 		};
 	}, []);
@@ -61,13 +87,22 @@ export function usePlayback() {
 		const audio = audioRef.current;
 		if (!audio) return;
 		audio.src = track.audioUrl;
-		audio.play();
+		audio.play().catch((err: unknown) => {
+			const message = err instanceof Error ? err.message : "Playback failed";
+			console.error("[usePlayback] play() rejected:", message);
+			setState((prev) => ({
+				...prev,
+				isPlaying: false,
+				error: message,
+			}));
+		});
 		setState((prev) => ({
 			...prev,
 			currentTrack: track,
 			isPlaying: true,
 			progress: 0,
 			duration: 0,
+			error: null,
 		}));
 	}, []);
 
@@ -75,8 +110,16 @@ export function usePlayback() {
 		const audio = audioRef.current;
 		if (!audio) return;
 		if (audio.paused) {
-			audio.play();
-			setState((prev) => ({ ...prev, isPlaying: true }));
+			audio.play().catch((err: unknown) => {
+				const message = err instanceof Error ? err.message : "Playback failed";
+				console.error("[usePlayback] play() rejected:", message);
+				setState((prev) => ({
+					...prev,
+					isPlaying: false,
+					error: message,
+				}));
+			});
+			setState((prev) => ({ ...prev, isPlaying: true, error: null }));
 		} else {
 			audio.pause();
 			setState((prev) => ({ ...prev, isPlaying: false }));
@@ -94,6 +137,7 @@ export function usePlayback() {
 			isPlaying: false,
 			progress: 0,
 			duration: 0,
+			error: null,
 		});
 	}, []);
 
@@ -116,6 +160,10 @@ export function usePlayback() {
 		onTrackEndRef.current = callback;
 	}, []);
 
+	const clearError = useCallback(() => {
+		setState((prev) => ({ ...prev, error: null }));
+	}, []);
+
 	return {
 		...state,
 		playTrack,
@@ -125,5 +173,6 @@ export function usePlayback() {
 		setCurrentStationToken,
 		setOnTrackEnd,
 		triggerSkip,
+		clearError,
 	};
 }

@@ -242,6 +242,14 @@ export function NowPlayingPage() {
 		},
 	});
 
+	// Surface audio errors as toast notifications
+	useEffect(() => {
+		if (playback.error) {
+			toast.error(`Audio error: ${playback.error}`);
+			playback.clearError();
+		}
+	}, [playback.error, playback.clearError]);
+
 	const currentTrack = tracks[trackIndex];
 
 	// Auto-play first track when tracks load
