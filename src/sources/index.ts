@@ -139,24 +139,17 @@ export function createSourceManager(
 		async searchAll(query: string): Promise<SearchResult> {
 			const primaryStart = Date.now();
 
-			// 1. Run ALL sources in parallel
+			// 1. Search primary sources first
 			const searchableSources = sources.filter(hasSearchCapability);
 			const metadataSearchable = metadataSources.filter(hasMetadataSearchCapability);
 
-			const [primaryResults, metadataResults] = await Promise.all([
-				// Existing sources (Pandora, YTMusic) — return SearchResult
-				Promise.allSettled(
-					searchableSources.map((source) => source.search(query)),
-				),
-				// Metadata sources (MusicBrainz, Discogs) — return NormalizedRelease[]
-				Promise.allSettled(
-					metadataSearchable.map((source) => source.searchReleases(query, 10)),
-				),
-			]);
+			const primaryResults = await Promise.allSettled(
+				searchableSources.map((source) => source.search(query)),
+			);
 
 			const primaryMs = Date.now() - primaryStart;
 
-			// 2. Collect tracks from primary sources (unchanged)
+			// 2. Collect tracks and albums from primary sources
 			const allTracks: CanonicalTrack[] = [];
 			const primaryAlbums: CanonicalAlbum[] = [];
 			for (const result of primaryResults) {
@@ -166,19 +159,7 @@ export function createSourceManager(
 				}
 			}
 
-			// 3. Log metadata source failures as warnings
-			for (let i = 0; i < metadataResults.length; i++) {
-				const result = metadataResults[i];
-				if (result?.status === "rejected") {
-					const source = metadataSearchable[i];
-					log?.warn(
-						{ source: source?.type, err: String(result.reason) },
-						"metadata source failed (non-blocking)",
-					);
-				}
-			}
-
-			// 4. If no metadata sources, return as before (fast path)
+			// 3. If no metadata sources, return as before (fast path)
 			if (metadataSources.length === 0) {
 				log?.info(
 					{
@@ -195,10 +176,45 @@ export function createSourceManager(
 				return { tracks: allTracks, albums: primaryAlbums };
 			}
 
-			// 5. Normalize primary albums to NormalizedRelease
+			// 4. Build targeted per-album queries from primary results
+			//    e.g. "OK Computer artist:Radiohead" instead of just "radiohead"
+			const seen = new Set<string>();
+			const albumQueries: string[] = [];
+			const MAX_ALBUM_LOOKUPS = 8;
+			for (const album of primaryAlbums) {
+				const key = `${album.title.toLowerCase()}::${album.artist.toLowerCase()}`;
+				if (!seen.has(key) && albumQueries.length < MAX_ALBUM_LOOKUPS) {
+					seen.add(key);
+					albumQueries.push(`${album.title} artist:${album.artist}`);
+				}
+			}
+
+			// 5. Run targeted metadata lookups (1 result per query is enough for enrichment)
+			const metadataStart = Date.now();
+			const metadataResults = await Promise.allSettled(
+				metadataSearchable.flatMap((source) =>
+					albumQueries.map((q) => source.searchReleases(q, 1)),
+				),
+			);
+			const metadataMs = Date.now() - metadataStart;
+
+			// 6. Log metadata source failures as warnings
+			for (let i = 0; i < metadataResults.length; i++) {
+				const result = metadataResults[i];
+				if (result?.status === "rejected") {
+					const sourceIdx = Math.floor(i / albumQueries.length);
+					const source = metadataSearchable[sourceIdx];
+					log?.warn(
+						{ source: source?.type, err: String(result.reason) },
+						"metadata source failed (non-blocking)",
+					);
+				}
+			}
+
+			// 7. Normalize primary albums to NormalizedRelease
 			const normalizedPrimary = primaryAlbums.map(canonicalToNormalized);
 
-			// 6. Collect metadata-only results
+			// 8. Collect metadata-only results
 			const metadataAlbums: NormalizedRelease[] = [];
 			for (const result of metadataResults) {
 				if (result.status === "fulfilled") {
@@ -206,7 +222,7 @@ export function createSourceManager(
 				}
 			}
 
-			// 7. Feed everything through matcher (primary first so they're the "existing" entries)
+			// 9. Feed everything through matcher (primary first so they're the "existing" entries)
 			const matcher = createMatcher({ similarityThreshold: 0.85 });
 			for (const album of normalizedPrimary) {
 				matcher.addOrMerge(album);
@@ -217,7 +233,7 @@ export function createSourceManager(
 
 			const stats = matcher.getStats();
 
-			// 8. Convert back to CanonicalAlbum
+			// 10. Convert back to CanonicalAlbum
 			const mergedAlbums = matcher
 				.getAll()
 				.map(normalizedToCanonicalAlbum);
@@ -236,7 +252,8 @@ export function createSourceManager(
 					metadata: {
 						sources: metadataSearchable.map((s) => s.type),
 						albums: metadataAlbums.length,
-						ms: totalMs - primaryMs,
+						queries: albumQueries.length,
+						ms: metadataMs,
 					},
 					matcher: {
 						total: stats.total,
