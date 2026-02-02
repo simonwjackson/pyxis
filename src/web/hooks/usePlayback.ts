@@ -62,6 +62,8 @@ export function usePlayback() {
 		};
 		const onError = () => {
 			const mediaError = audio.error;
+			// MEDIA_ERR_ABORTED is expected during track transitions (src changed while loading)
+			if (mediaError?.code === MediaError.MEDIA_ERR_ABORTED) return;
 			let message = "Audio playback failed";
 			if (mediaError) {
 				const codeMessages: Record<number, string> = {
@@ -107,13 +109,17 @@ export function usePlayback() {
 			const track = serverState.currentTrack;
 
 			if (track) {
-				// Load new audio if the stream URL changed
-				if (track.streamUrl !== lastStreamUrlRef.current) {
+				// Load new audio if the stream URL changed (ignore ?next= prefetch hint)
+				const baseUrl = track.streamUrl.split("?")[0];
+				const lastBaseUrl = lastStreamUrlRef.current?.split("?")[0] ?? null;
+				if (baseUrl !== lastBaseUrl) {
 					lastStreamUrlRef.current = track.streamUrl;
 					audio.src = track.streamUrl;
 
 					if (serverState.status === "playing") {
 						audio.play().catch((err: unknown) => {
+							// AbortError is expected when src changes during play()
+							if (err instanceof DOMException && err.name === "AbortError") return;
 							const message = err instanceof Error ? err.message : "Playback failed";
 							console.error("[usePlayback] play() rejected:", message);
 							setState((prev) => ({
@@ -127,6 +133,7 @@ export function usePlayback() {
 					// Same track — sync play/pause state
 					if (serverState.status === "playing" && audio.paused) {
 						audio.play().catch((err: unknown) => {
+							if (err instanceof DOMException && err.name === "AbortError") return;
 							console.error("[usePlayback] resume rejected:", err);
 						});
 					} else if (serverState.status === "paused" && !audio.paused) {
@@ -203,6 +210,7 @@ export function usePlayback() {
 			const audio = audioRef.current;
 			if (audio) {
 				audio.play().catch((err: unknown) => {
+					if (err instanceof DOMException && err.name === "AbortError") return;
 					console.error("[usePlayback] play() rejected:", err);
 				});
 			}
@@ -264,6 +272,8 @@ export function usePlayback() {
 		audio.src = track.audioUrl;
 		lastStreamUrlRef.current = track.audioUrl;
 		audio.play().catch((err: unknown) => {
+			// AbortError is expected when src changes during play()
+			if (err instanceof DOMException && err.name === "AbortError") return;
 			const message = err instanceof Error ? err.message : "Playback failed";
 			console.error("[usePlayback] play() rejected:", message);
 			setState((prev) => ({
