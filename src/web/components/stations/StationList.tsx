@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { type ReactNode, useState } from "react";
 import { Radio, Shuffle, MoreVertical } from "lucide-react";
 import { StationContextMenu } from "./StationContextMenu";
 
@@ -21,68 +21,50 @@ type StationListProps = {
 	readonly onDelete: (station: RadioStation) => void;
 };
 
-type StationItemProps = {
-	readonly station: RadioStation;
-	readonly isActive: boolean;
-	readonly isMenuOpen: boolean;
-	readonly onSelect: () => void;
-	readonly onToggleMenu: () => void;
-	readonly onCloseMenu: () => void;
-	readonly onDetails: () => void;
-	readonly onRename: () => void;
-	readonly onDelete: () => void;
+type StationItemActionsProps = {
+	readonly stationName: string;
+	readonly children: ReactNode;
 };
 
 function StationItemActions({
-	station,
-	isMenuOpen,
-	onToggleMenu,
-	onCloseMenu,
-	onDetails,
-	onRename,
-	onDelete,
-}: {
-	readonly station: RadioStation;
-	readonly isMenuOpen: boolean;
-	readonly onToggleMenu: () => void;
-	readonly onCloseMenu: () => void;
-	readonly onDetails: () => void;
-	readonly onRename: () => void;
-	readonly onDelete: () => void;
-}) {
+	stationName,
+	children,
+}: StationItemActionsProps) {
+	const [isOpen, setIsOpen] = useState(false);
+
 	return (
 		<div className="relative">
 			<button
 				type="button"
-				onClick={onToggleMenu}
+				onClick={() => setIsOpen((prev) => !prev)}
 				className="p-1.5 rounded hover:bg-[var(--color-bg-highlight)] opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity md:opacity-0 max-md:opacity-100"
-				aria-label={`Actions for ${station.name}`}
+				aria-label={`Actions for ${stationName}`}
 			>
 				<MoreVertical className="w-4 h-4 text-[var(--color-text-muted)]" />
 			</button>
 
-			{isMenuOpen && (
-				<StationContextMenu onClose={onCloseMenu}>
-					<StationContextMenu.Details onClick={onDetails} />
-					{station.allowRename && (
-						<StationContextMenu.Rename onClick={onRename} />
-					)}
-					{station.allowDelete && (
-						<StationContextMenu.Delete onClick={onDelete} />
-					)}
+			{isOpen && (
+				<StationContextMenu onClose={() => setIsOpen(false)}>
+					{children}
 				</StationContextMenu>
 			)}
 		</div>
 	);
 }
 
+type StationItemProps = {
+	readonly station: RadioStation;
+	readonly isActive: boolean;
+	readonly onSelect: () => void;
+	readonly onDetails: () => void;
+	readonly onRename: () => void;
+	readonly onDelete: () => void;
+};
+
 function QuickMixStationItem({
 	station,
 	isActive,
-	isMenuOpen,
 	onSelect,
-	onToggleMenu,
-	onCloseMenu,
 	onDetails,
 	onRename,
 	onDelete,
@@ -113,15 +95,15 @@ function QuickMixStationItem({
 				</div>
 			</button>
 
-			<StationItemActions
-				station={station}
-				isMenuOpen={isMenuOpen}
-				onToggleMenu={onToggleMenu}
-				onCloseMenu={onCloseMenu}
-				onDetails={onDetails}
-				onRename={onRename}
-				onDelete={onDelete}
-			/>
+			<StationItemActions stationName={station.name}>
+				<StationContextMenu.Details onClick={onDetails} />
+				{station.allowRename && (
+					<StationContextMenu.Rename onClick={onRename} />
+				)}
+				{station.allowDelete && (
+					<StationContextMenu.Delete onClick={onDelete} />
+				)}
+			</StationItemActions>
 		</div>
 	);
 }
@@ -129,10 +111,7 @@ function QuickMixStationItem({
 function RadioStationItem({
 	station,
 	isActive,
-	isMenuOpen,
 	onSelect,
-	onToggleMenu,
-	onCloseMenu,
 	onDetails,
 	onRename,
 	onDelete,
@@ -168,15 +147,15 @@ function RadioStationItem({
 				</div>
 			</button>
 
-			<StationItemActions
-				station={station}
-				isMenuOpen={isMenuOpen}
-				onToggleMenu={onToggleMenu}
-				onCloseMenu={onCloseMenu}
-				onDetails={onDetails}
-				onRename={onRename}
-				onDelete={onDelete}
-			/>
+			<StationItemActions stationName={station.name}>
+				<StationContextMenu.Details onClick={onDetails} />
+				{station.allowRename && (
+					<StationContextMenu.Rename onClick={onRename} />
+				)}
+				{station.allowDelete && (
+					<StationContextMenu.Delete onClick={onDelete} />
+				)}
+			</StationItemActions>
 		</div>
 	);
 }
@@ -189,8 +168,6 @@ export function StationList({
 	onRename,
 	onDelete,
 }: StationListProps) {
-	const [openMenuId, setOpenMenuId] = useState<string | null>(null);
-
 	if (stations.length === 0) {
 		return (
 			<p className="text-[var(--color-text-dim)] text-sm py-4 text-center">
@@ -203,29 +180,13 @@ export function StationList({
 		<ul className="space-y-1">
 			{stations.map((station) => {
 				const isActive = station.id === currentStationId;
-				const isMenuOpen = openMenuId === station.id;
-				const closeMenu = () => setOpenMenuId(null);
-				const toggleMenu = () =>
-					setOpenMenuId(isMenuOpen ? null : station.id);
 				const itemProps = {
 					station,
 					isActive,
-					isMenuOpen,
 					onSelect: () => onSelect(station),
-					onToggleMenu: toggleMenu,
-					onCloseMenu: closeMenu,
-					onDetails: () => {
-						closeMenu();
-						onDetails(station);
-					},
-					onRename: () => {
-						closeMenu();
-						onRename(station);
-					},
-					onDelete: () => {
-						closeMenu();
-						onDelete(station);
-					},
+					onDetails: () => onDetails(station),
+					onRename: () => onRename(station),
+					onDelete: () => onDelete(station),
 				};
 
 				const Item = station.isQuickMix
