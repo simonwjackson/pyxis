@@ -48,6 +48,14 @@ let
       fi
     ''}
 
+    ${lib.optionalString (cfg.sources.discogs.tokenFile != null) ''
+      if [[ -f "${cfg.sources.discogs.tokenFile}" ]]; then
+        export PYXIS_DISCOGS_TOKEN="$(cat "${cfg.sources.discogs.tokenFile}")"
+      else
+        echo "Warning: Discogs token file not found: ${cfg.sources.discogs.tokenFile}" >&2
+      fi
+    ''}
+
     exec ${cfg.package}/bin/pyxis "$@"
   '';
 in
@@ -112,6 +120,19 @@ in
             Sets the PYXIS_PANDORA_PASSWORD environment variable.
           '';
           example = "/run/secrets/pandora-password";
+        };
+      };
+
+      discogs = {
+        tokenFile = lib.mkOption {
+          type = lib.types.nullOr lib.types.path;
+          default = null;
+          description = ''
+            Path to a file containing the Discogs API token.
+            This is read at runtime, so it works with secret managers like agenix or sops-nix.
+            Sets the PYXIS_DISCOGS_TOKEN environment variable.
+          '';
+          example = "/run/secrets/discogs-token";
         };
       };
     };
