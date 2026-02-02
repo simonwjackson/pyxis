@@ -42,7 +42,7 @@ export default defineConfig({
 	server: {
 		port: appConfig.web.port,
 		host: "0.0.0.0",
-		allowedHosts: appConfig.web.allowedHosts,
+		allowedHosts: appConfig.web.allowedHosts.length > 0 ? appConfig.web.allowedHosts : true,
 		proxy: {
 			"/trpc": {
 				target: proxyTarget,
