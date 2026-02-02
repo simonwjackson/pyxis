@@ -148,9 +148,12 @@ export function NowPlayingPage() {
 		readonly artworkUrl: string | null;
 	} | null>(null);
 
-	// Reset playback gate when switching context (album, playlist, or station)
+	// Reset playback gate and clear stale state when switching context
 	useEffect(() => {
 		hasStartedRef.current = false;
+		setTracks([]);
+		setTrackIndex(0);
+		setAlbumMeta(null);
 	}, [radioId, playlistId, albumId]);
 
 	// Subscribe to queue state to track current index
@@ -180,6 +183,19 @@ export function NowPlayingPage() {
 		{ id: playlistId ?? "" },
 		{ enabled: isPlaylistMode && !isAlbumMode },
 	);
+
+	// Surface query errors so silent failures are visible
+	useEffect(() => {
+		if (radioQuery.error) {
+			toast.error(`Failed to load station: ${radioQuery.error.message}`);
+		}
+	}, [radioQuery.error]);
+
+	useEffect(() => {
+		if (playlistQuery.error) {
+			toast.error(`Failed to load playlist: ${playlistQuery.error.message}`);
+		}
+	}, [playlistQuery.error]);
 
 	// When tracks are fetched, send them to the server queue and start playback
 	useEffect(() => {
@@ -237,6 +253,8 @@ export function NowPlayingPage() {
 		radioQuery.data,
 		playlistQuery.data,
 		albumId,
+		radioId,
+		playlistId,
 	]);
 
 	const feedbackMutation = trpc.track.feedback.useMutation({
