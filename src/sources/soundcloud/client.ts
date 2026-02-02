@@ -1,7 +1,10 @@
 import { createRateLimiter, type RateLimiterStats } from "../rate-limiter.js";
 import {
+	PlaylistSchema,
 	PlaylistSearchResultSchema,
+	TrackSchema,
 	type Playlist,
+	type Track,
 } from "./schemas.js";
 
 export type SoundCloudClientConfig = {
@@ -19,6 +22,9 @@ export type SoundCloudClient = {
 		query: string,
 		limit?: number,
 	) => Promise<readonly Playlist[]>;
+	readonly getTrack: (trackId: number) => Promise<Track>;
+	readonly getPlaylist: (playlistId: number) => Promise<Playlist>;
+	readonly getPlaylistWithFullTracks: (playlistId: number) => Promise<Playlist>;
 	readonly getClientId: () => string | null;
 	readonly getStats: () => RateLimiterStats;
 };
@@ -115,6 +121,41 @@ export const createSoundCloudClient = async (
 			const data = await request("/search/albums", { q: query, limit });
 			const result = PlaylistSearchResultSchema.parse(data);
 			return result.collection;
+		},
+
+		getTrack: async (trackId: number) => {
+			const data = await request(`/tracks/${trackId}`);
+			return TrackSchema.parse(data);
+		},
+
+		getPlaylist: async (playlistId: number) => {
+			const data = await request(`/playlists/${playlistId}`);
+			return PlaylistSchema.parse(data);
+		},
+
+		getPlaylistWithFullTracks: async (playlistId: number) => {
+			const data = await request(`/playlists/${playlistId}`);
+			const parsed = PlaylistSchema.parse(data);
+
+			// Fetch full track details for tracks missing info (duration=30000 indicates stub)
+			if (parsed.tracks && parsed.tracks.length > 0) {
+				const fullTracks: Track[] = [];
+				for (const track of parsed.tracks) {
+					if (!track.title || !track.duration || track.duration === 30000) {
+						try {
+							const fullTrack = await request(`/tracks/${track.id}`);
+							fullTracks.push(TrackSchema.parse(fullTrack));
+						} catch {
+							fullTracks.push(track);
+						}
+					} else {
+						fullTracks.push(track);
+					}
+				}
+				return { ...parsed, tracks: fullTracks };
+			}
+
+			return parsed;
 		},
 
 		getClientId: () => clientId,

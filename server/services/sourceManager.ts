@@ -11,8 +11,8 @@ import { eq } from "drizzle-orm";
 import { createMusicBrainzSource } from "../../src/sources/musicbrainz/index.js";
 import { createDiscogsSource } from "../../src/sources/discogs/index.js";
 import { createDeezerSource } from "../../src/sources/deezer/index.js";
-import { createBandcampSource } from "../../src/sources/bandcamp/index.js";
-import { createSoundCloudSource } from "../../src/sources/soundcloud/index.js";
+import { createBandcampFullSource } from "../../src/sources/bandcamp/index.js";
+import { createSoundCloudFullSource } from "../../src/sources/soundcloud/index.js";
 import type { AppConfig } from "../../src/config.js";
 import { createLogger } from "../../src/logger.js";
 
@@ -21,8 +21,12 @@ const logger = createLogger("server");
 // Per-session source managers (Pandora needs session auth)
 const managers = new Map<string, SourceManager>();
 
-// Cached metadata sources (shared across all sessions)
-let cachedMetadataSources: readonly MetadataSource[] | undefined;
+// Cached shared sources (built once, reused across all sessions)
+type SharedSources = {
+	readonly primarySources: readonly Source[];
+	readonly metadataSources: readonly MetadataSource[];
+};
+let cachedSharedSources: SharedSources | undefined;
 
 async function loadYtMusicPlaylistsFromDb(): Promise<YtMusicPlaylistEntry[]> {
 	const db = await getDb();
@@ -38,13 +42,16 @@ async function loadYtMusicPlaylistsFromDb(): Promise<YtMusicPlaylistEntry[]> {
 	}));
 }
 
-async function buildMetadataSources(config: AppConfig): Promise<readonly MetadataSource[]> {
-	if (cachedMetadataSources) return cachedMetadataSources;
+async function buildSharedSources(config: AppConfig): Promise<SharedSources> {
+	if (cachedSharedSources) return cachedSharedSources;
 
-	const sources: MetadataSource[] = [];
+	const primarySources: Source[] = [];
+	const metadataSources: MetadataSource[] = [];
+
+	// --- Metadata-only sources ---
 
 	if (config.sources.musicbrainz.enabled) {
-		sources.push(
+		metadataSources.push(
 			createMusicBrainzSource({
 				appName: "Pyxis",
 				version: "1.0.0",
@@ -55,7 +62,7 @@ async function buildMetadataSources(config: AppConfig): Promise<readonly Metadat
 
 	if (config.sources.discogs.enabled) {
 		const discogsToken = config.sources.discogs.token;
-		sources.push(
+		metadataSources.push(
 			createDiscogsSource({
 				appName: "Pyxis",
 				version: "1.0.0",
@@ -66,7 +73,7 @@ async function buildMetadataSources(config: AppConfig): Promise<readonly Metadat
 	}
 
 	if (config.sources.deezer.enabled) {
-		sources.push(
+		metadataSources.push(
 			createDeezerSource({
 				appName: "Pyxis",
 				version: "1.0.0",
@@ -75,19 +82,21 @@ async function buildMetadataSources(config: AppConfig): Promise<readonly Metadat
 		);
 	}
 
+	// --- Dual-registered sources (primary + metadata) ---
+
 	if (config.sources.bandcamp.enabled) {
-		sources.push(
-			createBandcampSource({
-				appName: "Pyxis",
-				version: "1.0.0",
-				contact: "https://github.com/simonwjackson/pyxis",
-			}),
-		);
+		const bandcampFull = createBandcampFullSource({
+			appName: "Pyxis",
+			version: "1.0.0",
+			contact: "https://github.com/simonwjackson/pyxis",
+		});
+		primarySources.push(bandcampFull);
+		metadataSources.push(bandcampFull);
 	}
 
 	if (config.sources.soundcloud.enabled) {
 		try {
-			const soundcloudSource = await createSoundCloudSource({
+			const soundcloudFull = await createSoundCloudFullSource({
 				appName: "Pyxis",
 				version: "1.0.0",
 				contact: "https://github.com/simonwjackson/pyxis",
@@ -95,7 +104,8 @@ async function buildMetadataSources(config: AppConfig): Promise<readonly Metadat
 					? { clientId: config.sources.soundcloud.clientId }
 					: {}),
 			});
-			sources.push(soundcloudSource);
+			primarySources.push(soundcloudFull);
+			metadataSources.push(soundcloudFull);
 		} catch (err) {
 			logger.warn(
 				{ err: String(err) },
@@ -104,8 +114,8 @@ async function buildMetadataSources(config: AppConfig): Promise<readonly Metadat
 		}
 	}
 
-	cachedMetadataSources = sources;
-	return sources;
+	cachedSharedSources = { primarySources, metadataSources };
+	return cachedSharedSources;
 }
 
 // Store config reference for metadata source creation
@@ -113,8 +123,8 @@ let appConfig: AppConfig | undefined;
 
 export function setAppConfig(config: AppConfig): void {
 	appConfig = config;
-	// Reset cached metadata sources when config changes
-	cachedMetadataSources = undefined;
+	// Reset cached shared sources when config changes
+	cachedSharedSources = undefined;
 }
 
 export function invalidateManagers(): void {
@@ -134,9 +144,11 @@ export async function getSourceManager(
 	const dbPlaylists = await loadYtMusicPlaylistsFromDb();
 	sources.push(createYtMusicSource({ playlists: dbPlaylists }));
 
-	const metadataSources = appConfig ? await buildMetadataSources(appConfig) : [];
+	// Add shared primary sources (Bandcamp, SoundCloud)
+	const shared = appConfig ? await buildSharedSources(appConfig) : { primarySources: [], metadataSources: [] };
+	sources.push(...shared.primarySources);
 
-	const manager = createSourceManager(sources, metadataSources, logger);
+	const manager = createSourceManager(sources, shared.metadataSources, logger);
 	managers.set(cacheKey, manager);
 	return manager;
 }
@@ -179,8 +191,12 @@ export async function ensureSourceManager(): Promise<SourceManager> {
 
 	const dbPlaylists = await loadYtMusicPlaylistsFromDb();
 	const sources: Source[] = [createYtMusicSource({ playlists: dbPlaylists })];
-	const metadataSources = appConfig ? await buildMetadataSources(appConfig) : [];
-	const manager = createSourceManager(sources, metadataSources, logger);
+
+	// Add shared primary sources (Bandcamp, SoundCloud)
+	const shared = appConfig ? await buildSharedSources(appConfig) : { primarySources: [], metadataSources: [] };
+	sources.push(...shared.primarySources);
+
+	const manager = createSourceManager(sources, shared.metadataSources, logger);
 	globalManager = manager;
 	return manager;
 }

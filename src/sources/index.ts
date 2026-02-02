@@ -15,6 +15,7 @@ import {
 	hasSearchCapability,
 	hasAlbumCapability,
 	hasMetadataSearchCapability,
+	SOURCE_PRIORITY,
 } from "./types.js";
 import { createMatcher } from "./matcher.js";
 import type { Logger } from "../logger.js";
@@ -63,14 +64,21 @@ function canonicalToNormalized(album: CanonicalAlbum): NormalizedRelease {
 }
 
 function normalizedToCanonicalAlbum(nr: NormalizedRelease): CanonicalAlbum {
+	// Sort sourceIds by quality priority (lower number = higher quality = first)
+	const sortedIds = [...nr.ids].sort((a, b) => {
+		const pa = SOURCE_PRIORITY[a.source] ?? 99;
+		const pb = SOURCE_PRIORITY[b.source] ?? 99;
+		return pa - pb;
+	});
+
 	return {
-		id: nr.ids[0]?.id ?? "",
+		id: sortedIds[0]?.id ?? "",
 		title: nr.title,
 		artist: nr.artists[0]?.name ?? "Unknown",
 		...(nr.year != null ? { year: nr.year } : {}),
 		tracks: [],
 		...(nr.artworkUrl != null ? { artworkUrl: nr.artworkUrl } : {}),
-		sourceIds: nr.ids,
+		sourceIds: sortedIds,
 		genres: nr.genres,
 		releaseType: nr.releaseType,
 	};

@@ -160,3 +160,18 @@ export function hasMetadataSearchCapability(
 ): source is MetadataSource {
 	return "searchReleases" in source && typeof source.searchReleases === "function";
 }
+
+// --- Source priority for multi-source album selection ---
+// Lower number = higher quality = preferred for playback
+
+export const SOURCE_PRIORITY: Readonly<Record<SourceType, number>> = {
+	ytmusic: 1,     // opus/m4a ~128-256 kbps variable
+	soundcloud: 2,  // mp3/opus ~128-256 kbps progressive
+	bandcamp: 3,    // mp3 128 kbps fixed
+	pandora: 4,     // aac/mp3 64-192 kbps, radio-only (not album-capable)
+	// Metadata-only sources (no streaming)
+	deezer: 99,
+	discogs: 99,
+	musicbrainz: 99,
+	local: 99,
+};

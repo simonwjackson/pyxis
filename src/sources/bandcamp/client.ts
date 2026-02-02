@@ -1,7 +1,9 @@
 import { createRateLimiter, type RateLimiterStats } from "../rate-limiter.js";
 import {
 	AutocompleteResultSchema,
+	TralbumDetailsSchema,
 	type AutocompleteItem,
+	type TralbumDetails,
 } from "./schemas.js";
 
 export type BandcampClientConfig = {
@@ -17,6 +19,9 @@ export type BandcampClient = {
 	readonly search: (
 		query: string,
 	) => Promise<readonly AutocompleteItem[]>;
+	readonly getAlbum: (bandId: number, albumId: number) => Promise<TralbumDetails>;
+	readonly getTrack: (bandId: number, trackId: number) => Promise<TralbumDetails>;
+	readonly getArtworkUrl: (artId: number, size?: number) => string;
 	readonly getStats: () => RateLimiterStats;
 };
 
@@ -95,6 +100,25 @@ export const createBandcampClient = (
 
 			const result = AutocompleteResultSchema.parse(data);
 			return result.auto.results;
+		},
+
+		getAlbum: async (bandId: number, albumId: number) => {
+			const data = await request(
+				`${baseUrl}/api/mobile/25/tralbum_details?band_id=${bandId}&tralbum_type=a&tralbum_id=${albumId}`,
+			);
+			return TralbumDetailsSchema.parse(data);
+		},
+
+		getTrack: async (bandId: number, trackId: number) => {
+			const data = await request(
+				`${baseUrl}/api/mobile/25/tralbum_details?band_id=${bandId}&tralbum_type=t&tralbum_id=${trackId}`,
+			);
+			return TralbumDetailsSchema.parse(data);
+		},
+
+		getArtworkUrl: (artId: number, size = 10) => {
+			// Size options: 2=350x350, 3=100x100, 5=700x700, 10=1200x1200
+			return `https://f4.bcbits.com/img/a${artId}_${size}.jpg`;
 		},
 
 		getStats: () => rateLimiter.getStats(),
