@@ -1,17 +1,19 @@
-import { useMemo } from "react";
 import { useNavigate } from "@tanstack/react-router";
-import { Play, Plus, Disc3 } from "lucide-react";
+import {
+	Play,
+	Plus,
+	Disc3,
+	Shuffle,
+	ArrowDownAZ,
+	User,
+	ArrowDownWideNarrow,
+	Clock,
+} from "lucide-react";
 import { trpc } from "../lib/trpc";
-import { usePlaybackContext } from "../contexts/PlaybackContext";
-
-function shuffle<T>(array: readonly T[]): T[] {
-	const result = [...array];
-	for (let i = result.length - 1; i > 0; i--) {
-		const j = Math.floor(Math.random() * (i + 1));
-		[result[i], result[j]] = [result[j]!, result[i]!];
-	}
-	return result;
-}
+import {
+	CollectionGrid,
+	type SortOption,
+} from "../components/ui/CollectionGrid";
 
 const PLAYLIST_COLORS = [
 	{ bg: "#1a2e3a", fg: "#06b6d4" },
@@ -153,16 +155,76 @@ function AlbumCard({
 	);
 }
 
+const PLAYLIST_SORT_OPTIONS: readonly SortOption<PlaylistData>[] = [
+	{
+		key: "shuffle",
+		label: "Shuffle",
+		icon: Shuffle,
+		comparator: "shuffle",
+	},
+	{
+		key: "az",
+		label: "A \u2192 Z",
+		icon: ArrowDownAZ,
+		comparator: (a, b) => a.name.localeCompare(b.name),
+	},
+	{
+		key: "recent",
+		label: "Recently Added",
+		icon: Clock,
+		comparator: (a, b) => b.id.localeCompare(a.id),
+	},
+] as const;
+
+const ALBUM_SORT_OPTIONS: readonly SortOption<AlbumData>[] = [
+	{
+		key: "shuffle",
+		label: "Shuffle",
+		icon: Shuffle,
+		comparator: "shuffle",
+	},
+	{
+		key: "az",
+		label: "A \u2192 Z",
+		icon: ArrowDownAZ,
+		comparator: (a, b) => a.title.localeCompare(b.title),
+	},
+	{
+		key: "artist",
+		label: "By Artist",
+		icon: User,
+		comparator: (a, b) => {
+			const c = a.artist.localeCompare(b.artist);
+			return c !== 0 ? c : a.title.localeCompare(b.title);
+		},
+	},
+	{
+		key: "newest",
+		label: "Newest",
+		icon: ArrowDownWideNarrow,
+		comparator: (a, b) => {
+			// nulls last
+			if (a.year === null && b.year === null) return 0;
+			if (a.year === null) return 1;
+			if (b.year === null) return -1;
+			return b.year - a.year;
+		},
+	},
+	{
+		key: "recent",
+		label: "Recently Added",
+		icon: Clock,
+		comparator: (a, b) => b.id.localeCompare(a.id),
+	},
+] as const;
+
 export function HomePage() {
 	const navigate = useNavigate();
 	const playlistsQuery = trpc.playlist.list.useQuery();
 	const albumsQuery = trpc.library.albums.useQuery();
 
 	const playlists = playlistsQuery.data ?? [];
-	const albums = useMemo(
-		() => shuffle(albumsQuery.data ?? []),
-		[albumsQuery.data],
-	);
+	const albums = albumsQuery.data ?? [];
 
 	const handlePlayPlaylist = (playlist: PlaylistData) => {
 		navigate({
@@ -175,12 +237,21 @@ export function HomePage() {
 
 	return (
 		<div className="flex-1 p-6 space-y-10">
-			{/* My Playlists Section */}
-			<section>
-				<div className="flex items-center justify-between mb-4">
-					<h2 className="text-lg font-semibold text-[var(--color-text)]">
-						My Playlists
-					</h2>
+			<CollectionGrid
+				title="My Playlists"
+				items={playlists}
+				keyOf={(p) => p.id}
+				renderItem={(playlist) => (
+					<PlaylistCard
+						playlist={playlist}
+						onPlay={() => handlePlayPlaylist(playlist)}
+					/>
+				)}
+				filterFn={(p, q) => p.name.toLowerCase().includes(q)}
+				sortOptions={PLAYLIST_SORT_OPTIONS}
+				defaultSort="shuffle"
+				paramPrefix="pl"
+				headerActions={
 					<button
 						type="button"
 						onClick={() => navigate({ to: "/stations" })}
@@ -188,55 +259,37 @@ export function HomePage() {
 					>
 						See all
 					</button>
-				</div>
-				{playlistsQuery.isLoading ? (
-					<div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
-						{Array.from({ length: 5 }, (_, i) => (
-							<div key={i}>
-								<div className="aspect-square bg-[var(--color-bg-highlight)] rounded-lg mb-2 animate-pulse" />
-								<div className="h-4 bg-[var(--color-bg-highlight)] rounded animate-pulse mb-1 w-3/4" />
-								<div className="h-3 bg-[var(--color-bg-highlight)] rounded animate-pulse w-1/2" />
-							</div>
-						))}
-					</div>
-				) : playlists.length === 0 ? (
-					<p className="text-sm text-[var(--color-text-dim)]">
-						No playlists found. Create a station to get started.
-					</p>
-				) : (
-					<div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
-						{playlists.map((playlist) => (
-							<PlaylistCard
-								key={playlist.id}
-								playlist={playlist}
-								onPlay={() => handlePlayPlaylist(playlist)}
-							/>
-						))}
-					</div>
-				)}
-			</section>
+				}
+				isLoading={playlistsQuery.isLoading}
+				emptyMessage="No playlists found. Create a station to get started."
+			/>
 
-			{/* My Albums Section */}
-			<section>
-				<div className="flex items-center justify-between mb-4">
-					<h2 className="text-lg font-semibold text-[var(--color-text)]">
-						My Albums
-					</h2>
-				</div>
-				<div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
-					{albums.map((album) => (
-						<AlbumCard
-							key={album.id}
-							album={album}
-							onPlay={() => {
-								navigate({
-									to: "/now-playing",
-									search: { album: album.id },
-								});
-							}}
-						/>
-					))}
-					{/* Add album placeholder */}
+			<CollectionGrid
+				title="My Albums"
+				items={albums}
+				keyOf={(a) => a.id}
+				renderItem={(album) => (
+					<AlbumCard
+						album={album}
+						onPlay={() => {
+							navigate({
+								to: "/now-playing",
+								search: { album: album.id },
+							});
+						}}
+					/>
+				)}
+				filterFn={(a, q) => {
+					const lower = q.toLowerCase();
+					return (
+						a.title.toLowerCase().includes(lower) ||
+						a.artist.toLowerCase().includes(lower)
+					);
+				}}
+				sortOptions={ALBUM_SORT_OPTIONS}
+				defaultSort="shuffle"
+				paramPrefix="al"
+				trailing={
 					<button
 						type="button"
 						className="aspect-square border-2 border-dashed border-[var(--color-border)] rounded-lg flex flex-col items-center justify-center cursor-pointer hover:border-[var(--color-text-dim)] transition-colors"
@@ -247,8 +300,9 @@ export function HomePage() {
 							Add album
 						</span>
 					</button>
-				</div>
-			</section>
+				}
+				isLoading={albumsQuery.isLoading}
+			/>
 		</div>
 	);
 }
