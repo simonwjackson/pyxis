@@ -5,7 +5,7 @@ import { buildStreamUrl, decodeId } from "../lib/ids.js";
 import * as PlayerService from "../services/player.js";
 import { createLogger } from "../../src/logger.js";
 
-const log = createLogger("playback");
+const log = createLogger("playback").child({ component: "sse:player" });
 
 function serializePlayerState(state: PlayerService.PlayerState) {
 	const track = state.currentTrack;
@@ -148,12 +148,12 @@ export const playerRouter = router({
 		return observable<ReturnType<typeof serializePlayerState>>((emit) => {
 			// Send current state immediately
 			const initial = serializePlayerState(PlayerService.getState());
-			log.log(`[sse:player] initial emit status=${initial.status} track=${initial.currentTrack?.id ?? "none"} streamUrl=${initial.currentTrack?.streamUrl ?? "none"}`);
+			log.info({ status: initial.status, track: initial.currentTrack?.id ?? "none", streamUrl: initial.currentTrack?.streamUrl ?? "none" }, "initial emit");
 			emit.next(initial);
 
 			const unsubscribe = PlayerService.subscribe((state) => {
 				const serialized = serializePlayerState(state);
-				log.log(`[sse:player] emit status=${serialized.status} track=${serialized.currentTrack?.id ?? "none"} streamUrl=${serialized.currentTrack?.streamUrl ?? "none"}`);
+				log.info({ status: serialized.status, track: serialized.currentTrack?.id ?? "none", streamUrl: serialized.currentTrack?.streamUrl ?? "none" }, "emit");
 				emit.next(serialized);
 			});
 

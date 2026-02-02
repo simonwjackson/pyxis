@@ -8,6 +8,8 @@ import { decodeId } from "./lib/ids.js";
 import { createLogger } from "../src/logger.js";
 
 const serverLogger = createLogger("server");
+const streamLog = serverLogger.child({ component: "stream" });
+const trpcLog = serverLogger.child({ component: "trpc" });
 
 const PORT = 8765;
 
@@ -42,7 +44,7 @@ const server = Bun.serve({
 			}
 			const rangeHeader = req.headers.get("range");
 			const nextHint = url.searchParams.get("next");
-			serverLogger.log(`[stream] incoming ${compositeId} range=${rangeHeader ?? "none"} next=${nextHint ?? "none"}`);
+			streamLog.info({ compositeId, range: rangeHeader ?? "none", next: nextHint ?? "none" }, "incoming");
 			return ensureSourceManager()
 				.then((sourceManager) => {
 					const responsePromise = handleStreamRequest(sourceManager, compositeId, rangeHeader);
@@ -56,7 +58,7 @@ const server = Bun.serve({
 						}
 						prefetchToCache(sourceManager, nextCompositeId).catch((err: unknown) => {
 							const msg = err instanceof Error ? err.message : String(err);
-							serverLogger.error(`[stream] prefetch error next=${nextHint}: ${msg}`);
+							streamLog.error({ next: nextHint, err: msg }, "prefetch error");
 						});
 					}
 					return responsePromise;
@@ -64,7 +66,7 @@ const server = Bun.serve({
 				.catch((err: unknown) => {
 					const message =
 						err instanceof Error ? err.message : "Stream error";
-					serverLogger.error(`[stream] error compositeId=${compositeId}: ${message}`);
+					streamLog.error({ compositeId, err: message }, "stream error");
 					return new Response(message, {
 						status: 502,
 						headers: { "Access-Control-Allow-Origin": "*" },
@@ -76,7 +78,7 @@ const server = Bun.serve({
 		if (url.pathname.startsWith("/trpc")) {
 			const trpcPath = url.pathname.replace("/trpc/", "").replace("/trpc", "");
 			if (trpcPath && !trpcPath.includes("player.") && !trpcPath.includes("queue.") && !trpcPath.includes("log.")) {
-				serverLogger.log(`[trpc] ${req.method} ${trpcPath}`);
+				trpcLog.info({ method: req.method, path: trpcPath }, "request");
 			}
 			return fetchRequestHandler({
 				endpoint: "/trpc",
@@ -90,7 +92,7 @@ const server = Bun.serve({
 				response.headers.set("Access-Control-Allow-Origin", "http://aka:5678");
 				response.headers.set("Access-Control-Allow-Credentials", "true");
 				if (trpcPath.includes("radio.getTracks")) {
-					serverLogger.log(`[trpc] radio.getTracks response status=${response.status}`);
+					trpcLog.info({ path: "radio.getTracks", status: response.status }, "response");
 				}
 				return response;
 			});
@@ -100,8 +102,7 @@ const server = Bun.serve({
 	},
 });
 
-serverLogger.log(`Server running on http://aka:${PORT}`);
-serverLogger.log(`Logs: ${serverLogger.logFile}`);
+serverLogger.info({ port: PORT }, "server running");
 
 // Attempt auto-login from stored credentials
 tryAutoLogin(serverLogger).catch(() => {

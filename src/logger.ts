@@ -1,5 +1,7 @@
-import { appendFileSync, mkdirSync, writeFileSync } from "node:fs";
+import { mkdirSync } from "node:fs";
 import { join } from "node:path";
+import pino from "pino";
+import type { Logger as PinoLogger } from "pino";
 import envPaths from "env-paths";
 
 const paths = envPaths("pyxis", { suffix: "" });
@@ -14,62 +16,53 @@ function ensureLogDir() {
 	}
 }
 
-function formatArgs(args: readonly unknown[]): string {
-	return args
-		.map((arg) =>
-			typeof arg === "object" ? JSON.stringify(arg, null, 2) : String(arg),
-		)
-		.join(" ");
-}
+const level = (process.env["LOG_LEVEL"] ?? "info") as pino.Level;
 
-function timestamp(): string {
-	return new Date().toISOString().slice(11, 23);
-}
+const loggerCache = new Map<string, PinoLogger>();
 
-export type Logger = {
-	readonly logFile: string;
-	readonly log: (...args: unknown[]) => void;
-	readonly error: (...args: unknown[]) => void;
-	readonly warn: (...args: unknown[]) => void;
-	readonly write: (text: string) => void;
-};
+export type Logger = PinoLogger;
 
-const loggerCache = new Map<string, Logger>();
-
-export function createLogger(name: string): Logger {
+export function createLogger(name: string): PinoLogger {
 	const cached = loggerCache.get(name);
 	if (cached) return cached;
 
 	ensureLogDir();
 	const logFile = join(LOG_DIR, `${name}.log`);
 
-	// Write header on creation (only once per name)
-	writeFileSync(
-		logFile,
-		`=== Pyxis ${name} log ${new Date().toISOString()} ===\n`,
-	);
+	const targets: pino.TransportTargetOptions[] = [
+		// Console: pretty-print when TTY, JSON otherwise
+		...(process.stdout.isTTY
+			? [
+					{
+						target: "pino-pretty",
+						options: { colorize: true },
+						level,
+					},
+				]
+			: [
+					{
+						target: "pino/file",
+						options: { destination: 1 }, // stdout
+						level,
+					},
+				]),
+		// File: always pretty-printed without color
+		{
+			target: "pino-pretty",
+			options: {
+				colorize: false,
+				destination: logFile,
+				mkdir: true,
+			},
+			level,
+		},
+	];
 
-	const logger: Logger = {
-		logFile,
-		log(...args: unknown[]) {
-			const line = `[${timestamp()}] ${formatArgs(args)}\n`;
-			appendFileSync(logFile, line);
-			process.stdout.write(line);
-		},
-		error(...args: unknown[]) {
-			const line = `[${timestamp()}] ERROR ${formatArgs(args)}\n`;
-			appendFileSync(logFile, line);
-			process.stderr.write(line);
-		},
-		warn(...args: unknown[]) {
-			const line = `[${timestamp()}] WARN ${formatArgs(args)}\n`;
-			appendFileSync(logFile, line);
-			process.stderr.write(line);
-		},
-		write(text: string) {
-			appendFileSync(logFile, text);
-		},
-	};
+	const logger = pino({
+		name,
+		level,
+		transport: { targets },
+	});
 
 	loggerCache.set(name, logger);
 	return logger;
@@ -77,4 +70,9 @@ export function createLogger(name: string): Logger {
 
 export function getLogDir(): string {
 	return LOG_DIR;
+}
+
+export function getLogFile(name: string): string {
+	ensureLogDir();
+	return join(LOG_DIR, `${name}.log`);
 }

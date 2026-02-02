@@ -1,27 +1,33 @@
+import { appendFileSync } from "node:fs";
 import { defineConfig, createLogger as createViteLogger } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import orchestraSource from "./plugins/vite-plugin-orchestra-source/index";
-import { createLogger } from "./src/logger";
+import { getLogFile } from "./src/logger";
 
-const webLogger = createLogger("web");
+const logFile = getLogFile("web");
 const viteLogger = createViteLogger();
+
+function writeToLog(text: string): void {
+	appendFileSync(logFile, text);
+}
+
 const customLogger = {
 	...viteLogger,
 	info(msg: string, options?: { timestamp?: boolean }) {
-		webLogger.write(msg + "\n");
+		writeToLog(msg + "\n");
 		viteLogger.info(msg, options);
 	},
 	warn(msg: string, options?: { timestamp?: boolean }) {
-		webLogger.write(`WARN ${msg}\n`);
+		writeToLog(`WARN ${msg}\n`);
 		viteLogger.warn(msg, options);
 	},
 	warnOnce(msg: string, options?: { timestamp?: boolean }) {
-		webLogger.write(`WARN ${msg}\n`);
+		writeToLog(`WARN ${msg}\n`);
 		viteLogger.warnOnce(msg, options);
 	},
 	error(msg: string, options?: { timestamp?: boolean }) {
-		webLogger.write(`ERROR ${msg}\n`);
+		writeToLog(`ERROR ${msg}\n`);
 		viteLogger.error(msg, options);
 	},
 };

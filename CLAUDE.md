@@ -78,5 +78,15 @@ Both use strict mode with `exactOptionalPropertyTypes` and `noUncheckedIndexedAc
 
 - Logs directory: `~/.local/state/pyxis/` (XDG_STATE_HOME)
   - `server.log` - backend server logs
+  - `playback.log` - player, queue, SSE, client logs
+  - `stream.log` - cache, prefetch, upstream requests
+  - `radio.log` - radio station operations
   - `web.log` - Vite dev server logs
+- Logging: pino-based structured JSON logging (`src/logger.ts`)
+  - `createLogger(name)` returns a pino logger with file + console dual output
+  - Use `.child({ component: "name" })` for sub-contexts
+  - Structured calls: `log.info({ key: val }, "message")` not string interpolation
+  - `LOG_LEVEL` env var controls level (trace/debug/info/warn/error/fatal), default "info"
+  - Console: pino-pretty when TTY, raw JSON when piped
+  - `Logger` type is re-exported `pino.Logger`
 - Composite track IDs format: `source:trackId` (e.g., `ytmusic:dQw4w9WgXcQ`)

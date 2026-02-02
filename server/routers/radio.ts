@@ -7,16 +7,16 @@ import { createLogger } from "../../src/logger.js";
 import * as Pandora from "../../src/sources/pandora/client.js";
 import type { PlaylistItem } from "../../src/sources/pandora/types/api.js";
 
-const log = createLogger("radio");
+const log = createLogger("radio").child({ component: "radio" });
 
 function encodePlaylistItem(item: PlaylistItem) {
 	if (!item.songName || !item.artistName || !item.albumName) {
-		log.warn("[radio] dropping playlist item with missing metadata", {
+		log.warn({
 			trackToken: item.trackToken,
 			songName: item.songName,
 			artistName: item.artistName,
 			albumName: item.albumName,
-		});
+		}, "dropping playlist item with missing metadata");
 		return null;
 	}
 

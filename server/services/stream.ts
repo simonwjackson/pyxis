@@ -5,7 +5,7 @@ import type { SourceManager } from "../../src/sources/index.js";
 import type { SourceType } from "../../src/sources/types.js";
 import { createLogger } from "../../src/logger.js";
 
-const streamLogger = createLogger("stream");
+const log = createLogger("stream").child({ component: "stream" });
 
 // --- Audio cache ---
 
@@ -165,7 +165,7 @@ async function streamThroughAndCache(
 					cachedAt: new Date().toISOString(),
 				};
 				writeFileSync(metaPath, JSON.stringify(meta));
-				streamLogger.log(`[stream] cached trackId=${trackId} size=${String(totalWritten)}`);
+				log.info({ trackId, size: totalWritten }, "cached");
 			} catch (err) {
 				controller.error(err);
 				try { await writer.end(); } catch { /* ignore cleanup failure */ }
@@ -203,24 +203,24 @@ export async function prefetchToCache(
 	if (source === "pandora") return;
 
 	if (findCachedFile(source, trackId)) {
-		streamLogger.log(`[stream] prefetch skip (cached) compositeId=${compositeId}`);
+		log.info({ compositeId }, "prefetch skip (cached)");
 		return;
 	}
 
 	if (activePrefetches.has(compositeId)) {
-		streamLogger.log(`[stream] prefetch skip (in-flight) compositeId=${compositeId}`);
+		log.info({ compositeId }, "prefetch skip (in-flight)");
 		return;
 	}
 
 	activePrefetches.add(compositeId);
-	streamLogger.log(`[stream] prefetch start compositeId=${compositeId}`);
+	log.info({ compositeId }, "prefetch start");
 
 	try {
 		const url = await resolveStreamUrl(sourceManager, compositeId);
 		const upstream = await fetch(url);
 
 		if (!upstream.ok || !upstream.body) {
-			streamLogger.error(`[stream] prefetch upstream error status=${String(upstream.status)} compositeId=${compositeId}`);
+			log.error({ status: upstream.status, compositeId }, "prefetch upstream error");
 			return;
 		}
 
@@ -250,10 +250,10 @@ export async function prefetchToCache(
 			cachedAt: new Date().toISOString(),
 		};
 		writeFileSync(metaPath, JSON.stringify(meta));
-		streamLogger.log(`[stream] prefetch complete compositeId=${compositeId} size=${String(totalWritten)}`);
+		log.info({ compositeId, size: totalWritten }, "prefetch complete");
 	} catch (err) {
 		const message = err instanceof Error ? err.message : String(err);
-		streamLogger.error(`[stream] prefetch failed compositeId=${compositeId}: ${message}`);
+		log.error({ compositeId, err: message }, "prefetch failed");
 	} finally {
 		activePrefetches.delete(compositeId);
 	}
@@ -267,36 +267,36 @@ export async function handleStreamRequest(
 ): Promise<Response> {
 	const startTime = Date.now();
 	const { source, trackId } = parseTrackId(compositeId);
-	streamLogger.log(`[stream] request compositeId=${compositeId} range=${rangeHeader ?? "none"}`);
+	log.info({ compositeId, range: rangeHeader ?? "none" }, "request");
 
 	// Only cache non-Pandora sources (Pandora URLs are short-lived)
 	if (source !== "pandora") {
 		const cached = findCachedFile(source, trackId);
 		if (cached) {
 			const meta = readMeta(cached.metaPath);
-			const elapsed = Date.now() - startTime;
-			streamLogger.log(`[stream] cache hit compositeId=${compositeId} elapsed=${String(elapsed)}ms`);
+			const elapsedMs = Date.now() - startTime;
+			log.info({ compositeId, elapsedMs }, "cache hit");
 			return serveCachedFile(cached.filePath, meta, rangeHeader);
 		}
 	}
 
 	// Cache miss (or Pandora) — resolve URL and fetch upstream
-	streamLogger.log(`[stream] cache miss compositeId=${compositeId}`);
+	log.info({ compositeId }, "cache miss");
 
 	let url: string;
 	try {
 		url = await resolveStreamUrl(sourceManager, compositeId);
 	} catch (err) {
 		const message = err instanceof Error ? err.message : String(err);
-		streamLogger.error(`[stream] resolve failed compositeId=${compositeId}: ${message}`);
+		log.error({ compositeId, err: message }, "resolve failed");
 		throw err;
 	}
 
 	try {
 		const parsedUrl = new URL(url);
-		streamLogger.log(`[stream] upstream host=${parsedUrl.host} path=${parsedUrl.pathname.slice(0, 40)}...`);
+		log.info({ host: parsedUrl.host, path: parsedUrl.pathname.slice(0, 40) }, "upstream");
 	} catch {
-		streamLogger.log("[stream] upstream url=(non-parseable)");
+		log.info("upstream url non-parseable");
 	}
 
 	const headers: Record<string, string> = {};
@@ -308,16 +308,15 @@ export async function handleStreamRequest(
 
 	const contentType = upstream.headers.get("content-type");
 	const contentLength = upstream.headers.get("content-length");
-	const elapsed = Date.now() - startTime;
+	const elapsedMs = Date.now() - startTime;
 
-	streamLogger.log(
-		`[stream] upstream response status=${upstream.status} content-type=${contentType ?? "unknown"} content-length=${contentLength ?? "unknown"} elapsed=${String(elapsed)}ms`,
+	log.info(
+		{ status: upstream.status, contentType: contentType ?? "unknown", contentLength: contentLength ?? "unknown", elapsedMs },
+		"upstream response",
 	);
 
 	if (!upstream.ok) {
-		streamLogger.error(
-			`[stream] upstream error status=${upstream.status} compositeId=${compositeId}`,
-		);
+		log.error({ status: upstream.status, compositeId }, "upstream error");
 		const responseHeaders = new Headers();
 		if (contentType) responseHeaders.set("Content-Type", contentType);
 		responseHeaders.set("Access-Control-Allow-Origin", "*");

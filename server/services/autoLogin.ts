@@ -31,7 +31,7 @@ function registerAutoFetchHandler(logger: Logger): void {
 			}));
 		} catch (err: unknown) {
 			const msg = err instanceof Error ? err.message : String(err);
-			logger.warn(`Auto-fetch failed: ${msg}`);
+			logger.warn({ err: msg }, "auto-fetch failed");
 			return [];
 		}
 	});
@@ -39,16 +39,16 @@ function registerAutoFetchHandler(logger: Logger): void {
 
 export async function tryAutoLogin(logger: Logger): Promise<void> {
 	// Step 1: Migrate legacy credentials to the new source_credentials table
-	await migrateLegacyCredentials(logger.log.bind(logger));
+	await migrateLegacyCredentials(logger.info.bind(logger));
 
 	// Step 2: Restore all source sessions from stored credentials
 	const restored = await restoreAllSessions(
-		logger.log.bind(logger),
+		logger.info.bind(logger),
 		logger.warn.bind(logger),
 	);
 
 	if (restored === 0) {
-		logger.log("No source credentials to restore");
+		logger.info("no source credentials to restore");
 	}
 
 	// Step 3: Set up global source manager
@@ -56,9 +56,9 @@ export async function tryAutoLogin(logger: Logger): Promise<void> {
 
 	if (pandoraSession) {
 		setGlobalSourceManager(await getSourceManager(pandoraSession));
-		logger.log("Auto-login successful with Pandora session");
+		logger.info("auto-login successful with Pandora session");
 	} else if (restored > 0) {
-		logger.log(`Restored ${String(restored)} source session(s) (no Pandora)`);
+		logger.info({ restored }, "restored source sessions (no Pandora)");
 	}
 
 	// Step 4: Register radio auto-fetch handler
@@ -68,10 +68,10 @@ export async function tryAutoLogin(logger: Logger): Promise<void> {
 	try {
 		const didRestore = await PlayerService.restoreFromDb();
 		if (didRestore) {
-			logger.log("Restored playback state from DB");
+			logger.info("restored playback state from DB");
 		}
 	} catch (err: unknown) {
 		const msg = err instanceof Error ? err.message : String(err);
-		logger.warn(`Failed to restore playback state: ${msg}`);
+		logger.warn({ err: msg }, "failed to restore playback state");
 	}
 }
