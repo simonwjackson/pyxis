@@ -4,11 +4,9 @@ import { Sidebar } from "./Sidebar";
 import { MobileNav } from "./MobileNav";
 import { NowPlayingBar } from "./NowPlayingBar";
 import { CommandPalette } from "../overlays/CommandPalette";
-import { usePlaybackContext } from "../../contexts/PlaybackContext";
 import { useKeyboardShortcuts } from "../../hooks/useKeyboardShortcuts";
 
 export function RootLayout() {
-	const playback = usePlaybackContext();
 	const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
 
 	const handleCommandPalette = useCallback(() => {
@@ -32,14 +30,7 @@ export function RootLayout() {
 				<main className="flex-1 overflow-y-auto pb-20">
 					<Outlet />
 				</main>
-				<NowPlayingBar
-					currentTrack={playback.currentTrack}
-					isPlaying={playback.isPlaying}
-					progress={playback.progress}
-					duration={playback.duration}
-					onTogglePlayPause={playback.togglePlayPause}
-					onSkip={playback.triggerSkip}
-				/>
+				<NowPlayingBar />
 			</div>
 			<CommandPalette
 				isOpen={commandPaletteOpen}

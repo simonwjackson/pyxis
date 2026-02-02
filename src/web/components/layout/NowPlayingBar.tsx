@@ -1,28 +1,10 @@
 import { Play, Pause, SkipForward, Music } from "lucide-react";
 import { Link } from "@tanstack/react-router";
+import { usePlaybackContext } from "../../contexts/PlaybackContext";
 
-type NowPlayingBarProps = {
-	readonly currentTrack: {
-		readonly songName: string;
-		readonly artistName: string;
-		readonly albumName: string;
-		readonly artUrl?: string;
-	} | null;
-	readonly isPlaying: boolean;
-	readonly progress: number;
-	readonly duration: number;
-	readonly onTogglePlayPause: () => void;
-	readonly onSkip?: () => void;
-};
+export function NowPlayingBar() {
+	const { currentTrack, isPlaying, progress, duration, togglePlayPause, triggerSkip } = usePlaybackContext();
 
-export function NowPlayingBar({
-	currentTrack,
-	isPlaying,
-	progress,
-	duration,
-	onTogglePlayPause,
-	onSkip,
-}: NowPlayingBarProps) {
 	if (!currentTrack) return null;
 
 	const progressPercent = duration > 0 ? (progress / duration) * 100 : 0;
@@ -65,7 +47,7 @@ export function NowPlayingBar({
 				</Link>
 				<div className="flex items-center gap-1">
 					<button
-						onClick={onTogglePlayPause}
+						onClick={togglePlayPause}
 						className="h-10 w-10 flex items-center justify-center rounded-full bg-[var(--color-primary)] hover:brightness-110 transition-all text-white"
 						type="button"
 						aria-label={isPlaying ? "Pause" : "Play"}
@@ -77,7 +59,7 @@ export function NowPlayingBar({
 						)}
 					</button>
 					<button
-						onClick={onSkip}
+						onClick={triggerSkip}
 						className="h-8 w-8 flex items-center justify-center rounded-full hover:bg-[var(--color-bg-highlight)] transition-colors text-[var(--color-text-muted)]"
 						type="button"
 						aria-label="Skip track"
