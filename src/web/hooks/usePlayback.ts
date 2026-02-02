@@ -41,6 +41,16 @@ export function usePlayback() {
 	const reportProgress = trpc.player.reportProgress.useMutation();
 	const reportDuration = trpc.player.reportDuration.useMutation();
 	const trackEndedMutation = trpc.player.trackEnded.useMutation();
+	const clientLog = trpc.log.client.useMutation();
+
+	/** Fire-and-forget log to server playback.log */
+	const logToServer = useCallback(
+		(message: string) => {
+			clientLog.mutate({ message });
+		},
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+		[],
+	);
 
 	// Initialize audio element once
 	useEffect(() => {
@@ -57,13 +67,17 @@ export function usePlayback() {
 			reportDuration.mutate({ duration: audio.duration });
 		};
 		const onEnded = () => {
+			logToServer("[audio] track ended, calling trackEnded mutation");
 			setState((prev) => ({ ...prev, isPlaying: false }));
 			trackEndedMutation.mutate();
 		};
 		const onError = () => {
 			const mediaError = audio.error;
 			// MEDIA_ERR_ABORTED is expected during track transitions (src changed while loading)
-			if (mediaError?.code === MediaError.MEDIA_ERR_ABORTED) return;
+			if (mediaError?.code === MediaError.MEDIA_ERR_ABORTED) {
+				logToServer(`[audio] MEDIA_ERR_ABORTED silenced (transition expected) src=${audio.src}`);
+				return;
+			}
 			let message = "Audio playback failed";
 			if (mediaError) {
 				const codeMessages: Record<number, string> = {
@@ -77,7 +91,7 @@ export function usePlayback() {
 					message += `: ${mediaError.message}`;
 				}
 			}
-			console.error("[usePlayback] Audio error:", message, audio.src);
+			logToServer(`[audio] error code=${mediaError?.code ?? "unknown"} message=${message} src=${audio.src}`);
 			setState((prev) => ({
 				...prev,
 				isPlaying: false,
@@ -107,40 +121,57 @@ export function usePlayback() {
 			if (!audio) return;
 
 			const track = serverState.currentTrack;
+			logToServer(`[sse] received status=${serverState.status} track=${track?.id ?? "none"} streamUrl=${track?.streamUrl ?? "none"}`);
 
 			if (track) {
 				// Load new audio if the stream URL changed (ignore ?next= prefetch hint)
 				const baseUrl = track.streamUrl.split("?")[0];
 				const lastBaseUrl = lastStreamUrlRef.current?.split("?")[0] ?? null;
+				logToServer(`[sse] baseUrl comparison: base=${baseUrl} last=${lastBaseUrl} changed=${baseUrl !== lastBaseUrl}`);
+
 				if (baseUrl !== lastBaseUrl) {
 					lastStreamUrlRef.current = track.streamUrl;
 					audio.src = track.streamUrl;
 
 					if (serverState.status === "playing") {
+						logToServer(`[sse] → LOAD new src + play() (status=playing)`);
 						audio.play().catch((err: unknown) => {
 							// AbortError is expected when src changes during play()
-							if (err instanceof DOMException && err.name === "AbortError") return;
+							if (err instanceof DOMException && err.name === "AbortError") {
+								logToServer("[audio] play() AbortError silenced (transition expected)");
+								return;
+							}
 							const message = err instanceof Error ? err.message : "Playback failed";
-							console.error("[usePlayback] play() rejected:", message);
+							logToServer(`[audio] play() rejected: ${message}`);
 							setState((prev) => ({
 								...prev,
 								isPlaying: false,
 								error: message,
 							}));
 						});
+					} else {
+						logToServer(`[sse] → LOAD new src (status=${serverState.status}, not playing)`);
 					}
 				} else {
 					// Same track — sync play/pause state
 					if (serverState.status === "playing" && audio.paused) {
+						logToServer("[sse] → SAME track: resume (paused→playing)");
 						audio.play().catch((err: unknown) => {
-							if (err instanceof DOMException && err.name === "AbortError") return;
-							console.error("[usePlayback] resume rejected:", err);
+							if (err instanceof DOMException && err.name === "AbortError") {
+								logToServer("[audio] play() AbortError silenced (transition expected)");
+								return;
+							}
+							logToServer(`[audio] play() rejected: ${err instanceof Error ? err.message : "unknown"}`);
 						});
 					} else if (serverState.status === "paused" && !audio.paused) {
+						logToServer("[sse] → SAME track: pause (playing→paused)");
 						audio.pause();
 					} else if (serverState.status === "stopped") {
+						logToServer("[sse] → SAME track: stop");
 						audio.pause();
 						audio.currentTime = 0;
+					} else {
+						logToServer(`[sse] → SAME track: no action needed (server=${serverState.status} paused=${audio.paused})`);
 					}
 				}
 
@@ -162,6 +193,7 @@ export function usePlayback() {
 				}));
 			} else {
 				// No track — stopped
+				logToServer("[sse] → NO track: stopped");
 				if (!audio.paused) {
 					audio.pause();
 				}
@@ -202,22 +234,27 @@ export function usePlayback() {
 
 	const togglePlayPause = useCallback(() => {
 		if (state.isPlaying) {
+			logToServer("[action] togglePlayPause → pause");
 			const audio = audioRef.current;
 			if (audio) audio.pause();
 			setState((prev) => ({ ...prev, isPlaying: false }));
 			pauseMutation.mutate();
 		} else {
+			logToServer("[action] togglePlayPause → resume");
 			const audio = audioRef.current;
 			if (audio) {
 				audio.play().catch((err: unknown) => {
-					if (err instanceof DOMException && err.name === "AbortError") return;
-					console.error("[usePlayback] play() rejected:", err);
+					if (err instanceof DOMException && err.name === "AbortError") {
+						logToServer("[audio] play() AbortError silenced (transition expected)");
+						return;
+					}
+					logToServer(`[audio] play() rejected: ${err instanceof Error ? err.message : "unknown"}`);
 				});
 			}
 			setState((prev) => ({ ...prev, isPlaying: true }));
 			resumeMutation.mutate();
 		}
-	}, [state.isPlaying, pauseMutation, resumeMutation]);
+	}, [state.isPlaying, pauseMutation, resumeMutation, logToServer]);
 
 	const stop = useCallback(() => {
 		const audio = audioRef.current;
@@ -259,23 +296,29 @@ export function usePlayback() {
 	}, []);
 
 	const triggerSkip = useCallback(() => {
+		logToServer("[action] skip");
 		skipMutation.mutate();
-	}, [skipMutation]);
+	}, [skipMutation, logToServer]);
 
 	const triggerPrevious = useCallback(() => {
+		logToServer("[action] previous");
 		previousMutation.mutate();
-	}, [previousMutation]);
+	}, [previousMutation, logToServer]);
 
 	const playTrack = useCallback((track: PlaybackTrack) => {
+		logToServer(`[action] playTrack id=${track.trackToken} url=${track.audioUrl}`);
 		const audio = audioRef.current;
 		if (!audio) return;
 		audio.src = track.audioUrl;
 		lastStreamUrlRef.current = track.audioUrl;
 		audio.play().catch((err: unknown) => {
 			// AbortError is expected when src changes during play()
-			if (err instanceof DOMException && err.name === "AbortError") return;
+			if (err instanceof DOMException && err.name === "AbortError") {
+				logToServer("[audio] play() AbortError silenced (transition expected)");
+				return;
+			}
 			const message = err instanceof Error ? err.message : "Playback failed";
-			console.error("[usePlayback] play() rejected:", message);
+			logToServer(`[audio] play() rejected: ${message}`);
 			setState((prev) => ({
 				...prev,
 				isPlaying: false,
@@ -290,7 +333,7 @@ export function usePlayback() {
 			duration: 0,
 			error: null,
 		}));
-	}, []);
+	}, [logToServer]);
 
 	const clearError = useCallback(() => {
 		setState((prev) => ({ ...prev, error: null }));

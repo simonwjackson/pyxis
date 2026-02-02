@@ -3,6 +3,9 @@ import { observable } from "@trpc/server/observable";
 import { router, publicProcedure, protectedProcedure } from "../trpc.js";
 import { buildStreamUrl, decodeId } from "../lib/ids.js";
 import * as PlayerService from "../services/player.js";
+import { createLogger } from "../../src/logger.js";
+
+const log = createLogger("playback");
 
 function serializePlayerState(state: PlayerService.PlayerState) {
 	const track = state.currentTrack;
@@ -144,10 +147,14 @@ export const playerRouter = router({
 	onStateChange: publicProcedure.subscription(() => {
 		return observable<ReturnType<typeof serializePlayerState>>((emit) => {
 			// Send current state immediately
-			emit.next(serializePlayerState(PlayerService.getState()));
+			const initial = serializePlayerState(PlayerService.getState());
+			log.log(`[sse:player] initial emit status=${initial.status} track=${initial.currentTrack?.id ?? "none"} streamUrl=${initial.currentTrack?.streamUrl ?? "none"}`);
+			emit.next(initial);
 
 			const unsubscribe = PlayerService.subscribe((state) => {
-				emit.next(serializePlayerState(state));
+				const serialized = serializePlayerState(state);
+				log.log(`[sse:player] emit status=${serialized.status} track=${serialized.currentTrack?.id ?? "none"} streamUrl=${serialized.currentTrack?.streamUrl ?? "none"}`);
+				emit.next(serialized);
 			});
 
 			return unsubscribe;

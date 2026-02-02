@@ -4,6 +4,9 @@ import { router, publicProcedure, protectedProcedure } from "../trpc.js";
 import { decodeId } from "../lib/ids.js";
 import * as QueueService from "../services/queue.js";
 import type { QueueState } from "../services/queue.js";
+import { createLogger } from "../../src/logger.js";
+
+const log = createLogger("playback");
 
 function serializeQueueState(state: QueueState) {
 	return {
@@ -79,10 +82,14 @@ export const queueRouter = router({
 
 	onChange: publicProcedure.subscription(() => {
 		return observable<ReturnType<typeof serializeQueueState>>((emit) => {
-			emit.next(serializeQueueState(QueueService.getState()));
+			const initial = serializeQueueState(QueueService.getState());
+			log.log(`[sse:queue] initial emit index=${initial.currentIndex} len=${initial.items.length}`);
+			emit.next(initial);
 
 			const unsubscribe = QueueService.subscribe((state) => {
-				emit.next(serializeQueueState(state));
+				const serialized = serializeQueueState(state);
+				log.log(`[sse:queue] emit index=${serialized.currentIndex} len=${serialized.items.length}`);
+				emit.next(serialized);
 			});
 
 			return unsubscribe;

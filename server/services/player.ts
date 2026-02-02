@@ -1,5 +1,8 @@
 import * as Queue from "./queue.js";
 import { schedulePlayerSave, loadPlayerState } from "./persistence.js";
+import { createLogger } from "../../src/logger.js";
+
+const log = createLogger("playback");
 
 export type PlayerStatus = "playing" | "paused" | "stopped";
 
@@ -27,6 +30,9 @@ const listeners = new Set<PlayerListener>();
 
 function notify(): void {
 	const state = getState();
+	const trackId = state.currentTrack?.id ?? "none";
+	const nextId = state.nextTrack?.id ?? "none";
+	log.log(`[player] notify status=${state.status} track=${trackId} next=${nextId} listeners=${listeners.size}`);
 	schedulePlayerSave({
 		status: state.status,
 		progress: state.progress,
@@ -73,6 +79,7 @@ export function subscribe(listener: PlayerListener): () => void {
 }
 
 export function play(tracks?: readonly Queue.QueueTrack[], context?: Queue.QueueContext, startIndex?: number): void {
+	log.log(`[player] play() called tracks=${tracks?.length ?? "none"} startIndex=${startIndex ?? "none"}`);
 	if (tracks && context) {
 		Queue.setQueue(tracks, context, startIndex);
 	}
@@ -95,6 +102,7 @@ export function play(tracks?: readonly Queue.QueueTrack[], context?: Queue.Queue
 }
 
 export function pause(): void {
+	log.log(`[player] pause() called current=${status}`);
 	if (status !== "playing") return;
 	progress = getProgress();
 	status = "paused";
@@ -103,6 +111,7 @@ export function pause(): void {
 }
 
 export function resume(): void {
+	log.log(`[player] resume() called current=${status}`);
 	if (status !== "paused") return;
 	status = "playing";
 	updatedAt = Date.now();
@@ -119,6 +128,7 @@ export function stop(): void {
 }
 
 export function skip(): Queue.QueueTrack | undefined {
+	log.log(`[player] skip() called currentIndex=${Queue.getState().currentIndex} queueLen=${Queue.getState().items.length}`);
 	const nextTrack = Queue.next();
 	if (!nextTrack) {
 		status = "stopped";
@@ -138,6 +148,7 @@ export function skip(): Queue.QueueTrack | undefined {
 }
 
 export function previousTrack(): Queue.QueueTrack | undefined {
+	log.log(`[player] previous() called currentIndex=${Queue.getState().currentIndex}`);
 	const prev = Queue.previous();
 	if (!prev) return undefined;
 
@@ -150,6 +161,7 @@ export function previousTrack(): Queue.QueueTrack | undefined {
 }
 
 export function jumpToIndex(index: number): Queue.QueueTrack | undefined {
+	log.log(`[player] jumpTo(${index}) called currentIndex=${Queue.getState().currentIndex}`);
 	const track = Queue.jumpTo(index);
 	if (!track) return undefined;
 

@@ -1,5 +1,8 @@
 import type { SourceType } from "../../src/sources/types.js";
 import { scheduleQueueSave, loadQueueState } from "./persistence.js";
+import { createLogger } from "../../src/logger.js";
+
+const log = createLogger("playback");
 
 export type QueueTrack = {
 	readonly id: string; // opaque encoded ID
@@ -41,6 +44,7 @@ export function setAutoFetchHandler(handler: AutoFetchHandler): void {
 
 function notify(): void {
 	const state = getState();
+	log.log(`[queue] notify index=${state.currentIndex} len=${state.items.length} listeners=${listeners.size}`);
 	scheduleQueueSave(state);
 	for (const listener of listeners) {
 		listener(state);
@@ -87,6 +91,7 @@ export function setQueue(
 	newContext: QueueContext,
 	startIndex = 0,
 ): void {
+	log.log(`[queue] setQueue() tracks=${tracks.length} context=${newContext.type} startIndex=${startIndex}`);
 	items = [...tracks];
 	currentIndex = startIndex;
 	context = newContext;
@@ -118,6 +123,7 @@ export function removeTrack(index: number): void {
 }
 
 export function jumpTo(index: number): QueueTrack | undefined {
+	log.log(`[queue] jumpTo(${index}) from=${currentIndex}`);
 	if (index < 0 || index >= items.length) return undefined;
 	currentIndex = index;
 	notify();
@@ -126,6 +132,7 @@ export function jumpTo(index: number): QueueTrack | undefined {
 }
 
 export function next(): QueueTrack | undefined {
+	log.log(`[queue] next() ${currentIndex} → ${currentIndex + 1}`);
 	if (currentIndex + 1 >= items.length) return undefined;
 	currentIndex++;
 	notify();
@@ -134,6 +141,7 @@ export function next(): QueueTrack | undefined {
 }
 
 export function previous(): QueueTrack | undefined {
+	log.log(`[queue] previous() ${currentIndex} → ${currentIndex - 1}`);
 	if (currentIndex <= 0) return undefined;
 	currentIndex--;
 	notify();
@@ -149,6 +157,7 @@ export function nextTrack(): QueueTrack | undefined {
 }
 
 export function clear(): void {
+	log.log(`[queue] clear()`);
 	items = [];
 	currentIndex = 0;
 	context = { type: "manual" };

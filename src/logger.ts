@@ -26,17 +26,30 @@ function timestamp(): string {
 	return new Date().toISOString().slice(11, 23);
 }
 
-export function createLogger(name: string) {
+export type Logger = {
+	readonly logFile: string;
+	readonly log: (...args: unknown[]) => void;
+	readonly error: (...args: unknown[]) => void;
+	readonly warn: (...args: unknown[]) => void;
+	readonly write: (text: string) => void;
+};
+
+const loggerCache = new Map<string, Logger>();
+
+export function createLogger(name: string): Logger {
+	const cached = loggerCache.get(name);
+	if (cached) return cached;
+
 	ensureLogDir();
 	const logFile = join(LOG_DIR, `${name}.log`);
 
-	// Write header on creation
+	// Write header on creation (only once per name)
 	writeFileSync(
 		logFile,
 		`=== Pyxis ${name} log ${new Date().toISOString()} ===\n`,
 	);
 
-	return {
+	const logger: Logger = {
 		logFile,
 		log(...args: unknown[]) {
 			const line = `[${timestamp()}] ${formatArgs(args)}\n`;
@@ -53,14 +66,14 @@ export function createLogger(name: string) {
 			appendFileSync(logFile, line);
 			process.stderr.write(line);
 		},
-		/** Write to log file only (no stdout) */
 		write(text: string) {
 			appendFileSync(logFile, text);
 		},
 	};
-}
 
-export type Logger = ReturnType<typeof createLogger>;
+	loggerCache.set(name, logger);
+	return logger;
+}
 
 export function getLogDir(): string {
 	return LOG_DIR;
