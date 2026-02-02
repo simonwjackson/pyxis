@@ -1,7 +1,45 @@
+import { useMemo } from "react";
 import { useNavigate } from "@tanstack/react-router";
-import { Play, Plus, Music, ListMusic, Disc3 } from "lucide-react";
+import { Play, Plus, Disc3 } from "lucide-react";
 import { trpc } from "../lib/trpc";
 import { usePlaybackContext } from "../contexts/PlaybackContext";
+
+function shuffle<T>(array: readonly T[]): T[] {
+	const result = [...array];
+	for (let i = result.length - 1; i > 0; i--) {
+		const j = Math.floor(Math.random() * (i + 1));
+		[result[i], result[j]] = [result[j]!, result[i]!];
+	}
+	return result;
+}
+
+const PLAYLIST_COLORS = [
+	{ bg: "#1a2e3a", fg: "#06b6d4" },
+	{ bg: "#2a1a33", fg: "#a855f7" },
+	{ bg: "#2a2510", fg: "#eab308" },
+	{ bg: "#0f2518", fg: "#22c55e" },
+	{ bg: "#2a1515", fg: "#ef4444" },
+	{ bg: "#1a2533", fg: "#3b82f6" },
+	{ bg: "#2a1a28", fg: "#ec4899" },
+	{ bg: "#1a2a2a", fg: "#14b8a6" },
+] as const;
+
+function hashString(str: string): number {
+	let hash = 0;
+	for (let i = 0; i < str.length; i++) {
+		hash = ((hash << 5) - hash + str.charCodeAt(i)) | 0;
+	}
+	return Math.abs(hash);
+}
+
+function getPlaylistColor(name: string) {
+	return PLAYLIST_COLORS[hashString(name) % PLAYLIST_COLORS.length]!;
+}
+
+function getPlaylistInitial(name: string): string {
+	const cleaned = name.replace(/\s*radio$/i, "").trim();
+	return (cleaned[0] ?? "?").toUpperCase();
+}
 
 type PlaylistData = {
 	readonly id: string;
@@ -16,6 +54,9 @@ function PlaylistCard({
 	readonly playlist: PlaylistData;
 	readonly onPlay: () => void;
 }) {
+	const color = getPlaylistColor(playlist.name);
+	const initial = getPlaylistInitial(playlist.name);
+
 	return (
 		<button
 			type="button"
@@ -23,7 +64,8 @@ function PlaylistCard({
 			className="group cursor-pointer text-left"
 		>
 			<div
-				className="aspect-square bg-gradient-to-br from-indigo-600 to-purple-800 rounded-lg mb-2 flex items-center justify-center relative overflow-hidden"
+				className="aspect-square rounded-lg mb-2 relative overflow-hidden"
+				style={playlist.artworkUrl ? undefined : { background: color.bg }}
 			>
 				{playlist.artworkUrl ? (
 					<img
@@ -32,9 +74,18 @@ function PlaylistCard({
 						className="w-full h-full object-cover"
 					/>
 				) : (
-					<ListMusic
-						className="w-8 h-8 text-indigo-200/60"
-					/>
+					<>
+						<span
+							className="absolute -bottom-3 left-1.5 text-[80px] font-black leading-none -tracking-widest select-none"
+							style={{ color: color.fg, opacity: 0.15 }}
+						>
+							{initial}
+						</span>
+						<div
+							className="absolute top-2.5 right-2.5 w-2 h-2 rounded-full"
+							style={{ background: color.fg, opacity: 0.5 }}
+						/>
+					</>
 				)}
 				<div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center">
 					<div className="opacity-0 group-hover:opacity-100 transition-opacity bg-[var(--color-primary)] rounded-full p-2.5 shadow-lg">
@@ -108,7 +159,10 @@ export function HomePage() {
 	const albumsQuery = trpc.library.albums.useQuery();
 
 	const playlists = playlistsQuery.data ?? [];
-	const albums = albumsQuery.data ?? [];
+	const albums = useMemo(
+		() => shuffle(albumsQuery.data ?? []),
+		[albumsQuery.data],
+	);
 
 	const handlePlayPlaylist = (playlist: PlaylistData) => {
 		navigate({
