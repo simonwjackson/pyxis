@@ -16,6 +16,7 @@ import {
 	hasMetadataSearchCapability,
 } from "./types.js";
 import { createMatcher } from "./matcher.js";
+import type { Logger } from "../logger.js";
 
 export type SourceManager = {
 	readonly getSource: (type: SourceType) => Source | undefined;
@@ -77,7 +78,9 @@ function normalizedToCanonicalAlbum(nr: NormalizedRelease): CanonicalAlbum {
 export function createSourceManager(
 	sources: readonly Source[],
 	metadataSources: readonly MetadataSource[] = [],
+	logger?: Logger,
 ): SourceManager {
+	const log = logger?.child({ component: "search" });
 	const sourceMap = new Map<SourceType, Source>();
 	for (const source of sources) {
 		sourceMap.set(source.type, source);
@@ -134,21 +137,24 @@ export function createSourceManager(
 		},
 
 		async searchAll(query: string): Promise<SearchResult> {
+			const primaryStart = Date.now();
+
 			// 1. Run ALL sources in parallel
+			const searchableSources = sources.filter(hasSearchCapability);
+			const metadataSearchable = metadataSources.filter(hasMetadataSearchCapability);
+
 			const [primaryResults, metadataResults] = await Promise.all([
 				// Existing sources (Pandora, YTMusic) — return SearchResult
 				Promise.allSettled(
-					sources
-						.filter(hasSearchCapability)
-						.map((source) => source.search(query)),
+					searchableSources.map((source) => source.search(query)),
 				),
 				// Metadata sources (MusicBrainz, Discogs) — return NormalizedRelease[]
 				Promise.allSettled(
-					metadataSources
-						.filter(hasMetadataSearchCapability)
-						.map((source) => source.searchReleases(query, 10)),
+					metadataSearchable.map((source) => source.searchReleases(query, 10)),
 				),
 			]);
+
+			const primaryMs = Date.now() - primaryStart;
 
 			// 2. Collect tracks from primary sources (unchanged)
 			const allTracks: CanonicalTrack[] = [];
@@ -160,15 +166,39 @@ export function createSourceManager(
 				}
 			}
 
-			// 3. If no metadata sources, return as before (fast path)
+			// 3. Log metadata source failures as warnings
+			for (let i = 0; i < metadataResults.length; i++) {
+				const result = metadataResults[i];
+				if (result?.status === "rejected") {
+					const source = metadataSearchable[i];
+					log?.warn(
+						{ source: source?.type, err: String(result.reason) },
+						"metadata source failed (non-blocking)",
+					);
+				}
+			}
+
+			// 4. If no metadata sources, return as before (fast path)
 			if (metadataSources.length === 0) {
+				log?.info(
+					{
+						query,
+						primary: {
+							sources: searchableSources.map((s) => s.type),
+							albums: primaryAlbums.length,
+							tracks: allTracks.length,
+							ms: primaryMs,
+						},
+					},
+					"search complete (no metadata sources)",
+				);
 				return { tracks: allTracks, albums: primaryAlbums };
 			}
 
-			// 4. Normalize primary albums to NormalizedRelease
+			// 5. Normalize primary albums to NormalizedRelease
 			const normalizedPrimary = primaryAlbums.map(canonicalToNormalized);
 
-			// 5. Collect metadata-only results
+			// 6. Collect metadata-only results
 			const metadataAlbums: NormalizedRelease[] = [];
 			for (const result of metadataResults) {
 				if (result.status === "fulfilled") {
@@ -176,7 +206,7 @@ export function createSourceManager(
 				}
 			}
 
-			// 6. Feed everything through matcher (primary first so they're the "existing" entries)
+			// 7. Feed everything through matcher (primary first so they're the "existing" entries)
 			const matcher = createMatcher({ similarityThreshold: 0.85 });
 			for (const album of normalizedPrimary) {
 				matcher.addOrMerge(album);
@@ -185,10 +215,38 @@ export function createSourceManager(
 				matcher.addOrMerge(album);
 			}
 
-			// 7. Convert back to CanonicalAlbum
+			const stats = matcher.getStats();
+
+			// 8. Convert back to CanonicalAlbum
 			const mergedAlbums = matcher
 				.getAll()
 				.map(normalizedToCanonicalAlbum);
+
+			const totalMs = Date.now() - primaryStart;
+
+			log?.info(
+				{
+					query,
+					primary: {
+						sources: searchableSources.map((s) => s.type),
+						albums: primaryAlbums.length,
+						tracks: allTracks.length,
+						ms: primaryMs,
+					},
+					metadata: {
+						sources: metadataSearchable.map((s) => s.type),
+						albums: metadataAlbums.length,
+						ms: totalMs - primaryMs,
+					},
+					matcher: {
+						total: stats.total,
+						exact: stats.exactMatches,
+						fuzzy: stats.fuzzyMatches,
+						new: stats.newEntries,
+					},
+				},
+				"search complete",
+			);
 
 			return { tracks: allTracks, albums: mergedAlbums };
 		},

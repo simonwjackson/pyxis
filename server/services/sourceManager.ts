@@ -11,6 +11,9 @@ import { eq } from "drizzle-orm";
 import { createMusicBrainzSource } from "../../src/sources/musicbrainz/index.js";
 import { createDiscogsSource } from "../../src/sources/discogs/index.js";
 import type { AppConfig } from "../../src/config.js";
+import { createLogger } from "../../src/logger.js";
+
+const logger = createLogger("server");
 
 // Per-session source managers (Pandora needs session auth)
 const managers = new Map<string, SourceManager>();
@@ -91,7 +94,7 @@ export async function getSourceManager(
 
 	const metadataSources = appConfig ? buildMetadataSources(appConfig) : [];
 
-	const manager = createSourceManager(sources, metadataSources);
+	const manager = createSourceManager(sources, metadataSources, logger);
 	managers.set(cacheKey, manager);
 	return manager;
 }
@@ -135,7 +138,7 @@ export async function ensureSourceManager(): Promise<SourceManager> {
 	const dbPlaylists = await loadYtMusicPlaylistsFromDb();
 	const sources: Source[] = [createYtMusicSource({ playlists: dbPlaylists })];
 	const metadataSources = appConfig ? buildMetadataSources(appConfig) : [];
-	const manager = createSourceManager(sources, metadataSources);
+	const manager = createSourceManager(sources, metadataSources, logger);
 	globalManager = manager;
 	return manager;
 }

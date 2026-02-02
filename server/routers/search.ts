@@ -30,6 +30,10 @@ function encodeAlbum(album: CanonicalAlbum) {
 		...(album.year != null ? { year: album.year } : {}),
 		...(album.artworkUrl != null ? { artworkUrl: album.artworkUrl } : {}),
 		sourceIds: album.sourceIds.map((sid) => encodeId(sid.source, sid.id)),
+		...(album.genres != null && album.genres.length > 0
+			? { genres: album.genres }
+			: {}),
+		...(album.releaseType != null ? { releaseType: album.releaseType } : {}),
 	};
 }
 

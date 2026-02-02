@@ -32,6 +32,8 @@ type SearchAlbum = {
 	readonly year?: number | null;
 	readonly artworkUrl?: string | null;
 	readonly sourceIds: readonly string[];
+	readonly genres?: readonly string[];
+	readonly releaseType?: string;
 };
 
 type SearchResultsProps = {
@@ -99,12 +101,39 @@ export function SearchResults({
 									<p className="text-sm font-medium text-[var(--color-text)] truncate">
 										{album.title}
 									</p>
-									<p className="text-xs text-[var(--color-text-dim)]">
-										{album.artist}
-										{album.year
-											? ` \u00B7 ${String(album.year)}`
-											: ""}
-									</p>
+									<div className="flex items-center gap-1.5 flex-wrap">
+										<span className="text-xs text-[var(--color-text-dim)]">
+											{album.artist}
+										</span>
+										{album.year && (
+											<>
+												<span className="text-xs text-[var(--color-text-muted)]">&middot;</span>
+												<span className="text-xs text-[var(--color-text-dim)]">
+													{String(album.year)}
+												</span>
+											</>
+										)}
+										{album.releaseType && album.releaseType !== "album" && (
+											<>
+												<span className="text-xs text-[var(--color-text-muted)]">&middot;</span>
+												<span className="text-[10px] uppercase tracking-wider text-[var(--color-text-muted)] bg-[var(--color-bg-highlight)] px-1.5 py-0.5 rounded">
+													{album.releaseType}
+												</span>
+											</>
+										)}
+									</div>
+									{album.genres && album.genres.length > 0 && (
+										<div className="flex gap-1 mt-1 flex-wrap">
+											{album.genres.slice(0, 5).map((genre) => (
+												<span
+													key={genre}
+													className="text-[10px] text-[var(--color-text-muted)] bg-[var(--color-bg-highlight)]/80 px-1.5 py-0.5 rounded"
+												>
+													{genre}
+												</span>
+											))}
+										</div>
+									)}
 								</div>
 								{onSaveAlbum && (
 									<button
