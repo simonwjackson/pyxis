@@ -37,6 +37,11 @@ export default defineConfig({
 			"/trpc": {
 				target: "http://aka:8765",
 				changeOrigin: true,
+				configure: (proxy) => {
+					proxy.on("proxyRes", (_proxyRes, _req, res) => {
+						res.flushHeaders();
+					});
+				},
 			},
 			"/stream": {
 				target: "http://aka:8765",

@@ -80,14 +80,12 @@ const server = Bun.serve({
 				router: appRouter,
 				createContext: () => createContext(req),
 			}).then((response) => {
-				const headers = new Headers(response.headers);
-				headers.set("Access-Control-Allow-Origin", "http://aka:5678");
-				headers.set("Access-Control-Allow-Credentials", "true");
-
-				return new Response(response.body, {
-					status: response.status,
-					headers,
-				});
+				// Set CORS headers directly on the original response to preserve
+				// SSE stream lifecycle (wrapping in new Response() disconnects
+				// the tRPC subscription cleanup signals, causing listener drops)
+				response.headers.set("Access-Control-Allow-Origin", "http://aka:5678");
+				response.headers.set("Access-Control-Allow-Credentials", "true");
+				return response;
 			});
 		}
 

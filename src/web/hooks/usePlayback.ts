@@ -38,6 +38,25 @@ export function usePlayback() {
 	const lastStreamUrlRef = useRef<string | null>(null);
 	const seekingRef = useRef(false);
 
+	type ServerTrack = {
+		readonly id: string;
+		readonly title: string;
+		readonly artist: string;
+		readonly album: string;
+		readonly duration: number;
+		readonly artworkUrl: string | null;
+		readonly streamUrl: string;
+	};
+
+	type ServerState = {
+		readonly status: "playing" | "paused" | "stopped";
+		readonly currentTrack: ServerTrack | null;
+		readonly progress: number;
+		readonly duration: number;
+		readonly volume: number;
+		readonly updatedAt: number;
+	};
+
 	const reportProgress = trpc.player.reportProgress.useMutation();
 	const reportDuration = trpc.player.reportDuration.useMutation();
 	const trackEndedMutation = trpc.player.trackEnded.useMutation();
@@ -114,27 +133,27 @@ export function usePlayback() {
 		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, []);
 
-	// Subscribe to server player state changes via SSE
-	trpc.player.onStateChange.useSubscription(undefined, {
-		onData(serverState) {
+	// Shared handler for server player state — called from both SSE and mutation responses
+	const handleServerState = useCallback(
+		(serverState: ServerState, source: string = "sse") => {
 			const audio = audioRef.current;
 			if (!audio) return;
 
 			const track = serverState.currentTrack;
-			logToServer(`[sse] received status=${serverState.status} track=${track?.id ?? "none"} streamUrl=${track?.streamUrl ?? "none"}`);
+			logToServer(`[${source}] received status=${serverState.status} track=${track?.id ?? "none"} streamUrl=${track?.streamUrl ?? "none"}`);
 
 			if (track) {
 				// Load new audio if the stream URL changed (ignore ?next= prefetch hint)
 				const baseUrl = track.streamUrl.split("?")[0];
 				const lastBaseUrl = lastStreamUrlRef.current?.split("?")[0] ?? null;
-				logToServer(`[sse] baseUrl comparison: base=${baseUrl} last=${lastBaseUrl} changed=${baseUrl !== lastBaseUrl}`);
+				logToServer(`[${source}] baseUrl comparison: base=${baseUrl} last=${lastBaseUrl} changed=${baseUrl !== lastBaseUrl}`);
 
 				if (baseUrl !== lastBaseUrl) {
 					lastStreamUrlRef.current = track.streamUrl;
 					audio.src = track.streamUrl;
 
 					if (serverState.status === "playing") {
-						logToServer(`[sse] → LOAD new src + play() (status=playing)`);
+						logToServer(`[${source}] → LOAD new src + play() (status=playing)`);
 						audio.play().catch((err: unknown) => {
 							// AbortError is expected when src changes during play()
 							if (err instanceof DOMException && err.name === "AbortError") {
@@ -150,12 +169,12 @@ export function usePlayback() {
 							}));
 						});
 					} else {
-						logToServer(`[sse] → LOAD new src (status=${serverState.status}, not playing)`);
+						logToServer(`[${source}] → LOAD new src (status=${serverState.status}, not playing)`);
 					}
 				} else {
 					// Same track — sync play/pause state
 					if (serverState.status === "playing" && audio.paused) {
-						logToServer("[sse] → SAME track: resume (paused→playing)");
+						logToServer(`[${source}] → SAME track: resume (paused→playing)`);
 						audio.play().catch((err: unknown) => {
 							if (err instanceof DOMException && err.name === "AbortError") {
 								logToServer("[audio] play() AbortError silenced (transition expected)");
@@ -164,14 +183,14 @@ export function usePlayback() {
 							logToServer(`[audio] play() rejected: ${err instanceof Error ? err.message : "unknown"}`);
 						});
 					} else if (serverState.status === "paused" && !audio.paused) {
-						logToServer("[sse] → SAME track: pause (playing→paused)");
+						logToServer(`[${source}] → SAME track: pause (playing→paused)`);
 						audio.pause();
 					} else if (serverState.status === "stopped") {
-						logToServer("[sse] → SAME track: stop");
+						logToServer(`[${source}] → SAME track: stop`);
 						audio.pause();
 						audio.currentTime = 0;
 					} else {
-						logToServer(`[sse] → SAME track: no action needed (server=${serverState.status} paused=${audio.paused})`);
+						logToServer(`[${source}] → SAME track: no action needed (server=${serverState.status} paused=${audio.paused})`);
 					}
 				}
 
@@ -193,7 +212,7 @@ export function usePlayback() {
 				}));
 			} else {
 				// No track — stopped
-				logToServer("[sse] → NO track: stopped");
+				logToServer(`[${source}] → NO track: stopped`);
 				if (!audio.paused) {
 					audio.pause();
 				}
@@ -206,6 +225,14 @@ export function usePlayback() {
 					duration: 0,
 				}));
 			}
+		},
+		[logToServer],
+	);
+
+	// Subscribe to server player state changes via SSE
+	trpc.player.onStateChange.useSubscription(undefined, {
+		onData(serverState) {
+			handleServerState(serverState, "sse");
 		},
 	});
 
@@ -297,13 +324,21 @@ export function usePlayback() {
 
 	const triggerSkip = useCallback(() => {
 		logToServer("[action] skip");
-		skipMutation.mutate();
-	}, [skipMutation, logToServer]);
+		skipMutation.mutate(undefined, {
+			onSuccess(data) {
+				handleServerState(data, "skip-response");
+			},
+		});
+	}, [skipMutation, logToServer, handleServerState]);
 
 	const triggerPrevious = useCallback(() => {
 		logToServer("[action] previous");
-		previousMutation.mutate();
-	}, [previousMutation, logToServer]);
+		previousMutation.mutate(undefined, {
+			onSuccess(data) {
+				handleServerState(data, "prev-response");
+			},
+		});
+	}, [previousMutation, logToServer, handleServerState]);
 
 	const playTrack = useCallback((track: PlaybackTrack) => {
 		logToServer(`[action] playTrack id=${track.trackToken} url=${track.audioUrl}`);
