@@ -23,7 +23,6 @@ import { usePlaybackContext } from "../../contexts/PlaybackContext";
 import { trpc } from "../../lib/trpc";
 
 type CommandPaletteProps = {
-	readonly isOpen: boolean;
 	readonly onClose: () => void;
 };
 
@@ -44,7 +43,32 @@ const iconMap: Record<string, typeof Play> = {
 	changeTheme: Palette,
 };
 
-export function CommandPalette({ isOpen, onClose }: CommandPaletteProps) {
+type SelectableItemProps = {
+	readonly selected: boolean;
+	readonly onClick: () => void;
+	readonly onMouseEnter: () => void;
+	readonly children: React.ReactNode;
+};
+
+function SelectableItem({ selected, onClick, onMouseEnter, children }: SelectableItemProps) {
+	return (
+		<button
+			type="button"
+			data-selected={selected}
+			className={`w-full flex items-center gap-3 px-4 py-2 text-left transition-colors ${
+				selected
+					? "bg-[var(--color-bg-highlight)]"
+					: "hover:bg-[var(--color-bg-highlight)]"
+			}`}
+			onClick={onClick}
+			onMouseEnter={onMouseEnter}
+		>
+			{children}
+		</button>
+	);
+}
+
+export function CommandPalette({ onClose }: CommandPaletteProps) {
 	const [query, setQuery] = useState("");
 	const [activePanel, setActivePanel] = useState<ActivePanel>("commands");
 	const inputRef = useRef<HTMLInputElement>(null);
@@ -130,14 +154,10 @@ export function CommandPalette({ isOpen, onClose }: CommandPaletteProps) {
 	);
 
 	useEffect(() => {
-		if (isOpen) {
-			setQuery("");
-			setActivePanel("commands");
-			requestAnimationFrame(() => inputRef.current?.focus());
-		}
-	}, [isOpen]);
-
-	if (!isOpen) return null;
+		setQuery("");
+		setActivePanel("commands");
+		requestAnimationFrame(() => inputRef.current?.focus());
+	}, []);
 
 	return (
 		<div
@@ -291,15 +311,9 @@ function CommandList({
 							const isSelected = globalIdx === selectedIndex;
 							const Icon = iconMap[cmd.id] ?? Search;
 							return (
-								<button
+								<SelectableItem
 									key={cmd.id}
-									type="button"
-									data-selected={isSelected}
-									className={`w-full flex items-center gap-3 px-4 py-2 text-left transition-colors ${
-										isSelected
-											? "bg-[var(--color-bg-highlight)]"
-											: "hover:bg-[var(--color-bg-highlight)]"
-									}`}
+									selected={isSelected}
 									onClick={() => {
 										if (cmd.action === "changeTheme") {
 											onOpenThemes();
@@ -321,7 +335,7 @@ function CommandList({
 									{cmd.action === "changeTheme" && (
 										<span className="text-[10px] text-[var(--color-text-dim)]">&rarr;</span>
 									)}
-								</button>
+								</SelectableItem>
 							);
 						})}
 					</div>
@@ -418,16 +432,11 @@ function ThemeList({
 				const isSelected = idx === selectedIndex;
 				const isActive = name === currentTheme;
 				return (
-					<button
+					<SelectableItem
 						key={name}
-						type="button"
-						data-selected={isSelected}
-						className={`w-full flex items-center gap-3 px-4 py-2 text-left transition-colors ${
-							isSelected
-								? "bg-[var(--color-bg-highlight)]"
-								: "hover:bg-[var(--color-bg-highlight)]"
-						}`}
+						selected={isSelected}
 						onClick={() => onSelect(name)}
+						onMouseEnter={() => setSelectedIndex(idx)}
 					>
 						<div
 							className="w-4 h-4 rounded-full shrink-0"
@@ -439,7 +448,7 @@ function ThemeList({
 						{isActive && (
 							<Check className="w-4 h-4 text-[var(--color-primary)]" />
 						)}
-					</button>
+					</SelectableItem>
 				);
 			})}
 		</div>

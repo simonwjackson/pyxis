@@ -32,10 +32,11 @@ export function RootLayout() {
 				</main>
 				<NowPlayingBar />
 			</div>
-			<CommandPalette
-				isOpen={commandPaletteOpen}
-				onClose={() => setCommandPaletteOpen(false)}
-			/>
+			{commandPaletteOpen && (
+				<CommandPalette
+					onClose={() => setCommandPaletteOpen(false)}
+				/>
+			)}
 		</div>
 	);
 }
