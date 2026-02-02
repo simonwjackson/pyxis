@@ -1,0 +1,10 @@
+{
+	"routesDirectory": "./src/web/routes",
+	"generatedRouteTree": "./src/web/routes/routeTree.gen.ts",
+	"routeFileIgnorePrefix": "-",
+	"routeFileIgnorePattern": "routeTree\\.gen\\.ts$",
+	"indexToken": "page",
+	"routeToken": "layout",
+	"quoteStyle": "single",
+	"semicolons": false
+}

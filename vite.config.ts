@@ -1,6 +1,7 @@
 import { appendFileSync } from "node:fs";
 import { defineConfig, createLogger as createViteLogger } from "vite";
 import react from "@vitejs/plugin-react";
+import { TanStackRouterVite } from "@tanstack/router-plugin/vite";
 import tailwindcss from "@tailwindcss/vite";
 import orchestraSource from "./plugins/vite-plugin-orchestra-source/index";
 import { getLogFile } from "./src/logger";
@@ -37,7 +38,7 @@ const customLogger = {
 };
 
 export default defineConfig({
-	plugins: [orchestraSource({ serverUrl: "https://aka.hummingbird-lake.ts.net" }), react(), tailwindcss()],
+	plugins: [TanStackRouterVite(), orchestraSource({ serverUrl: "https://aka.hummingbird-lake.ts.net" }), react(), tailwindcss()],
 	customLogger,
 	server: {
 		port: appConfig.web.port,

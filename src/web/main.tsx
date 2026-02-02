@@ -1,14 +1,23 @@
 import { StrictMode, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { RouterProvider } from "@tanstack/react-router";
+import { RouterProvider, createRouter } from "@tanstack/react-router";
 import { Toaster } from "sonner";
-import { trpc, createTRPCClient } from "./lib/trpc";
-import { PlaybackProvider } from "./contexts/PlaybackContext";
-import { ThemeProvider } from "./contexts/ThemeContext";
-import { ErrorBoundary } from "./components/ui/error-boundary";
-import { router } from "./router";
+import { trpc, createTRPCClient } from "./shared/lib/trpc";
+import { PlaybackProvider } from "./shared/playback/playback-context";
+import { ThemeProvider } from "./shared/theme/theme-context";
+import { ErrorBoundary } from "./shared/ui/error-boundary";
+import { routeTree } from "./routes/routeTree.gen";
 import "./index.css";
+
+const router = createRouter({ routeTree });
+
+declare module "@tanstack/react-router" {
+	// eslint-disable-next-line @typescript-eslint/consistent-type-definitions
+	interface Register {
+		router: typeof router;
+	}
+}
 
 const queryClient = new QueryClient({
 	defaultOptions: {
