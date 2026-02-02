@@ -1,11 +1,90 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useMemo } from "react";
 import { Search as SearchIcon } from "lucide-react";
 import { toast } from "sonner";
 import { trpc } from "../lib/trpc";
 import { SearchInput } from "../components/search/SearchInput";
 import { SearchResults } from "../components/search/SearchResults";
-import type { SearchTrack } from "../components/search/SearchResults";
+import type {
+	SearchTrack,
+	SearchAlbum,
+	SearchArtist,
+	SearchGenreStation,
+} from "../components/search/SearchResults";
 import { Spinner } from "../components/ui/spinner";
+
+type SearchData = {
+	readonly tracks: readonly SearchTrack[];
+	readonly albums: readonly SearchAlbum[];
+	readonly pandoraArtists: readonly SearchArtist[];
+	readonly pandoraGenres: readonly SearchGenreStation[];
+};
+
+type SearchState =
+	| { readonly type: "idle" }
+	| { readonly type: "loading" }
+	| { readonly type: "empty" }
+	| { readonly type: "results"; readonly data: SearchData };
+
+function SearchContent({
+	state,
+	onSaveAlbum,
+	onStartRadio,
+	onCreateStation,
+}: {
+	readonly state: SearchState;
+	readonly onSaveAlbum: (albumId: string) => void;
+	readonly onStartRadio: (track: SearchTrack) => void;
+	readonly onCreateStation: (musicToken: string) => void;
+}) {
+	switch (state.type) {
+		case "loading":
+			return (
+				<div className="flex justify-center py-8">
+					<Spinner />
+				</div>
+			);
+		case "empty":
+			return <SearchResults.Empty />;
+		case "results":
+			return (
+				<SearchResults.Root>
+					{state.data.albums.length > 0 && (
+						<SearchResults.Albums
+							albums={state.data.albums}
+							onSaveAlbum={onSaveAlbum}
+						/>
+					)}
+					{state.data.tracks.length > 0 && (
+						<SearchResults.Tracks
+							tracks={state.data.tracks}
+							onStartRadio={onStartRadio}
+						/>
+					)}
+					{state.data.pandoraArtists.length > 0 && (
+						<SearchResults.Artists
+							artists={state.data.pandoraArtists}
+							onCreateStation={onCreateStation}
+						/>
+					)}
+					{state.data.pandoraGenres.length > 0 && (
+						<SearchResults.Genres
+							genres={state.data.pandoraGenres}
+							onCreateStation={onCreateStation}
+						/>
+					)}
+				</SearchResults.Root>
+			);
+		case "idle":
+			return (
+				<div className="text-center py-12 text-[var(--color-text-dim)]">
+					<SearchIcon className="w-12 h-12 mx-auto mb-4 text-[var(--color-text-dim)]" />
+					<p>
+						Search for artists, songs, or albums across all sources
+					</p>
+				</div>
+			);
+	}
+}
 
 export function SearchPage() {
 	const [query, setQuery] = useState("");
@@ -81,14 +160,29 @@ export function SearchPage() {
 		[createRadio],
 	);
 
-	const isLoading = unifiedQuery.isLoading;
-	const data = unifiedQuery.data;
+	const searchState: SearchState = useMemo(() => {
+		const data = unifiedQuery.data;
 
-	const hasResults =
-		(data?.tracks && data.tracks.length > 0) ||
-		(data?.albums && data.albums.length > 0) ||
-		(data?.pandoraArtists && data.pandoraArtists.length > 0) ||
-		(data?.pandoraGenres && data.pandoraGenres.length > 0);
+		if (unifiedQuery.isLoading && query.length >= 2) {
+			return { type: "loading" };
+		}
+
+		if (data) {
+			const hasResults =
+				data.tracks.length > 0 ||
+				data.albums.length > 0 ||
+				data.pandoraArtists.length > 0 ||
+				data.pandoraGenres.length > 0;
+
+			if (hasResults) {
+				return { type: "results", data };
+			}
+
+			return { type: "empty" };
+		}
+
+		return { type: "idle" };
+	}, [unifiedQuery.isLoading, unifiedQuery.data, query.length]);
 
 	return (
 		<div className="flex-1 p-4 space-y-4">
@@ -97,48 +191,12 @@ export function SearchPage() {
 				onSearch={handleSearch}
 				placeholder="Search artists, songs, albums..."
 			/>
-			{isLoading && query.length >= 2 && (
-				<div className="flex justify-center py-8">
-					<Spinner />
-				</div>
-			)}
-			{data && !hasResults && <SearchResults.Empty />}
-			{data && hasResults && (
-				<SearchResults.Root>
-					{data.albums.length > 0 && (
-						<SearchResults.Albums
-							albums={data.albums}
-							onSaveAlbum={handleSaveAlbum}
-						/>
-					)}
-					{data.tracks.length > 0 && (
-						<SearchResults.Tracks
-							tracks={data.tracks}
-							onStartRadio={handleStartRadio}
-						/>
-					)}
-					{data.pandoraArtists.length > 0 && (
-						<SearchResults.Artists
-							artists={data.pandoraArtists}
-							onCreateStation={handleCreateStation}
-						/>
-					)}
-					{data.pandoraGenres.length > 0 && (
-						<SearchResults.Genres
-							genres={data.pandoraGenres}
-							onCreateStation={handleCreateStation}
-						/>
-					)}
-				</SearchResults.Root>
-			)}
-			{!data && query.length < 2 && (
-				<div className="text-center py-12 text-[var(--color-text-dim)]">
-					<SearchIcon className="w-12 h-12 mx-auto mb-4 text-[var(--color-text-dim)]" />
-					<p>
-						Search for artists, songs, or albums across all sources
-					</p>
-				</div>
-			)}
+			<SearchContent
+				state={searchState}
+				onSaveAlbum={handleSaveAlbum}
+				onStartRadio={handleStartRadio}
+				onCreateStation={handleCreateStation}
+			/>
 		</div>
 	);
 }
