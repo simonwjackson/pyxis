@@ -8,6 +8,14 @@ import type {
 } from "../types.js";
 import type { PlaylistItem, Station } from "./types/api.js";
 
+export type PandoraSource = Source & {
+	registerPlaylistItems: (items: readonly PlaylistItem[]) => void;
+};
+
+export function isPandoraSource(source: Source): source is PandoraSource {
+	return source.type === "pandora" && typeof (source as Partial<PandoraSource>).registerPlaylistItems === "function";
+}
+
 function playlistItemToCanonical(item: PlaylistItem): CanonicalTrack {
 	const track: CanonicalTrack = {
 		id: item.trackToken,
@@ -49,13 +57,19 @@ function resolveAudioUrl(item: PlaylistItem): string | undefined {
 	);
 }
 
-export function createPandoraSource(session: PandoraSession): Source {
+export function createPandoraSource(session: PandoraSession): PandoraSource {
 	// Cache playlist items by track token for stream URL resolution
 	const trackCache = new Map<string, PlaylistItem>();
 
 	return {
 		type: "pandora",
 		name: "Pandora",
+
+		registerPlaylistItems(items: readonly PlaylistItem[]) {
+			for (const item of items) {
+				trackCache.set(item.trackToken, item);
+			}
+		},
 
 		async listPlaylists(): Promise<readonly CanonicalPlaylist[]> {
 			const result = await Effect.runPromise(

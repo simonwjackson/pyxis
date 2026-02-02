@@ -2,6 +2,7 @@ import { z } from "zod";
 import { Effect } from "effect";
 import { router, pandoraProtectedProcedure } from "../trpc.js";
 import { encodeId, decodeId, buildStreamUrl, trackCapabilities } from "../lib/ids.js";
+import { getSourceManager, registerPandoraPlaylistItems } from "../services/sourceManager.js";
 import { createLogger } from "../../src/logger.js";
 import * as Pandora from "../../src/sources/pandora/client.js";
 import type { PlaylistItem } from "../../src/sources/pandora/types/api.js";
@@ -117,7 +118,9 @@ export const radioRouter = router({
 					input.quality,
 				),
 			);
-			return result.items
+		const manager = await getSourceManager(ctx.pandoraSession);
+		registerPandoraPlaylistItems(manager, result.items);
+		return result.items
 			.map(encodePlaylistItem)
 			.filter((item): item is NonNullable<ReturnType<typeof encodePlaylistItem>> => item !== null);
 		}),

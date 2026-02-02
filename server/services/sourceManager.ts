@@ -1,7 +1,8 @@
 import type { PandoraSession } from "../../src/sources/pandora/client.js";
 import { createSourceManager } from "../../src/sources/index.js";
 import type { SourceManager } from "../../src/sources/index.js";
-import { createPandoraSource } from "../../src/sources/pandora/index.js";
+import { createPandoraSource, isPandoraSource } from "../../src/sources/pandora/index.js";
+import type { PlaylistItem } from "../../src/sources/pandora/types/api.js";
 import { createYtMusicSource } from "../../src/sources/ytmusic/index.js";
 import type { YtMusicPlaylistEntry } from "../../src/sources/ytmusic/index.js";
 import type { Source } from "../../src/sources/types.js";
@@ -45,6 +46,16 @@ export async function getSourceManager(
 	const manager = createSourceManager(sources);
 	managers.set(cacheKey, manager);
 	return manager;
+}
+
+export function registerPandoraPlaylistItems(
+	manager: SourceManager,
+	items: readonly PlaylistItem[],
+): void {
+	const pandoraSource = manager.getSource("pandora");
+	if (pandoraSource && isPandoraSource(pandoraSource)) {
+		pandoraSource.registerPlaylistItems(items);
+	}
 }
 
 // For the stream endpoint which may not have a session context
