@@ -16,7 +16,11 @@ export function isPandoraSource(source: Source): source is PandoraSource {
 	return source.type === "pandora" && typeof (source as Partial<PandoraSource>).registerPlaylistItems === "function";
 }
 
-function playlistItemToCanonical(item: PlaylistItem): CanonicalTrack {
+function playlistItemToCanonical(item: PlaylistItem): CanonicalTrack | null {
+	// Skip items with missing required metadata
+	if (!item.songName || !item.artistName || !item.albumName) {
+		return null;
+	}
 	const track: CanonicalTrack = {
 		id: item.trackToken,
 		title: item.songName,
@@ -88,7 +92,9 @@ export function createPandoraSource(session: PandoraSession): PandoraSource {
 			for (const item of result.items) {
 				trackCache.set(item.trackToken, item);
 			}
-			return result.items.map(playlistItemToCanonical);
+			return result.items
+				.map(playlistItemToCanonical)
+				.filter((track): track is CanonicalTrack => track !== null);
 		},
 
 		async getStreamUrl(trackId: string): Promise<string> {
