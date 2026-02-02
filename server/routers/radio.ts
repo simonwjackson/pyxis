@@ -2,19 +2,30 @@ import { z } from "zod";
 import { Effect } from "effect";
 import { router, pandoraProtectedProcedure } from "../trpc.js";
 import { encodeId, decodeId, buildStreamUrl, trackCapabilities } from "../lib/ids.js";
+import { createLogger } from "../../src/logger.js";
 import * as Pandora from "../../src/sources/pandora/client.js";
 import type { PlaylistItem } from "../../src/sources/pandora/types/api.js";
 
+const log = createLogger("radio");
+
 function encodePlaylistItem(item: PlaylistItem) {
+	if (!item.songName || !item.artistName || !item.albumName) {
+		log.warn("[radio] dropping playlist item with missing metadata", {
+			trackToken: item.trackToken,
+			songName: item.songName,
+			artistName: item.artistName,
+			albumName: item.albumName,
+		});
+		return null;
+	}
+
 	const opaqueId = encodeId("pandora", item.trackToken);
 	return {
 		id: opaqueId,
 		title: item.songName,
 		artist: item.artistName,
 		album: item.albumName,
-		...(item.albumArtUrl != null
-			? { artworkUrl: item.albumArtUrl }
-			: {}),
+		artworkUrl: item.albumArtUrl ?? null,
 		capabilities: trackCapabilities("pandora"),
 	};
 }
@@ -106,7 +117,9 @@ export const radioRouter = router({
 					input.quality,
 				),
 			);
-			return result.items.map(encodePlaylistItem);
+			return result.items
+			.map(encodePlaylistItem)
+			.filter((item): item is NonNullable<ReturnType<typeof encodePlaylistItem>> => item !== null);
 		}),
 
 	create: pandoraProtectedProcedure

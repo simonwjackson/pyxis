@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { useSearch } from "@tanstack/react-router";
 import {
 	ThumbsUp,
@@ -51,7 +51,8 @@ function radioTrackToNowPlaying(track: {
 	readonly title: string;
 	readonly artist: string;
 	readonly album: string;
-	readonly artworkUrl?: string;
+	readonly artworkUrl?: string | null;
+	readonly duration?: number | null;
 	readonly capabilities: TrackCapabilities;
 }): NowPlayingTrack {
 	return {
@@ -60,6 +61,7 @@ function radioTrackToNowPlaying(track: {
 		artistName: track.artist,
 		albumName: track.album,
 		...(track.artworkUrl != null ? { albumArtUrl: track.artworkUrl } : {}),
+		...(track.duration != null ? { duration: track.duration } : {}),
 		capabilities: track.capabilities,
 	};
 }
@@ -137,9 +139,17 @@ export function NowPlayingPage() {
 	const playlistId = search.playlist;
 	const albumId = search.album ?? "";
 
+	const contextKey = useMemo(() => {
+		if (isAlbumMode) return `album:${albumId}`;
+		if (isPlaylistMode) return `playlist:${playlistId ?? ""}`;
+		if (radioId) return `radio:${radioId}`;
+		return "idle";
+	}, [albumId, isAlbumMode, isPlaylistMode, playlistId, radioId]);
+
 	const playback = usePlaybackContext();
 	const [showTrackInfo, setShowTrackInfo] = useState(false);
 	const hasStartedRef = useRef(false);
+	const activeContextRef = useRef(contextKey);
 	const [tracks, setTracks] = useState<readonly NowPlayingTrack[]>([]);
 	const [trackIndex, setTrackIndex] = useState(0);
 	const [albumMeta, setAlbumMeta] = useState<{
@@ -150,12 +160,13 @@ export function NowPlayingPage() {
 
 	// Reset playback gate and clear stale state when switching context
 	useEffect(() => {
-		console.log("[now-playing] context switch reset", { radioId, playlistId, albumId });
+		console.log("[now-playing] context switch reset", { contextKey });
+		activeContextRef.current = contextKey;
 		hasStartedRef.current = false;
 		setTracks([]);
 		setTrackIndex(0);
 		setAlbumMeta(null);
-	}, [radioId, playlistId, albumId]);
+	}, [contextKey]);
 
 	// Subscribe to queue state to track current index
 	trpc.queue.onChange.useSubscription(undefined, {
@@ -182,7 +193,7 @@ export function NowPlayingPage() {
 	// Playlist query
 	const playlistQuery = trpc.playlist.getTracks.useQuery(
 		{ id: playlistId ?? "" },
-		{ enabled: isPlaylistMode && !isAlbumMode },
+		{ enabled: isPlaylistMode && !isAlbumMode }
 	);
 
 	// Log radio query lifecycle
@@ -221,14 +232,24 @@ export function NowPlayingPage() {
 				| { type: "album"; albumId: string }
 				| { type: "radio"; seedId: string }
 				| { type: "playlist"; playlistId: string },
+			originKey: string,
 		) => {
-			if (newTracks.length === 0 || hasStartedRef.current) return;
+			if (newTracks.length === 0) return;
+			if (originKey !== activeContextRef.current) {
+				console.log("[now-playing] skipping startPlayback for stale context", {
+					originKey,
+					activeContext: activeContextRef.current,
+				});
+				return;
+			}
+			if (hasStartedRef.current) return;
 			hasStartedRef.current = true;
 			setTracks(newTracks);
 			console.log("[now-playing] calling playMutation", {
 				context,
 				trackCount: newTracks.length,
 				firstTrackId: newTracks[0]?.id,
+				contextKey: originKey,
 			});
 			playMutationRef.current.mutate({
 				tracks: tracksToQueuePayload(newTracks),
@@ -257,22 +278,22 @@ export function NowPlayingPage() {
 				albumInfo?.artworkUrl ?? null,
 			),
 		);
-		startPlayback(newTracks, { type: "album", albumId });
-	}, [isAlbumMode, albumTracksQuery.data, albumsQuery.data, albumId, startPlayback]);
+		startPlayback(newTracks, { type: "album", albumId }, contextKey);
+	}, [contextKey, isAlbumMode, albumTracksQuery.data, albumsQuery.data, albumId, startPlayback]);
 
 	// Radio mode: when radio track data arrives, start playback
 	useEffect(() => {
 		if (isAlbumMode || isPlaylistMode || !radioQuery.data || !radioId) return;
 		const newTracks = radioQuery.data.map(radioTrackToNowPlaying);
-		startPlayback(newTracks, { type: "radio", seedId: radioId });
-	}, [isAlbumMode, isPlaylistMode, radioQuery.data, radioId, startPlayback]);
+		startPlayback(newTracks, { type: "radio", seedId: radioId }, contextKey);
+	}, [contextKey, isAlbumMode, isPlaylistMode, radioQuery.data, radioId, startPlayback]);
 
 	// Playlist mode: when playlist data arrives, start playback
 	useEffect(() => {
 		if (isAlbumMode || !isPlaylistMode || !playlistQuery.data || !playlistId) return;
 		const newTracks = playlistQuery.data.map(playlistTrackToNowPlaying);
-		startPlayback(newTracks, { type: "playlist", playlistId });
-	}, [isAlbumMode, isPlaylistMode, playlistQuery.data, playlistId, startPlayback]);
+		startPlayback(newTracks, { type: "playlist", playlistId }, contextKey);
+	}, [contextKey, isAlbumMode, isPlaylistMode, playlistQuery.data, playlistId, startPlayback]);
 
 	const feedbackMutation = trpc.track.feedback.useMutation({
 		onError(err) {

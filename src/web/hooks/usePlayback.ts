@@ -308,7 +308,15 @@ export function usePlayback() {
 	const skipMutation = trpc.player.skip.useMutation();
 	const previousMutation = trpc.player.previous.useMutation();
 	const stopMutation = trpc.player.stop.useMutation();
-	const playMutation = trpc.player.play.useMutation();
+	const playMutation = trpc.player.play.useMutation({
+		onError(error) {
+			logToServer(`[action] play mutation failed: ${error.message}`);
+			setState((prev) => ({
+				...prev,
+				error: error.message,
+			}));
+		},
+	});
 	const jumpToMutation = trpc.player.jumpTo.useMutation();
 
 	const togglePlayPause = useCallback(() => {

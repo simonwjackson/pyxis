@@ -216,14 +216,116 @@
     "archived": true
   },
   "7c4c4577-2ca6-4bdc-b13c-047dca243297": {
-    "lastViewedAt": 1769974288564,
+    "lastViewedAt": 1770000712120,
     "title": "Planning Session in Orchestration Mode",
     "titleGeneratedAt": 1769969065934,
     "titleModel": "llama-3.1-8b-instant",
-    "providerEcosystem": "native"
+    "providerEcosystem": "native",
+    "archived": true
   },
   "ac42319b-60c6-47be-bf3a-3ad88317d992": {
-    "lastViewedAt": 1769974934803,
-    "parentId": "7c4c4577-2ca6-4bdc-b13c-047dca243297"
+    "lastViewedAt": 1769995041489,
+    "parentId": "7c4c4577-2ca6-4bdc-b13c-047dca243297",
+    "archived": true
+  },
+  "f1dc90e6-6cce-4981-8162-dd83711857db": {
+    "lastViewedAt": 1769990308288,
+    "title": "Investigating Current State of Logging",
+    "titleGeneratedAt": 1769990123801,
+    "titleModel": "llama-3.1-8b-instant",
+    "providerEcosystem": "native",
+    "archived": true
+  },
+  "850cb58c-b98c-4de6-93e7-0e96d4e7157a": {
+    "lastViewedAt": 1769992520891,
+    "title": "Fixing Dual-Mutation Race Condition in Track Switching",
+    "titleGeneratedAt": 1769990126645,
+    "titleModel": "llama-3.1-8b-instant"
+  },
+  "a4a1bdab-3ce8-444b-b1da-43bea53e70ca": {
+    "lastViewedAt": 1769993590294,
+    "parentId": "850cb58c-b98c-4de6-93e7-0e96d4e7157a",
+    "title": "Fixing Interrupted play() Request with Dual SSE Events",
+    "titleGeneratedAt": 1769992616505,
+    "titleModel": "llama-3.1-8b-instant",
+    "mode": "plan"
+  },
+  "a8949867-7922-48ed-8c79-e6b73784aad8": {
+    "lastViewedAt": 1769995022913,
+    "parentId": "a4a1bdab-3ce8-444b-b1da-43bea53e70ca",
+    "title": "Implementing End-to-End Playback Logging",
+    "titleGeneratedAt": 1769993862179,
+    "titleModel": "llama-3.1-8b-instant",
+    "mode": "plan"
+  },
+  "b0c324a7-96fd-4257-b61a-77c2c2ea295e": {
+    "lastViewedAt": 0,
+    "archived": true
+  },
+  "2aefca26-3420-4b07-af2d-835da9cc21db": {
+    "lastViewedAt": 0,
+    "archived": true
+  },
+  "ef80fbad-204c-4653-a937-d91f935053ca": {
+    "lastViewedAt": 0,
+    "archived": true
+  },
+  "800aa342-0869-49cb-8221-6609ad97593a": {
+    "lastViewedAt": 1769998128538,
+    "archived": true
+  },
+  "1b51b1ab-2ac9-4017-b234-2d7997dc0d0f": {
+    "lastViewedAt": 0,
+    "archived": true
+  },
+  "f75cfa8f-8538-4c48-8985-f4843855545b": {
+    "lastViewedAt": 1769997001441,
+    "parentId": "a8949867-7922-48ed-8c79-e6b73784aad8",
+    "title": "Fixing Player SSE Subscription Drop Issue",
+    "titleGeneratedAt": 1769994945929,
+    "titleModel": "llama-3.1-8b-instant"
+  },
+  "498c8e7b-ad8d-4265-bc8f-6481b328a827": {
+    "lastViewedAt": 1769997982542,
+    "parentId": "f75cfa8f-8538-4c48-8985-f4843855545b",
+    "title": "Fixing Player SSE Subscription Drop Issue",
+    "titleGeneratedAt": 1769996923647,
+    "titleModel": "llama-3.1-8b-instant"
+  },
+  "d339f17d-679a-4705-aad4-cc156c5412c2": {
+    "lastViewedAt": 1770001198594,
+    "parentId": "498c8e7b-ad8d-4265-bc8f-6481b328a827",
+    "title": "Fixing Radio Station Playback Initiation Issue",
+    "titleGeneratedAt": 1769997843222,
+    "titleModel": "llama-3.1-8b-instant",
+    "mode": "build"
+  },
+  "fe6fb89b-aa1d-4b3f-8c3a-428ae7009f68": {
+    "lastViewedAt": 0,
+    "archived": true
+  },
+  "463988a4-ceee-4052-84c1-6f8c8fa9bde1": {
+    "lastViewedAt": 0,
+    "archived": true
+  },
+  "50deae44-7140-436f-a669-426b1a775dcb": {
+    "lastViewedAt": 0,
+    "archived": true
+  },
+  "966b72ad-4375-4dfe-809a-8bb18ab87a13": {
+    "lastViewedAt": 0,
+    "archived": true
+  },
+  "d6e08ea3-cb2e-45e6-80d1-2aabbb80619e": {
+    "lastViewedAt": 0,
+    "archived": true
+  },
+  "3f796cdb-0e0a-4848-8034-8b7611ac4ede": {
+    "lastViewedAt": 0,
+    "title": "Resolving Radio Station Playback Bug in Now-Playing Route",
+    "titleGeneratedAt": 1770001720950,
+    "titleModel": "llama-3.1-8b-instant",
+    "providerEcosystem": "codex",
+    "mode": "build"
   }
 }
