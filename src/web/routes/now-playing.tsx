@@ -428,12 +428,14 @@ export function NowPlayingPage() {
 			? (playback.progress / playback.duration) * 100
 			: 0;
 
+	const artUrl = currentTrack.albumArtUrl ?? playback.currentTrack?.artUrl;
+
 	return (
 		<div className="flex-1 flex flex-col items-center justify-center p-8 space-y-6">
 			<div className="w-56 h-56 md:w-72 md:h-72 relative">
-				{playback.currentTrack?.artUrl ? (
+				{artUrl ? (
 					<img
-						src={playback.currentTrack.artUrl}
+						src={artUrl}
 						alt={`${currentTrack.albumName} album art`}
 						className="w-full h-full rounded-2xl shadow-2xl object-cover"
 						onError={(e) => {
@@ -443,7 +445,7 @@ export function NowPlayingPage() {
 					/>
 				) : null}
 				<div
-					className={`w-full h-full bg-[var(--color-bg-highlight)] rounded-2xl shadow-2xl flex items-center justify-center ${playback.currentTrack?.artUrl ? "hidden absolute inset-0" : ""}`}
+					className={`w-full h-full bg-[var(--color-bg-highlight)] rounded-2xl shadow-2xl flex items-center justify-center ${artUrl ? "hidden absolute inset-0" : ""}`}
 				>
 					<Music className="w-20 h-20 text-[var(--color-text-dim)]" />
 				</div>
