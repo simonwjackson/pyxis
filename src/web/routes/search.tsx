@@ -4,16 +4,8 @@ import { toast } from "sonner";
 import { trpc } from "../lib/trpc";
 import { SearchInput } from "../components/search/SearchInput";
 import { SearchResults } from "../components/search/SearchResults";
+import type { SearchTrack } from "../components/search/SearchResults";
 import { Spinner } from "../components/ui/spinner";
-
-type SearchTrack = {
-	readonly id: string;
-	readonly title: string;
-	readonly artist: string;
-	readonly album?: string;
-	readonly artworkUrl?: string | null;
-	readonly capabilities: { readonly radio: boolean };
-};
 
 export function SearchPage() {
 	const [query, setQuery] = useState("");
@@ -92,6 +84,12 @@ export function SearchPage() {
 	const isLoading = unifiedQuery.isLoading;
 	const data = unifiedQuery.data;
 
+	const hasResults =
+		(data?.tracks && data.tracks.length > 0) ||
+		(data?.albums && data.albums.length > 0) ||
+		(data?.pandoraArtists && data.pandoraArtists.length > 0) ||
+		(data?.pandoraGenres && data.pandoraGenres.length > 0);
+
 	return (
 		<div className="flex-1 p-4 space-y-4">
 			<h2 className="text-lg font-semibold">Search</h2>
@@ -104,16 +102,34 @@ export function SearchPage() {
 					<Spinner />
 				</div>
 			)}
-			{data && (
-				<SearchResults
-					tracks={data.tracks}
-					albums={data.albums}
-					artists={data.pandoraArtists}
-					genreStations={data.pandoraGenres}
-					onCreateStation={handleCreateStation}
-					onSaveAlbum={handleSaveAlbum}
-					onStartRadio={handleStartRadio}
-				/>
+			{data && !hasResults && <SearchResults.Empty />}
+			{data && hasResults && (
+				<SearchResults.Root>
+					{data.albums.length > 0 && (
+						<SearchResults.Albums
+							albums={data.albums}
+							onSaveAlbum={handleSaveAlbum}
+						/>
+					)}
+					{data.tracks.length > 0 && (
+						<SearchResults.Tracks
+							tracks={data.tracks}
+							onStartRadio={handleStartRadio}
+						/>
+					)}
+					{data.pandoraArtists.length > 0 && (
+						<SearchResults.Artists
+							artists={data.pandoraArtists}
+							onCreateStation={handleCreateStation}
+						/>
+					)}
+					{data.pandoraGenres.length > 0 && (
+						<SearchResults.Genres
+							genres={data.pandoraGenres}
+							onCreateStation={handleCreateStation}
+						/>
+					)}
+				</SearchResults.Root>
 			)}
 			{!data && query.length < 2 && (
 				<div className="text-center py-12 text-[var(--color-text-dim)]">
