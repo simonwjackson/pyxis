@@ -132,28 +132,33 @@ export function StationList({
 
 								{isMenuOpen && (
 									<StationContextMenu
-										allowDelete={
-											station.allowDelete ?? false
-										}
-										allowRename={
-											station.allowRename ?? false
-										}
-										onDetails={() => {
-											setOpenMenuId(null);
-											onDetails(station);
-										}}
-										onRename={() => {
-											setOpenMenuId(null);
-											onRename(station);
-										}}
-										onDelete={() => {
-											setOpenMenuId(null);
-											onDelete(station);
-										}}
 										onClose={() =>
 											setOpenMenuId(null)
 										}
-									/>
+									>
+										<StationContextMenu.Details
+											onClick={() => {
+												setOpenMenuId(null);
+												onDetails(station);
+											}}
+										/>
+										{station.allowRename && (
+											<StationContextMenu.Rename
+												onClick={() => {
+													setOpenMenuId(null);
+													onRename(station);
+												}}
+											/>
+										)}
+										{station.allowDelete && (
+											<StationContextMenu.Delete
+												onClick={() => {
+													setOpenMenuId(null);
+													onDelete(station);
+												}}
+											/>
+										)}
+									</StationContextMenu>
 								)}
 							</div>
 						</div>
