@@ -5,13 +5,17 @@ import type {
 	CanonicalTrack,
 	CanonicalAlbum,
 	SearchResult,
+	MetadataSource,
+	NormalizedRelease,
 } from "./types.js";
 import {
 	hasPlaylistCapability,
 	hasStreamCapability,
 	hasSearchCapability,
 	hasAlbumCapability,
+	hasMetadataSearchCapability,
 } from "./types.js";
+import { createMatcher } from "./matcher.js";
 
 export type SourceManager = {
 	readonly getSource: (type: SourceType) => Source | undefined;
@@ -35,8 +39,44 @@ export type SourceManager = {
 	}>;
 };
 
+// --- Conversion helpers ---
+
+function canonicalToNormalized(album: CanonicalAlbum): NormalizedRelease {
+	return {
+		fingerprint: "",
+		title: album.title,
+		artists: [
+			{
+				name: album.artist,
+				ids: album.sourceIds,
+			},
+		],
+		releaseType: album.releaseType ?? "album",
+		...(album.year != null ? { year: album.year } : {}),
+		ids: album.sourceIds,
+		confidence: 1,
+		genres: album.genres ?? [],
+		...(album.artworkUrl != null ? { artworkUrl: album.artworkUrl } : {}),
+	};
+}
+
+function normalizedToCanonicalAlbum(nr: NormalizedRelease): CanonicalAlbum {
+	return {
+		id: nr.ids[0]?.id ?? "",
+		title: nr.title,
+		artist: nr.artists[0]?.name ?? "Unknown",
+		...(nr.year != null ? { year: nr.year } : {}),
+		tracks: [],
+		...(nr.artworkUrl != null ? { artworkUrl: nr.artworkUrl } : {}),
+		sourceIds: nr.ids,
+		genres: nr.genres,
+		releaseType: nr.releaseType,
+	};
+}
+
 export function createSourceManager(
 	sources: readonly Source[],
+	metadataSources: readonly MetadataSource[] = [],
 ): SourceManager {
 	const sourceMap = new Map<SourceType, Source>();
 	for (const source of sources) {
@@ -94,20 +134,63 @@ export function createSourceManager(
 		},
 
 		async searchAll(query: string): Promise<SearchResult> {
-			const results = await Promise.allSettled(
-				sources
-					.filter(hasSearchCapability)
-					.map((source) => source.search(query)),
-			);
+			// 1. Run ALL sources in parallel
+			const [primaryResults, metadataResults] = await Promise.all([
+				// Existing sources (Pandora, YTMusic) — return SearchResult
+				Promise.allSettled(
+					sources
+						.filter(hasSearchCapability)
+						.map((source) => source.search(query)),
+				),
+				// Metadata sources (MusicBrainz, Discogs) — return NormalizedRelease[]
+				Promise.allSettled(
+					metadataSources
+						.filter(hasMetadataSearchCapability)
+						.map((source) => source.searchReleases(query, 10)),
+				),
+			]);
+
+			// 2. Collect tracks from primary sources (unchanged)
 			const allTracks: CanonicalTrack[] = [];
-			const allAlbums: SearchResult["albums"][number][] = [];
-			for (const result of results) {
+			const primaryAlbums: CanonicalAlbum[] = [];
+			for (const result of primaryResults) {
 				if (result.status === "fulfilled") {
 					allTracks.push(...result.value.tracks);
-					allAlbums.push(...result.value.albums);
+					primaryAlbums.push(...result.value.albums);
 				}
 			}
-			return { tracks: allTracks, albums: allAlbums };
+
+			// 3. If no metadata sources, return as before (fast path)
+			if (metadataSources.length === 0) {
+				return { tracks: allTracks, albums: primaryAlbums };
+			}
+
+			// 4. Normalize primary albums to NormalizedRelease
+			const normalizedPrimary = primaryAlbums.map(canonicalToNormalized);
+
+			// 5. Collect metadata-only results
+			const metadataAlbums: NormalizedRelease[] = [];
+			for (const result of metadataResults) {
+				if (result.status === "fulfilled") {
+					metadataAlbums.push(...result.value);
+				}
+			}
+
+			// 6. Feed everything through matcher (primary first so they're the "existing" entries)
+			const matcher = createMatcher({ similarityThreshold: 0.85 });
+			for (const album of normalizedPrimary) {
+				matcher.addOrMerge(album);
+			}
+			for (const album of metadataAlbums) {
+				matcher.addOrMerge(album);
+			}
+
+			// 7. Convert back to CanonicalAlbum
+			const mergedAlbums = matcher
+				.getAll()
+				.map(normalizedToCanonicalAlbum);
+
+			return { tracks: allTracks, albums: mergedAlbums };
 		},
 	};
 }

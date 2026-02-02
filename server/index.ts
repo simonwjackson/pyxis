@@ -2,7 +2,7 @@ import { fetchRequestHandler } from "@trpc/server/adapters/fetch";
 import { appRouter } from "./router.js";
 import { createContext } from "./trpc.js";
 import { handleStreamRequest, prefetchToCache } from "./services/stream.js";
-import { ensureSourceManager } from "./services/sourceManager.js";
+import { ensureSourceManager, setAppConfig } from "./services/sourceManager.js";
 import { tryAutoLogin } from "./services/autoLogin.js";
 import { decodeId } from "./lib/ids.js";
 import { createLogger } from "../src/logger.js";
@@ -11,6 +11,7 @@ import { resolveConfig } from "../src/config.js";
 const configFlagIndex = process.argv.indexOf("--config");
 const configPath = configFlagIndex !== -1 ? process.argv[configFlagIndex + 1] : undefined;
 const config = resolveConfig(configPath);
+setAppConfig(config);
 
 const serverLogger = createLogger("server");
 const streamLog = serverLogger.child({ component: "stream" });

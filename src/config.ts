@@ -18,8 +18,19 @@ const PandoraSourceSchema = z.object({
 	username: z.string().optional(),
 });
 
+const MusicBrainzSourceSchema = z.object({
+	enabled: z.boolean().default(true),
+});
+
+const DiscogsSourceSchema = z.object({
+	enabled: z.boolean().default(true),
+	token: z.string().optional(),
+});
+
 const SourcesSchema = z.object({
 	pandora: PandoraSourceSchema.default(() => PandoraSourceSchema.parse({})),
+	musicbrainz: MusicBrainzSourceSchema.default(() => MusicBrainzSourceSchema.parse({})),
+	discogs: DiscogsSourceSchema.default(() => DiscogsSourceSchema.parse({})),
 });
 
 const LogSchema = z.object({
@@ -80,6 +91,18 @@ function applyEnvOverrides(config: Record<string, unknown>): Record<string, unkn
 			result["log"] = {};
 		}
 		(result["log"] as Record<string, unknown>)["level"] = logLevel;
+	}
+
+	const discogsToken = process.env["PYXIS_DISCOGS_TOKEN"];
+	if (discogsToken) {
+		if (!result["sources"] || typeof result["sources"] !== "object") {
+			result["sources"] = {};
+		}
+		const sources = result["sources"] as Record<string, unknown>;
+		if (!sources["discogs"] || typeof sources["discogs"] !== "object") {
+			sources["discogs"] = {};
+		}
+		(sources["discogs"] as Record<string, unknown>)["token"] = discogsToken;
 	}
 
 	return result;

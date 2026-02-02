@@ -1,7 +1,17 @@
 // Canonical types for the source abstraction layer.
 // All sources normalize their data to these types.
 
-export type SourceType = "pandora" | "ytmusic" | "local";
+export type SourceType = "pandora" | "ytmusic" | "local" | "musicbrainz" | "discogs";
+
+export type ReleaseType =
+	| "album"
+	| "ep"
+	| "single"
+	| "compilation"
+	| "soundtrack"
+	| "live"
+	| "remix"
+	| "other";
 
 export type SourceId = {
 	readonly source: SourceType;
@@ -26,6 +36,8 @@ export type CanonicalAlbum = {
 	readonly tracks: readonly CanonicalTrack[];
 	readonly artworkUrl?: string;
 	readonly sourceIds: readonly SourceId[];
+	readonly genres?: readonly string[];
+	readonly releaseType?: ReleaseType;
 };
 
 export type CanonicalPlaylist = {
@@ -104,4 +116,43 @@ export function hasAlbumCapability(
 	source: Source,
 ): source is Source & AlbumCapability {
 	return typeof source.getAlbumTracks === "function";
+}
+
+// --- Metadata source types (for enrichment-only sources) ---
+
+export type NormalizedArtist = {
+	readonly name: string;
+	readonly sortName?: string;
+	readonly ids: readonly SourceId[];
+};
+
+export type NormalizedRelease = {
+	readonly fingerprint: string;
+	readonly title: string;
+	readonly artists: readonly NormalizedArtist[];
+	readonly releaseType: ReleaseType;
+	readonly year?: number;
+	readonly ids: readonly SourceId[];
+	readonly confidence: number;
+	readonly genres: readonly string[];
+	readonly artworkUrl?: string;
+	readonly sourceScores?: Partial<Record<SourceType, number>>;
+};
+
+export type MetadataSearchCapability = {
+	readonly searchReleases: (
+		query: string,
+		limit?: number,
+	) => Promise<readonly NormalizedRelease[]>;
+};
+
+export type MetadataSource = {
+	readonly type: SourceType;
+	readonly name: string;
+} & MetadataSearchCapability;
+
+export function hasMetadataSearchCapability(
+	source: Source | MetadataSource,
+): source is MetadataSource {
+	return "searchReleases" in source && typeof source.searchReleases === "function";
 }
