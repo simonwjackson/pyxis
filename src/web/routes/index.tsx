@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { Search, Shuffle } from "lucide-react";
-import { toast } from "sonner";
 import { trpc } from "../lib/trpc";
 import { StationList } from "../components/stations/StationList";
 import { DeleteStationDialog } from "../components/stations/DeleteStationDialog";
@@ -22,30 +21,7 @@ export function StationsPage() {
 	const [dialog, setDialog] = useState<DialogState>({ type: "none" });
 	const navigate = useNavigate();
 	const stationsQuery = trpc.radio.list.useQuery();
-	const utils = trpc.useUtils();
 	const playback = usePlaybackContext();
-
-	const deleteMutation = trpc.radio.delete.useMutation({
-		onSuccess() {
-			utils.radio.list.invalidate();
-			toast.success("Station deleted");
-			setDialog({ type: "none" });
-		},
-		onError(err) {
-			toast.error(`Failed to delete station: ${err.message}`);
-		},
-	});
-
-	const renameMutation = trpc.radio.rename.useMutation({
-		onSuccess() {
-			utils.radio.list.invalidate();
-			toast.success("Station renamed");
-			setDialog({ type: "none" });
-		},
-		onError(err) {
-			toast.error(`Failed to rename station: ${err.message}`);
-		},
-	});
 
 	const allStations = stationsQuery.data ?? [];
 	const hasQuickMix = allStations.some((s: RadioStation) => s.isQuickMix);
@@ -123,27 +99,18 @@ export function StationsPage() {
 
 			{dialog.type === "delete" && (
 				<DeleteStationDialog
+					stationId={dialog.station.id}
 					stationName={dialog.station.name}
-					isDeleting={deleteMutation.isPending}
-					onConfirm={() =>
-						deleteMutation.mutate({
-							id: dialog.station.id,
-						})
-					}
+					onSuccess={() => setDialog({ type: "none" })}
 					onCancel={() => setDialog({ type: "none" })}
 				/>
 			)}
 
 			{dialog.type === "rename" && (
 				<RenameStationDialog
+					stationId={dialog.station.id}
 					stationName={dialog.station.name}
-					isRenaming={renameMutation.isPending}
-					onConfirm={(newName) =>
-						renameMutation.mutate({
-							id: dialog.station.id,
-							name: newName,
-						})
-					}
+					onSuccess={() => setDialog({ type: "none" })}
 					onCancel={() => setDialog({ type: "none" })}
 				/>
 			)}

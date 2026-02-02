@@ -1,20 +1,35 @@
 import { useState, useEffect, useRef } from "react";
+import { toast } from "sonner";
+import { trpc } from "../../lib/trpc";
 
 type RenameStationDialogProps = {
+	readonly stationId: string;
 	readonly stationName: string;
-	readonly isRenaming: boolean;
-	readonly onConfirm: (newName: string) => void;
+	readonly onSuccess: () => void;
 	readonly onCancel: () => void;
 };
 
 export function RenameStationDialog({
+	stationId,
 	stationName,
-	isRenaming,
-	onConfirm,
+	onSuccess,
 	onCancel,
 }: RenameStationDialogProps) {
 	const [name, setName] = useState(stationName);
 	const inputRef = useRef<HTMLInputElement>(null);
+	const utils = trpc.useUtils();
+	const renameMutation = trpc.radio.rename.useMutation({
+		onSuccess() {
+			utils.radio.list.invalidate();
+			toast.success("Station renamed");
+			onSuccess();
+		},
+		onError(err) {
+			toast.error(`Failed to rename station: ${err.message}`);
+		},
+	});
+
+	const isRenaming = renameMutation.isPending;
 
 	useEffect(() => {
 		inputRef.current?.select();
@@ -24,7 +39,7 @@ export function RenameStationDialog({
 		e.preventDefault();
 		const trimmed = name.trim();
 		if (trimmed && trimmed !== stationName) {
-			onConfirm(trimmed);
+			renameMutation.mutate({ id: stationId, name: trimmed });
 		}
 	};
 

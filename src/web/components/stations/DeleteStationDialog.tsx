@@ -1,18 +1,35 @@
 import { Trash2 } from "lucide-react";
+import { toast } from "sonner";
+import { trpc } from "../../lib/trpc";
 
 type DeleteStationDialogProps = {
+	readonly stationId: string;
 	readonly stationName: string;
-	readonly isDeleting: boolean;
-	readonly onConfirm: () => void;
+	readonly onSuccess: () => void;
 	readonly onCancel: () => void;
 };
 
 export function DeleteStationDialog({
+	stationId,
 	stationName,
-	isDeleting,
-	onConfirm,
+	onSuccess,
 	onCancel,
 }: DeleteStationDialogProps) {
+	const utils = trpc.useUtils();
+	const deleteMutation = trpc.radio.delete.useMutation({
+		onSuccess() {
+			utils.radio.list.invalidate();
+			toast.success("Station deleted");
+			onSuccess();
+		},
+		onError(err) {
+			toast.error(`Failed to delete station: ${err.message}`);
+		},
+	});
+
+	const isDeleting = deleteMutation.isPending;
+	const handleConfirm = () => deleteMutation.mutate({ id: stationId });
+
 	return (
 		<div
 			className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
@@ -56,7 +73,7 @@ export function DeleteStationDialog({
 					</button>
 					<button
 						type="button"
-						onClick={onConfirm}
+						onClick={handleConfirm}
 						disabled={isDeleting}
 						className="px-4 py-2 text-sm text-white bg-[var(--color-error)] hover:brightness-110 rounded-lg transition-colors disabled:opacity-50"
 					>
