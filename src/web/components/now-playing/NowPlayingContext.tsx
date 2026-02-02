@@ -23,7 +23,6 @@ type NowPlayingContextValue = {
 	readonly tracks: readonly NowPlayingTrack[];
 	readonly trackIndex: number;
 	readonly currentTrack: NowPlayingTrack | undefined;
-	readonly playback: ReturnType<typeof usePlaybackContext>;
 	readonly handleSkip: () => void;
 	readonly handlePrevious: () => void;
 	readonly handleJumpToTrack: (index: number) => void;
@@ -45,6 +44,7 @@ type NowPlayingContextValue = {
 			readonly artworkUrl: string | null;
 		} | null,
 	) => void;
+	readonly isReady: boolean;
 	readonly startPlayback: (
 		newTracks: readonly NowPlayingTrack[],
 		startIndex?: number,
@@ -75,11 +75,14 @@ export function NowPlayingProvider({
 	children,
 }: ProviderProps) {
 	const playback = usePlaybackContext();
+	const playbackRef = useRef(playback);
+	playbackRef.current = playback;
 	const [showTrackInfo, setShowTrackInfo] = useState(false);
 	const hasStartedRef = useRef(false);
 	const activeContextRef = useRef(contextKey);
 	const [tracks, setTracks] = useState<readonly NowPlayingTrack[]>([]);
 	const [trackIndex, setTrackIndex] = useState(0);
+	const [isReady, setIsReady] = useState(false);
 	const [albumMeta, setAlbumMeta] = useState<{
 		readonly title: string;
 		readonly artist: string;
@@ -91,6 +94,7 @@ export function NowPlayingProvider({
 		console.log("[now-playing] context switch reset", { contextKey });
 		activeContextRef.current = contextKey;
 		hasStartedRef.current = false;
+		setIsReady(false);
 		setTracks([]);
 		setTrackIndex(0);
 		setAlbumMeta(null);
@@ -124,6 +128,7 @@ export function NowPlayingProvider({
 			if (hasStartedRef.current) return;
 			hasStartedRef.current = true;
 			setTracks(newTracks);
+			setIsReady(true);
 			console.log("[now-playing] calling playMutation", {
 				context: contextRef.current,
 				trackCount: newTracks.length,
@@ -148,8 +153,8 @@ export function NowPlayingProvider({
 				: context.type === "radio"
 					? context.seedId
 					: context.playlistId;
-		playback.setCurrentStationToken(token);
-	}, [context, playback]);
+		playbackRef.current.setCurrentStationToken(token);
+	}, [context]);
 
 	const feedbackMutation = trpc.track.feedback.useMutation({
 		onError(err) {
@@ -176,9 +181,9 @@ export function NowPlayingProvider({
 	useEffect(() => {
 		if (playback.error) {
 			toast.error(`Audio error: ${playback.error}`);
-			playback.clearError();
+			playbackRef.current.clearError();
 		}
-	}, [playback.error, playback.clearError]);
+	}, [playback.error]);
 
 	const currentTrack = tracks[trackIndex];
 
@@ -186,27 +191,24 @@ export function NowPlayingProvider({
 		if (context.type === "album") {
 			const nextIndex = trackIndex + 1;
 			if (nextIndex < tracks.length) {
-				playback.triggerJumpTo(nextIndex);
+				playbackRef.current.triggerJumpTo(nextIndex);
 			} else {
-				playback.stop();
+				playbackRef.current.stop();
 			}
 		} else {
-			playback.triggerSkip();
+			playbackRef.current.triggerSkip();
 		}
-	}, [trackIndex, tracks, playback, context.type]);
+	}, [trackIndex, tracks, context.type]);
 
 	const handlePrevious = useCallback(() => {
 		if (trackIndex > 0) {
-			playback.triggerJumpTo(trackIndex - 1);
+			playbackRef.current.triggerJumpTo(trackIndex - 1);
 		}
-	}, [trackIndex, playback]);
+	}, [trackIndex]);
 
-	const handleJumpToTrack = useCallback(
-		(index: number) => {
-			playback.triggerJumpTo(index);
-		},
-		[playback],
-	);
+	const handleJumpToTrack = useCallback((index: number) => {
+		playbackRef.current.triggerJumpTo(index);
+	}, []);
 
 	const handleLike = useCallback(() => {
 		if (!radioId || !currentTrack?.capabilities.feedback) return;
@@ -243,7 +245,6 @@ export function NowPlayingProvider({
 			tracks,
 			trackIndex,
 			currentTrack,
-			playback,
 			handleSkip,
 			handlePrevious,
 			handleJumpToTrack,
@@ -255,13 +256,13 @@ export function NowPlayingProvider({
 			setShowTrackInfo,
 			albumMeta,
 			setAlbumMeta,
+			isReady,
 			startPlayback,
 		}),
 		[
 			tracks,
 			trackIndex,
 			currentTrack,
-			playback,
 			handleSkip,
 			handlePrevious,
 			handleJumpToTrack,
@@ -271,6 +272,7 @@ export function NowPlayingProvider({
 			handleBookmark,
 			showTrackInfo,
 			albumMeta,
+			isReady,
 			startPlayback,
 		],
 	);

@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect } from "react";
 import { trpc } from "../../lib/trpc";
 import {
 	albumTrackToNowPlaying,
@@ -38,7 +38,6 @@ export function AlbumNowPlaying({
 			context={{ type: "album", albumId }}
 		>
 			<AlbumContent
-				key={contextKey}
 				albumId={albumId}
 				contextKey={contextKey}
 				startIndex={startIndex}
@@ -59,9 +58,8 @@ function AlbumContent({
 	readonly startIndex: number;
 	readonly shuffle: boolean;
 }) {
-	const { startPlayback, setAlbumMeta, currentTrack, albumMeta } =
+	const { startPlayback, setAlbumMeta, currentTrack, albumMeta, isReady } =
 		useNowPlaying();
-	const hasInitialized = useRef(false);
 
 	const albumTracksQuery = trpc.library.albumTracks.useQuery(
 		{ albumId },
@@ -91,7 +89,6 @@ function AlbumContent({
 		const newTracks = shuffle ? shuffleArray(ordered) : ordered;
 		const idx = shuffle ? 0 : startIndex;
 		startPlayback(newTracks, idx);
-		hasInitialized.current = true;
 	}, [
 		contextKey,
 		albumTracksQuery.data,
@@ -107,8 +104,7 @@ function AlbumContent({
 		return <NowPlayingSkeleton />;
 	}
 
-	// Data is cached but effects haven't populated tracks yet — show skeleton
-	if (!hasInitialized.current && !currentTrack) {
+	if (!isReady) {
 		return <NowPlayingSkeleton />;
 	}
 
