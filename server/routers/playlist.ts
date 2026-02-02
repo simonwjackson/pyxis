@@ -1,10 +1,10 @@
 import { z } from "zod";
-import { router, protectedProcedure, publicProcedure } from "../trpc.js";
+import { router, publicProcedure } from "../trpc.js";
 import { encodeId, decodeId, trackCapabilities, playlistCapabilities } from "../lib/ids.js";
 import {
 	invalidateManagers,
 } from "../services/sourceManager.js";
-import { ensureSourceManager } from "../services/sourceManager.js";
+
 import { getDb, schema } from "../../src/db/index.js";
 import { generateRadioUrl } from "../../src/sources/ytmusic/index.js";
 import type { CanonicalTrack, CanonicalPlaylist } from "../../src/sources/types.js";
@@ -37,13 +37,13 @@ function encodePlaylist(playlist: CanonicalPlaylist) {
 }
 
 export const playlistRouter = router({
-	list: protectedProcedure.query(async ({ ctx }) => {
-		const sourceManager = ctx.sourceManager ?? await ensureSourceManager();
+	list: publicProcedure.query(async ({ ctx }) => {
+		const sourceManager = ctx.sourceManager;
 		const playlists = await sourceManager.listAllPlaylists();
 		return playlists.map(encodePlaylist);
 	}),
 
-	getTracks: protectedProcedure
+	getTracks: publicProcedure
 		.input(
 			z.object({
 				id: z.string(),
@@ -51,7 +51,7 @@ export const playlistRouter = router({
 		)
 		.query(async ({ ctx, input }) => {
 			const { source, id: playlistId } = decodeId(input.id);
-			const sourceManager = ctx.sourceManager ?? await ensureSourceManager();
+			const sourceManager = ctx.sourceManager;
 			const tracks = await sourceManager.getPlaylistTracks(
 				source,
 				playlistId,

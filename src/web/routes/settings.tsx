@@ -1,10 +1,9 @@
 import { useState } from "react";
-import { LogOut, Plus, Trash2, CheckCircle, XCircle } from "lucide-react";
+import { Plus, Trash2, CheckCircle, XCircle } from "lucide-react";
 import { toast } from "sonner";
 import { trpc } from "../lib/trpc";
 import { Spinner } from "../components/ui/spinner";
 import { Button } from "../components/ui/button";
-import { useNavigate } from "@tanstack/react-router";
 
 function SourceCredentialForm({
 	onSuccess,
@@ -179,7 +178,6 @@ function SourceCredentialsSection() {
 }
 
 export function SettingsPage() {
-	const navigate = useNavigate();
 	const settingsQuery = trpc.auth.settings.useQuery(undefined, {
 		retry: false,
 	});
@@ -192,14 +190,6 @@ export function SettingsPage() {
 		onSuccess: () => {
 			utils.auth.settings.invalidate();
 			toast.success("Setting updated");
-		},
-	});
-
-	const logoutMutation = trpc.auth.logout.useMutation({
-		onSuccess() {
-			document.cookie =
-				"pyxis_session=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT";
-			navigate({ to: "/login" });
 		},
 	});
 
@@ -285,18 +275,6 @@ export function SettingsPage() {
 					)}
 				</section>
 			)}
-
-			<section className="pt-4 border-t border-[var(--color-border)]">
-				<Button
-					variant="destructive"
-					className="gap-2"
-					onClick={() => logoutMutation.mutate()}
-					disabled={logoutMutation.isPending}
-				>
-					<LogOut className="w-4 h-4" />
-					Sign Out
-				</Button>
-			</section>
 		</div>
 	);
 }

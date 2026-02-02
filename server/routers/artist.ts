@@ -1,7 +1,7 @@
 import { z } from "zod";
-import { router, publicProcedure, protectedProcedure } from "../trpc.js";
+import { router, publicProcedure } from "../trpc.js";
 import { decodeId, encodeId } from "../lib/ids.js";
-import { ensureSourceManager } from "../services/sourceManager.js";
+
 
 export const artistRouter = router({
 	get: publicProcedure
@@ -17,10 +17,10 @@ export const artistRouter = router({
 			};
 		}),
 
-	search: protectedProcedure
+	search: publicProcedure
 		.input(z.object({ query: z.string().min(1) }))
 		.query(async ({ ctx, input }) => {
-			const sourceManager = ctx.sourceManager ?? await ensureSourceManager();
+			const sourceManager = ctx.sourceManager;
 			const results = await sourceManager.searchAll(input.query);
 			// Filter to extract artist-like results from tracks (no dedicated artist search yet)
 			const seen = new Set<string>();

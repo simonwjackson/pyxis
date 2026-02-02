@@ -1,9 +1,9 @@
 import { z } from "zod";
 import { Effect } from "effect";
-import { router, protectedProcedure, pandoraProtectedProcedure } from "../trpc.js";
+import { router, publicProcedure, pandoraProtectedProcedure } from "../trpc.js";
 import { encodeId, trackCapabilities } from "../lib/ids.js";
 import * as Pandora from "../../src/sources/pandora/client.js";
-import { ensureSourceManager } from "../services/sourceManager.js";
+
 import type { CanonicalTrack, CanonicalAlbum } from "../../src/sources/types.js";
 import type { SearchArtist, SearchGenreStation } from "../../src/sources/pandora/types/api.js";
 
@@ -42,10 +42,10 @@ export const searchRouter = router({
 			);
 		}),
 
-	unified: protectedProcedure
+	unified: publicProcedure
 		.input(z.object({ query: z.string().min(1) }))
 		.query(async ({ ctx, input }) => {
-			const sourceManager = ctx.sourceManager ?? await ensureSourceManager();
+			const sourceManager = ctx.sourceManager;
 			const results = await sourceManager.searchAll(input.query);
 
 			// Include Pandora-specific results if session is available

@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { observable } from "@trpc/server/observable";
-import { router, publicProcedure, protectedProcedure } from "../trpc.js";
+import { router, publicProcedure } from "../trpc.js";
 import { buildStreamUrl, decodeId } from "../lib/ids.js";
 import * as PlayerService from "../services/player.js";
 import { createLogger } from "../../src/logger.js";
@@ -35,7 +35,7 @@ export const playerRouter = router({
 		return serializePlayerState(PlayerService.getState());
 	}),
 
-	play: protectedProcedure
+	play: publicProcedure
 		.input(
 			z
 				.object({
@@ -79,46 +79,46 @@ export const playerRouter = router({
 			return serializePlayerState(PlayerService.getState());
 		}),
 
-	pause: protectedProcedure.mutation(() => {
+	pause: publicProcedure.mutation(() => {
 		PlayerService.pause();
 		return serializePlayerState(PlayerService.getState());
 	}),
 
-	resume: protectedProcedure.mutation(() => {
+	resume: publicProcedure.mutation(() => {
 		PlayerService.resume();
 		return serializePlayerState(PlayerService.getState());
 	}),
 
-	stop: protectedProcedure.mutation(() => {
+	stop: publicProcedure.mutation(() => {
 		PlayerService.stop();
 		return serializePlayerState(PlayerService.getState());
 	}),
 
-	skip: protectedProcedure.mutation(() => {
+	skip: publicProcedure.mutation(() => {
 		PlayerService.skip();
 		return serializePlayerState(PlayerService.getState());
 	}),
 
-	previous: protectedProcedure.mutation(() => {
+	previous: publicProcedure.mutation(() => {
 		PlayerService.previousTrack();
 		return serializePlayerState(PlayerService.getState());
 	}),
 
-	jumpTo: protectedProcedure
+	jumpTo: publicProcedure
 		.input(z.object({ index: z.number() }))
 		.mutation(({ input }) => {
 			PlayerService.jumpToIndex(input.index);
 			return serializePlayerState(PlayerService.getState());
 		}),
 
-	seek: protectedProcedure
+	seek: publicProcedure
 		.input(z.object({ position: z.number() }))
 		.mutation(({ input }) => {
 			PlayerService.seek(input.position);
 			return serializePlayerState(PlayerService.getState());
 		}),
 
-	volume: protectedProcedure
+	volume: publicProcedure
 		.input(z.object({ level: z.number().min(0).max(100) }))
 		.mutation(({ input }) => {
 			PlayerService.setVolume(input.level);
@@ -139,7 +139,7 @@ export const playerRouter = router({
 			return { ok: true };
 		}),
 
-	trackEnded: protectedProcedure.mutation(() => {
+	trackEnded: publicProcedure.mutation(() => {
 		PlayerService.trackEnded();
 		return serializePlayerState(PlayerService.getState());
 	}),

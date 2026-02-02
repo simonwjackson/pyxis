@@ -1,5 +1,3 @@
-import { getDb, schema } from "../../src/db/index.js";
-import { createSessionWithId, createSession } from "./session.js";
 import { getSourceManager, setGlobalSourceManager, ensureSourceManager } from "./sourceManager.js";
 import {
 	migrateLegacyCredentials,
@@ -53,21 +51,9 @@ export async function tryAutoLogin(logger: Logger): Promise<void> {
 		logger.log("No source credentials to restore");
 	}
 
-	// Step 3: Create a Pyxis session if we have Pandora credentials
+	// Step 3: Set up global source manager
 	const pandoraSession = getPandoraSessionFromCredentials();
 
-	// Read legacy credentials table for session ID continuity
-	const db = await getDb();
-	const legacyRows = await db.select().from(schema.credentials).limit(1);
-	const legacy = legacyRows[0];
-
-	if (legacy?.sessionId) {
-		createSessionWithId(legacy.sessionId, legacy.username, pandoraSession);
-	} else if (legacy) {
-		createSession(legacy.username, pandoraSession);
-	}
-
-	// Step 4: Set up global source manager
 	if (pandoraSession) {
 		setGlobalSourceManager(await getSourceManager(pandoraSession));
 		logger.log("Auto-login successful with Pandora session");
@@ -75,10 +61,10 @@ export async function tryAutoLogin(logger: Logger): Promise<void> {
 		logger.log(`Restored ${String(restored)} source session(s) (no Pandora)`);
 	}
 
-	// Step 5: Register radio auto-fetch handler
+	// Step 4: Register radio auto-fetch handler
 	registerAutoFetchHandler(logger);
 
-	// Step 6: Restore persisted playback state
+	// Step 5: Restore persisted playback state
 	try {
 		const didRestore = await PlayerService.restoreFromDb();
 		if (didRestore) {

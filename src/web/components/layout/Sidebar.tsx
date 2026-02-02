@@ -1,5 +1,5 @@
 import { type ReactNode } from "react";
-import { Link, useRouterState, useNavigate } from "@tanstack/react-router";
+import { Link, useRouterState } from "@tanstack/react-router";
 import {
 	Home,
 	Radio,
@@ -7,10 +7,8 @@ import {
 	Bookmark,
 	LayoutGrid,
 	Settings,
-	LogOut,
 } from "lucide-react";
 import { cn } from "../../lib/utils";
-import { trpc } from "../../lib/trpc";
 
 type NavItem = {
 	readonly label: string;
@@ -41,12 +39,6 @@ const navItems: readonly NavItem[] = [
 
 export function Sidebar() {
 	const { location } = useRouterState();
-	const navigate = useNavigate();
-	const logoutMutation = trpc.auth.logout.useMutation({
-		onSuccess() {
-			navigate({ to: "/login" });
-		},
-	});
 
 	return (
 		<aside className="hidden md:flex md:w-56 flex-col bg-[var(--color-bg-panel)] border-r border-[var(--color-border)]" aria-label="Main navigation">
@@ -72,16 +64,6 @@ export function Sidebar() {
 					</Link>
 				))}
 			</nav>
-			<div className="p-4 border-t border-[var(--color-border)]">
-				<button
-					onClick={() => logoutMutation.mutate()}
-					className="flex items-center gap-2 text-sm text-[var(--color-text-muted)] hover:text-[var(--color-text)] transition-colors"
-					type="button"
-				>
-					<LogOut className="w-4 h-4" />
-					Sign out
-				</button>
-			</div>
 		</aside>
 	);
 }

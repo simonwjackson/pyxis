@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { router, protectedProcedure, publicProcedure } from "../trpc.js";
+import { router, publicProcedure } from "../trpc.js";
 import {
 	listCredentials,
 	addCredential,
@@ -7,7 +7,6 @@ import {
 	testCredential,
 } from "../services/credentials.js";
 import { getSourceManager, setGlobalSourceManager, invalidateManagers } from "../services/sourceManager.js";
-import { updateSessionPandora } from "../services/session.js";
 import { TRPCError } from "@trpc/server";
 
 const sourceSchema = z.enum(["pandora", "ytmusic", "local"]);
@@ -25,7 +24,7 @@ export const credentialsRouter = router({
 		}));
 	}),
 
-	add: protectedProcedure
+	add: publicProcedure
 		.input(
 			z.object({
 				source: sourceSchema,
@@ -33,7 +32,7 @@ export const credentialsRouter = router({
 				password: z.string().min(1),
 			}),
 		)
-		.mutation(async ({ ctx, input }) => {
+		.mutation(async ({ input }) => {
 			try {
 				const { id, session } = await addCredential(
 					input.source,
@@ -41,10 +40,8 @@ export const credentialsRouter = router({
 					input.password,
 				);
 
-				// If a Pandora session was created, update the current session context
-				// and rebuild the source manager
-				if (session.type === "pandora" && ctx.sessionId) {
-					updateSessionPandora(ctx.sessionId, session.session);
+				// If a Pandora session was created, rebuild the source manager
+				if (session.type === "pandora") {
 					invalidateManagers();
 					setGlobalSourceManager(await getSourceManager(session.session));
 				}
@@ -63,7 +60,7 @@ export const credentialsRouter = router({
 			}
 		}),
 
-	remove: protectedProcedure
+	remove: publicProcedure
 		.input(z.object({ id: z.string() }))
 		.mutation(async ({ input }) => {
 			await removeCredential(input.id);

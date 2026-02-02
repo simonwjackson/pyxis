@@ -11,7 +11,6 @@ import {
 	Radio,
 	LayoutGrid,
 	Settings,
-	LogOut,
 	Palette,
 	ArrowLeft,
 	Check,
@@ -41,7 +40,6 @@ const iconMap: Record<string, typeof Play> = {
 	goToGenres: LayoutGrid,
 	goToSettings: Settings,
 	changeTheme: Palette,
-	signOut: LogOut,
 };
 
 export function CommandPalette({ isOpen, onClose }: CommandPaletteProps) {
@@ -67,12 +65,6 @@ export function CommandPalette({ isOpen, onClose }: CommandPaletteProps) {
 	const bookmarkMutation = trpc.library.addBookmark.useMutation({
 		onSuccess() {
 			toast.success("Song bookmarked");
-		},
-	});
-	const logoutMutation = trpc.auth.logout.useMutation({
-		onSuccess() {
-			document.cookie = "pyxis_session=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT";
-			navigate({ to: "/login" });
 		},
 	});
 
@@ -149,12 +141,9 @@ export function CommandPalette({ isOpen, onClose }: CommandPaletteProps) {
 				case "goToSettings":
 					navigate({ to: "/settings" });
 					break;
-				case "signOut":
-					logoutMutation.mutate();
-					break;
 			}
 		},
-		[onClose, playback, navigate, feedbackMutation, sleepMutation, bookmarkMutation, logoutMutation],
+		[onClose, playback, navigate, feedbackMutation, sleepMutation, bookmarkMutation],
 	);
 
 	const handleKeyDown = useCallback(

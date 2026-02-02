@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { observable } from "@trpc/server/observable";
-import { router, publicProcedure, protectedProcedure } from "../trpc.js";
+import { router, publicProcedure } from "../trpc.js";
 import { decodeId } from "../lib/ids.js";
 import * as QueueService from "../services/queue.js";
 import type { QueueState } from "../services/queue.js";
@@ -28,7 +28,7 @@ export const queueRouter = router({
 		return serializeQueueState(QueueService.getState());
 	}),
 
-	add: protectedProcedure
+	add: publicProcedure
 		.input(
 			z.object({
 				tracks: z.array(
@@ -56,26 +56,26 @@ export const queueRouter = router({
 			return serializeQueueState(QueueService.getState());
 		}),
 
-	remove: protectedProcedure
+	remove: publicProcedure
 		.input(z.object({ index: z.number() }))
 		.mutation(({ input }) => {
 			QueueService.removeTrack(input.index);
 			return serializeQueueState(QueueService.getState());
 		}),
 
-	clear: protectedProcedure.mutation(() => {
+	clear: publicProcedure.mutation(() => {
 		QueueService.clear();
 		return serializeQueueState(QueueService.getState());
 	}),
 
-	jump: protectedProcedure
+	jump: publicProcedure
 		.input(z.object({ index: z.number() }))
 		.mutation(({ input }) => {
 			QueueService.jumpTo(input.index);
 			return serializeQueueState(QueueService.getState());
 		}),
 
-	shuffle: protectedProcedure.mutation(() => {
+	shuffle: publicProcedure.mutation(() => {
 		QueueService.shuffle();
 		return serializeQueueState(QueueService.getState());
 	}),

@@ -1,7 +1,7 @@
 type Command = {
 	readonly id: string;
 	readonly label: string;
-	readonly category: "playback" | "navigation" | "station" | "appearance" | "system";
+	readonly category: "playback" | "navigation" | "station" | "appearance";
 	readonly shortcut?: string;
 	readonly action: string;
 };
@@ -24,12 +24,9 @@ export const commands: readonly Command[] = [
 
 	// Appearance
 	{ id: "changeTheme", label: "Change Theme", category: "appearance", action: "changeTheme" },
-
-	// System
-	{ id: "signOut", label: "Sign Out", category: "system", action: "signOut" },
 ];
 
-const categoryOrder: readonly string[] = ["playback", "navigation", "appearance", "system"];
+const categoryOrder: readonly string[] = ["playback", "navigation", "appearance"];
 
 export function filterCommands(query: string): readonly Command[] {
 	if (!query.trim()) return commands;
