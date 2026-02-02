@@ -27,8 +27,6 @@ type CollectionGridProps<T> = {
 	readonly paramPrefix: string;
 	readonly trailing?: ReactNode;
 	readonly headerActions?: ReactNode;
-	readonly isLoading?: boolean;
-	readonly emptyMessage?: string;
 	readonly pageSize?: number;
 };
 
@@ -82,8 +80,6 @@ export function CollectionGrid<T>({
 	paramPrefix,
 	trailing,
 	headerActions,
-	isLoading,
-	emptyMessage = "No items found.",
 	pageSize = 20,
 }: CollectionGridProps<T>) {
 	const navigate = useNavigate();
@@ -167,46 +163,6 @@ export function CollectionGrid<T>({
 
 	const isLastPage = safePage === totalPages;
 	const showPagination = totalPages > 1;
-
-	if (isLoading) {
-		return (
-			<section>
-				<div className="flex items-center justify-between mb-3">
-					<div className="flex items-center gap-2">
-						<h2 className="text-lg font-semibold text-[var(--color-text)]">
-							{title}
-						</h2>
-					</div>
-				</div>
-				<div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
-					{Array.from({ length: 5 }, (_, i) => (
-						<div key={i}>
-							<div className="aspect-square bg-[var(--color-bg-highlight)] rounded-lg mb-2 animate-pulse" />
-							<div className="h-4 bg-[var(--color-bg-highlight)] rounded animate-pulse mb-1 w-3/4" />
-							<div className="h-3 bg-[var(--color-bg-highlight)] rounded animate-pulse w-1/2" />
-						</div>
-					))}
-				</div>
-			</section>
-		);
-	}
-
-	if (items.length === 0) {
-		return (
-			<section>
-				<div className="flex items-center justify-between mb-3">
-					<div className="flex items-center gap-2">
-						<h2 className="text-lg font-semibold text-[var(--color-text)]">
-							{title}
-						</h2>
-					</div>
-				</div>
-				<p className="text-sm text-[var(--color-text-dim)]">
-					{emptyMessage}
-				</p>
-			</section>
-		);
-	}
 
 	return (
 		<section>
@@ -341,3 +297,57 @@ export function CollectionGrid<T>({
 		</section>
 	);
 }
+
+function SectionHeader({ title }: { readonly title: string }) {
+	return (
+		<div className="flex items-center justify-between mb-3">
+			<div className="flex items-center gap-2">
+				<h2 className="text-lg font-semibold text-[var(--color-text)]">
+					{title}
+				</h2>
+			</div>
+		</div>
+	);
+}
+
+type SkeletonProps = {
+	readonly title: string;
+	readonly count?: number;
+};
+
+function CollectionGridSkeleton({ title, count = 5 }: SkeletonProps) {
+	return (
+		<section>
+			<SectionHeader title={title} />
+			<div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+				{Array.from({ length: count }, (_, i) => (
+					<div key={i}>
+						<div className="aspect-square bg-[var(--color-bg-highlight)] rounded-lg mb-2 animate-pulse" />
+						<div className="h-4 bg-[var(--color-bg-highlight)] rounded animate-pulse mb-1 w-3/4" />
+						<div className="h-3 bg-[var(--color-bg-highlight)] rounded animate-pulse w-1/2" />
+					</div>
+				))}
+			</div>
+		</section>
+	);
+}
+
+type EmptyProps = {
+	readonly title: string;
+	readonly message?: string;
+};
+
+function CollectionGridEmpty({
+	title,
+	message = "No items found.",
+}: EmptyProps) {
+	return (
+		<section>
+			<SectionHeader title={title} />
+			<p className="text-sm text-[var(--color-text-dim)]">{message}</p>
+		</section>
+	);
+}
+
+CollectionGrid.Skeleton = CollectionGridSkeleton;
+CollectionGrid.Empty = CollectionGridEmpty;

@@ -235,72 +235,87 @@ export function HomePage() {
 
 	return (
 		<div className="flex-1 p-6 space-y-10">
-			<CollectionGrid
-				title="My Playlists"
-				items={playlists}
-				keyOf={(p) => p.id}
-				renderItem={(playlist) => (
-					<PlaylistCard
-						playlist={playlist}
-						onPlay={() => handleOpenPlaylist(playlist)}
-					/>
-				)}
-				filterFn={(p, q) => p.name.toLowerCase().includes(q)}
-				sortOptions={PLAYLIST_SORT_OPTIONS}
-				defaultSort="shuffle"
-				paramPrefix="pl"
-				headerActions={
-					<button
-						type="button"
-						onClick={() => navigate({ to: "/stations" })}
-						className="text-sm text-[var(--color-text-dim)] hover:text-[var(--color-text)] transition-colors"
-					>
-						See all
-					</button>
-				}
-				isLoading={playlistsQuery.isLoading}
-				emptyMessage="No playlists found. Create a station to get started."
-			/>
+			{playlistsQuery.isLoading ? (
+				<CollectionGrid.Skeleton title="My Playlists" />
+			) : playlists.length === 0 ? (
+				<CollectionGrid.Empty
+					title="My Playlists"
+					message="No playlists found. Create a station to get started."
+				/>
+			) : (
+				<CollectionGrid
+					title="My Playlists"
+					items={playlists}
+					keyOf={(p) => p.id}
+					renderItem={(playlist) => (
+						<PlaylistCard
+							playlist={playlist}
+							onPlay={() => handleOpenPlaylist(playlist)}
+						/>
+					)}
+					filterFn={(p, q) => p.name.toLowerCase().includes(q)}
+					sortOptions={PLAYLIST_SORT_OPTIONS}
+					defaultSort="shuffle"
+					paramPrefix="pl"
+					headerActions={
+						<button
+							type="button"
+							onClick={() => navigate({ to: "/stations" })}
+							className="text-sm text-[var(--color-text-dim)] hover:text-[var(--color-text)] transition-colors"
+						>
+							See all
+						</button>
+					}
+				/>
+			)}
 
-			<CollectionGrid
-				title="My Albums"
-				items={albums}
-				keyOf={(a) => a.id}
-				renderItem={(album) => (
-					<AlbumCard
-						album={album}
-						onPlay={() => {
-							navigate({
-								to: "/album/$albumId",
-								params: { albumId: album.id },
-							});
-						}}
-					/>
-				)}
-				filterFn={(a, q) => {
-					const lower = q.toLowerCase();
-					return (
-						a.title.toLowerCase().includes(lower) ||
-						a.artist.toLowerCase().includes(lower)
-					);
-				}}
-				sortOptions={ALBUM_SORT_OPTIONS}
-				defaultSort="shuffle"
-				paramPrefix="al"
-				trailing={
-					<button
-						type="button"
-						className="aspect-square border-2 border-dashed border-[var(--color-border)] rounded-lg flex flex-col items-center justify-center cursor-pointer hover:border-[var(--color-text-dim)] transition-colors"
-						onClick={() => navigate({ to: "/search" })}
-					>
-						<Plus className="w-8 h-8 text-[var(--color-text-dim)] mb-1" />
-						<span className="text-xs text-[var(--color-text-dim)]">
-							Add album
-						</span>
-					</button>
-				}
-				isLoading={albumsQuery.isLoading}
-			/>
+			{albumsQuery.isLoading ? (
+				<CollectionGrid.Skeleton title="My Albums" />
+			) : albums.length === 0 ? (
+				<CollectionGrid.Empty
+					title="My Albums"
+					message="No albums found."
+				/>
+			) : (
+				<CollectionGrid
+					title="My Albums"
+					items={albums}
+					keyOf={(a) => a.id}
+					renderItem={(album) => (
+						<AlbumCard
+							album={album}
+							onPlay={() => {
+								navigate({
+									to: "/album/$albumId",
+									params: { albumId: album.id },
+								});
+							}}
+						/>
+					)}
+					filterFn={(a, q) => {
+						const lower = q.toLowerCase();
+						return (
+							a.title.toLowerCase().includes(lower) ||
+							a.artist.toLowerCase().includes(lower)
+						);
+					}}
+					sortOptions={ALBUM_SORT_OPTIONS}
+					defaultSort="shuffle"
+					paramPrefix="al"
+					trailing={
+						<button
+							type="button"
+							className="aspect-square border-2 border-dashed border-[var(--color-border)] rounded-lg flex flex-col items-center justify-center cursor-pointer hover:border-[var(--color-text-dim)] transition-colors"
+							onClick={() => navigate({ to: "/search" })}
+						>
+							<Plus className="w-8 h-8 text-[var(--color-text-dim)] mb-1" />
+							<span className="text-xs text-[var(--color-text-dim)]">
+								Add album
+							</span>
+						</button>
+					}
+				/>
+			)}
 		</div>
 	);
 }
