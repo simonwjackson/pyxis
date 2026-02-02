@@ -150,6 +150,7 @@ export function NowPlayingPage() {
 
 	// Reset playback gate and clear stale state when switching context
 	useEffect(() => {
+		console.log("[now-playing] context switch reset", { radioId, playlistId, albumId });
 		hasStartedRef.current = false;
 		setTracks([]);
 		setTrackIndex(0);
@@ -184,6 +185,17 @@ export function NowPlayingPage() {
 		{ enabled: isPlaylistMode && !isAlbumMode },
 	);
 
+	// Log radio query lifecycle
+	useEffect(() => {
+		console.log("[now-playing] radioQuery changed", {
+			status: radioQuery.status,
+			fetchStatus: radioQuery.fetchStatus,
+			dataLength: radioQuery.data?.length,
+			error: radioQuery.error?.message,
+			isEnabled: !!radioId && !isPlaylistMode && !isAlbumMode,
+		});
+	}, [radioQuery.status, radioQuery.fetchStatus, radioQuery.data, radioQuery.error, radioId, isPlaylistMode, isAlbumMode]);
+
 	// Surface query errors so silent failures are visible
 	useEffect(() => {
 		if (radioQuery.error) {
@@ -197,65 +209,70 @@ export function NowPlayingPage() {
 		}
 	}, [playlistQuery.error]);
 
-	// When tracks are fetched, send them to the server queue and start playback
-	useEffect(() => {
-		let newTracks: readonly NowPlayingTrack[] = [];
+	// Stable reference to play mutation (useMutation returns stable mutate fn)
+	const playMutationRef = useRef(playback.playMutation);
+	playMutationRef.current = playback.playMutation;
 
-		if (isAlbumMode && albumTracksQuery.data && albumsQuery.data) {
-			const albumInfo = albumsQuery.data.find((a) => a.id === albumId);
-			if (albumInfo) {
-				setAlbumMeta({
-					title: albumInfo.title,
-					artist: albumInfo.artist,
-					artworkUrl: albumInfo.artworkUrl,
-				});
-			}
-			newTracks = albumTracksQuery.data.map((t) =>
-				albumTrackToNowPlaying(
-					t,
-					albumInfo?.title ?? "",
-					albumInfo?.artworkUrl ?? null,
-				),
-			);
-		} else if (!isAlbumMode && !isPlaylistMode && radioQuery.data) {
-			newTracks = radioQuery.data.map(radioTrackToNowPlaying);
-		} else if (!isAlbumMode && isPlaylistMode && playlistQuery.data) {
-			newTracks = playlistQuery.data.map(playlistTrackToNowPlaying);
-		}
-
-		if (newTracks.length > 0) {
+	// Helper: send tracks to server queue and start playback
+	const startPlayback = useCallback(
+		(
+			newTracks: readonly NowPlayingTrack[],
+			context:
+				| { type: "album"; albumId: string }
+				| { type: "radio"; seedId: string }
+				| { type: "playlist"; playlistId: string },
+		) => {
+			if (newTracks.length === 0 || hasStartedRef.current) return;
+			hasStartedRef.current = true;
 			setTracks(newTracks);
+			console.log("[now-playing] calling playMutation", {
+				context,
+				trackCount: newTracks.length,
+				firstTrackId: newTracks[0]?.id,
+			});
+			playMutationRef.current.mutate({
+				tracks: tracksToQueuePayload(newTracks),
+				context,
+				startIndex: 0,
+			});
+		},
+		[],
+	);
 
-			if (!hasStartedRef.current) {
-				hasStartedRef.current = true;
-
-				// Determine queue context
-				const context = isAlbumMode
-					? { type: "album" as const, albumId }
-					: isPlaylistMode
-						? { type: "playlist" as const, playlistId: playlistId ?? "" }
-						: { type: "radio" as const, seedId: radioId ?? "" };
-
-				// Send tracks to server and start playback
-				playback.playMutation.mutate({
-					tracks: tracksToQueuePayload(newTracks),
-					context,
-					startIndex: 0,
-				});
-			}
+	// Album mode: when album track data arrives, start playback
+	useEffect(() => {
+		if (!isAlbumMode || !albumTracksQuery.data || !albumsQuery.data) return;
+		const albumInfo = albumsQuery.data.find((a) => a.id === albumId);
+		if (albumInfo) {
+			setAlbumMeta({
+				title: albumInfo.title,
+				artist: albumInfo.artist,
+				artworkUrl: albumInfo.artworkUrl,
+			});
 		}
-		// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, [
-		isAlbumMode,
-		isPlaylistMode,
-		albumTracksQuery.data,
-		albumsQuery.data,
-		radioQuery.data,
-		playlistQuery.data,
-		albumId,
-		radioId,
-		playlistId,
-	]);
+		const newTracks = albumTracksQuery.data.map((t) =>
+			albumTrackToNowPlaying(
+				t,
+				albumInfo?.title ?? "",
+				albumInfo?.artworkUrl ?? null,
+			),
+		);
+		startPlayback(newTracks, { type: "album", albumId });
+	}, [isAlbumMode, albumTracksQuery.data, albumsQuery.data, albumId, startPlayback]);
+
+	// Radio mode: when radio track data arrives, start playback
+	useEffect(() => {
+		if (isAlbumMode || isPlaylistMode || !radioQuery.data || !radioId) return;
+		const newTracks = radioQuery.data.map(radioTrackToNowPlaying);
+		startPlayback(newTracks, { type: "radio", seedId: radioId });
+	}, [isAlbumMode, isPlaylistMode, radioQuery.data, radioId, startPlayback]);
+
+	// Playlist mode: when playlist data arrives, start playback
+	useEffect(() => {
+		if (isAlbumMode || !isPlaylistMode || !playlistQuery.data || !playlistId) return;
+		const newTracks = playlistQuery.data.map(playlistTrackToNowPlaying);
+		startPlayback(newTracks, { type: "playlist", playlistId });
+	}, [isAlbumMode, isPlaylistMode, playlistQuery.data, playlistId, startPlayback]);
 
 	const feedbackMutation = trpc.track.feedback.useMutation({
 		onError(err) {

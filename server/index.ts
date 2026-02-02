@@ -74,6 +74,10 @@ const server = Bun.serve({
 
 		// tRPC handler (includes SSE subscriptions via GET)
 		if (url.pathname.startsWith("/trpc")) {
+			const trpcPath = url.pathname.replace("/trpc/", "").replace("/trpc", "");
+			if (trpcPath && !trpcPath.includes("player.") && !trpcPath.includes("queue.") && !trpcPath.includes("log.")) {
+				serverLogger.log(`[trpc] ${req.method} ${trpcPath}`);
+			}
 			return fetchRequestHandler({
 				endpoint: "/trpc",
 				req,
@@ -85,6 +89,9 @@ const server = Bun.serve({
 				// the tRPC subscription cleanup signals, causing listener drops)
 				response.headers.set("Access-Control-Allow-Origin", "http://aka:5678");
 				response.headers.set("Access-Control-Allow-Credentials", "true");
+				if (trpcPath.includes("radio.getTracks")) {
+					serverLogger.log(`[trpc] radio.getTracks response status=${response.status}`);
+				}
 				return response;
 			});
 		}
