@@ -32,7 +32,7 @@ function entryToCanonical(entry: {
 }): CanonicalTrack {
 	return {
 		id: entry.id,
-		title: entry.title,
+		title: entry.title || "Unknown Title",
 		artist: entry.uploader ?? "Unknown",
 		album: entry.album ?? "",
 		sourceId: { source: "ytmusic", id: entry.id },

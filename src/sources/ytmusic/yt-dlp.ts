@@ -108,21 +108,20 @@ export async function searchYtMusic(
 	const entries: YtDlpPlaylistEntry[] = [];
 
 	for (const line of lines) {
-		const data = JSON.parse(line) as {
-			id: string;
-			title: string;
-			uploader?: string;
-			album?: string;
-			duration?: number;
-			thumbnail?: string;
-		};
+		const data: unknown = JSON.parse(line);
+		if (typeof data !== "object" || data === null) continue;
+		const record = data as Record<string, unknown>;
+		const id = typeof record.id === "string" ? record.id : undefined;
+		const title = typeof record.title === "string" ? record.title : undefined;
+		// Skip entries without valid id or title (unavailable/private videos)
+		if (!id || !title) continue;
 		entries.push({
-			id: data.id,
-			title: data.title,
-			...(data.uploader != null ? { uploader: data.uploader } : {}),
-			...(data.album != null ? { album: data.album } : {}),
-			...(data.duration != null ? { duration: data.duration } : {}),
-			...(data.thumbnail != null ? { thumbnail: data.thumbnail } : {}),
+			id,
+			title,
+			...(typeof record.uploader === "string" ? { uploader: record.uploader } : {}),
+			...(typeof record.album === "string" ? { album: record.album } : {}),
+			...(typeof record.duration === "number" ? { duration: record.duration } : {}),
+			...(typeof record.thumbnail === "string" ? { thumbnail: record.thumbnail } : {}),
 		});
 	}
 
@@ -152,28 +151,24 @@ export async function getAlbumEntries(
 	let albumThumbnail: string | undefined;
 
 	for (const line of lines) {
-		const data = JSON.parse(line) as {
-			id: string;
-			title: string;
-			uploader?: string;
-			album?: string;
-			duration?: number;
-			thumbnail?: string;
-			playlist_id?: string;
-			playlist_title?: string;
-			playlist_uploader?: string;
-		};
-		if (data.playlist_id) albumId = data.playlist_id;
-		if (data.playlist_title) albumTitle = data.playlist_title;
-		if (data.playlist_uploader) albumArtist = data.playlist_uploader;
-		if (data.thumbnail && !albumThumbnail) albumThumbnail = data.thumbnail;
+		const data: unknown = JSON.parse(line);
+		if (typeof data !== "object" || data === null) continue;
+		const record = data as Record<string, unknown>;
+		if (typeof record.playlist_id === "string") albumId = record.playlist_id;
+		if (typeof record.playlist_title === "string") albumTitle = record.playlist_title;
+		if (typeof record.playlist_uploader === "string") albumArtist = record.playlist_uploader;
+		if (typeof record.thumbnail === "string" && !albumThumbnail) albumThumbnail = record.thumbnail;
+		const id = typeof record.id === "string" ? record.id : undefined;
+		const title = typeof record.title === "string" ? record.title : undefined;
+		// Skip entries without valid id or title (unavailable/private videos)
+		if (!id || !title) continue;
 		entries.push({
-			id: data.id,
-			title: data.title,
-			...(data.uploader != null ? { uploader: data.uploader } : {}),
-			...(data.album != null ? { album: data.album } : {}),
-			...(data.duration != null ? { duration: data.duration } : {}),
-			...(data.thumbnail != null ? { thumbnail: data.thumbnail } : {}),
+			id,
+			title,
+			...(typeof record.uploader === "string" ? { uploader: record.uploader } : {}),
+			...(typeof record.album === "string" ? { album: record.album } : {}),
+			...(typeof record.duration === "number" ? { duration: record.duration } : {}),
+			...(typeof record.thumbnail === "string" ? { thumbnail: record.thumbnail } : {}),
 		});
 	}
 
@@ -202,25 +197,22 @@ export async function getPlaylistEntries(
 	let playlistTitle = "YouTube Music Playlist";
 
 	for (const line of lines) {
-		const data = JSON.parse(line) as {
-			id: string;
-			title: string;
-			uploader?: string;
-			album?: string;
-			duration?: number;
-			thumbnail?: string;
-			playlist_id?: string;
-			playlist_title?: string;
-		};
-		if (data.playlist_id) playlistId = data.playlist_id;
-		if (data.playlist_title) playlistTitle = data.playlist_title;
+		const data: unknown = JSON.parse(line);
+		if (typeof data !== "object" || data === null) continue;
+		const record = data as Record<string, unknown>;
+		if (typeof record.playlist_id === "string") playlistId = record.playlist_id;
+		if (typeof record.playlist_title === "string") playlistTitle = record.playlist_title;
+		const id = typeof record.id === "string" ? record.id : undefined;
+		const title = typeof record.title === "string" ? record.title : undefined;
+		// Skip entries without valid id or title (unavailable/private videos)
+		if (!id || !title) continue;
 		entries.push({
-			id: data.id,
-			title: data.title,
-			...(data.uploader != null ? { uploader: data.uploader } : {}),
-			...(data.album != null ? { album: data.album } : {}),
-			...(data.duration != null ? { duration: data.duration } : {}),
-			...(data.thumbnail != null ? { thumbnail: data.thumbnail } : {}),
+			id,
+			title,
+			...(typeof record.uploader === "string" ? { uploader: record.uploader } : {}),
+			...(typeof record.album === "string" ? { album: record.album } : {}),
+			...(typeof record.duration === "number" ? { duration: record.duration } : {}),
+			...(typeof record.thumbnail === "string" ? { thumbnail: record.thumbnail } : {}),
 		});
 	}
 
