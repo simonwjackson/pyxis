@@ -14,10 +14,12 @@ import {
 import { Button } from "../ui/button";
 import { TrackInfoModal } from "../playback/TrackInfoModal";
 import { useNowPlaying } from "./NowPlayingContext";
+import { usePlaybackContext } from "../../contexts/PlaybackContext";
 import { formatTime } from "../../lib/now-playing-utils";
 
 export function Artwork() {
-	const { currentTrack, playback } = useNowPlaying();
+	const { currentTrack } = useNowPlaying();
+	const playback = usePlaybackContext();
 	if (!currentTrack) return null;
 
 	const artUrl = currentTrack.albumArtUrl ?? playback.currentTrack?.artUrl;
@@ -73,7 +75,7 @@ export function TrackInfo({
 }
 
 export function ProgressBar() {
-	const { playback } = useNowPlaying();
+	const playback = usePlaybackContext();
 
 	const progressPercent =
 		playback.duration > 0
@@ -105,7 +107,7 @@ export function Controls({
 	readonly after?: ReactNode;
 	readonly skip?: ReactNode;
 }) {
-	const { playback } = useNowPlaying();
+	const playback = usePlaybackContext();
 
 	return (
 		<div
@@ -351,8 +353,8 @@ export function Tracklist() {
 }
 
 export function TrackInfoModalWrapper() {
-	const { currentTrack, showTrackInfo, setShowTrackInfo, playback } =
-		useNowPlaying();
+	const { currentTrack, showTrackInfo, setShowTrackInfo } = useNowPlaying();
+	const playback = usePlaybackContext();
 
 	if (!currentTrack?.capabilities.explain || !showTrackInfo) return null;
 

@@ -48,7 +48,9 @@ export default defineConfig({
 				target: proxyTarget,
 				changeOrigin: true,
 				configure: (proxy) => {
-					proxy.on("proxyRes", (_proxyRes, _req, res) => {
+					proxy.on("proxyRes", (proxyRes, _req, res) => {
+						const ct = proxyRes.headers["content-type"];
+						if (ct) res.setHeader("content-type", ct);
 						res.flushHeaders();
 					});
 				},
@@ -58,7 +60,9 @@ export default defineConfig({
 				changeOrigin: true,
 				ws: false,
 				configure: (proxy) => {
-					proxy.on("proxyRes", (_proxyRes, _req, res) => {
+					proxy.on("proxyRes", (proxyRes, _req, res) => {
+						const ct = proxyRes.headers["content-type"];
+						if (ct) res.setHeader("content-type", ct);
 						res.flushHeaders();
 					});
 				},

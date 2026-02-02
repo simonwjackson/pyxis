@@ -74,6 +74,21 @@ Two configs:
 
 Both use strict mode with `exactOptionalPropertyTypes` and `noUncheckedIndexedAccess`.
 
+## Debugging
+
+**MANDATORY**: When investigating ANY bug, your FIRST action must be reading the relevant logs. Do NOT read source code, form hypotheses, or propose fixes until you have checked the logs. The logs are the source of truth — they show what actually happened, not what you think happened.
+
+```bash
+# ALWAYS run these FIRST when debugging (before reading any source code)
+tail -200 /home/simonwjackson/.local/state/pyxis/playback.log   # Player, queue, SSE, client-reported logs
+tail -200 /home/simonwjackson/.local/state/pyxis/server.log      # tRPC requests, startup, errors
+tail -200 /home/simonwjackson/.local/state/pyxis/stream.log      # Audio stream proxy, cache hits/misses
+tail -200 /home/simonwjackson/.local/state/pyxis/radio.log       # Radio station operations
+tail -200 /home/simonwjackson/.local/state/pyxis/web.log         # Vite dev server
+```
+
+The logs contain structured data from both server-side and client-side (via `log.client` mutation). Look for error patterns, missing expected events, and timing issues. Let the logs guide your investigation.
+
 ## Key Conventions
 
 - Logs directory: `~/.local/state/pyxis/` (XDG_STATE_HOME)
