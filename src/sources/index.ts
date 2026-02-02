@@ -6,6 +6,7 @@ import type {
 	CanonicalAlbum,
 	SearchResult,
 	MetadataSource,
+	MetadataSearchQuery,
 	NormalizedRelease,
 } from "./types.js";
 import {
@@ -177,15 +178,14 @@ export function createSourceManager(
 			}
 
 			// 4. Build targeted per-album queries from primary results
-			//    e.g. "OK Computer artist:Radiohead" instead of just "radiohead"
 			const seen = new Set<string>();
-			const albumQueries: string[] = [];
+			const albumQueries: MetadataSearchQuery[] = [];
 			const MAX_ALBUM_LOOKUPS = 8;
 			for (const album of primaryAlbums) {
 				const key = `${album.title.toLowerCase()}::${album.artist.toLowerCase()}`;
 				if (!seen.has(key) && albumQueries.length < MAX_ALBUM_LOOKUPS) {
 					seen.add(key);
-					albumQueries.push(`${album.title} artist:${album.artist}`);
+					albumQueries.push({ kind: "structured" as const, title: album.title, artist: album.artist });
 				}
 			}
 

@@ -139,9 +139,13 @@ export type NormalizedRelease = {
 	readonly sourceScores?: Partial<Record<SourceType, number>>;
 };
 
+export type MetadataSearchQuery =
+	| { readonly kind: "text"; readonly query: string }
+	| { readonly kind: "structured"; readonly title: string; readonly artist: string };
+
 export type MetadataSearchCapability = {
 	readonly searchReleases: (
-		query: string,
+		query: MetadataSearchQuery,
 		limit?: number,
 	) => Promise<readonly NormalizedRelease[]>;
 };

@@ -1,4 +1,4 @@
-import type { NormalizedRelease, MetadataSource } from "../types.js";
+import type { NormalizedRelease, MetadataSource, MetadataSearchQuery } from "../types.js";
 import { createDiscogsClient } from "./client.js";
 import type { DiscogsSearchResult } from "./schemas.js";
 
@@ -67,23 +67,29 @@ export const createDiscogsSource = (
 		...(config.maxRetries != null ? { maxRetries: config.maxRetries } : {}),
 	});
 
+	const buildQuery = (input: MetadataSearchQuery): { query: string; artist?: string } => {
+		if (input.kind === "text") {
+			// Legacy: parse artist: from string (backward compat for free-text)
+			const artistMatch = input.query.match(
+				/\bartist:([^\s]+(?:\s+[^\s:]+)*)/i,
+			);
+			if (artistMatch?.[1]) {
+				return {
+					query: input.query.replace(artistMatch[0], "").trim(),
+					artist: artistMatch[1],
+				};
+			}
+			return { query: input.query };
+		}
+		return { query: input.title, artist: input.artist };
+	};
+
 	const searchReleases = async (
-		query: string,
+		input: MetadataSearchQuery,
 		limit = 10,
 	): Promise<readonly NormalizedRelease[]> => {
-		// Check if query contains artist filter (format: "query artist:Artist Name")
-		const artistMatch = query.match(
-			/\bartist:([^\s]+(?:\s+[^\s:]+)*)/i,
-		);
-		let searchQuery = query;
-		let artist: string | undefined;
-
-		if (artistMatch?.[1]) {
-			artist = artistMatch[1];
-			searchQuery = query.replace(artistMatch[0], "").trim();
-		}
-
-		const response = await client.searchMasters(searchQuery, {
+		const { query, artist } = buildQuery(input);
+		const response = await client.searchMasters(query, {
 			...(artist != null ? { artist } : {}),
 			limit,
 		});

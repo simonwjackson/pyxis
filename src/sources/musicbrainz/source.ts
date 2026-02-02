@@ -1,4 +1,4 @@
-import type { NormalizedRelease, ReleaseType, MetadataSource } from "../types.js";
+import type { NormalizedRelease, ReleaseType, MetadataSource, MetadataSearchQuery } from "../types.js";
 import { createMusicBrainzClient } from "./client.js";
 import type { ReleaseGroup } from "./schemas.js";
 
@@ -88,11 +88,16 @@ export const createMusicBrainzSource = (
 		...(config.maxRetries != null ? { maxRetries: config.maxRetries } : {}),
 	});
 
+	const buildQuery = (input: MetadataSearchQuery): string => {
+		if (input.kind === "text") return input.query;
+		return `releasegroup:"${input.title}" AND artist:"${input.artist}"`;
+	};
+
 	const searchReleases = async (
-		query: string,
+		query: MetadataSearchQuery,
 		limit = 10,
 	): Promise<readonly NormalizedRelease[]> => {
-		const results = await client.searchReleaseGroup(query, limit);
+		const results = await client.searchReleaseGroup(buildQuery(query), limit);
 		return results["release-groups"].map(normalizeReleaseGroup);
 	};
 
