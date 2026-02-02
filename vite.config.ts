@@ -4,6 +4,10 @@ import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import orchestraSource from "./plugins/vite-plugin-orchestra-source/index";
 import { getLogFile } from "./src/logger";
+import { resolveConfig } from "./src/config";
+
+const appConfig = resolveConfig();
+const proxyTarget = `http://${appConfig.server.hostname}:${appConfig.server.port}`;
 
 const logFile = getLogFile("web");
 const viteLogger = createViteLogger();
@@ -36,12 +40,12 @@ export default defineConfig({
 	plugins: [orchestraSource({ serverUrl: "https://aka.hummingbird-lake.ts.net" }), react(), tailwindcss()],
 	customLogger,
 	server: {
-		port: 5678,
+		port: appConfig.web.port,
 		host: "0.0.0.0",
-		allowedHosts: ["pyxis.hummingbird-lake.ts.net"],
+		allowedHosts: appConfig.web.allowedHosts,
 		proxy: {
 			"/trpc": {
-				target: "http://aka:8765",
+				target: proxyTarget,
 				changeOrigin: true,
 				configure: (proxy) => {
 					proxy.on("proxyRes", (_proxyRes, _req, res) => {
@@ -50,7 +54,7 @@ export default defineConfig({
 				},
 			},
 			"/stream": {
-				target: "http://aka:8765",
+				target: proxyTarget,
 				changeOrigin: true,
 				ws: false,
 				configure: (proxy) => {

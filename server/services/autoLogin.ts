@@ -1,12 +1,10 @@
 import { getSourceManager, setGlobalSourceManager, ensureSourceManager } from "./sourceManager.js";
-import {
-	migrateLegacyCredentials,
-	restoreAllSessions,
-	getPandoraSessionFromCredentials,
-} from "./credentials.js";
+import { loginPandora } from "./credentials.js";
 import * as PlayerService from "./player.js";
 import * as QueueService from "./queue.js";
 import { decodeId, encodeId } from "../lib/ids.js";
+import { getPandoraPassword } from "../../src/config.js";
+import type { AppConfig } from "../../src/config.js";
 import type { Logger } from "../../src/logger.js";
 import type { QueueTrack } from "./queue.js";
 
@@ -37,34 +35,27 @@ function registerAutoFetchHandler(logger: Logger): void {
 	});
 }
 
-export async function tryAutoLogin(logger: Logger): Promise<void> {
-	// Step 1: Migrate legacy credentials to the new source_credentials table
-	await migrateLegacyCredentials(logger.info.bind(logger));
+export async function tryAutoLogin(logger: Logger, config: AppConfig): Promise<void> {
+	const username = config.sources.pandora.username;
+	const password = getPandoraPassword();
 
-	// Step 2: Restore all source sessions from stored credentials
-	const restored = await restoreAllSessions(
-		logger.info.bind(logger),
-		logger.warn.bind(logger),
-	);
-
-	if (restored === 0) {
-		logger.info("no source credentials to restore");
+	if (username && password) {
+		try {
+			const session = await loginPandora(username, password);
+			setGlobalSourceManager(await getSourceManager(session));
+			logger.info("auto-login successful with Pandora session");
+		} catch (err: unknown) {
+			const msg = err instanceof Error ? err.message : String(err);
+			logger.warn({ err: msg }, "Pandora auto-login failed");
+		}
+	} else {
+		logger.info("no Pandora credentials configured, skipping auto-login");
 	}
 
-	// Step 3: Set up global source manager
-	const pandoraSession = getPandoraSessionFromCredentials();
-
-	if (pandoraSession) {
-		setGlobalSourceManager(await getSourceManager(pandoraSession));
-		logger.info("auto-login successful with Pandora session");
-	} else if (restored > 0) {
-		logger.info({ restored }, "restored source sessions (no Pandora)");
-	}
-
-	// Step 4: Register radio auto-fetch handler
+	// Register radio auto-fetch handler
 	registerAutoFetchHandler(logger);
 
-	// Step 5: Restore persisted playback state
+	// Restore persisted playback state
 	try {
 		const didRestore = await PlayerService.restoreFromDb();
 		if (didRestore) {

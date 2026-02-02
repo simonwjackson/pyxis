@@ -50,24 +50,6 @@ export const playlists = pgTable("playlists", {
 	createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
-export const credentials = pgTable("credentials", {
-	id: text("id").primaryKey(),
-	username: text("username").notNull(),
-	password: text("password").notNull(),
-	sessionId: text("session_id"),
-	createdAt: timestamp("created_at").defaultNow().notNull(),
-});
-
-export const sourceCredentials = pgTable("source_credentials", {
-	id: text("id").primaryKey(),
-	source: text("source").notNull(),
-	username: text("username").notNull(),
-	password: text("password").notNull(),
-	sessionData: text("session_data"),
-	createdAt: timestamp("created_at").defaultNow().notNull(),
-	updatedAt: timestamp("updated_at").defaultNow().notNull(),
-});
-
 export const playerState = pgTable("player_state", {
 	id: text("id").primaryKey(),
 	status: text("status").notNull(),

@@ -51,26 +51,6 @@ CREATE TABLE IF NOT EXISTS playlists (
 	created_at TIMESTAMP DEFAULT NOW() NOT NULL
 );
 
-CREATE TABLE IF NOT EXISTS credentials (
-	id TEXT PRIMARY KEY DEFAULT 'default',
-	username TEXT NOT NULL,
-	password TEXT NOT NULL,
-	session_id TEXT,
-	created_at TIMESTAMP DEFAULT NOW() NOT NULL
-);
-
-ALTER TABLE credentials ADD COLUMN IF NOT EXISTS session_id TEXT;
-
-CREATE TABLE IF NOT EXISTS source_credentials (
-	id TEXT PRIMARY KEY,
-	source TEXT NOT NULL,
-	username TEXT NOT NULL,
-	password TEXT NOT NULL,
-	session_data TEXT,
-	created_at TIMESTAMP DEFAULT NOW() NOT NULL,
-	updated_at TIMESTAMP DEFAULT NOW() NOT NULL
-);
-
 CREATE TABLE IF NOT EXISTS player_state (
 	id TEXT PRIMARY KEY,
 	status TEXT NOT NULL,
@@ -98,6 +78,10 @@ CREATE TABLE IF NOT EXISTS queue_state (
 	context_type TEXT NOT NULL,
 	context_id TEXT
 );
+
+-- Drop legacy credential tables if they exist
+DROP TABLE IF EXISTS source_credentials;
+DROP TABLE IF EXISTS credentials;
 `;
 
 export async function getDb() {

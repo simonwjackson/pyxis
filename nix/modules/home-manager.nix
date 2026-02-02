@@ -11,33 +11,25 @@ let
   configYaml = pkgs.writeText "pyxis-config.yaml" (
     lib.generators.toYAML { } (
       lib.filterAttrsRecursive (_: v: v != null) {
-        auth = lib.optionalAttrs (cfg.username != null) {
-          username = cfg.username;
+        server = {
+          port = cfg.server.port;
+          hostname = cfg.server.hostname;
         };
 
-        output = {
-          format = cfg.output.format;
-          verbose = cfg.output.verbose;
-          color = cfg.output.color;
+        web = {
+          port = cfg.web.port;
+        } // lib.optionalAttrs (cfg.web.allowedHosts != []) {
+          allowedHosts = cfg.web.allowedHosts;
         };
 
-        cache = {
-          enabled = cfg.cache.enable;
-          ttl = cfg.cache.ttl;
-        } // lib.optionalAttrs (cfg.cache.path != null) {
-          path = cfg.cache.path;
+        sources = lib.optionalAttrs (cfg.sources.pandora.username != null) {
+          pandora = {
+            username = cfg.sources.pandora.username;
+          };
         };
 
-        playlist = {
-          quality = cfg.playlist.quality;
-        } // lib.optionalAttrs (cfg.playlist.additionalUrl != null) {
-          additionalUrl = cfg.playlist.additionalUrl;
-        };
-
-        stations = {
-          sort = cfg.stations.sort;
-        } // lib.optionalAttrs (cfg.stations.limit != null) {
-          limit = cfg.stations.limit;
+        log = {
+          level = cfg.log.level;
         };
       }
     )
@@ -47,11 +39,11 @@ let
   wrappedPyxis = pkgs.writeShellScriptBin "pyxis" ''
     set -euo pipefail
 
-    ${lib.optionalString (cfg.passwordFile != null) ''
-      if [[ -f "${cfg.passwordFile}" ]]; then
-        export PANDORA_PASSWORD="$(cat "${cfg.passwordFile}")"
+    ${lib.optionalString (cfg.sources.pandora.passwordFile != null) ''
+      if [[ -f "${cfg.sources.pandora.passwordFile}" ]]; then
+        export PYXIS_PANDORA_PASSWORD="$(cat "${cfg.sources.pandora.passwordFile}")"
       else
-        echo "Error: Password file not found: ${cfg.passwordFile}" >&2
+        echo "Error: Password file not found: ${cfg.sources.pandora.passwordFile}" >&2
         exit 1
       fi
     ''}
@@ -61,101 +53,75 @@ let
 in
 {
   options.programs.pyxis = {
-    enable = lib.mkEnableOption "Pyxis Pandora CLI client";
+    enable = lib.mkEnableOption "Pyxis music streaming daemon";
 
     package = lib.mkOption {
       type = lib.types.package;
       description = "The pyxis package to use";
     };
 
-    # Auth options
-    username = lib.mkOption {
-      type = lib.types.nullOr lib.types.str;
-      default = null;
-      description = "Pandora account email";
-      example = "user@example.com";
-    };
-
-    passwordFile = lib.mkOption {
-      type = lib.types.nullOr lib.types.path;
-      default = null;
-      description = ''
-        Path to a file containing the Pandora password.
-        The file should contain only the password with no trailing newline.
-        This is read at runtime, so it works with secret managers like agenix or sops-nix.
-      '';
-      example = "/run/secrets/pandora-password";
-    };
-
-    # Output options
-    output = {
-      format = lib.mkOption {
-        type = lib.types.enum [ "human" "json" ];
-        default = "human";
-        description = "Output format";
+    # Server options
+    server = {
+      port = lib.mkOption {
+        type = lib.types.port;
+        default = 8765;
+        description = "Backend server port";
       };
 
-      verbose = lib.mkOption {
-        type = lib.types.bool;
-        default = false;
-        description = "Enable verbose output";
-      };
-
-      color = lib.mkOption {
-        type = lib.types.bool;
-        default = true;
-        description = "Enable colored output";
+      hostname = lib.mkOption {
+        type = lib.types.str;
+        default = "localhost";
+        description = "Server hostname for CORS and proxy target";
+        example = "aka";
       };
     };
 
-    # Cache options
-    cache = {
-      enable = lib.mkOption {
-        type = lib.types.bool;
-        default = true;
-        description = "Enable session caching";
+    # Web frontend options
+    web = {
+      port = lib.mkOption {
+        type = lib.types.port;
+        default = 5678;
+        description = "Vite dev server port";
       };
 
-      ttl = lib.mkOption {
-        type = lib.types.ints.positive;
-        default = 3600;
-        description = "Cache time-to-live in seconds";
-      };
-
-      path = lib.mkOption {
-        type = lib.types.nullOr lib.types.str;
-        default = null;
-        description = "Custom cache directory path";
+      allowedHosts = lib.mkOption {
+        type = lib.types.listOf lib.types.str;
+        default = [];
+        description = "Additional allowed hosts for Vite dev server";
+        example = [ "pyxis.hummingbird-lake.ts.net" ];
       };
     };
 
-    # Playlist options
-    playlist = {
-      quality = lib.mkOption {
-        type = lib.types.enum [ "high" "medium" "low" ];
-        default = "high";
-        description = "Audio quality for playlists";
-      };
+    # Source options
+    sources = {
+      pandora = {
+        username = lib.mkOption {
+          type = lib.types.nullOr lib.types.str;
+          default = null;
+          description = "Pandora account email";
+          example = "user@example.com";
+        };
 
-      additionalUrl = lib.mkOption {
-        type = lib.types.nullOr lib.types.str;
-        default = null;
-        description = "Additional URL for playlists";
+        passwordFile = lib.mkOption {
+          type = lib.types.nullOr lib.types.path;
+          default = null;
+          description = ''
+            Path to a file containing the Pandora password.
+            The file should contain only the password with no trailing newline.
+            This is read at runtime, so it works with secret managers like agenix or sops-nix.
+            Sets the PYXIS_PANDORA_PASSWORD environment variable.
+          '';
+          example = "/run/secrets/pandora-password";
+        };
       };
     };
 
-    # Station options
-    stations = {
-      sort = lib.mkOption {
-        type = lib.types.enum [ "recent" "name" "created" ];
-        default = "recent";
-        description = "Default station sort order";
-      };
-
-      limit = lib.mkOption {
-        type = lib.types.nullOr lib.types.ints.positive;
-        default = null;
-        description = "Limit number of stations displayed";
+    # Log options
+    log = {
+      level = lib.mkOption {
+        type = lib.types.enum [ "trace" "debug" "info" "warn" "error" "fatal" ];
+        default = "info";
+        description = "Log level";
       };
     };
   };

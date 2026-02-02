@@ -9,7 +9,6 @@ import { libraryRouter } from "./routers/library.js";
 import { searchRouter } from "./routers/search.js";
 import { playerRouter } from "./routers/player.js";
 import { queueRouter } from "./routers/queue.js";
-import { credentialsRouter } from "./routers/credentials.js";
 import { logRouter } from "./routers/log.js";
 
 export const appRouter = router({
@@ -23,7 +22,6 @@ export const appRouter = router({
 	search: searchRouter,
 	player: playerRouter,
 	queue: queueRouter,
-	credentials: credentialsRouter,
 	log: logRouter,
 });
 

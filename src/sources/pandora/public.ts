@@ -35,5 +35,3 @@ export {
   QUALITY_INFO
 } from "./quality.js"
 
-// Config
-export { PandoraConfig as PandoraConfigTag, PandoraConfigLive } from "./config.js"

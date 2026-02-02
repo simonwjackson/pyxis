@@ -3,6 +3,7 @@ import { join } from "node:path";
 import pino from "pino";
 import type { Logger as PinoLogger } from "pino";
 import envPaths from "env-paths";
+import { resolveConfig } from "./config.js";
 
 const paths = envPaths("pyxis", { suffix: "" });
 const LOG_DIR = paths.log;
@@ -16,7 +17,8 @@ function ensureLogDir() {
 	}
 }
 
-const level = (process.env["LOG_LEVEL"] ?? "info") as pino.Level;
+const appConfig = resolveConfig();
+const level = appConfig.log.level;
 
 const loggerCache = new Map<string, PinoLogger>();
 

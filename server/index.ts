@@ -6,22 +6,27 @@ import { ensureSourceManager } from "./services/sourceManager.js";
 import { tryAutoLogin } from "./services/autoLogin.js";
 import { decodeId } from "./lib/ids.js";
 import { createLogger } from "../src/logger.js";
+import { resolveConfig } from "../src/config.js";
+
+const configFlagIndex = process.argv.indexOf("--config");
+const configPath = configFlagIndex !== -1 ? process.argv[configFlagIndex + 1] : undefined;
+const config = resolveConfig(configPath);
 
 const serverLogger = createLogger("server");
 const streamLog = serverLogger.child({ component: "stream" });
 const trpcLog = serverLogger.child({ component: "trpc" });
 
-const PORT = 8765;
+const corsOrigin = `http://${config.server.hostname}:${config.web.port}`;
 
 const CORS_HEADERS = {
-	"Access-Control-Allow-Origin": "http://aka:5678",
+	"Access-Control-Allow-Origin": corsOrigin,
 	"Access-Control-Allow-Methods": "GET, POST, OPTIONS",
 	"Access-Control-Allow-Headers": "Content-Type, Range",
 	"Access-Control-Allow-Credentials": "true",
 } as const;
 
 const server = Bun.serve({
-	port: PORT,
+	port: config.server.port,
 	fetch(req) {
 		const url = new URL(req.url);
 
@@ -89,7 +94,7 @@ const server = Bun.serve({
 				// Set CORS headers directly on the original response to preserve
 				// SSE stream lifecycle (wrapping in new Response() disconnects
 				// the tRPC subscription cleanup signals, causing listener drops)
-				response.headers.set("Access-Control-Allow-Origin", "http://aka:5678");
+				response.headers.set("Access-Control-Allow-Origin", corsOrigin);
 				response.headers.set("Access-Control-Allow-Credentials", "true");
 				if (trpcPath.includes("radio.getTracks")) {
 					trpcLog.info({ path: "radio.getTracks", status: response.status }, "response");
@@ -102,9 +107,9 @@ const server = Bun.serve({
 	},
 });
 
-serverLogger.info({ port: PORT }, "server running");
+serverLogger.info({ port: config.server.port }, "server running");
 
-// Attempt auto-login from stored credentials
-tryAutoLogin(serverLogger).catch(() => {
+// Attempt auto-login from config credentials
+tryAutoLogin(serverLogger, config).catch(() => {
 	// Silently ignore — server starts normally without auth
 });
