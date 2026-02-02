@@ -64,6 +64,12 @@ function PlaylistContent({
 		{ enabled: true },
 	);
 
+	// Force fresh data when playlistId changes (prevents stale cache race)
+	const utils = trpc.useUtils();
+	useEffect(() => {
+		utils.playlist.getTracks.invalidate({ id: playlistId });
+	}, [playlistId, utils]);
+
 	useEffect(() => {
 		if (playlistQuery.error) {
 			toast.error(`Failed to load playlist: ${playlistQuery.error.message}`);

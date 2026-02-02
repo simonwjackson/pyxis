@@ -68,6 +68,12 @@ function AlbumContent({
 		enabled: true,
 	});
 
+	// Force fresh data when albumId changes (prevents stale cache race)
+	const utils = trpc.useUtils();
+	useEffect(() => {
+		utils.library.albumTracks.invalidate({ albumId });
+	}, [albumId, utils]);
+
 	useEffect(() => {
 		if (!albumTracksQuery.data || !albumsQuery.data) return;
 		const albumInfo = albumsQuery.data.find((a) => a.id === albumId);
