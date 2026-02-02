@@ -27,7 +27,7 @@ const customLogger = {
 };
 
 export default defineConfig({
-	plugins: [orchestraSource(), react(), tailwindcss()],
+	plugins: [orchestraSource({ serverUrl: "https://aka.hummingbird-lake.ts.net" }), react(), tailwindcss()],
 	customLogger,
 	server: {
 		port: 5678,
