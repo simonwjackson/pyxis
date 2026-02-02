@@ -27,10 +27,26 @@ const DiscogsSourceSchema = z.object({
 	token: z.string().optional(),
 });
 
+const DeezerSourceSchema = z.object({
+	enabled: z.boolean().default(true),
+});
+
+const BandcampSourceSchema = z.object({
+	enabled: z.boolean().default(true),
+});
+
+const SoundCloudSourceSchema = z.object({
+	enabled: z.boolean().default(true),
+	clientId: z.string().optional(),
+});
+
 const SourcesSchema = z.object({
 	pandora: PandoraSourceSchema.default(() => PandoraSourceSchema.parse({})),
 	musicbrainz: MusicBrainzSourceSchema.default(() => MusicBrainzSourceSchema.parse({})),
 	discogs: DiscogsSourceSchema.default(() => DiscogsSourceSchema.parse({})),
+	deezer: DeezerSourceSchema.default(() => DeezerSourceSchema.parse({})),
+	bandcamp: BandcampSourceSchema.default(() => BandcampSourceSchema.parse({})),
+	soundcloud: SoundCloudSourceSchema.default(() => SoundCloudSourceSchema.parse({})),
 });
 
 const LogSchema = z.object({

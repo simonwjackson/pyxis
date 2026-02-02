@@ -1,7 +1,7 @@
 // Canonical types for the source abstraction layer.
 // All sources normalize their data to these types.
 
-export type SourceType = "pandora" | "ytmusic" | "local" | "musicbrainz" | "discogs";
+export type SourceType = "pandora" | "ytmusic" | "local" | "musicbrainz" | "discogs" | "deezer" | "bandcamp" | "soundcloud";
 
 export type ReleaseType =
 	| "album"

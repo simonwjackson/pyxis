@@ -10,6 +10,9 @@ import { getDb, schema } from "../../src/db/index.js";
 import { eq } from "drizzle-orm";
 import { createMusicBrainzSource } from "../../src/sources/musicbrainz/index.js";
 import { createDiscogsSource } from "../../src/sources/discogs/index.js";
+import { createDeezerSource } from "../../src/sources/deezer/index.js";
+import { createBandcampSource } from "../../src/sources/bandcamp/index.js";
+import { createSoundCloudSource } from "../../src/sources/soundcloud/index.js";
 import type { AppConfig } from "../../src/config.js";
 import { createLogger } from "../../src/logger.js";
 
@@ -35,7 +38,7 @@ async function loadYtMusicPlaylistsFromDb(): Promise<YtMusicPlaylistEntry[]> {
 	}));
 }
 
-function buildMetadataSources(config: AppConfig): readonly MetadataSource[] {
+async function buildMetadataSources(config: AppConfig): Promise<readonly MetadataSource[]> {
 	if (cachedMetadataSources) return cachedMetadataSources;
 
 	const sources: MetadataSource[] = [];
@@ -60,6 +63,45 @@ function buildMetadataSources(config: AppConfig): readonly MetadataSource[] {
 				...(discogsToken != null ? { token: discogsToken } : {}),
 			}),
 		);
+	}
+
+	if (config.sources.deezer.enabled) {
+		sources.push(
+			createDeezerSource({
+				appName: "Pyxis",
+				version: "1.0.0",
+				contact: "https://github.com/simonwjackson/pyxis",
+			}),
+		);
+	}
+
+	if (config.sources.bandcamp.enabled) {
+		sources.push(
+			createBandcampSource({
+				appName: "Pyxis",
+				version: "1.0.0",
+				contact: "https://github.com/simonwjackson/pyxis",
+			}),
+		);
+	}
+
+	if (config.sources.soundcloud.enabled) {
+		try {
+			const soundcloudSource = await createSoundCloudSource({
+				appName: "Pyxis",
+				version: "1.0.0",
+				contact: "https://github.com/simonwjackson/pyxis",
+				...(config.sources.soundcloud.clientId != null
+					? { clientId: config.sources.soundcloud.clientId }
+					: {}),
+			});
+			sources.push(soundcloudSource);
+		} catch (err) {
+			logger.warn(
+				{ err: String(err) },
+				"SoundCloud source initialization failed (client_id extraction); skipping",
+			);
+		}
 	}
 
 	cachedMetadataSources = sources;
@@ -92,7 +134,7 @@ export async function getSourceManager(
 	const dbPlaylists = await loadYtMusicPlaylistsFromDb();
 	sources.push(createYtMusicSource({ playlists: dbPlaylists }));
 
-	const metadataSources = appConfig ? buildMetadataSources(appConfig) : [];
+	const metadataSources = appConfig ? await buildMetadataSources(appConfig) : [];
 
 	const manager = createSourceManager(sources, metadataSources, logger);
 	managers.set(cacheKey, manager);
@@ -137,7 +179,7 @@ export async function ensureSourceManager(): Promise<SourceManager> {
 
 	const dbPlaylists = await loadYtMusicPlaylistsFromDb();
 	const sources: Source[] = [createYtMusicSource({ playlists: dbPlaylists })];
-	const metadataSources = appConfig ? buildMetadataSources(appConfig) : [];
+	const metadataSources = appConfig ? await buildMetadataSources(appConfig) : [];
 	const manager = createSourceManager(sources, metadataSources, logger);
 	globalManager = manager;
 	return manager;
