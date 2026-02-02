@@ -80,16 +80,20 @@ export function AddSeedDialog({ radioId, onClose }: AddSeedDialogProps) {
 				</div>
 
 				<div className="flex-1 overflow-y-auto p-2">
-					<SearchContent
-						isFetching={searchQuery.isFetching}
-						hasResults={hasResults}
-						hasQuery={debouncedQuery.length > 0}
-						artists={artists}
-						songs={songs}
-						query={debouncedQuery}
-						isPending={addMutation.isPending}
-						onAdd={handleAdd}
-					/>
+					{searchQuery.isFetching ? (
+						<SearchingView />
+					) : hasResults ? (
+						<ResultsView
+							artists={artists}
+							songs={songs}
+							isPending={addMutation.isPending}
+							onAdd={handleAdd}
+						/>
+					) : debouncedQuery.length > 0 ? (
+						<EmptyView query={debouncedQuery} />
+					) : (
+						<PromptView />
+					)}
 				</div>
 
 				<div className="p-4 border-t border-[var(--color-border)] shrink-0">
@@ -112,39 +116,6 @@ type Song = {
 	readonly songName: string;
 	readonly artistName: string;
 };
-
-function SearchContent({
-	isFetching,
-	hasResults,
-	hasQuery,
-	artists,
-	songs,
-	query,
-	isPending,
-	onAdd,
-}: {
-	readonly isFetching: boolean;
-	readonly hasResults: boolean;
-	readonly hasQuery: boolean;
-	readonly artists: readonly Artist[];
-	readonly songs: readonly Song[];
-	readonly query: string;
-	readonly isPending: boolean;
-	readonly onAdd: (musicToken: string) => void;
-}) {
-	if (isFetching) return <SearchingView />;
-	if (hasResults)
-		return (
-			<ResultsView
-				artists={artists}
-				songs={songs}
-				isPending={isPending}
-				onAdd={onAdd}
-			/>
-		);
-	if (hasQuery) return <EmptyView query={query} />;
-	return <PromptView />;
-}
 
 function SearchingView() {
 	return (
