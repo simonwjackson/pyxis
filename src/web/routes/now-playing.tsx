@@ -126,11 +126,22 @@ function tracksToQueuePayload(tracks: readonly NowPlayingTrack[]) {
 	}));
 }
 
+function shuffleArray<T>(arr: readonly T[]): T[] {
+	const shuffled = [...arr];
+	for (let i = shuffled.length - 1; i > 0; i--) {
+		const j = Math.floor(Math.random() * (i + 1));
+		[shuffled[i], shuffled[j]] = [shuffled[j]!, shuffled[i]!];
+	}
+	return shuffled;
+}
+
 export function NowPlayingPage() {
 	const search = useSearch({ strict: false }) as {
 		station?: string;
 		playlist?: string;
 		album?: string;
+		startIndex?: number;
+		shuffle?: string;
 	};
 
 	const isAlbumMode = !!search.album;
@@ -138,6 +149,8 @@ export function NowPlayingPage() {
 	const radioId = search.station;
 	const playlistId = search.playlist;
 	const albumId = search.album ?? "";
+	const requestedStartIndex = search.startIndex ?? 0;
+	const shouldShuffle = search.shuffle === "1";
 
 	const contextKey = useMemo(() => {
 		if (isAlbumMode) return `album:${albumId}`;
@@ -233,6 +246,7 @@ export function NowPlayingPage() {
 				| { type: "radio"; seedId: string }
 				| { type: "playlist"; playlistId: string },
 			originKey: string,
+			startIndex = 0,
 		) => {
 			if (newTracks.length === 0) return;
 			if (originKey !== activeContextRef.current) {
@@ -250,11 +264,12 @@ export function NowPlayingPage() {
 				trackCount: newTracks.length,
 				firstTrackId: newTracks[0]?.id,
 				contextKey: originKey,
+				startIndex,
 			});
 			playMutationRef.current.mutate({
 				tracks: tracksToQueuePayload(newTracks),
 				context,
-				startIndex: 0,
+				startIndex,
 			});
 		},
 		[],
@@ -271,15 +286,17 @@ export function NowPlayingPage() {
 				artworkUrl: albumInfo.artworkUrl,
 			});
 		}
-		const newTracks = albumTracksQuery.data.map((t) =>
+		const ordered = albumTracksQuery.data.map((t) =>
 			albumTrackToNowPlaying(
 				t,
 				albumInfo?.title ?? "",
 				albumInfo?.artworkUrl ?? null,
 			),
 		);
-		startPlayback(newTracks, { type: "album", albumId }, contextKey);
-	}, [contextKey, isAlbumMode, albumTracksQuery.data, albumsQuery.data, albumId, startPlayback]);
+		const newTracks = shouldShuffle ? shuffleArray(ordered) : ordered;
+		const idx = shouldShuffle ? 0 : requestedStartIndex;
+		startPlayback(newTracks, { type: "album", albumId }, contextKey, idx);
+	}, [contextKey, isAlbumMode, albumTracksQuery.data, albumsQuery.data, albumId, startPlayback, shouldShuffle, requestedStartIndex]);
 
 	// Radio mode: when radio track data arrives, start playback
 	useEffect(() => {
@@ -291,9 +308,11 @@ export function NowPlayingPage() {
 	// Playlist mode: when playlist data arrives, start playback
 	useEffect(() => {
 		if (isAlbumMode || !isPlaylistMode || !playlistQuery.data || !playlistId) return;
-		const newTracks = playlistQuery.data.map(playlistTrackToNowPlaying);
-		startPlayback(newTracks, { type: "playlist", playlistId }, contextKey);
-	}, [contextKey, isAlbumMode, isPlaylistMode, playlistQuery.data, playlistId, startPlayback]);
+		const ordered = playlistQuery.data.map(playlistTrackToNowPlaying);
+		const newTracks = shouldShuffle ? shuffleArray(ordered) : ordered;
+		const idx = shouldShuffle ? 0 : requestedStartIndex;
+		startPlayback(newTracks, { type: "playlist", playlistId }, contextKey, idx);
+	}, [contextKey, isAlbumMode, isPlaylistMode, playlistQuery.data, playlistId, startPlayback, shouldShuffle, requestedStartIndex]);
 
 	const feedbackMutation = trpc.track.feedback.useMutation({
 		onError(err) {

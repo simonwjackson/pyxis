@@ -226,12 +226,10 @@ export function HomePage() {
 	const playlists = playlistsQuery.data ?? [];
 	const albums = albumsQuery.data ?? [];
 
-	const handlePlayPlaylist = (playlist: PlaylistData) => {
+	const handleOpenPlaylist = (playlist: PlaylistData) => {
 		navigate({
-			to: "/now-playing",
-			search: {
-				playlist: playlist.id,
-			},
+			to: "/playlist/$playlistId",
+			params: { playlistId: playlist.id },
 		});
 	};
 
@@ -244,7 +242,7 @@ export function HomePage() {
 				renderItem={(playlist) => (
 					<PlaylistCard
 						playlist={playlist}
-						onPlay={() => handlePlayPlaylist(playlist)}
+						onPlay={() => handleOpenPlaylist(playlist)}
 					/>
 				)}
 				filterFn={(p, q) => p.name.toLowerCase().includes(q)}
@@ -273,8 +271,8 @@ export function HomePage() {
 						album={album}
 						onPlay={() => {
 							navigate({
-								to: "/now-playing",
-								search: { album: album.id },
+								to: "/album/$albumId",
+								params: { albumId: album.id },
 							});
 						}}
 					/>

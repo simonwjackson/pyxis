@@ -13,6 +13,8 @@ import { GenresPage } from "./routes/genres";
 import { SettingsPage } from "./routes/settings";
 import { NowPlayingPage } from "./routes/now-playing";
 import { StationDetailsPage } from "./routes/station-details";
+import { AlbumDetailPage } from "./routes/album";
+import { PlaylistDetailPage } from "./routes/playlist-detail";
 
 const rootRoute = createRootRoute({
 	component: RootLayout,
@@ -75,6 +77,24 @@ const stationDetailsRoute = createRoute({
 	},
 });
 
+const albumDetailRoute = createRoute({
+	getParentRoute: () => rootRoute,
+	path: "/album/$albumId",
+	component: function AlbumDetailWrapper() {
+		const { albumId } = albumDetailRoute.useParams();
+		return <AlbumDetailPage albumId={albumId} />;
+	},
+});
+
+const playlistDetailRoute = createRoute({
+	getParentRoute: () => rootRoute,
+	path: "/playlist/$playlistId",
+	component: function PlaylistDetailWrapper() {
+		const { playlistId } = playlistDetailRoute.useParams();
+		return <PlaylistDetailPage playlistId={playlistId} />;
+	},
+});
+
 const routeTree = rootRoute.addChildren([
 	homeRoute,
 	stationsRoute,
@@ -84,6 +104,8 @@ const routeTree = rootRoute.addChildren([
 	settingsRoute,
 	nowPlayingRoute,
 	stationDetailsRoute,
+	albumDetailRoute,
+	playlistDetailRoute,
 ]);
 
 export const router = createRouter({ routeTree });
