@@ -160,6 +160,12 @@ export function usePlayback() {
 								logToServer("[audio] play() AbortError silenced (transition expected)");
 								return;
 							}
+							// NotAllowedError = browser autoplay policy; show play button instead of error
+							if (err instanceof DOMException && err.name === "NotAllowedError") {
+								logToServer("[audio] play() blocked by autoplay policy, waiting for user gesture");
+								setState((prev) => ({ ...prev, isPlaying: false }));
+								return;
+							}
 							const message = err instanceof Error ? err.message : "Playback failed";
 							logToServer(`[audio] play() rejected: ${message}`);
 							setState((prev) => ({
@@ -178,6 +184,11 @@ export function usePlayback() {
 						audio.play().catch((err: unknown) => {
 							if (err instanceof DOMException && err.name === "AbortError") {
 								logToServer("[audio] play() AbortError silenced (transition expected)");
+								return;
+							}
+							if (err instanceof DOMException && err.name === "NotAllowedError") {
+								logToServer("[audio] play() blocked by autoplay policy, waiting for user gesture");
+								setState((prev) => ({ ...prev, isPlaying: false }));
 								return;
 							}
 							logToServer(`[audio] play() rejected: ${err instanceof Error ? err.message : "unknown"}`);
