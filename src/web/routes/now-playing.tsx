@@ -284,7 +284,7 @@ export function NowPlayingPage() {
 		if (isAlbumMode) {
 			const nextIndex = trackIndex + 1;
 			if (nextIndex < tracks.length) {
-				playback.jumpToMutation.mutate({ index: nextIndex });
+				playback.triggerJumpTo(nextIndex);
 			} else {
 				playback.stop();
 			}
@@ -296,13 +296,13 @@ export function NowPlayingPage() {
 
 	const handlePrevious = useCallback(() => {
 		if (trackIndex > 0) {
-			playback.jumpToMutation.mutate({ index: trackIndex - 1 });
+			playback.triggerJumpTo(trackIndex - 1);
 		}
 	}, [trackIndex, playback]);
 
 	const handleJumpToTrack = useCallback(
 		(index: number) => {
-			playback.jumpToMutation.mutate({ index });
+			playback.triggerJumpTo(index);
 		},
 		[playback],
 	);

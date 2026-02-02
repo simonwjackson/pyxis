@@ -43,7 +43,7 @@ export function usePlayback() {
 		readonly title: string;
 		readonly artist: string;
 		readonly album: string;
-		readonly duration: number;
+		readonly duration: number | null;
 		readonly artworkUrl: string | null;
 		readonly streamUrl: string;
 	};
@@ -229,12 +229,64 @@ export function usePlayback() {
 		[logToServer],
 	);
 
-	// Subscribe to server player state changes via SSE
-	trpc.player.onStateChange.useSubscription(undefined, {
-		onData(serverState) {
-			handleServerState(serverState, "sse");
-		},
-	});
+	// Subscribe to server player state changes via manual EventSource with reconnect.
+	// tRPC's useSubscription + httpSubscriptionLink creates EventSource connections
+	// that silently die ~15-20s after React StrictMode mount/unmount cycles.
+	// Components at the app root (PlaybackProvider) never remount to recover.
+	// Manual EventSource gives us full lifecycle control with reconnect on drop.
+	useEffect(() => {
+		let eventSource: EventSource | null = null;
+		let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+		let cancelled = false;
+		let reconnectDelay = 1000;
+		const MAX_RECONNECT_DELAY = 16000;
+
+		function connect() {
+			if (cancelled) return;
+
+			// tRPC SSE URL: no input param when subscription input is undefined
+			eventSource = new EventSource("/trpc/player.onStateChange");
+
+			// tRPC SSE emits a named "connected" event on establishment
+			eventSource.addEventListener("connected", () => {
+				logToServer("[sse] EventSource connected");
+				reconnectDelay = 1000; // Reset backoff on successful connection
+			});
+
+			// Data arrives as unnamed SSE events (server emits `data:` without `event:` line),
+			// so the standard onmessage handler receives them.
+			// The data payload is the JSON-serialized player state directly.
+			eventSource.onmessage = (event) => {
+				try {
+					const serverState = JSON.parse(event.data as string) as ServerState;
+					handleServerState(serverState, "sse");
+				} catch {
+					// Ignore parse errors
+				}
+			};
+
+			eventSource.onerror = () => {
+				logToServer(`[sse] EventSource error, reconnecting in ${String(reconnectDelay)}ms`);
+				eventSource?.close();
+				eventSource = null;
+				if (!cancelled) {
+					reconnectTimer = setTimeout(() => {
+						reconnectDelay = Math.min(reconnectDelay * 2, MAX_RECONNECT_DELAY);
+						connect();
+					}, reconnectDelay);
+				}
+			};
+		}
+
+		connect();
+
+		return () => {
+			cancelled = true;
+			if (reconnectTimer) clearTimeout(reconnectTimer);
+			eventSource?.close();
+			eventSource = null;
+		};
+	}, [handleServerState, logToServer]);
 
 	// Periodically report progress to server (every 5s while playing)
 	useEffect(() => {
@@ -340,6 +392,21 @@ export function usePlayback() {
 		});
 	}, [previousMutation, logToServer, handleServerState]);
 
+	const triggerJumpTo = useCallback(
+		(index: number) => {
+			logToServer(`[action] jumpTo(${String(index)})`);
+			jumpToMutation.mutate(
+				{ index },
+				{
+					onSuccess(data) {
+						handleServerState(data, "jumpTo-response");
+					},
+				},
+			);
+		},
+		[jumpToMutation, logToServer, handleServerState],
+	);
+
 	const playTrack = useCallback((track: PlaybackTrack) => {
 		logToServer(`[action] playTrack id=${track.trackToken} url=${track.audioUrl}`);
 		const audio = audioRef.current;
@@ -385,6 +452,6 @@ export function usePlayback() {
 		triggerPrevious,
 		clearError,
 		playMutation,
-		jumpToMutation,
+		triggerJumpTo,
 	};
 }
