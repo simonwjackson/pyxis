@@ -29,6 +29,11 @@ export const ArtistSchema = z.object({
 	"life-span": LifeSpanSchema.optional(),
 });
 
+export const TagSchema = z.object({
+	count: z.number(),
+	name: z.string(),
+});
+
 export const ReleaseGroupSchema = z.object({
 	id: z.string(),
 	title: z.string().optional(),
@@ -37,6 +42,7 @@ export const ReleaseGroupSchema = z.object({
 	"first-release-date": z.string().optional(),
 	"artist-credit": z.array(ArtistCreditSchema).optional(),
 	score: z.number().optional(),
+	tags: z.array(TagSchema).optional(),
 });
 
 export const ReleaseGroupSearchResultSchema = z.object({

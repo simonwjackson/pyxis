@@ -36,6 +36,11 @@ const normalizeReleaseGroup = (rg: ReleaseGroup): NormalizedRelease => {
 		: undefined;
 	const year = rawYear != null && !Number.isNaN(rawYear) ? rawYear : undefined;
 
+	// Extract genres from tags, sorted by vote count descending
+	const genres = (rg.tags ?? [])
+		.sort((a, b) => b.count - a.count)
+		.map((t) => t.name);
+
 	return {
 		fingerprint: "",
 		title: rg.title ?? "Unknown",
@@ -53,7 +58,7 @@ const normalizeReleaseGroup = (rg: ReleaseGroup): NormalizedRelease => {
 		...(year != null ? { year } : {}),
 		ids: [{ source: "musicbrainz" as const, id: rg.id }],
 		confidence: (rg.score ?? 0) / 100,
-		genres: [],
+		genres,
 		sourceScores: { musicbrainz: rg.score ?? 0 },
 	};
 };
