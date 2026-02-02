@@ -12,6 +12,7 @@ import {
 	ProgressBar,
 	Controls,
 	PreviousButton,
+	BoundedSkipButton,
 	Actions,
 	InfoButton,
 	BookmarkButton,
@@ -122,7 +123,7 @@ function AlbumContent({
 			<Artwork />
 			<TrackInfo albumLabel={albumMeta?.title} />
 			<ProgressBar />
-			<Controls before={<PreviousButton />} disableSkipAtEnd />
+			<Controls before={<PreviousButton />} skip={<BoundedSkipButton />} />
 			<Actions>
 				{currentTrack.capabilities.explain && <InfoButton />}
 				{currentTrack.capabilities.bookmark && <BookmarkButton />}

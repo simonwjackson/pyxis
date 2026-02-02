@@ -99,13 +99,13 @@ export function ProgressBar() {
 export function Controls({
 	before,
 	after,
-	disableSkipAtEnd = false,
+	skip,
 }: {
 	readonly before?: ReactNode;
 	readonly after?: ReactNode;
-	readonly disableSkipAtEnd?: boolean;
+	readonly skip?: ReactNode;
 }) {
-	const { playback, handleSkip } = useNowPlaying();
+	const { playback } = useNowPlaying();
 
 	return (
 		<div
@@ -126,7 +126,7 @@ export function Controls({
 					<Play className="w-7 h-7 ml-0.5" />
 				)}
 			</Button>
-			<SkipButton onClick={handleSkip} disableAtEnd={disableSkipAtEnd} />
+			{skip ?? <SkipButton />}
 			{after}
 		</div>
 	);
@@ -149,24 +149,33 @@ export function PreviousButton() {
 	);
 }
 
-function SkipButton({
-	onClick,
-	disableAtEnd,
-}: {
-	readonly onClick: () => void;
-	readonly disableAtEnd: boolean;
-}) {
-	const { tracks, trackIndex } = useNowPlaying();
-
-	const disabled =
-		disableAtEnd && tracks.length > 0 && trackIndex >= tracks.length - 1;
+export function SkipButton() {
+	const { handleSkip } = useNowPlaying();
 
 	return (
 		<Button
 			variant="ghost"
 			size="icon"
 			className="h-12 w-12"
-			onClick={onClick}
+			onClick={handleSkip}
+			aria-label="Skip to next track"
+		>
+			<SkipForward className="w-6 h-6" />
+		</Button>
+	);
+}
+
+export function BoundedSkipButton() {
+	const { handleSkip, tracks, trackIndex } = useNowPlaying();
+
+	const disabled = tracks.length > 0 && trackIndex >= tracks.length - 1;
+
+	return (
+		<Button
+			variant="ghost"
+			size="icon"
+			className="h-12 w-12"
+			onClick={handleSkip}
 			disabled={disabled}
 			aria-label="Skip to next track"
 		>

@@ -48,9 +48,6 @@ export function AddSeedDialog({ radioId, onClose }: AddSeedDialogProps) {
 	const artists = searchQuery.data?.artists ?? [];
 	const songs = searchQuery.data?.songs ?? [];
 	const hasResults = artists.length > 0 || songs.length > 0;
-	const isSearching = searchQuery.isFetching;
-	const showEmpty =
-		debouncedQuery.length > 0 && !isSearching && !hasResults;
 
 	return (
 		<div
@@ -83,90 +80,16 @@ export function AddSeedDialog({ radioId, onClose }: AddSeedDialogProps) {
 				</div>
 
 				<div className="flex-1 overflow-y-auto p-2">
-					{isSearching && (
-						<div className="py-8 text-center">
-							<Loader2 className="w-5 h-5 animate-spin mx-auto text-[var(--color-text-dim)]" />
-						</div>
-					)}
-
-					{!isSearching && hasResults && (
-						<>
-							{artists.length > 0 && (
-								<div className="mb-2">
-									<p className="text-xs text-[var(--color-text-dim)] px-3 py-1">
-										Artists
-									</p>
-									{artists.map((artist) => (
-										<button
-											key={artist.musicToken}
-											type="button"
-											onClick={() =>
-												handleAdd(artist.musicToken)
-											}
-											disabled={addMutation.isPending}
-											className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-[var(--color-bg-highlight)] text-left disabled:opacity-50"
-										>
-											<div className="w-8 h-8 rounded-full bg-[var(--color-bg-highlight)] flex items-center justify-center shrink-0">
-												<User className="w-4 h-4 text-[var(--color-text-muted)]" />
-											</div>
-											<span className="text-sm text-[var(--color-text)] truncate">
-												{artist.artistName}
-											</span>
-											<span className="ml-auto text-xs text-[var(--color-primary)] bg-[var(--color-bg-highlight)] px-2 py-0.5 rounded shrink-0">
-												Add
-											</span>
-										</button>
-									))}
-								</div>
-							)}
-
-							{songs.length > 0 && (
-								<div>
-									<p className="text-xs text-[var(--color-text-dim)] px-3 py-1">
-										Songs
-									</p>
-									{songs.map((song) => (
-										<button
-											key={song.musicToken}
-											type="button"
-											onClick={() =>
-												handleAdd(song.musicToken)
-											}
-											disabled={addMutation.isPending}
-											className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-[var(--color-bg-highlight)] text-left disabled:opacity-50"
-										>
-											<div className="w-8 h-8 rounded-full bg-[var(--color-bg-highlight)] flex items-center justify-center shrink-0">
-												<Music className="w-4 h-4 text-[var(--color-text-muted)]" />
-											</div>
-											<div className="flex-1 min-w-0">
-												<p className="text-sm text-[var(--color-text)] truncate">
-													{song.songName}
-												</p>
-												<p className="text-xs text-[var(--color-text-dim)] truncate">
-													{song.artistName}
-												</p>
-											</div>
-											<span className="ml-auto text-xs text-[var(--color-primary)] bg-[var(--color-bg-highlight)] px-2 py-0.5 rounded shrink-0">
-												Add
-											</span>
-										</button>
-									))}
-								</div>
-							)}
-						</>
-					)}
-
-					{showEmpty && (
-						<div className="py-8 text-center text-[var(--color-text-dim)] text-sm">
-							No results found for &ldquo;{debouncedQuery}&rdquo;
-						</div>
-					)}
-
-					{debouncedQuery.length === 0 && !isSearching && (
-						<div className="py-8 text-center text-[var(--color-text-dim)] text-sm">
-							Search for artists or songs to add as seeds
-						</div>
-					)}
+					<SearchContent
+						isFetching={searchQuery.isFetching}
+						hasResults={hasResults}
+						hasQuery={debouncedQuery.length > 0}
+						artists={artists}
+						songs={songs}
+						query={debouncedQuery}
+						isPending={addMutation.isPending}
+						onAdd={handleAdd}
+					/>
 				</div>
 
 				<div className="p-4 border-t border-[var(--color-border)] shrink-0">
@@ -179,6 +102,145 @@ export function AddSeedDialog({ radioId, onClose }: AddSeedDialogProps) {
 					</button>
 				</div>
 			</div>
+		</div>
+	);
+}
+
+type Artist = { readonly musicToken: string; readonly artistName: string };
+type Song = {
+	readonly musicToken: string;
+	readonly songName: string;
+	readonly artistName: string;
+};
+
+function SearchContent({
+	isFetching,
+	hasResults,
+	hasQuery,
+	artists,
+	songs,
+	query,
+	isPending,
+	onAdd,
+}: {
+	readonly isFetching: boolean;
+	readonly hasResults: boolean;
+	readonly hasQuery: boolean;
+	readonly artists: readonly Artist[];
+	readonly songs: readonly Song[];
+	readonly query: string;
+	readonly isPending: boolean;
+	readonly onAdd: (musicToken: string) => void;
+}) {
+	if (isFetching) return <SearchingView />;
+	if (hasResults)
+		return (
+			<ResultsView
+				artists={artists}
+				songs={songs}
+				isPending={isPending}
+				onAdd={onAdd}
+			/>
+		);
+	if (hasQuery) return <EmptyView query={query} />;
+	return <PromptView />;
+}
+
+function SearchingView() {
+	return (
+		<div className="py-8 text-center">
+			<Loader2 className="w-5 h-5 animate-spin mx-auto text-[var(--color-text-dim)]" />
+		</div>
+	);
+}
+
+function ResultsView({
+	artists,
+	songs,
+	isPending,
+	onAdd,
+}: {
+	readonly artists: readonly Artist[];
+	readonly songs: readonly Song[];
+	readonly isPending: boolean;
+	readonly onAdd: (musicToken: string) => void;
+}) {
+	return (
+		<>
+			{artists.length > 0 && (
+				<div className="mb-2">
+					<p className="text-xs text-[var(--color-text-dim)] px-3 py-1">
+						Artists
+					</p>
+					{artists.map((artist) => (
+						<button
+							key={artist.musicToken}
+							type="button"
+							onClick={() => onAdd(artist.musicToken)}
+							disabled={isPending}
+							className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-[var(--color-bg-highlight)] text-left disabled:opacity-50"
+						>
+							<div className="w-8 h-8 rounded-full bg-[var(--color-bg-highlight)] flex items-center justify-center shrink-0">
+								<User className="w-4 h-4 text-[var(--color-text-muted)]" />
+							</div>
+							<span className="text-sm text-[var(--color-text)] truncate">
+								{artist.artistName}
+							</span>
+							<span className="ml-auto text-xs text-[var(--color-primary)] bg-[var(--color-bg-highlight)] px-2 py-0.5 rounded shrink-0">
+								Add
+							</span>
+						</button>
+					))}
+				</div>
+			)}
+
+			{songs.length > 0 && (
+				<div>
+					<p className="text-xs text-[var(--color-text-dim)] px-3 py-1">
+						Songs
+					</p>
+					{songs.map((song) => (
+						<button
+							key={song.musicToken}
+							type="button"
+							onClick={() => onAdd(song.musicToken)}
+							disabled={isPending}
+							className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-[var(--color-bg-highlight)] text-left disabled:opacity-50"
+						>
+							<div className="w-8 h-8 rounded-full bg-[var(--color-bg-highlight)] flex items-center justify-center shrink-0">
+								<Music className="w-4 h-4 text-[var(--color-text-muted)]" />
+							</div>
+							<div className="flex-1 min-w-0">
+								<p className="text-sm text-[var(--color-text)] truncate">
+									{song.songName}
+								</p>
+								<p className="text-xs text-[var(--color-text-dim)] truncate">
+									{song.artistName}
+								</p>
+							</div>
+							<span className="ml-auto text-xs text-[var(--color-primary)] bg-[var(--color-bg-highlight)] px-2 py-0.5 rounded shrink-0">
+								Add
+							</span>
+						</button>
+					))}
+				</div>
+			)}
+		</>
+	);
+}
+
+function EmptyView({ query }: { readonly query: string }) {
+	return (
+		<div className="py-8 text-center text-[var(--color-text-dim)] text-sm">
+			No results found for &ldquo;{query}&rdquo;
+		</div>
+	);
+}
+
+function PromptView() {
+	return (
+		<div className="py-8 text-center text-[var(--color-text-dim)] text-sm">
+			Search for artists or songs to add as seeds
 		</div>
 	);
 }
