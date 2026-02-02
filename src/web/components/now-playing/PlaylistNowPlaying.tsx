@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { toast } from "sonner";
 import { trpc } from "../../lib/trpc";
 import {
@@ -37,6 +37,7 @@ export function PlaylistNowPlaying({
 			context={{ type: "playlist", playlistId }}
 		>
 			<PlaylistContent
+				key={contextKey}
 				playlistId={playlistId}
 				contextKey={contextKey}
 				startIndex={startIndex}
@@ -58,17 +59,12 @@ function PlaylistContent({
 	readonly shuffle: boolean;
 }) {
 	const { startPlayback, currentTrack } = useNowPlaying();
+	const hasInitialized = useRef(false);
 
 	const playlistQuery = trpc.playlist.getTracks.useQuery(
 		{ id: playlistId },
 		{ enabled: true },
 	);
-
-	// Force fresh data when playlistId changes (prevents stale cache race)
-	const utils = trpc.useUtils();
-	useEffect(() => {
-		utils.playlist.getTracks.invalidate({ id: playlistId });
-	}, [playlistId, utils]);
 
 	useEffect(() => {
 		if (playlistQuery.error) {
@@ -82,9 +78,15 @@ function PlaylistContent({
 		const newTracks = shuffle ? shuffleArray(ordered) : ordered;
 		const idx = shuffle ? 0 : startIndex;
 		startPlayback(newTracks, idx);
+		hasInitialized.current = true;
 	}, [contextKey, playlistQuery.data, startPlayback, shuffle, startIndex]);
 
 	if (playlistQuery.isLoading) {
+		return <NowPlayingSkeleton />;
+	}
+
+	// Data is cached but effects haven't populated tracks yet — show skeleton
+	if (!hasInitialized.current && !currentTrack) {
 		return <NowPlayingSkeleton />;
 	}
 

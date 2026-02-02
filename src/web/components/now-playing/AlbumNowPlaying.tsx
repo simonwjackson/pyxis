@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { trpc } from "../../lib/trpc";
 import {
 	albumTrackToNowPlaying,
@@ -38,6 +38,7 @@ export function AlbumNowPlaying({
 			context={{ type: "album", albumId }}
 		>
 			<AlbumContent
+				key={contextKey}
 				albumId={albumId}
 				contextKey={contextKey}
 				startIndex={startIndex}
@@ -60,6 +61,7 @@ function AlbumContent({
 }) {
 	const { startPlayback, setAlbumMeta, currentTrack, albumMeta } =
 		useNowPlaying();
+	const hasInitialized = useRef(false);
 
 	const albumTracksQuery = trpc.library.albumTracks.useQuery(
 		{ albumId },
@@ -68,12 +70,6 @@ function AlbumContent({
 	const albumsQuery = trpc.library.albums.useQuery(undefined, {
 		enabled: true,
 	});
-
-	// Force fresh data when albumId changes (prevents stale cache race)
-	const utils = trpc.useUtils();
-	useEffect(() => {
-		utils.library.albumTracks.invalidate({ albumId });
-	}, [albumId, utils]);
 
 	useEffect(() => {
 		if (!albumTracksQuery.data || !albumsQuery.data) return;
@@ -95,6 +91,7 @@ function AlbumContent({
 		const newTracks = shuffle ? shuffleArray(ordered) : ordered;
 		const idx = shuffle ? 0 : startIndex;
 		startPlayback(newTracks, idx);
+		hasInitialized.current = true;
 	}, [
 		contextKey,
 		albumTracksQuery.data,
@@ -107,6 +104,11 @@ function AlbumContent({
 	]);
 
 	if (albumTracksQuery.isLoading || albumsQuery.isLoading) {
+		return <NowPlayingSkeleton />;
+	}
+
+	// Data is cached but effects haven't populated tracks yet — show skeleton
+	if (!hasInitialized.current && !currentTrack) {
 		return <NowPlayingSkeleton />;
 	}
 
