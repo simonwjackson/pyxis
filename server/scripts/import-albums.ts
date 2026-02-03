@@ -32,10 +32,11 @@ async function saveAlbum(
 	serverUrl: string,
 	sourceId: string,
 ): Promise<{ readonly id: string; readonly alreadyExists: boolean }> {
+	// Non-batch tRPC call: body is the raw input, no transformer
 	const res = await fetch(`${serverUrl}/trpc/library.saveAlbum`, {
 		method: "POST",
 		headers: { "Content-Type": "application/json" },
-		body: JSON.stringify({ json: { id: sourceId } }),
+		body: JSON.stringify({ id: sourceId }),
 	});
 
 	if (!res.ok) {
@@ -45,12 +46,10 @@ async function saveAlbum(
 
 	const body = (await res.json()) as {
 		readonly result: {
-			readonly data: {
-				readonly json: { readonly id: string; readonly alreadyExists: boolean };
-			};
+			readonly data: { readonly id: string; readonly alreadyExists: boolean };
 		};
 	};
-	return body.result.data.json;
+	return body.result.data;
 }
 
 async function main(): Promise<void> {
