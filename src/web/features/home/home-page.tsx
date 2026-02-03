@@ -227,11 +227,19 @@ export function HomePage() {
 	const albums = albumsQuery.data ?? [];
 
 	const handleOpenPlaylist = (playlist: PlaylistData) => {
-		navigate({
-			to: "/playlist/$playlistId",
-			params: { playlistId: playlist.id },
-			search: { play: undefined, startIndex: undefined, shuffle: undefined },
-		});
+		if (playlist.id.startsWith("pandora:")) {
+			navigate({
+				to: "/station/$token",
+				params: { token: playlist.id },
+				search: { play: undefined, startIndex: undefined, shuffle: undefined },
+			});
+		} else {
+			navigate({
+				to: "/playlist/$playlistId",
+				params: { playlistId: playlist.id },
+				search: { play: undefined, startIndex: undefined, shuffle: undefined },
+			});
+		}
 	};
 
 	return (

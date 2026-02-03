@@ -58,17 +58,19 @@ function maybeAutoFetch(): void {
 	const remaining = items.length - currentIndex - 1;
 	if (remaining > AUTO_FETCH_THRESHOLD) return;
 
+	log.debug({ remaining, contextType: context.type, seedId: context.type === "radio" ? context.seedId : undefined }, "auto-fetch triggered");
 	autoFetchInFlight = true;
 	const handler = autoFetchHandler;
 	const ctx = context;
 	handler(ctx)
 		.then((tracks) => {
 			if (tracks.length > 0) {
+				log.info({ appended: tracks.length, queueSize: items.length + tracks.length }, "auto-fetch succeeded");
 				appendTracks(tracks);
 			}
 		})
-		.catch(() => {
-			// Silently ignore — next track advance will retry
+		.catch((err: unknown) => {
+			log.warn({ err }, "auto-fetch failed");
 		})
 		.finally(() => {
 			autoFetchInFlight = false;
