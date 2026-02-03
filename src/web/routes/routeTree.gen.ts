@@ -12,7 +12,6 @@ import { Route as rootRouteImport } from './+__root'
 import { Route as StationsRouteImport } from './+stations'
 import { Route as SettingsRouteImport } from './+settings'
 import { Route as SearchRouteImport } from './+search'
-import { Route as NowPlayingRouteImport } from './+now-playing'
 import { Route as GenresRouteImport } from './+genres'
 import { Route as BookmarksRouteImport } from './+bookmarks'
 import { Route as IndexRouteImport } from './+index'
@@ -33,11 +32,6 @@ const SettingsRoute = SettingsRouteImport.update({
 const SearchRoute = SearchRouteImport.update({
   id: '/search',
   path: '/search',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const NowPlayingRoute = NowPlayingRouteImport.update({
-  id: '/now-playing',
-  path: '/now-playing',
   getParentRoute: () => rootRouteImport,
 } as any)
 const GenresRoute = GenresRouteImport.update({
@@ -75,7 +69,6 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/bookmarks': typeof BookmarksRoute
   '/genres': typeof GenresRoute
-  '/now-playing': typeof NowPlayingRoute
   '/search': typeof SearchRoute
   '/settings': typeof SettingsRoute
   '/stations': typeof StationsRoute
@@ -87,7 +80,6 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/bookmarks': typeof BookmarksRoute
   '/genres': typeof GenresRoute
-  '/now-playing': typeof NowPlayingRoute
   '/search': typeof SearchRoute
   '/settings': typeof SettingsRoute
   '/stations': typeof StationsRoute
@@ -100,7 +92,6 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/bookmarks': typeof BookmarksRoute
   '/genres': typeof GenresRoute
-  '/now-playing': typeof NowPlayingRoute
   '/search': typeof SearchRoute
   '/settings': typeof SettingsRoute
   '/stations': typeof StationsRoute
@@ -114,7 +105,6 @@ export interface FileRouteTypes {
     | '/'
     | '/bookmarks'
     | '/genres'
-    | '/now-playing'
     | '/search'
     | '/settings'
     | '/stations'
@@ -126,7 +116,6 @@ export interface FileRouteTypes {
     | '/'
     | '/bookmarks'
     | '/genres'
-    | '/now-playing'
     | '/search'
     | '/settings'
     | '/stations'
@@ -138,7 +127,6 @@ export interface FileRouteTypes {
     | '/'
     | '/bookmarks'
     | '/genres'
-    | '/now-playing'
     | '/search'
     | '/settings'
     | '/stations'
@@ -151,7 +139,6 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   BookmarksRoute: typeof BookmarksRoute
   GenresRoute: typeof GenresRoute
-  NowPlayingRoute: typeof NowPlayingRoute
   SearchRoute: typeof SearchRoute
   SettingsRoute: typeof SettingsRoute
   StationsRoute: typeof StationsRoute
@@ -181,13 +168,6 @@ declare module '@tanstack/react-router' {
       path: '/search'
       fullPath: '/search'
       preLoaderRoute: typeof SearchRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/now-playing': {
-      id: '/now-playing'
-      path: '/now-playing'
-      fullPath: '/now-playing'
-      preLoaderRoute: typeof NowPlayingRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/genres': {
@@ -239,7 +219,6 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   BookmarksRoute: BookmarksRoute,
   GenresRoute: GenresRoute,
-  NowPlayingRoute: NowPlayingRoute,
   SearchRoute: SearchRoute,
   SettingsRoute: SettingsRoute,
   StationsRoute: StationsRoute,

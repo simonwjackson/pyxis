@@ -3,9 +3,13 @@ import { StationDetailPage } from '@/web/features/station-detail/station-detail-
 
 function StationDetailRoute() {
 	const { token } = Route.useParams()
-	return <StationDetailPage token={token} />
+	const search = Route.useSearch()
+	return <StationDetailPage token={token} autoPlay={search.play === "1"} />
 }
 
 export const Route = createFileRoute('/station/$token')({
 	component: StationDetailRoute,
+	validateSearch: (search: Record<string, unknown>) => ({
+		play: typeof search['play'] === 'string' ? search['play'] : undefined,
+	}),
 })

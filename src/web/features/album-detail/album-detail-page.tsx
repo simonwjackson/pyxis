@@ -1,15 +1,18 @@
+import { useEffect, useRef, useCallback, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { Play, Shuffle, Music, ArrowLeft } from "lucide-react";
+import { toast } from "sonner";
 import { trpc } from "@/web/shared/lib/trpc";
 import { usePlaybackContext } from "@/web/shared/playback/playback-context";
 import { Skeleton } from "@/web/shared/ui/skeleton";
 import { Button } from "@/web/shared/ui/button";
-
-function formatTime(seconds: number): string {
-	const mins = Math.floor(seconds / 60);
-	const secs = Math.floor(seconds % 60);
-	return `${String(mins)}:${String(secs).padStart(2, "0")}`;
-}
+import {
+	albumTrackToNowPlaying,
+	shuffleArray,
+	tracksToQueuePayload,
+	formatTime,
+} from "@/web/shared/lib/now-playing-utils";
+import type { NowPlayingTrack } from "@/web/shared/lib/now-playing-utils";
 
 function formatTotalDuration(totalSeconds: number): string {
 	const hours = Math.floor(totalSeconds / 3600);
@@ -20,9 +23,21 @@ function formatTotalDuration(totalSeconds: number): string {
 	return `${String(mins)} min`;
 }
 
-export function AlbumDetailPage({ albumId }: { readonly albumId: string }) {
+export function AlbumDetailPage({
+	albumId,
+	autoPlay,
+	startIndex,
+	shuffle,
+}: {
+	readonly albumId: string;
+	readonly autoPlay?: boolean;
+	readonly startIndex?: number;
+	readonly shuffle?: boolean;
+}) {
 	const navigate = useNavigate();
 	const playback = usePlaybackContext();
+	const playbackRef = useRef(playback);
+	playbackRef.current = playback;
 
 	const albumsQuery = trpc.library.albums.useQuery();
 	const tracksQuery = trpc.library.albumTracks.useQuery({ albumId });
@@ -31,6 +46,69 @@ export function AlbumDetailPage({ albumId }: { readonly albumId: string }) {
 	const tracks = tracksQuery.data;
 
 	const isLoading = albumsQuery.isLoading || tracksQuery.isLoading;
+
+	// Track the current queue index via subscription
+	const [queueIndex, setQueueIndex] = useState(0);
+	trpc.queue.onChange.useSubscription(undefined, {
+		onData(queueState) {
+			setQueueIndex(queueState.currentIndex);
+		},
+	});
+
+	// Track whether this album is the active playback context
+	const [isActiveContext, setIsActiveContext] = useState(false);
+	const [nowPlayingTracks, setNowPlayingTracks] = useState<
+		readonly NowPlayingTrack[]
+	>([]);
+	const hasAutoPlayedRef = useRef(false);
+
+	// Determine if this album is currently playing
+	const currentTrackId = playback.currentTrack?.trackToken;
+	const activeTrackIds = nowPlayingTracks.map((t) => t.id);
+	const isThisAlbumPlaying =
+		isActiveContext && activeTrackIds.includes(currentTrackId ?? "");
+
+	const startPlayback = useCallback(
+		(idx: number, doShuffle: boolean) => {
+			if (!tracks || !album) return;
+			const ordered = tracks.map((t) =>
+				albumTrackToNowPlaying(t, album.title, album.artworkUrl),
+			);
+			const newTracks = doShuffle ? shuffleArray(ordered) : ordered;
+			const startIdx = doShuffle ? 0 : idx;
+			setNowPlayingTracks(newTracks);
+			setIsActiveContext(true);
+			playbackRef.current.setCurrentStationToken(albumId);
+			playbackRef.current.playMutation.mutate({
+				tracks: tracksToQueuePayload(newTracks),
+				context: { type: "album", albumId },
+				startIndex: startIdx,
+			});
+		},
+		[tracks, album, albumId],
+	);
+
+	// Auto-play on mount if search params request it
+	useEffect(() => {
+		if (!autoPlay || hasAutoPlayedRef.current || !tracks || !album) return;
+		hasAutoPlayedRef.current = true;
+		startPlayback(startIndex ?? 0, shuffle ?? false);
+	}, [autoPlay, tracks, album, startIndex, shuffle, startPlayback]);
+
+	const handlePlay = (idx = 0) => {
+		startPlayback(idx, false);
+	};
+
+	const handleShuffle = () => {
+		startPlayback(0, true);
+	};
+
+	useEffect(() => {
+		if (playback.error) {
+			toast.error(`Audio error: ${playback.error}`);
+			playbackRef.current.clearError();
+		}
+	}, [playback.error]);
 
 	if (isLoading) {
 		return <AlbumDetailSkeleton />;
@@ -41,32 +119,28 @@ export function AlbumDetailPage({ albumId }: { readonly albumId: string }) {
 			<div className="flex-1 flex items-center justify-center p-4">
 				<p className="text-[var(--color-text-dim)]">Album not found</p>
 			</div>
-		)
+		);
 	}
 
-	const totalDuration = tracks?.reduce((sum, t) => sum + (t.duration ?? 0), 0) ?? 0;
+	const totalDuration =
+		tracks?.reduce((sum, t) => sum + (t.duration ?? 0), 0) ?? 0;
 	const trackCount = tracks?.length ?? 0;
-	const currentPlayingTrackId = playback.currentTrack?.trackToken;
-
-	const handlePlay = (startIndex = 0) => {
-		navigate({
-			to: "/now-playing",
-			search: { album: albumId, startIndex },
-		})
-	}
-
-	const handleShuffle = () => {
-		navigate({
-			to: "/now-playing",
-			search: { album: albumId, shuffle: "1" },
-		})
-	}
 
 	return (
 		<div className="flex-1 p-6 max-w-2xl mx-auto space-y-6">
 			<button
 				type="button"
-				onClick={() => navigate({ to: "/", search: { pl_sort: undefined, pl_page: undefined, al_sort: undefined, al_page: undefined } })}
+				onClick={() =>
+					navigate({
+						to: "/",
+						search: {
+							pl_sort: undefined,
+							pl_page: undefined,
+							al_sort: undefined,
+							al_page: undefined,
+						},
+					})
+				}
 				className="flex items-center gap-1.5 text-sm text-[var(--color-text-dim)] hover:text-[var(--color-text)] transition-colors"
 			>
 				<ArrowLeft className="w-4 h-4" />
@@ -97,7 +171,9 @@ export function AlbumDetailPage({ albumId }: { readonly albumId: string }) {
 					<p className="text-sm text-[var(--color-text-dim)]">
 						{album.year ? `${String(album.year)} \u00B7 ` : ""}
 						{String(trackCount)} track{trackCount !== 1 ? "s" : ""}
-						{totalDuration > 0 ? ` \u00B7 ${formatTotalDuration(totalDuration)}` : ""}
+						{totalDuration > 0
+							? ` \u00B7 ${formatTotalDuration(totalDuration)}`
+							: ""}
 					</p>
 					<div className="flex gap-3 pt-3">
 						<Button
@@ -122,7 +198,9 @@ export function AlbumDetailPage({ albumId }: { readonly albumId: string }) {
 			{tracks && tracks.length > 0 && (
 				<div className="space-y-0.5">
 					{tracks.map((track, index) => {
-						const isActive = track.id === currentPlayingTrackId;
+						const isActive =
+							isThisAlbumPlaying &&
+							nowPlayingTracks[queueIndex]?.id === track.id;
 						return (
 							<button
 								key={track.id}
@@ -134,18 +212,24 @@ export function AlbumDetailPage({ albumId }: { readonly albumId: string }) {
 										: "text-[var(--color-text-dim)] hover:text-[var(--color-text)] hover:bg-[var(--color-bg-highlight)]"
 								}`}
 							>
-								<span className="w-6 text-right text-sm">{String(index + 1)}</span>
-								<span className="flex-1 text-sm truncate">{track.title}</span>
+								<span className="w-6 text-right text-sm">
+									{String(index + 1)}
+								</span>
+								<span className="flex-1 text-sm truncate">
+									{track.title}
+								</span>
 								{track.duration != null && (
-									<span className="text-xs">{formatTime(track.duration)}</span>
+									<span className="text-xs">
+										{formatTime(track.duration)}
+									</span>
 								)}
 							</button>
-						)
+						);
 					})}
 				</div>
 			)}
 		</div>
-	)
+	);
 }
 
 function AlbumDetailSkeleton() {
@@ -174,6 +258,5 @@ function AlbumDetailSkeleton() {
 				))}
 			</div>
 		</div>
-	)
+	);
 }
-

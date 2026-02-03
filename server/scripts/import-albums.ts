@@ -1,11 +1,21 @@
 import { readFileSync } from "node:fs";
 import { parse } from "yaml";
+import { getDb, schema } from "../../src/db/index.js";
+import { createSourceManager } from "../../src/sources/index.js";
+import { createYtMusicSource } from "../../src/sources/ytmusic/index.js";
+import { nanoid } from "nanoid";
+import { eq, and } from "drizzle-orm";
+import { createLogger } from "../../src/logger.js";
+import type { SourceType } from "../../src/sources/types.js";
 
 const YAML_PATH =
 	process.argv[2] ??
 	"/home/simonwjackson/.claude-accounts/personal/albums.yaml";
-const SERVER_URL = process.argv[3] ?? "http://localhost:8765";
-const DELAY_MS = 1000;
+const DELAY_MS = 1500;
+const MAX_RETRIES = 3;
+const RETRY_DELAY_MS = 5000;
+
+const logger = createLogger("import");
 
 type AlbumSource = {
 	readonly type: string;
@@ -28,28 +38,8 @@ function sleep(ms: number): Promise<void> {
 	return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-async function saveAlbum(
-	serverUrl: string,
-	sourceId: string,
-): Promise<{ readonly id: string; readonly alreadyExists: boolean }> {
-	// Non-batch tRPC call: body is the raw input, no transformer
-	const res = await fetch(`${serverUrl}/trpc/library.saveAlbum`, {
-		method: "POST",
-		headers: { "Content-Type": "application/json" },
-		body: JSON.stringify({ id: sourceId }),
-	});
-
-	if (!res.ok) {
-		const text = await res.text();
-		throw new Error(`HTTP ${res.status}: ${text}`);
-	}
-
-	const body = (await res.json()) as {
-		readonly result: {
-			readonly data: { readonly id: string; readonly alreadyExists: boolean };
-		};
-	};
-	return body.result.data;
+function generateId(): string {
+	return nanoid(10);
 }
 
 async function main(): Promise<void> {
@@ -58,13 +48,23 @@ async function main(): Promise<void> {
 	const albums = data.albums;
 
 	console.log(`Found ${albums.length} albums in ${YAML_PATH}`);
-	console.log(`Target server: ${SERVER_URL}`);
+	console.log("Mode: direct in-process (no HTTP server needed)");
 	console.log("---");
+
+	// Initialize DB and source manager directly
+	const db = await getDb();
+	const ytmusic = createYtMusicSource({ playlists: [] });
+	const sourceManager = createSourceManager([ytmusic], [], logger);
 
 	let succeeded = 0;
 	let skipped = 0;
 	let failed = 0;
-	const failures: Array<{ readonly index: number; readonly title: string; readonly artist: string; readonly error: string }> = [];
+	const failures: Array<{
+		readonly index: number;
+		readonly title: string;
+		readonly artist: string;
+		readonly error: string;
+	}> = [];
 
 	for (let i = 0; i < albums.length; i++) {
 		const album = albums[i];
@@ -79,27 +79,103 @@ async function main(): Promise<void> {
 			continue;
 		}
 
-		const sourceId = `${source.type}:${source.id}`;
+		const sourceType = source.type as SourceType;
+		const albumId = source.id;
 
-		try {
-			const result = await saveAlbum(SERVER_URL, sourceId);
-			if (result.alreadyExists) {
+		// Check if already exists
+		const existing = await db
+			.select()
+			.from(schema.albumSourceRefs)
+			.where(
+				and(
+					eq(schema.albumSourceRefs.source, sourceType),
+					eq(schema.albumSourceRefs.sourceId, albumId),
+				),
+			);
+		if (existing[0]) {
+			console.log(
+				`[${i + 1}/${albums.length}] EXISTS: ${album.title} - ${album.artist}`,
+			);
+			skipped++;
+			continue;
+		}
+
+		let lastError = "";
+		for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+			try {
+				const { album: fetchedAlbum, tracks } =
+					await sourceManager.getAlbumTracks(sourceType, albumId);
+
+				const newAlbumId = generateId();
+
+				await db.transaction(async (tx) => {
+					await tx.insert(schema.albums).values({
+						id: newAlbumId,
+						title: fetchedAlbum.title,
+						artist: fetchedAlbum.artist,
+						...(fetchedAlbum.year != null
+							? { year: fetchedAlbum.year }
+							: {}),
+						...(fetchedAlbum.artworkUrl != null
+							? { artworkUrl: fetchedAlbum.artworkUrl }
+							: {}),
+					});
+
+					for (const sid of fetchedAlbum.sourceIds) {
+						await tx.insert(schema.albumSourceRefs).values({
+							id: `${newAlbumId}-${sid.source}-${sid.id}`,
+							albumId: newAlbumId,
+							source: sid.source,
+							sourceId: sid.id,
+						});
+					}
+
+					for (const [index, track] of tracks.entries()) {
+						await tx.insert(schema.albumTracks).values({
+							id: generateId(),
+							albumId: newAlbumId,
+							trackIndex: index,
+							title: track.title,
+							artist: track.artist,
+							...(track.duration != null
+								? { duration: Math.round(track.duration) }
+								: {}),
+							source: track.sourceId.source,
+							sourceTrackId: track.sourceId.id,
+							...(track.artworkUrl != null
+								? { artworkUrl: track.artworkUrl }
+								: {}),
+						});
+					}
+				});
+
 				console.log(
-					`[${i + 1}/${albums.length}] EXISTS: ${album.title} - ${album.artist}`,
-				);
-				skipped++;
-			} else {
-				console.log(
-					`[${i + 1}/${albums.length}] SAVED: ${album.title} - ${album.artist} (${result.id})`,
+					`[${i + 1}/${albums.length}] SAVED: ${fetchedAlbum.title} - ${fetchedAlbum.artist} (${newAlbumId}, ${tracks.length} tracks)`,
 				);
 				succeeded++;
+				lastError = "";
+				break;
+			} catch (err) {
+				lastError = err instanceof Error ? err.message : String(err);
+				if (attempt < MAX_RETRIES) {
+					console.warn(
+						`  Retry ${attempt + 1}/${MAX_RETRIES} for ${album.title}: ${lastError.slice(0, 120)}`,
+					);
+					await sleep(RETRY_DELAY_MS);
+				}
 			}
-		} catch (err) {
-			const message = err instanceof Error ? err.message : String(err);
+		}
+
+		if (lastError) {
 			console.error(
-				`[${i + 1}/${albums.length}] FAILED: ${album.title} - ${album.artist} (${message})`,
+				`[${i + 1}/${albums.length}] FAILED: ${album.title} - ${album.artist} (${lastError})`,
 			);
-			failures.push({ index: i + 1, title: album.title, artist: album.artist, error: message });
+			failures.push({
+				index: i + 1,
+				title: album.title,
+				artist: album.artist,
+				error: lastError,
+			});
 			failed++;
 		}
 
@@ -119,6 +195,8 @@ async function main(): Promise<void> {
 			console.log(`  [${f.index}] ${f.title} - ${f.artist}: ${f.error}`);
 		}
 	}
+
+	process.exit(0);
 }
 
 main().catch((err) => {

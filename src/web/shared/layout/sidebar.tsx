@@ -9,26 +9,30 @@ import {
 	Settings,
 } from "lucide-react";
 import { cn } from "../lib/utils";
+import { trpc } from "../lib/trpc";
 
 type NavItem = {
 	readonly label: string;
 	readonly path: string;
 	readonly icon: ReactNode;
+	readonly requiresPandora?: boolean;
 };
 
 const navItems: readonly NavItem[] = [
 	{ label: "Home", path: "/", icon: <Home className="w-5 h-5" /> },
-	{ label: "Stations", path: "/stations", icon: <Radio className="w-5 h-5" /> },
+	{ label: "Stations", path: "/stations", icon: <Radio className="w-5 h-5" />, requiresPandora: true },
 	{ label: "Search", path: "/search", icon: <Search className="w-5 h-5" /> },
 	{
 		label: "Bookmarks",
 		path: "/bookmarks",
 		icon: <Bookmark className="w-5 h-5" />,
+		requiresPandora: true,
 	},
 	{
 		label: "Genres",
 		path: "/genres",
 		icon: <LayoutGrid className="w-5 h-5" />,
+		requiresPandora: true,
 	},
 	{
 		label: "Settings",
@@ -39,6 +43,9 @@ const navItems: readonly NavItem[] = [
 
 export function Sidebar() {
 	const { location } = useRouterState();
+	const statusQuery = trpc.auth.status.useQuery();
+	const hasPandora = statusQuery.data?.hasPandora ?? false;
+	const visibleItems = navItems.filter((item) => !item.requiresPandora || hasPandora);
 
 	return (
 		<aside className="hidden md:flex md:w-56 flex-col bg-[var(--color-bg-panel)] border-r border-[var(--color-border)]" aria-label="Main navigation">
@@ -48,7 +55,7 @@ export function Sidebar() {
 				</Link>
 			</div>
 			<nav className="flex-1 px-2 py-2 space-y-1">
-				{navItems.map((item) => (
+				{visibleItems.map((item) => (
 					<Link
 						key={item.path}
 						to={item.path}

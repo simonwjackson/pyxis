@@ -160,7 +160,7 @@ export function BookmarksPage() {
 					<Bookmark className="w-12 h-12 mx-auto mb-4 text-[var(--color-text-dim)]" />
 					<p>No bookmarks yet.</p>
 					<p className="text-sm mt-1">
-						Bookmark artists and songs from the now-playing view.
+						Bookmark artists and songs while playing.
 					</p>
 				</div>
 			)}

@@ -14,8 +14,13 @@ const WebSchema = z.object({
 	allowedHosts: z.array(z.string()).default([]),
 });
 
+const optionalString = z.preprocess(
+	(val) => (val === null ? undefined : val),
+	z.string().optional(),
+);
+
 const PandoraSourceSchema = z.object({
-	username: z.string().optional(),
+	username: optionalString,
 });
 
 const MusicBrainzSourceSchema = z.object({
@@ -24,7 +29,7 @@ const MusicBrainzSourceSchema = z.object({
 
 const DiscogsSourceSchema = z.object({
 	enabled: z.boolean().default(true),
-	token: z.string().optional(),
+	token: optionalString,
 });
 
 const DeezerSourceSchema = z.object({
@@ -37,7 +42,7 @@ const BandcampSourceSchema = z.object({
 
 const SoundCloudSourceSchema = z.object({
 	enabled: z.boolean().default(true),
-	clientId: z.string().optional(),
+	clientId: optionalString,
 });
 
 const SourcesSchema = z.object({

@@ -229,7 +229,7 @@ export function CollectionGrid<T>({
 			</div>
 
 			{/* Grid */}
-			<div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+			<div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-3">
 				{pageItems.map((item) => (
 					<div key={keyOf(item)}>{renderItem(item)}</div>
 				))}
@@ -315,11 +315,11 @@ type SkeletonProps = {
 	readonly count?: number;
 };
 
-function CollectionGridSkeleton({ title, count = 5 }: SkeletonProps) {
+function CollectionGridSkeleton({ title, count = 6 }: SkeletonProps) {
 	return (
 		<section>
 			<SectionHeader title={title} />
-			<div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+			<div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-3">
 				{Array.from({ length: count }, (_, i) => (
 					<div key={i}>
 						<div className="aspect-square bg-[var(--color-bg-highlight)] rounded-lg mb-2 animate-pulse" />

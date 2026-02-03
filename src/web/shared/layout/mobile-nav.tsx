@@ -11,26 +11,30 @@ import {
 	X,
 } from "lucide-react";
 import { cn } from "../lib/utils";
+import { trpc } from "../lib/trpc";
 
 type NavItem = {
 	readonly label: string;
 	readonly path: string;
 	readonly icon: ReactNode;
+	readonly requiresPandora?: boolean;
 };
 
 const navItems: readonly NavItem[] = [
 	{ label: "Home", path: "/", icon: <Home className="w-5 h-5" /> },
-	{ label: "Stations", path: "/stations", icon: <Radio className="w-5 h-5" /> },
+	{ label: "Stations", path: "/stations", icon: <Radio className="w-5 h-5" />, requiresPandora: true },
 	{ label: "Search", path: "/search", icon: <Search className="w-5 h-5" /> },
 	{
 		label: "Bookmarks",
 		path: "/bookmarks",
 		icon: <Bookmark className="w-5 h-5" />,
+		requiresPandora: true,
 	},
 	{
 		label: "Genres",
 		path: "/genres",
 		icon: <LayoutGrid className="w-5 h-5" />,
+		requiresPandora: true,
 	},
 	{
 		label: "Settings",
@@ -42,6 +46,9 @@ const navItems: readonly NavItem[] = [
 export function MobileNav() {
 	const [isOpen, setIsOpen] = useState(false);
 	const { location } = useRouterState();
+	const statusQuery = trpc.auth.status.useQuery();
+	const hasPandora = statusQuery.data?.hasPandora ?? false;
+	const visibleItems = navItems.filter((item) => !item.requiresPandora || hasPandora);
 
 	return (
 		<div className="md:hidden">
@@ -66,7 +73,7 @@ export function MobileNav() {
 			{isOpen && (
 				<div className="absolute inset-x-0 top-14 z-50 bg-[var(--color-bg-panel)] border-b border-[var(--color-border)] shadow-lg">
 					<nav className="p-2 space-y-1" aria-label="Mobile navigation">
-						{navItems.map((item) => (
+						{visibleItems.map((item) => (
 							<Link
 								key={item.path}
 								to={item.path}

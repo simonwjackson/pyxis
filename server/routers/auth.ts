@@ -2,10 +2,14 @@ import { z } from "zod";
 import { Effect } from "effect";
 import { router, publicProcedure, pandoraProtectedProcedure } from "../trpc.js";
 import * as Pandora from "../../src/sources/pandora/client.js";
+import { getPandoraSessionFromCredentials } from "../services/credentials.js";
 
 export const authRouter = router({
 	status: publicProcedure.query(() => {
-		return { authenticated: true };
+		return {
+			authenticated: true,
+			hasPandora: getPandoraSessionFromCredentials() != null,
+		};
 	}),
 
 	settings: pandoraProtectedProcedure.query(async ({ ctx }) => {

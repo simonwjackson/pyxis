@@ -85,42 +85,44 @@ export const libraryRouter = router({
 
 			const newAlbumId = generateId();
 
-			await db.insert(schema.albums).values({
-				id: newAlbumId,
-				title: album.title,
-				artist: album.artist,
-				...(album.year != null ? { year: album.year } : {}),
-				...(album.artworkUrl != null
-					? { artworkUrl: album.artworkUrl }
-					: {}),
+			await db.transaction(async (tx) => {
+				await tx.insert(schema.albums).values({
+					id: newAlbumId,
+					title: album.title,
+					artist: album.artist,
+					...(album.year != null ? { year: album.year } : {}),
+					...(album.artworkUrl != null
+						? { artworkUrl: album.artworkUrl }
+						: {}),
+				});
+
+				for (const sid of album.sourceIds) {
+					await tx.insert(schema.albumSourceRefs).values({
+						id: `${newAlbumId}-${sid.source}-${sid.id}`,
+						albumId: newAlbumId,
+						source: sid.source,
+						sourceId: sid.id,
+					});
+				}
+
+				for (const [index, track] of tracks.entries()) {
+					await tx.insert(schema.albumTracks).values({
+						id: generateId(),
+						albumId: newAlbumId,
+						trackIndex: index,
+						title: track.title,
+						artist: track.artist,
+						...(track.duration != null
+							? { duration: Math.round(track.duration) }
+							: {}),
+						source: track.sourceId.source,
+						sourceTrackId: track.sourceId.id,
+						...(track.artworkUrl != null
+							? { artworkUrl: track.artworkUrl }
+							: {}),
+					});
+				}
 			});
-
-			for (const sid of album.sourceIds) {
-				await db.insert(schema.albumSourceRefs).values({
-					id: `${newAlbumId}-${sid.source}-${sid.id}`,
-					albumId: newAlbumId,
-					source: sid.source,
-					sourceId: sid.id,
-				});
-			}
-
-			for (const [index, track] of tracks.entries()) {
-				await db.insert(schema.albumTracks).values({
-					id: generateId(),
-					albumId: newAlbumId,
-					trackIndex: index,
-					title: track.title,
-					artist: track.artist,
-					...(track.duration != null
-						? { duration: Math.round(track.duration) }
-						: {}),
-					source: track.sourceId.source,
-					sourceTrackId: track.sourceId.id,
-					...(track.artworkUrl != null
-						? { artworkUrl: track.artworkUrl }
-						: {}),
-				});
-			}
 
 			return { id: newAlbumId, alreadyExists: false };
 		}),

@@ -1,12 +1,19 @@
+import { Settings } from "lucide-react";
 import { toast } from "sonner";
 import { trpc } from "@/web/shared/lib/trpc";
+import { Spinner } from "@/web/shared/ui/spinner";
 
 export function SettingsPage() {
+	const statusQuery = trpc.auth.status.useQuery();
+	const hasPandora = statusQuery.data?.hasPandora ?? false;
+
 	const settingsQuery = trpc.auth.settings.useQuery(undefined, {
 		retry: false,
+		enabled: hasPandora,
 	})
 	const usageQuery = trpc.auth.usage.useQuery(undefined, {
 		retry: false,
+		enabled: hasPandora,
 	})
 	const utils = trpc.useUtils();
 
@@ -17,12 +24,30 @@ export function SettingsPage() {
 		},
 	})
 
+	if (statusQuery.isLoading) {
+		return (
+			<div className="flex-1 flex items-center justify-center">
+				<Spinner />
+			</div>
+		)
+	}
+
 	const settings = settingsQuery.data;
 	const usage = usageQuery.data;
 
 	return (
 		<div className="flex-1 p-4 space-y-6">
 			<h2 className="text-lg font-semibold">Settings</h2>
+
+			{!hasPandora && (
+				<div className="text-center py-12 text-[var(--color-text-dim)]">
+					<Settings className="w-12 h-12 mx-auto mb-4 text-[var(--color-text-dim)]" />
+					<p>No Pandora account connected.</p>
+					<p className="text-sm mt-1">
+						Configure credentials in your config file to see account settings.
+					</p>
+				</div>
+			)}
 
 			{settings && (
 				<section className="space-y-4">

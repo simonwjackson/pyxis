@@ -31,8 +31,9 @@ export function StationsPage() {
 
 	const handleSelect = (station: RadioStation) => {
 		navigate({
-			to: "/now-playing",
-			search: { station: station.id },
+			to: "/station/$token",
+			params: { token: station.id },
+			search: { play: "1" },
 		})
 	}
 
@@ -40,6 +41,7 @@ export function StationsPage() {
 		navigate({
 			to: "/station/$token",
 			params: { token: station.id },
+			search: { play: undefined },
 		})
 	}
 

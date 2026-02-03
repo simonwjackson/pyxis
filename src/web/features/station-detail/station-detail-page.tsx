@@ -1,10 +1,26 @@
-import { useState } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "@tanstack/react-router";
-import { ChevronLeft, User, Music, ThumbsUp, ThumbsDown, Plus, X } from "lucide-react";
+import {
+	ChevronLeft,
+	User,
+	Music,
+	ThumbsUp,
+	ThumbsDown,
+	Plus,
+	X,
+	Play,
+} from "lucide-react";
 import { toast } from "sonner";
 import { trpc } from "@/web/shared/lib/trpc";
 import { Skeleton } from "@/web/shared/ui/skeleton";
+import { Button } from "@/web/shared/ui/button";
 import { AddSeedDialog } from "@/web/features/stations/add-seed-dialog";
+import { usePlaybackContext } from "@/web/shared/playback/playback-context";
+import {
+	radioTrackToNowPlaying,
+	tracksToQueuePayload,
+} from "@/web/shared/lib/now-playing-utils";
+import type { NowPlayingTrack } from "@/web/shared/lib/now-playing-utils";
 
 type StationSeed = {
 	readonly seedId: string;
@@ -59,7 +75,7 @@ function SeedItem({
 				<X className="w-4 h-4" />
 			</button>
 		</div>
-	)
+	);
 }
 
 function FeedbackItem({
@@ -76,7 +92,7 @@ function FeedbackItem({
 				{feedback.artistName}
 			</p>
 		</div>
-	)
+	);
 }
 
 function DetailsSkeleton() {
@@ -106,14 +122,69 @@ function DetailsSkeleton() {
 				</div>
 			</div>
 		</div>
-	)
+	);
 }
 
-export function StationDetailPage({ token }: { readonly token: string }) {
+export function StationDetailPage({
+	token,
+	autoPlay,
+}: {
+	readonly token: string;
+	readonly autoPlay?: boolean;
+}) {
 	const [showAddSeed, setShowAddSeed] = useState(false);
 	const navigate = useNavigate();
+	const playback = usePlaybackContext();
+	const playbackRef = useRef(playback);
+	playbackRef.current = playback;
 	const stationQuery = trpc.radio.getStation.useQuery({ id: token });
 	const utils = trpc.useUtils();
+
+	// Radio playback state
+	const [isActiveContext, setIsActiveContext] = useState(false);
+	const [nowPlayingTracks, setNowPlayingTracks] = useState<
+		readonly NowPlayingTrack[]
+	>([]);
+	const hasAutoPlayedRef = useRef(false);
+
+	const currentTrackId = playback.currentTrack?.trackToken;
+	const activeTrackIds = nowPlayingTracks.map((t) => t.id);
+	const isThisStationPlaying =
+		isActiveContext && activeTrackIds.includes(currentTrackId ?? "");
+
+	const radioQuery = trpc.radio.getTracks.useQuery(
+		{ id: token, quality: "high" },
+		{ enabled: false },
+	);
+
+	const startRadioPlayback = useCallback(() => {
+		radioQuery.refetch().then((result) => {
+			if (!result.data) return;
+			const newTracks = result.data.map(radioTrackToNowPlaying);
+			setNowPlayingTracks(newTracks);
+			setIsActiveContext(true);
+			playbackRef.current.setCurrentStationToken(token);
+			playbackRef.current.playMutation.mutate({
+				tracks: tracksToQueuePayload(newTracks),
+				context: { type: "radio", seedId: token },
+				startIndex: 0,
+			});
+		});
+	}, [radioQuery, token]);
+
+	// Auto-play on mount
+	useEffect(() => {
+		if (!autoPlay || hasAutoPlayedRef.current) return;
+		hasAutoPlayedRef.current = true;
+		startRadioPlayback();
+	}, [autoPlay, startRadioPlayback]);
+
+	useEffect(() => {
+		if (playback.error) {
+			toast.error(`Audio error: ${playback.error}`);
+			playbackRef.current.clearError();
+		}
+	}, [playback.error]);
 
 	const removeSeedMutation = trpc.radio.removeSeed.useMutation({
 		onSuccess() {
@@ -123,11 +194,11 @@ export function StationDetailPage({ token }: { readonly token: string }) {
 		onError(err) {
 			toast.error(`Failed to remove seed: ${err.message}`);
 		},
-	})
+	});
 
 	const handleRemoveSeed = (seedId: string) => {
 		removeSeedMutation.mutate({ radioId: token, seedId });
-	}
+	};
 
 	if (stationQuery.isLoading) {
 		return <DetailsSkeleton />;
@@ -141,7 +212,7 @@ export function StationDetailPage({ token }: { readonly token: string }) {
 					{stationQuery.error.message}
 				</p>
 			</div>
-		)
+		);
 	}
 
 	const station = stationQuery.data;
@@ -150,7 +221,7 @@ export function StationDetailPage({ token }: { readonly token: string }) {
 			<div className="flex-1 p-4">
 				<p className="text-[var(--color-text-dim)]">Station not found.</p>
 			</div>
-		)
+		);
 	}
 
 	const artistSeeds = station.music?.artists ?? [];
@@ -165,18 +236,29 @@ export function StationDetailPage({ token }: { readonly token: string }) {
 			<div className="flex items-center gap-3">
 				<button
 					type="button"
-					onClick={() => navigate({ to: "/" })}
+					onClick={() => navigate({ to: "/", search: { pl_sort: undefined, pl_page: undefined, al_sort: undefined, al_page: undefined } })}
 					className="p-2 hover:bg-[var(--color-bg-highlight)] rounded-lg transition-colors"
 					aria-label="Back to stations"
 				>
 					<ChevronLeft className="w-5 h-5 text-[var(--color-text-muted)]" />
 				</button>
-				<div>
+				<div className="flex-1">
 					<h2 className="text-lg font-semibold text-[var(--color-text)]">
 						{station.name}
 					</h2>
-					<p className="text-sm text-[var(--color-text-dim)]">Station details</p>
+					<p className="text-sm text-[var(--color-text-dim)]">
+						Station details
+					</p>
 				</div>
+				{!isThisStationPlaying && (
+					<Button
+						onClick={startRadioPlayback}
+						className="gap-2 rounded-full bg-[var(--color-primary)] hover:brightness-110 text-[var(--color-bg)]"
+					>
+						<Play className="w-4 h-4" fill="currentColor" />
+						Play
+					</Button>
+				)}
 			</div>
 
 			<div>
@@ -202,7 +284,9 @@ export function StationDetailPage({ token }: { readonly token: string }) {
 
 				{artistSeeds.length > 0 && (
 					<div className="space-y-1 mb-4">
-						<p className="text-xs text-[var(--color-text-dim)] mb-1">Artists</p>
+						<p className="text-xs text-[var(--color-text-dim)] mb-1">
+							Artists
+						</p>
 						{artistSeeds.map((seed) => (
 							<SeedItem
 								key={seed.seedId}
@@ -217,7 +301,9 @@ export function StationDetailPage({ token }: { readonly token: string }) {
 
 				{songSeeds.length > 0 && (
 					<div className="space-y-1">
-						<p className="text-xs text-[var(--color-text-dim)] mb-1">Songs</p>
+						<p className="text-xs text-[var(--color-text-dim)] mb-1">
+							Songs
+						</p>
 						{songSeeds.map((seed) => (
 							<SeedItem
 								key={seed.seedId}
@@ -284,5 +370,5 @@ export function StationDetailPage({ token }: { readonly token: string }) {
 				/>
 			)}
 		</div>
-	)
+	);
 }

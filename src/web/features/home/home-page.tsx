@@ -63,7 +63,7 @@ function PlaylistCard({
 		<button
 			type="button"
 			onClick={onPlay}
-			className="group cursor-pointer text-left"
+			className="group cursor-pointer text-left w-full"
 		>
 			<div
 				className="aspect-square rounded-lg mb-2 relative overflow-hidden"
@@ -124,7 +124,7 @@ function AlbumCard({
 		<button
 			type="button"
 			onClick={onPlay}
-			className="group cursor-pointer text-left"
+			className="group cursor-pointer text-left w-full"
 		>
 			<div className="aspect-square bg-[var(--color-bg-highlight)] rounded-lg mb-2 relative overflow-hidden">
 				{album.artworkUrl ? (
@@ -230,6 +230,7 @@ export function HomePage() {
 		navigate({
 			to: "/playlist/$playlistId",
 			params: { playlistId: playlist.id },
+			search: { play: undefined, startIndex: undefined, shuffle: undefined },
 		});
 	};
 
@@ -288,6 +289,7 @@ export function HomePage() {
 								navigate({
 									to: "/album/$albumId",
 									params: { albumId: album.id },
+									search: { play: undefined, startIndex: undefined, shuffle: undefined },
 								});
 							}}
 						/>
