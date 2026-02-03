@@ -1,22 +1,22 @@
 import {
-	pgTable,
+	sqliteTable,
 	text,
 	integer,
-	timestamp,
-	boolean,
 	real,
-} from "drizzle-orm/pg-core";
+} from "drizzle-orm/sqlite-core";
 
-export const albums = pgTable("albums", {
+export const albums = sqliteTable("albums", {
 	id: text("id").primaryKey(),
 	title: text("title").notNull(),
 	artist: text("artist").notNull(),
 	year: integer("year"),
 	artworkUrl: text("artwork_url"),
-	createdAt: timestamp("created_at").defaultNow().notNull(),
+	createdAt: integer("created_at", { mode: "timestamp" })
+		.notNull()
+		.$defaultFn(() => new Date()),
 });
 
-export const albumSourceRefs = pgTable("album_source_refs", {
+export const albumSourceRefs = sqliteTable("album_source_refs", {
 	id: text("id").primaryKey(),
 	albumId: text("album_id")
 		.references(() => albums.id, { onDelete: "cascade" })
@@ -25,7 +25,7 @@ export const albumSourceRefs = pgTable("album_source_refs", {
 	sourceId: text("source_id").notNull(),
 });
 
-export const albumTracks = pgTable("album_tracks", {
+export const albumTracks = sqliteTable("album_tracks", {
 	id: text("id").primaryKey(),
 	albumId: text("album_id")
 		.references(() => albums.id, { onDelete: "cascade" })
@@ -39,18 +39,20 @@ export const albumTracks = pgTable("album_tracks", {
 	artworkUrl: text("artwork_url"),
 });
 
-export const playlists = pgTable("playlists", {
+export const playlists = sqliteTable("playlists", {
 	id: text("id").primaryKey(),
 	name: text("name").notNull(),
 	source: text("source").notNull(),
 	url: text("url").notNull(),
-	isRadio: boolean("is_radio").default(false).notNull(),
+	isRadio: integer("is_radio", { mode: "boolean" }).default(false).notNull(),
 	seedTrackId: text("seed_track_id"),
 	artworkUrl: text("artwork_url"),
-	createdAt: timestamp("created_at").defaultNow().notNull(),
+	createdAt: integer("created_at", { mode: "timestamp" })
+		.notNull()
+		.$defaultFn(() => new Date()),
 });
 
-export const playerState = pgTable("player_state", {
+export const playerState = sqliteTable("player_state", {
 	id: text("id").primaryKey(),
 	status: text("status").notNull(),
 	progress: real("progress").notNull().default(0),
@@ -59,7 +61,7 @@ export const playerState = pgTable("player_state", {
 	updatedAt: real("updated_at").notNull(),
 });
 
-export const queueItems = pgTable("queue_items", {
+export const queueItems = sqliteTable("queue_items", {
 	id: text("id").primaryKey(),
 	queueIndex: integer("queue_index").notNull(),
 	opaqueTrackId: text("opaque_track_id").notNull(),
@@ -71,7 +73,7 @@ export const queueItems = pgTable("queue_items", {
 	artworkUrl: text("artwork_url"),
 });
 
-export const queueState = pgTable("queue_state", {
+export const queueState = sqliteTable("queue_state", {
 	id: text("id").primaryKey(),
 	currentIndex: integer("current_index").notNull().default(0),
 	contextType: text("context_type").notNull(),
