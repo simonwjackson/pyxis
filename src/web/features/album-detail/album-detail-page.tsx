@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback, useState } from "react";
+import { useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { Play, Shuffle, Music, ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
@@ -12,7 +12,6 @@ import {
 	tracksToQueuePayload,
 	formatTime,
 } from "@/web/shared/lib/now-playing-utils";
-import type { NowPlayingTrack } from "@/web/shared/lib/now-playing-utils";
 
 function formatTotalDuration(totalSeconds: number): string {
 	const hours = Math.floor(totalSeconds / 3600);
@@ -47,26 +46,9 @@ export function AlbumDetailPage({
 
 	const isLoading = albumsQuery.isLoading || tracksQuery.isLoading;
 
-	// Track the current queue index via subscription
-	const [queueIndex, setQueueIndex] = useState(0);
-	trpc.queue.onChange.useSubscription(undefined, {
-		onData(queueState) {
-			setQueueIndex(queueState.currentIndex);
-		},
-	});
-
-	// Track whether this album is the active playback context
-	const [isActiveContext, setIsActiveContext] = useState(false);
-	const [nowPlayingTracks, setNowPlayingTracks] = useState<
-		readonly NowPlayingTrack[]
-	>([]);
 	const hasAutoPlayedRef = useRef(false);
 
-	// Determine if this album is currently playing
 	const currentTrackId = playback.currentTrack?.trackToken;
-	const activeTrackIds = nowPlayingTracks.map((t) => t.id);
-	const isThisAlbumPlaying =
-		isActiveContext && activeTrackIds.includes(currentTrackId ?? "");
 
 	const startPlayback = useCallback(
 		(idx: number, doShuffle: boolean) => {
@@ -76,8 +58,6 @@ export function AlbumDetailPage({
 			);
 			const newTracks = doShuffle ? shuffleArray(ordered) : ordered;
 			const startIdx = doShuffle ? 0 : idx;
-			setNowPlayingTracks(newTracks);
-			setIsActiveContext(true);
 			playbackRef.current.setCurrentStationToken(albumId);
 			playbackRef.current.playMutation.mutate({
 				tracks: tracksToQueuePayload(newTracks),
@@ -198,9 +178,7 @@ export function AlbumDetailPage({
 			{tracks && tracks.length > 0 && (
 				<div className="space-y-0.5">
 					{tracks.map((track, index) => {
-						const isActive =
-							isThisAlbumPlaying &&
-							nowPlayingTracks[queueIndex]?.id === track.id;
+						const isActive = currentTrackId === track.id;
 						return (
 							<button
 								key={track.id}

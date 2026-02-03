@@ -20,7 +20,6 @@ import {
 	radioTrackToNowPlaying,
 	tracksToQueuePayload,
 } from "@/web/shared/lib/now-playing-utils";
-import type { NowPlayingTrack } from "@/web/shared/lib/now-playing-utils";
 
 type StationSeed = {
 	readonly seedId: string;
@@ -140,17 +139,24 @@ export function StationDetailPage({
 	const stationQuery = trpc.radio.getStation.useQuery({ id: token });
 	const utils = trpc.useUtils();
 
-	// Radio playback state
-	const [isActiveContext, setIsActiveContext] = useState(false);
-	const [nowPlayingTracks, setNowPlayingTracks] = useState<
-		readonly NowPlayingTrack[]
-	>([]);
 	const hasAutoPlayedRef = useRef(false);
 
-	const currentTrackId = playback.currentTrack?.trackToken;
-	const activeTrackIds = nowPlayingTracks.map((t) => t.id);
+	// Determine if this station is playing via queue context (works even after navigation)
+	type QueueContext =
+		| { readonly type: "radio"; readonly seedId: string }
+		| { readonly type: "album"; readonly albumId: string }
+		| { readonly type: "playlist"; readonly playlistId: string }
+		| { readonly type: "manual" };
+	const [queueContext, setQueueContext] = useState<QueueContext>({ type: "manual" });
+	trpc.queue.onChange.useSubscription(undefined, {
+		onData(queueState) {
+			setQueueContext(queueState.context as QueueContext);
+		},
+	});
 	const isThisStationPlaying =
-		isActiveContext && activeTrackIds.includes(currentTrackId ?? "");
+		playback.currentTrack != null &&
+		queueContext.type === "radio" &&
+		queueContext.seedId === token;
 
 	const radioQuery = trpc.radio.getTracks.useQuery(
 		{ id: token, quality: "high" },
@@ -161,8 +167,6 @@ export function StationDetailPage({
 		radioQuery.refetch().then((result) => {
 			if (!result.data) return;
 			const newTracks = result.data.map(radioTrackToNowPlaying);
-			setNowPlayingTracks(newTracks);
-			setIsActiveContext(true);
 			playbackRef.current.setCurrentStationToken(token);
 			playbackRef.current.playMutation.mutate({
 				tracks: tracksToQueuePayload(newTracks),
