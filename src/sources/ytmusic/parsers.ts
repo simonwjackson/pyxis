@@ -196,15 +196,25 @@ export const parseAlbumBrowseTracks = (
 									>;
 								}>;
 							};
+							readonly musicPlaylistShelfRenderer?: {
+								readonly contents?: ReadonlyArray<{
+									readonly musicResponsiveListItemRenderer?: Record<
+										string,
+										unknown
+									>;
+								}>;
+							};
 						}>;
 					};
 				};
 		  }
 		| undefined;
 
+	const firstSection =
+		twoColumn?.secondaryContents?.sectionListRenderer?.contents?.[0];
 	const shelf =
-		twoColumn?.secondaryContents?.sectionListRenderer?.contents?.[0]
-			?.musicShelfRenderer;
+		firstSection?.musicShelfRenderer ??
+		firstSection?.musicPlaylistShelfRenderer;
 	const shelfContents = shelf?.contents;
 
 	if (!shelfContents) return [];
@@ -298,6 +308,11 @@ export const parseAlbumBrowseInfo = (
 						};
 					};
 				}>;
+				readonly secondaryContents?: {
+					readonly sectionListRenderer?: {
+						readonly contents?: ReadonlyArray<Record<string, unknown>>;
+					};
+				};
 		  }
 		| undefined;
 
@@ -305,6 +320,19 @@ export const parseAlbumBrowseInfo = (
 		twoColumn?.tabs?.[0]?.tabRenderer?.content?.sectionListRenderer
 			?.contents?.[0]?.musicResponsiveHeaderRenderer;
 
+	if (headerRenderer) {
+		return parseFromHeaderRenderer(headerRenderer);
+	}
+
+	// Fallback: extract album info from the first track's flexColumns
+	// (YouTube Music removed the header renderer from VL* playlist browse responses)
+	return parseFromTrackFallback(twoColumn);
+};
+
+// Parse album info from the musicResponsiveHeaderRenderer (legacy path)
+const parseFromHeaderRenderer = (
+	headerRenderer: Record<string, unknown>,
+): ParsedAlbumInfo => {
 	// Album title
 	const titleRuns = (
 		headerRenderer?.title as {
@@ -363,4 +391,73 @@ export const parseAlbumBrowseInfo = (
 	const thumbnailUrl = lastThumbnail?.url ?? null;
 
 	return { name, artists, year, thumbnailUrl };
+};
+
+// Fallback: extract album info from the first track's flexColumns
+const parseFromTrackFallback = (
+	twoColumn:
+		| {
+				readonly secondaryContents?: {
+					readonly sectionListRenderer?: {
+						readonly contents?: ReadonlyArray<Record<string, unknown>>;
+					};
+				};
+		  }
+		| undefined,
+): ParsedAlbumInfo => {
+	const firstSection =
+		twoColumn?.secondaryContents?.sectionListRenderer?.contents?.[0] as
+			| Record<string, unknown>
+			| undefined;
+	const shelf = (firstSection?.musicShelfRenderer ??
+		firstSection?.musicPlaylistShelfRenderer) as
+		| {
+				readonly contents?: ReadonlyArray<{
+					readonly musicResponsiveListItemRenderer?: Record<string, unknown>;
+				}>;
+		  }
+		| undefined;
+	const firstTrack =
+		shelf?.contents?.[0]?.musicResponsiveListItemRenderer;
+
+	if (!firstTrack) {
+		return { name: "Unknown Album", artists: [], year: null, thumbnailUrl: null };
+	}
+
+	const flexColumns = firstTrack.flexColumns as
+		| readonly FlexColumn[]
+		| undefined;
+
+	// flexColumns[1] = artist name + UC* browseId
+	const artistRuns =
+		flexColumns?.[1]?.musicResponsiveListItemFlexColumnRenderer?.text?.runs;
+	const artists = artistRuns
+		? (artistRuns as ReadonlyArray<Record<string, unknown>>)
+				.map(extractArtist)
+				.filter((a): a is ParsedArtist => a !== null)
+		: [];
+
+	// flexColumns[2] = album title
+	const albumNameRun =
+		flexColumns?.[2]?.musicResponsiveListItemFlexColumnRenderer?.text
+			?.runs?.[0];
+	const name = (albumNameRun?.text as string | undefined) ?? "Unknown Album";
+
+	// Thumbnail from the first track
+	const thumbnailRenderer = (
+		firstTrack.thumbnail as {
+			readonly musicThumbnailRenderer?: {
+				readonly thumbnail?: {
+					readonly thumbnails?: ReadonlyArray<{ readonly url: string }>;
+				};
+			};
+		}
+	)?.musicThumbnailRenderer?.thumbnail?.thumbnails;
+	const lastThumbnail =
+		thumbnailRenderer && thumbnailRenderer.length > 0
+			? thumbnailRenderer[thumbnailRenderer.length - 1]
+			: undefined;
+	const thumbnailUrl = lastThumbnail?.url ?? null;
+
+	return { name, artists, year: null, thumbnailUrl };
 };
