@@ -1,15 +1,14 @@
 import { useState } from "react";
-import { createFileRoute } from "@tanstack/react-router";
 import { useNavigate } from "@tanstack/react-router";
 import { Search, Shuffle } from "lucide-react";
 import { trpc } from "@/web/shared/lib/trpc";
-import { StationList } from "./-station-list";
-import { DeleteStationDialog } from "./-delete-station-dialog";
-import { RenameStationDialog } from "./-rename-station-dialog";
-import { QuickMixDialog } from "./-quick-mix-dialog";
+import { StationList } from "./station-list";
+import { DeleteStationDialog } from "./delete-station-dialog";
+import { RenameStationDialog } from "./rename-station-dialog";
+import { QuickMixDialog } from "./quick-mix-dialog";
 import { StationListSkeleton } from "@/web/shared/ui/skeleton";
 import { usePlaybackContext } from "@/web/shared/playback/playback-context";
-import type { RadioStation } from "./-station-list";
+import type { RadioStation } from "./station-list";
 
 type DialogState =
 	| { readonly type: "none" }
@@ -17,7 +16,7 @@ type DialogState =
 	| { readonly type: "rename"; readonly station: RadioStation }
 	| { readonly type: "quickmix" };
 
-function StationsPage() {
+export function StationsPage() {
 	const [filter, setFilter] = useState("");
 	const [dialog, setDialog] = useState<DialogState>({ type: "none" });
 	const navigate = useNavigate();
@@ -125,7 +124,3 @@ function StationsPage() {
 		</div>
 	)
 }
-
-export const Route = createFileRoute("/stations/")({
-	component: StationsPage,
-});

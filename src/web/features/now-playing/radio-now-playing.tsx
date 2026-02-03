@@ -2,7 +2,7 @@ import { useEffect } from "react";
 import { toast } from "sonner";
 import { trpc } from "@/web/shared/lib/trpc";
 import { radioTrackToNowPlaying } from "@/web/shared/lib/now-playing-utils";
-import { NowPlayingProvider, useNowPlaying } from "./-now-playing-context";
+import { NowPlayingProvider, useNowPlaying } from "./now-playing-context";
 import { NowPlayingSkeleton } from "@/web/shared/ui/skeleton";
 import {
 	Artwork,
@@ -17,7 +17,7 @@ import {
 	SleepButton,
 	UpNext,
 	TrackInfoModalWrapper,
-} from "./-now-playing-primitives";
+} from "./now-playing-primitives";
 
 export function RadioNowPlaying({ radioId }: { readonly radioId: string }) {
 	const contextKey = `radio:${radioId}`;

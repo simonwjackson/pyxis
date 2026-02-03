@@ -1,6 +1,6 @@
 import { type ReactNode, useState } from "react";
 import { Radio, Shuffle, MoreVertical } from "lucide-react";
-import { StationContextMenu } from "./-station-context-menu";
+import { StationContextMenu } from "./station-context-menu";
 
 export type RadioStation = {
 	readonly id: string;

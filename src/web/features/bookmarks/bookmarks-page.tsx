@@ -1,11 +1,10 @@
-import { createFileRoute } from "@tanstack/react-router";
 import { User, Music, Bookmark, Trash2, Plus } from "lucide-react";
 import { toast } from "sonner";
 import { trpc } from "@/web/shared/lib/trpc";
 import { Spinner } from "@/web/shared/ui/spinner";
 import { Button } from "@/web/shared/ui/button";
 
-function BookmarksPage() {
+export function BookmarksPage() {
 	const bookmarksQuery = trpc.library.bookmarks.useQuery();
 	const utils = trpc.useUtils();
 
@@ -168,7 +167,3 @@ function BookmarksPage() {
 		</div>
 	)
 }
-
-export const Route = createFileRoute("/bookmarks/")({
-	component: BookmarksPage,
-});

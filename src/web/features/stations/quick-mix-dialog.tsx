@@ -2,7 +2,7 @@ import { useState, useMemo } from "react";
 import { Shuffle } from "lucide-react";
 import { toast } from "sonner";
 import { trpc } from "@/web/shared/lib/trpc";
-import type { RadioStation } from "./-station-list";
+import type { RadioStation } from "./station-list";
 
 type QuickMixDialogProps = {
 	readonly stations: readonly RadioStation[];

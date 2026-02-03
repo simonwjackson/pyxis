@@ -1,12 +1,11 @@
 import { useState } from "react";
-import { createFileRoute } from "@tanstack/react-router";
 import { ChevronDown, ChevronRight, Plus } from "lucide-react";
 import { toast } from "sonner";
 import { trpc } from "@/web/shared/lib/trpc";
 import { Spinner } from "@/web/shared/ui/spinner";
 import { Button } from "@/web/shared/ui/button";
 
-function GenresPage() {
+export function GenresPage() {
 	const [expanded, setExpanded] = useState<string | null>(null);
 	const genresQuery = trpc.radio.genres.useQuery();
 	const utils = trpc.useUtils();
@@ -90,7 +89,3 @@ function GenresPage() {
 		</div>
 	)
 }
-
-export const Route = createFileRoute("/genres/")({
-	component: GenresPage,
-});

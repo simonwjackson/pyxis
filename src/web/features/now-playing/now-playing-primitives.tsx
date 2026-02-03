@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/web/shared/ui/button";
 import { TrackInfoModal } from "@/web/shared/track-info-modal";
-import { useNowPlaying } from "./-now-playing-context";
+import { useNowPlaying } from "./now-playing-context";
 import { usePlaybackContext } from "@/web/shared/playback/playback-context";
 import { formatTime } from "@/web/shared/lib/now-playing-utils";
 

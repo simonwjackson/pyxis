@@ -10,15 +10,15 @@
 
 import { Route as rootRouteImport } from './__root'
 import { Route as PageRouteImport } from './page'
-import { Route as StationsPageRouteImport } from './stations/page'
-import { Route as SettingsPageRouteImport } from './settings/page'
-import { Route as SearchPageRouteImport } from './search/page'
-import { Route as NowPlayingPageRouteImport } from './now-playing/page'
-import { Route as GenresPageRouteImport } from './genres/page'
-import { Route as BookmarksPageRouteImport } from './bookmarks/page'
-import { Route as StationTokenPageRouteImport } from './station/$token/page'
-import { Route as PlaylistPlaylistIdPageRouteImport } from './playlist/$playlistId/page'
-import { Route as AlbumAlbumIdPageRouteImport } from './album/$albumId/page'
+import { Route as StationsPageRouteImport } from './stations.page'
+import { Route as SettingsPageRouteImport } from './settings.page'
+import { Route as SearchPageRouteImport } from './search.page'
+import { Route as NowPlayingPageRouteImport } from './now-playing.page'
+import { Route as GenresPageRouteImport } from './genres.page'
+import { Route as BookmarksPageRouteImport } from './bookmarks.page'
+import { Route as StationTokenPageRouteImport } from './station.$token.page'
+import { Route as PlaylistPlaylistIdPageRouteImport } from './playlist.$playlistId.page'
+import { Route as AlbumAlbumIdPageRouteImport } from './album.$albumId.page'
 
 const PageRoute = PageRouteImport.update({
   id: '/',

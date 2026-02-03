@@ -1,8 +1,7 @@
-import { createFileRoute } from "@tanstack/react-router";
 import { toast } from "sonner";
 import { trpc } from "@/web/shared/lib/trpc";
 
-function SettingsPage() {
+export function SettingsPage() {
 	const settingsQuery = trpc.auth.settings.useQuery(undefined, {
 		retry: false,
 	})
@@ -102,6 +101,3 @@ function SettingsPage() {
 	)
 }
 
-export const Route = createFileRoute("/settings/")({
-	component: SettingsPage,
-});

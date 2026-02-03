@@ -1,11 +1,10 @@
 import { useState } from "react";
-import { createFileRoute } from "@tanstack/react-router";
 import { useNavigate } from "@tanstack/react-router";
 import { ChevronLeft, User, Music, ThumbsUp, ThumbsDown, Plus, X } from "lucide-react";
 import { toast } from "sonner";
 import { trpc } from "@/web/shared/lib/trpc";
 import { Skeleton } from "@/web/shared/ui/skeleton";
-import { AddSeedDialog } from "../../stations/-add-seed-dialog";
+import { AddSeedDialog } from "@/web/features/stations/add-seed-dialog";
 
 type StationSeed = {
 	readonly seedId: string;
@@ -110,8 +109,7 @@ function DetailsSkeleton() {
 	)
 }
 
-function StationDetailsPage() {
-	const { token } = Route.useParams();
+export function StationDetailPage({ token }: { readonly token: string }) {
 	const [showAddSeed, setShowAddSeed] = useState(false);
 	const navigate = useNavigate();
 	const stationQuery = trpc.radio.getStation.useQuery({ id: token });
@@ -288,7 +286,3 @@ function StationDetailsPage() {
 		</div>
 	)
 }
-
-export const Route = createFileRoute("/station/$token/")({
-	component: StationDetailsPage,
-});

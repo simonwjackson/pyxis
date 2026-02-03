@@ -4,7 +4,7 @@ import {
 	albumTrackToNowPlaying,
 	shuffleArray,
 } from "@/web/shared/lib/now-playing-utils";
-import { NowPlayingProvider, useNowPlaying } from "./-now-playing-context";
+import { NowPlayingProvider, useNowPlaying } from "./now-playing-context";
 import { NowPlayingSkeleton } from "@/web/shared/ui/skeleton";
 import {
 	Artwork,
@@ -19,7 +19,7 @@ import {
 	SleepButton,
 	Tracklist,
 	TrackInfoModalWrapper,
-} from "./-now-playing-primitives";
+} from "./now-playing-primitives";
 
 export function AlbumNowPlaying({
 	albumId,

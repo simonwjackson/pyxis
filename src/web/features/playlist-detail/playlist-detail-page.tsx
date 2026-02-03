@@ -1,4 +1,3 @@
-import { createFileRoute } from "@tanstack/react-router";
 import { useNavigate } from "@tanstack/react-router";
 import { Play, Shuffle, Music, ArrowLeft } from "lucide-react";
 import { trpc } from "@/web/shared/lib/trpc";
@@ -21,8 +20,7 @@ function formatTotalDuration(totalSeconds: number): string {
 	return `${String(mins)} min`;
 }
 
-function PlaylistDetailPage() {
-	const { playlistId } = Route.useParams();
+export function PlaylistDetailPage({ playlistId }: { readonly playlistId: string }) {
 	const navigate = useNavigate();
 	const playback = usePlaybackContext();
 
@@ -180,6 +178,3 @@ function PlaylistDetailSkeleton() {
 	)
 }
 
-export const Route = createFileRoute("/playlist/$playlistId/")({
-	component: PlaylistDetailPage,
-});

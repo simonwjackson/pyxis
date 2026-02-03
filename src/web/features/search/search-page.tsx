@@ -1,16 +1,15 @@
 import { useState, useCallback, useMemo } from "react";
-import { createFileRoute } from "@tanstack/react-router";
 import { Search as SearchIcon } from "lucide-react";
 import { toast } from "sonner";
 import { trpc } from "@/web/shared/lib/trpc";
-import { SearchInput } from "./-search-input";
-import { SearchResults } from "./-search-results";
+import { SearchInput } from "./search-input";
+import { SearchResults } from "./search-results";
 import type {
 	SearchTrack,
 	SearchAlbum,
 	SearchArtist,
 	SearchGenreStation,
-} from "./-search-results";
+} from "./search-results";
 import { Spinner } from "@/web/shared/ui/spinner";
 
 type SearchData = {
@@ -87,7 +86,7 @@ function SearchContent({
 	}
 }
 
-function SearchPage() {
+export function SearchPage() {
 	const [query, setQuery] = useState("");
 	const utils = trpc.useUtils();
 
@@ -201,7 +200,3 @@ function SearchPage() {
 		</div>
 	)
 }
-
-export const Route = createFileRoute("/search/")({
-	component: SearchPage,
-});
