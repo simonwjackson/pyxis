@@ -6,7 +6,7 @@ function NowPlayingRoute() {
 	return <NowPlayingPage search={search} />
 }
 
-export const Route = createFileRoute('/now-playing/')({
+export const Route = createFileRoute('/now-playing')({
 	component: NowPlayingRoute,
 	validateSearch: (search: Record<string, unknown>) => ({
 		station: typeof search['station'] === 'string' ? search['station'] : undefined,

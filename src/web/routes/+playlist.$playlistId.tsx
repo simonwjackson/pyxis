@@ -6,6 +6,6 @@ function PlaylistDetailRoute() {
 	return <PlaylistDetailPage playlistId={playlistId} />
 }
 
-export const Route = createFileRoute('/playlist/$playlistId/')({
+export const Route = createFileRoute('/playlist/$playlistId')({
 	component: PlaylistDetailRoute,
 })

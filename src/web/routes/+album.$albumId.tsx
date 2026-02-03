@@ -6,6 +6,6 @@ function AlbumDetailRoute() {
 	return <AlbumDetailPage albumId={albumId} />
 }
 
-export const Route = createFileRoute('/album/$albumId/')({
+export const Route = createFileRoute('/album/$albumId')({
 	component: AlbumDetailRoute,
 })

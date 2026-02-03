@@ -6,6 +6,6 @@ function StationDetailRoute() {
 	return <StationDetailPage token={token} />
 }
 
-export const Route = createFileRoute('/station/$token/')({
+export const Route = createFileRoute('/station/$token')({
 	component: StationDetailRoute,
 })
