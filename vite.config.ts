@@ -1,4 +1,5 @@
 import { appendFileSync } from "node:fs";
+import path from "node:path";
 import { defineConfig, createLogger as createViteLogger } from "vite";
 import react from "@vitejs/plugin-react";
 import { TanStackRouterVite } from "@tanstack/router-plugin/vite";
@@ -68,6 +69,11 @@ export default defineConfig({
 					});
 				},
 			},
+		},
+	},
+	resolve: {
+		alias: {
+			"@": path.resolve(import.meta.dirname, "src"),
 		},
 	},
 	build: {
