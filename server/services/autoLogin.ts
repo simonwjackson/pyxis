@@ -2,7 +2,7 @@ import { getSourceManager, setGlobalSourceManager, ensureSourceManager } from ".
 import { loginPandora } from "./credentials.js";
 import * as PlayerService from "./player.js";
 import * as QueueService from "./queue.js";
-import { decodeId, encodeId } from "../lib/ids.js";
+import { formatSourceId, parseId } from "../lib/ids.js";
 import { getPandoraPassword } from "../../src/config.js";
 import type { AppConfig } from "../../src/config.js";
 import type { Logger } from "../../src/logger.js";
@@ -13,13 +13,17 @@ function registerAutoFetchHandler(logger: Logger): void {
 		if (context.type !== "radio") return [];
 		try {
 			const sourceManager = await ensureSourceManager();
-			const decoded = decodeId(context.seedId);
+			const parsed = parseId(context.seedId);
+			if (!parsed.source) {
+				logger.warn({ seedId: context.seedId }, "auto-fetch: seedId has no source prefix");
+				return [];
+			}
 			const tracks = await sourceManager.getPlaylistTracks(
-				decoded.source,
-				decoded.id,
+				parsed.source,
+				parsed.id,
 			);
 			return tracks.map((t): QueueTrack => ({
-				id: encodeId(t.sourceId.source, t.sourceId.id),
+				id: formatSourceId(t.sourceId.source, t.sourceId.id),
 				title: t.title,
 				artist: t.artist,
 				album: t.album,

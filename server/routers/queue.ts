@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { observable } from "@trpc/server/observable";
 import { router, publicProcedure } from "../trpc.js";
-import { decodeId } from "../lib/ids.js";
+import { resolveTrackSource } from "../lib/ids.js";
 import * as QueueService from "../services/queue.js";
 import type { QueueState } from "../services/queue.js";
 import { createLogger } from "../../src/logger.js";
@@ -44,11 +44,13 @@ export const queueRouter = router({
 				insertNext: z.boolean().optional(),
 			}),
 		)
-		.mutation(({ input }) => {
-			const tracksWithSource = input.tracks.map((track) => ({
-				...track,
-				source: decodeId(track.id).source,
-			}));
+		.mutation(async ({ input }) => {
+			const tracksWithSource = await Promise.all(
+				input.tracks.map(async (track) => ({
+					...track,
+					source: await resolveTrackSource(track.id),
+				})),
+			);
 			QueueService.addTracks(
 				tracksWithSource,
 				input.insertNext,

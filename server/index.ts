@@ -4,7 +4,7 @@ import { createContext } from "./trpc.js";
 import { handleStreamRequest, prefetchToCache } from "./services/stream.js";
 import { ensureSourceManager, setAppConfig } from "./services/sourceManager.js";
 import { tryAutoLogin } from "./services/autoLogin.js";
-import { decodeId } from "./lib/ids.js";
+import { resolveTrackForStream } from "./lib/ids.js";
 import { createLogger } from "../src/logger.js";
 import { resolveConfig } from "../src/config.js";
 
@@ -36,43 +36,34 @@ const server = Bun.serve({
 			return new Response(null, { headers: CORS_HEADERS });
 		}
 
-		// Stream endpoint: /stream/:opaqueId (accepts opaque base64 IDs)
+		// Stream endpoint: /stream/:opaqueId (accepts nanoid or source:id)
 		if (url.pathname.startsWith("/stream/")) {
-			const opaqueId = url.pathname.slice("/stream/".length);
-			// Decode opaque ID to composite format for internal use
-			let compositeId: string;
-			try {
-				const decoded = decodeId(opaqueId);
-				compositeId = `${decoded.source}:${decoded.id}`;
-			} catch {
-				// Fallback: treat as raw composite ID for backwards compatibility
-				compositeId = opaqueId;
-			}
+			const opaqueId = decodeURIComponent(url.pathname.slice("/stream/".length));
 			const rangeHeader = req.headers.get("range");
 			const nextHint = url.searchParams.get("next");
-			streamLog.info({ compositeId, range: rangeHeader ?? "none", next: nextHint ?? "none" }, "incoming");
-			return ensureSourceManager()
-				.then((sourceManager) => {
-					const responsePromise = handleStreamRequest(sourceManager, compositeId, rangeHeader);
-					if (nextHint) {
-						let nextCompositeId: string;
-						try {
-							const decoded = decodeId(nextHint);
-							nextCompositeId = `${decoded.source}:${decoded.id}`;
-						} catch {
-							nextCompositeId = nextHint;
+			const decodedNextHint = nextHint ? decodeURIComponent(nextHint) : null;
+			streamLog.info({ opaqueId, range: rangeHeader ?? "none", next: decodedNextHint ?? "none" }, "incoming");
+			return resolveTrackForStream(opaqueId)
+				.then((compositeId) =>
+					ensureSourceManager().then((sourceManager) => {
+						const responsePromise = handleStreamRequest(sourceManager, compositeId, rangeHeader);
+						if (decodedNextHint) {
+							resolveTrackForStream(decodedNextHint)
+								.then((nextCompositeId) =>
+									prefetchToCache(sourceManager, nextCompositeId),
+								)
+								.catch((err: unknown) => {
+									const msg = err instanceof Error ? err.message : String(err);
+									streamLog.error({ next: decodedNextHint, err: msg }, "prefetch error");
+								});
 						}
-						prefetchToCache(sourceManager, nextCompositeId).catch((err: unknown) => {
-							const msg = err instanceof Error ? err.message : String(err);
-							streamLog.error({ next: nextHint, err: msg }, "prefetch error");
-						});
-					}
-					return responsePromise;
-				})
+						return responsePromise;
+					}),
+				)
 				.catch((err: unknown) => {
 					const message =
 						err instanceof Error ? err.message : "Stream error";
-					streamLog.error({ compositeId, err: message }, "stream error");
+					streamLog.error({ opaqueId, err: message }, "stream error");
 					return new Response(message, {
 						status: 502,
 						headers: { "Access-Control-Allow-Origin": "*" },

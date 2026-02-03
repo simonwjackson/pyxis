@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { Effect } from "effect";
 import { router, publicProcedure, pandoraProtectedProcedure } from "../trpc.js";
-import { encodeId, trackCapabilities } from "../lib/ids.js";
+import { formatSourceId, trackCapabilities } from "../lib/ids.js";
 import * as Pandora from "../../src/sources/pandora/client.js";
 
 import type { CanonicalTrack, CanonicalAlbum } from "../../src/sources/types.js";
@@ -9,7 +9,7 @@ import type { SearchArtist, SearchGenreStation } from "../../src/sources/pandora
 
 function encodeTrack(track: CanonicalTrack) {
 	return {
-		id: encodeId(track.sourceId.source, track.sourceId.id),
+		id: formatSourceId(track.sourceId.source, track.sourceId.id),
 		title: track.title,
 		artist: track.artist,
 		album: track.album,
@@ -23,13 +23,13 @@ function encodeAlbum(album: CanonicalAlbum) {
 	const primarySource = album.sourceIds[0];
 	return {
 		id: primarySource
-			? encodeId(primarySource.source, primarySource.id)
+			? formatSourceId(primarySource.source, primarySource.id)
 			: album.id,
 		title: album.title,
 		artist: album.artist,
 		...(album.year != null ? { year: album.year } : {}),
 		...(album.artworkUrl != null ? { artworkUrl: album.artworkUrl } : {}),
-		sourceIds: album.sourceIds.map((sid) => encodeId(sid.source, sid.id)),
+		sourceIds: album.sourceIds.map((sid) => formatSourceId(sid.source, sid.id)),
 		...(album.genres != null && album.genres.length > 0
 			? { genres: album.genres }
 			: {}),

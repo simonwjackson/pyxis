@@ -1,4 +1,7 @@
+import { nanoid } from "nanoid";
 import type { SourceType } from "../../src/sources/types.js";
+import { getDb, schema } from "../../src/db/index.js";
+import { eq } from "drizzle-orm";
 
 // --- Capability types ---
 
@@ -37,57 +40,99 @@ export function playlistCapabilities(_source: SourceType): PlaylistCapabilities 
 	return { radio: true };
 }
 
-// --- Base64URL encoding ---
+// --- Source-agnostic ID system ---
 
-function toBase64Url(str: string): string {
-	return btoa(str).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
-}
-
-function fromBase64Url(str: string): string {
-	const padded = str.replace(/-/g, "+").replace(/_/g, "/");
-	return atob(padded);
+/** Generate a short nanoid for library items */
+export function generateId(): string {
+	return nanoid(10);
 }
 
 /**
- * Encode a source + id pair into an opaque base64url string.
- * Format: base64url("source:id")
+ * Format a source + id pair as a colon-prefixed string.
+ * Used for non-library items (search results, browse, radio tracks).
+ * Example: "ytmusic:OLAK5uy_nUXE..." or "pandora:abc123"
  */
-export function encodeId(source: SourceType, id: string): string {
-	return toBase64Url(`${source}:${id}`);
+export function formatSourceId(source: SourceType, id: string): string {
+	return `${source}:${id}`;
 }
 
 /**
- * Decode an opaque base64url ID back to source + id.
- * Falls back to standard base64 for backwards compatibility.
- * Throws if the ID is malformed.
+ * Parse an ID that may be either:
+ * - A colon-prefixed source ID: "ytmusic:abc123" -> { source: "ytmusic", id: "abc123" }
+ * - A bare nanoid: "a3kF9x2abc" -> { source: undefined, id: "a3kF9x2abc" }
  */
-export function decodeId(opaqueId: string): {
-	readonly source: SourceType;
+export function parseId(opaqueId: string): {
+	readonly source: SourceType | undefined;
 	readonly id: string;
 } {
-	let decoded: string;
-	try {
-		decoded = fromBase64Url(opaqueId);
-	} catch {
-		// Fallback: try standard base64 for backwards compatibility
-		decoded = atob(opaqueId);
+	const idx = opaqueId.indexOf(":");
+	if (idx !== -1) {
+		return {
+			source: opaqueId.slice(0, idx) as SourceType,
+			id: opaqueId.slice(idx + 1),
+		};
 	}
-	const idx = decoded.indexOf(":");
-	if (idx === -1) {
-		throw new Error(`Invalid opaque ID: missing separator`);
-	}
-	return {
-		source: decoded.slice(0, idx) as SourceType,
-		id: decoded.slice(idx + 1),
-	};
+	// No colon — it's a nanoid (library item)
+	return { source: undefined, id: opaqueId };
 }
 
 /**
- * Build a stream URL from an opaque track ID, with optional next-track prefetch hint.
- * Base64URL is URL-safe, so no encoding needed.
+ * Resolve a track ID for streaming.
+ * - If colon-prefixed (source:id): return as-is (already composite format)
+ * - If bare nanoid: look up albumTracks in DB to get source:sourceTrackId
+ */
+export async function resolveTrackForStream(opaqueId: string): Promise<string> {
+	const parsed = parseId(opaqueId);
+	if (parsed.source) {
+		// Already a source-prefixed ID — return as composite "source:trackId"
+		return `${parsed.source}:${parsed.id}`;
+	}
+	// Bare nanoid — look up in DB
+	const db = await getDb();
+	const rows = await db
+		.select({
+			source: schema.albumTracks.source,
+			sourceTrackId: schema.albumTracks.sourceTrackId,
+		})
+		.from(schema.albumTracks)
+		.where(eq(schema.albumTracks.id, opaqueId))
+		.limit(1);
+	const row = rows[0];
+	if (!row) {
+		throw new Error(`Unknown track ID: ${opaqueId}`);
+	}
+	return `${row.source}:${row.sourceTrackId}`;
+}
+
+/**
+ * Resolve the source type for a track ID.
+ * - If colon-prefixed: extract source directly
+ * - If bare nanoid: look up in DB
+ */
+export async function resolveTrackSource(opaqueId: string): Promise<SourceType> {
+	const parsed = parseId(opaqueId);
+	if (parsed.source) {
+		return parsed.source;
+	}
+	const db = await getDb();
+	const rows = await db
+		.select({ source: schema.albumTracks.source })
+		.from(schema.albumTracks)
+		.where(eq(schema.albumTracks.id, opaqueId))
+		.limit(1);
+	const row = rows[0];
+	if (!row) {
+		throw new Error(`Unknown track ID: ${opaqueId}`);
+	}
+	return row.source as SourceType;
+}
+
+/**
+ * Build a stream URL from a track ID, with optional next-track prefetch hint.
+ * Works with both nanoid and source:id formats (both are URL-safe).
  */
 export function buildStreamUrl(opaqueTrackId: string, nextOpaqueId?: string): string {
-	const base = `/stream/${opaqueTrackId}`;
+	const base = `/stream/${encodeURIComponent(opaqueTrackId)}`;
 	if (!nextOpaqueId) return base;
-	return `${base}?next=${nextOpaqueId}`;
+	return `${base}?next=${encodeURIComponent(nextOpaqueId)}`;
 }

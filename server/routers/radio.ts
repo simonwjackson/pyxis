@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { Effect } from "effect";
 import { router, pandoraProtectedProcedure } from "../trpc.js";
-import { encodeId, decodeId, buildStreamUrl, trackCapabilities } from "../lib/ids.js";
+import { formatSourceId, parseId, trackCapabilities } from "../lib/ids.js";
 import { getSourceManager, registerPandoraPlaylistItems } from "../services/sourceManager.js";
 import { createLogger } from "../../src/logger.js";
 import * as Pandora from "../../src/sources/pandora/client.js";
@@ -20,7 +20,7 @@ function encodePlaylistItem(item: PlaylistItem) {
 		return null;
 	}
 
-	const opaqueId = encodeId("pandora", item.trackToken);
+	const opaqueId = formatSourceId("pandora", item.trackToken);
 	return {
 		id: opaqueId,
 		title: item.songName,
@@ -37,12 +37,12 @@ export const radioRouter = router({
 			Pandora.getStationList(ctx.pandoraSession),
 		);
 		return result.stations.map((station) => ({
-			id: encodeId("pandora", station.stationToken),
-			stationId: encodeId("pandora", station.stationId),
+			id: formatSourceId("pandora", station.stationToken),
+			stationId: formatSourceId("pandora", station.stationId),
 			name: station.stationName,
 			isQuickMix: station.isQuickMix ?? false,
 			quickMixStationIds: (station.quickMixStationIds ?? []).map(
-				(sid) => encodeId("pandora", sid),
+				(sid) => formatSourceId("pandora", sid),
 			),
 			allowDelete: station.allowDelete ?? false,
 			allowRename: station.allowRename ?? false,
@@ -52,7 +52,7 @@ export const radioRouter = router({
 	getStation: pandoraProtectedProcedure
 		.input(z.object({ id: z.string() }))
 		.query(async ({ ctx, input }) => {
-			const { id: stationToken } = decodeId(input.id);
+			const { id: stationToken } = parseId(input.id);
 			const station = await Effect.runPromise(
 				Pandora.getStation(ctx.pandoraSession, {
 					stationToken,
@@ -62,15 +62,15 @@ export const radioRouter = router({
 
 			const encodeSeeds = (seeds: ReadonlyArray<{ readonly seedId: string; readonly artistName?: string; readonly songName?: string; readonly musicToken: string }>) =>
 				seeds.map((s) => ({
-					seedId: encodeId("pandora", s.seedId),
+					seedId: formatSourceId("pandora", s.seedId),
 					...(s.artistName != null ? { artistName: s.artistName } : {}),
 					...(s.songName != null ? { songName: s.songName } : {}),
-					musicToken: encodeId("pandora", s.musicToken),
+					musicToken: formatSourceId("pandora", s.musicToken),
 				}));
 
 			const encodeFeedback = (items: ReadonlyArray<{ readonly feedbackId: string; readonly songName: string; readonly artistName: string; readonly isPositive: boolean; readonly dateCreated: { readonly time: number } }>) =>
 				items.map((fb) => ({
-					feedbackId: encodeId("pandora", fb.feedbackId),
+					feedbackId: formatSourceId("pandora", fb.feedbackId),
 					songName: fb.songName,
 					artistName: fb.artistName,
 					isPositive: fb.isPositive,
@@ -80,7 +80,7 @@ export const radioRouter = router({
 			return {
 				id: input.id,
 				name: station.stationName,
-				stationId: encodeId("pandora", station.stationId),
+				stationId: formatSourceId("pandora", station.stationId),
 				music: station.music
 					? {
 							artists: encodeSeeds(station.music.artists ?? []),
@@ -110,7 +110,7 @@ export const radioRouter = router({
 			}),
 		)
 		.query(async ({ ctx, input }) => {
-			const { id: stationToken } = decodeId(input.id);
+			const { id: stationToken } = parseId(input.id);
 			const result = await Effect.runPromise(
 				Pandora.getPlaylistWithQuality(
 					ctx.pandoraSession,
@@ -157,7 +157,7 @@ export const radioRouter = router({
 	delete: pandoraProtectedProcedure
 		.input(z.object({ id: z.string() }))
 		.mutation(async ({ ctx, input }) => {
-			const { id: stationToken } = decodeId(input.id);
+			const { id: stationToken } = parseId(input.id);
 			await Effect.runPromise(
 				Pandora.deleteStation(ctx.pandoraSession, { stationToken }),
 			);
@@ -167,7 +167,7 @@ export const radioRouter = router({
 	rename: pandoraProtectedProcedure
 		.input(z.object({ id: z.string(), name: z.string() }))
 		.mutation(async ({ ctx, input }) => {
-			const { id: stationToken } = decodeId(input.id);
+			const { id: stationToken } = parseId(input.id);
 			return Effect.runPromise(
 				Pandora.renameStation(ctx.pandoraSession, {
 					stationToken,
@@ -187,7 +187,7 @@ export const radioRouter = router({
 		.input(z.object({ radioIds: z.array(z.string()) }))
 		.mutation(async ({ ctx, input }) => {
 			const stationIds = input.radioIds.map(
-				(id) => decodeId(id).id,
+				(id) => parseId(id).id,
 			);
 			await Effect.runPromise(
 				Pandora.setQuickMix(ctx.pandoraSession, stationIds),
@@ -203,7 +203,7 @@ export const radioRouter = router({
 			}),
 		)
 		.mutation(async ({ ctx, input }) => {
-			const { id: stationToken } = decodeId(input.radioId);
+			const { id: stationToken } = parseId(input.radioId);
 			return Effect.runPromise(
 				Pandora.addMusic(ctx.pandoraSession, {
 					stationToken,
@@ -215,7 +215,7 @@ export const radioRouter = router({
 	removeSeed: pandoraProtectedProcedure
 		.input(z.object({ radioId: z.string(), seedId: z.string() }))
 		.mutation(async ({ ctx, input }) => {
-			const { id: seedId } = decodeId(input.seedId);
+			const { id: seedId } = parseId(input.seedId);
 			await Effect.runPromise(
 				Pandora.deleteMusic(ctx.pandoraSession, { seedId }),
 			);

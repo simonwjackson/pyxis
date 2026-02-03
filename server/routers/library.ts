@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { Effect } from "effect";
 import { router, pandoraProtectedProcedure, publicProcedure } from "../trpc.js";
-import { encodeId, decodeId, trackCapabilities } from "../lib/ids.js";
+import { formatSourceId, generateId, parseId, trackCapabilities } from "../lib/ids.js";
 import type { SourceType } from "../../src/sources/types.js";
 import { getDb, schema } from "../../src/db/index.js";
 import { eq, and } from "drizzle-orm";
@@ -22,7 +22,7 @@ export const libraryRouter = router({
 				artist: album.artist,
 				year: album.year,
 				artworkUrl: album.artworkUrl,
-				sourceIds: refs.map((ref) => encodeId(ref.source as SourceType, ref.sourceId)),
+				sourceIds: refs.map((ref) => formatSourceId(ref.source as SourceType, ref.sourceId)),
 			};
 		});
 	}),
@@ -38,7 +38,7 @@ export const libraryRouter = router({
 			return tracks
 				.sort((a, b) => a.trackIndex - b.trackIndex)
 				.map((t) => ({
-					id: encodeId(t.source as SourceType, t.sourceTrackId),
+					id: t.id,
 					trackIndex: t.trackIndex,
 					title: t.title,
 					artist: t.artist,
@@ -55,7 +55,12 @@ export const libraryRouter = router({
 			}),
 		)
 		.mutation(async ({ input }) => {
-			const { source, id: albumId } = decodeId(input.id);
+			const parsed = parseId(input.id);
+			if (!parsed.source) {
+				throw new Error(`Cannot save album: ID must be a source-prefixed ID (e.g. ytmusic:abc), got: ${input.id}`);
+			}
+			const source = parsed.source;
+			const albumId = parsed.id;
 			const sourceManager = await ensureSourceManager();
 
 			const db = await getDb();
@@ -78,8 +83,10 @@ export const libraryRouter = router({
 				albumId,
 			);
 
+			const newAlbumId = generateId();
+
 			await db.insert(schema.albums).values({
-				id: album.id,
+				id: newAlbumId,
 				title: album.title,
 				artist: album.artist,
 				...(album.year != null ? { year: album.year } : {}),
@@ -90,8 +97,8 @@ export const libraryRouter = router({
 
 			for (const sid of album.sourceIds) {
 				await db.insert(schema.albumSourceRefs).values({
-					id: `${album.id}-${sid.source}-${sid.id}`,
-					albumId: album.id,
+					id: `${newAlbumId}-${sid.source}-${sid.id}`,
+					albumId: newAlbumId,
 					source: sid.source,
 					sourceId: sid.id,
 				});
@@ -99,8 +106,8 @@ export const libraryRouter = router({
 
 			for (const [index, track] of tracks.entries()) {
 				await db.insert(schema.albumTracks).values({
-					id: `${album.id}-track-${String(index)}`,
-					albumId: album.id,
+					id: generateId(),
+					albumId: newAlbumId,
 					trackIndex: index,
 					title: track.title,
 					artist: track.artist,
@@ -115,7 +122,7 @@ export const libraryRouter = router({
 				});
 			}
 
-			return { id: album.id, alreadyExists: false };
+			return { id: newAlbumId, alreadyExists: false };
 		}),
 
 	removeAlbum: publicProcedure
@@ -142,8 +149,8 @@ export const libraryRouter = router({
 			}),
 		)
 		.mutation(async ({ ctx, input }) => {
-			// id is an opaque ID encoding pandora:<trackToken>
-			const { id: trackToken } = decodeId(input.id);
+			const parsed = parseId(input.id);
+			const trackToken = parsed.id;
 			if (input.type === "artist") {
 				return Effect.runPromise(
 					Pandora.addArtistBookmark(ctx.pandoraSession, {

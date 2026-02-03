@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { observable } from "@trpc/server/observable";
 import { router, publicProcedure } from "../trpc.js";
-import { buildStreamUrl, decodeId } from "../lib/ids.js";
+import { buildStreamUrl, resolveTrackSource } from "../lib/ids.js";
 import * as PlayerService from "../services/player.js";
 import { createLogger } from "../../src/logger.js";
 
@@ -66,12 +66,14 @@ export const playerRouter = router({
 				})
 				.optional(),
 		)
-		.mutation(({ input }) => {
+		.mutation(async ({ input }) => {
 			if (input?.tracks && input.context) {
-				const tracksWithSource = input.tracks.map((track) => ({
-					...track,
-					source: decodeId(track.id).source,
-				}));
+				const tracksWithSource = await Promise.all(
+					input.tracks.map(async (track) => ({
+						...track,
+						source: await resolveTrackSource(track.id),
+					})),
+				);
 				PlayerService.play(tracksWithSource, input.context, input.startIndex);
 			} else {
 				PlayerService.play();

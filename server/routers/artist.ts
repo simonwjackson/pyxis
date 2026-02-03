@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { router, publicProcedure } from "../trpc.js";
-import { decodeId, encodeId } from "../lib/ids.js";
+import { parseId, formatSourceId } from "../lib/ids.js";
 
 
 export const artistRouter = router({
@@ -9,11 +9,11 @@ export const artistRouter = router({
 		.query(({ input }) => {
 			// Artist IDs are encoded track IDs (artist.search derives artists from
 			// track results). No dedicated artist API in Pandora or YTMusic.
-			const decoded = decodeId(input.id);
+			const parsed = parseId(input.id);
 			return {
 				id: input.id,
 				name: "Unknown",
-				source: decoded.source,
+				source: parsed.source ?? "unknown",
 			};
 		}),
 
@@ -31,7 +31,7 @@ export const artistRouter = router({
 					return true;
 				})
 				.map((t) => ({
-					id: encodeId(t.sourceId.source, t.sourceId.id),
+					id: formatSourceId(t.sourceId.source, t.sourceId.id),
 					name: t.artist,
 				}));
 			return { artists };

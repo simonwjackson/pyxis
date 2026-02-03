@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { router, publicProcedure } from "../trpc.js";
-import { encodeId, decodeId, trackCapabilities, playlistCapabilities } from "../lib/ids.js";
+import { formatSourceId, parseId, trackCapabilities, playlistCapabilities } from "../lib/ids.js";
 import {
 	invalidateManagers,
 } from "../services/sourceManager.js";
@@ -10,7 +10,7 @@ import { generateRadioUrl } from "../../src/sources/ytmusic/index.js";
 import type { CanonicalTrack, CanonicalPlaylist } from "../../src/sources/types.js";
 
 function encodeTrack(track: CanonicalTrack) {
-	const opaqueId = encodeId(track.sourceId.source, track.sourceId.id);
+	const opaqueId = formatSourceId(track.sourceId.source, track.sourceId.id);
 	return {
 		id: opaqueId,
 		title: track.title,
@@ -24,7 +24,7 @@ function encodeTrack(track: CanonicalTrack) {
 
 function encodePlaylist(playlist: CanonicalPlaylist) {
 	return {
-		id: encodeId(playlist.source, playlist.id),
+		id: formatSourceId(playlist.source, playlist.id),
 		name: playlist.name,
 		capabilities: playlistCapabilities(playlist.source),
 		...(playlist.description != null
@@ -50,11 +50,14 @@ export const playlistRouter = router({
 			}),
 		)
 		.query(async ({ ctx, input }) => {
-			const { source, id: playlistId } = decodeId(input.id);
+			const parsed = parseId(input.id);
+			if (!parsed.source) {
+				throw new Error(`Playlist getTracks requires a source-prefixed ID, got: ${input.id}`);
+			}
 			const sourceManager = ctx.sourceManager;
 			const tracks = await sourceManager.getPlaylistTracks(
-				source,
-				playlistId,
+				parsed.source,
+				parsed.id,
 			);
 			return tracks.map(encodeTrack);
 		}),
@@ -68,8 +71,8 @@ export const playlistRouter = router({
 			}),
 		)
 		.mutation(async ({ input }) => {
-			// trackId is an opaque ID; decode to get raw ytmusic track ID
-			const { id: seedTrackId } = decodeId(input.trackId);
+			const parsed = parseId(input.trackId);
+			const seedTrackId = parsed.id;
 			const db = await getDb();
 			const radioUrl = generateRadioUrl(seedTrackId);
 			const id = `radio-${seedTrackId}`;
@@ -92,7 +95,7 @@ export const playlistRouter = router({
 			invalidateManagers();
 
 			return {
-				id: encodeId("ytmusic", id),
+				id: formatSourceId("ytmusic", id),
 				url: radioUrl,
 			};
 		}),
