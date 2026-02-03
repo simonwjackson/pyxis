@@ -5,7 +5,7 @@ import { ChevronLeft, User, Music, ThumbsUp, ThumbsDown, Plus, X } from "lucide-
 import { toast } from "sonner";
 import { trpc } from "@/web/shared/lib/trpc";
 import { Skeleton } from "@/web/shared/ui/skeleton";
-import { AddSeedDialog } from "../../stations/add-seed-dialog";
+import { AddSeedDialog } from "../../stations/-add-seed-dialog";
 
 type StationSeed = {
 	readonly seedId: string;
