@@ -1,16 +1,44 @@
+/**
+ * @module pandora/http/client
+ * HTTP client with fixture support for Pandora API calls.
+ * Supports live requests, recording fixtures for testing, and replaying recorded fixtures.
+ */
 import { Effect } from "effect"
 import { getFixtureMode, saveFixture, loadFixture, fixtureExists } from "../fixtures/index.js"
 import { ApiCallError } from "../types/errors.js"
 import type { ApiResponse } from "../types/api.js"
 
+/**
+ * HTTP request configuration for Pandora API calls.
+ */
 export type HttpRequest = {
+  /** Full URL including query parameters */
   readonly url: string
+  /** HTTP method (POST for Pandora API) */
   readonly method: string
+  /** Request headers */
   readonly headers: Record<string, string>
+  /** Request body (JSON or encrypted payload) */
   readonly body: string
-  readonly apiMethod: string  // For fixture naming
+  /** API method name for fixture naming (e.g., "user.getStationList") */
+  readonly apiMethod: string
 }
 
+/**
+ * Makes an HTTP request to the Pandora API with fixture support.
+ * Behavior depends on PYXIS_FIXTURE_MODE environment variable:
+ * - "live" (default): Makes real network requests
+ * - "record": Makes real requests and saves responses as fixtures
+ * - "replay": Loads responses from previously recorded fixtures
+ *
+ * @typeParam T - Expected response result type
+ * @param request - HTTP request configuration
+ * @returns API response wrapper containing the result
+ *
+ * @effect
+ * - Success: ApiResponse<T> - the parsed JSON response
+ * - Error: ApiCallError - on network errors, invalid JSON, or missing fixtures
+ */
 export const httpRequest = <T>(
   request: HttpRequest
 ): Effect.Effect<ApiResponse<T>, ApiCallError> =>

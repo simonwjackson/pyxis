@@ -1,3 +1,9 @@
+/**
+ * @module MobileNav
+ * Mobile navigation header with collapsible menu drawer.
+ * Visible only on mobile viewports (< md breakpoint).
+ */
+
 import { useState, type ReactNode } from "react";
 import { Link, useRouterState } from "@tanstack/react-router";
 import {
@@ -13,6 +19,9 @@ import {
 import { cn } from "../lib/utils";
 import { trpc } from "../lib/trpc";
 
+/**
+ * Navigation item configuration.
+ */
 type NavItem = {
 	readonly label: string;
 	readonly path: string;
@@ -20,6 +29,7 @@ type NavItem = {
 	readonly requiresPandora?: boolean;
 };
 
+/** All navigation items in display order */
 const navItems: readonly NavItem[] = [
 	{ label: "Home", path: "/", icon: <Home className="w-5 h-5" /> },
 	{ label: "Stations", path: "/stations", icon: <Radio className="w-5 h-5" />, requiresPandora: true },
@@ -43,6 +53,10 @@ const navItems: readonly NavItem[] = [
 	},
 ];
 
+/**
+ * Mobile navigation header with hamburger menu.
+ * Reveals a dropdown menu when toggled with proper accessibility attributes.
+ */
 export function MobileNav() {
 	const [isOpen, setIsOpen] = useState(false);
 	const { location } = useRouterState();
