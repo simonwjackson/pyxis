@@ -1,3 +1,8 @@
+/**
+ * @module CollectionGrid
+ * Reusable paginated grid component with filtering, sorting, and pagination.
+ */
+
 import {
 	type ReactNode,
 	useState,
@@ -9,24 +14,45 @@ import { useNavigate, useSearch } from "@tanstack/react-router";
 import { Search, ChevronLeft, ChevronRight } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
+/**
+ * Configuration for a sort option in the collection grid.
+ */
 export type SortOption<T> = {
+	/** Unique key for URL parameter */
 	readonly key: string;
+	/** Display label */
 	readonly label: string;
+	/** Icon component to display */
 	readonly icon: LucideIcon;
+	/** Sort comparator function or "shuffle" for random order */
 	readonly comparator: ((a: T, b: T) => number) | "shuffle";
 };
 
+/**
+ * Props for the CollectionGrid component.
+ */
 type CollectionGridProps<T> = {
+	/** Section title displayed in the header */
 	readonly title: string;
+	/** Items to display in the grid */
 	readonly items: readonly T[];
+	/** Function to extract unique key from item */
 	readonly keyOf: (item: T) => string;
+	/** Function to render each grid item */
 	readonly renderItem: (item: T) => ReactNode;
+	/** Function to filter items by search query */
 	readonly filterFn: (item: T, query: string) => boolean;
+	/** Available sort options */
 	readonly sortOptions: readonly SortOption<T>[];
+	/** Default sort option key */
 	readonly defaultSort: string;
+	/** URL parameter prefix for sort and page state */
 	readonly paramPrefix: string;
+	/** Optional content to append at the end of the last page */
 	readonly trailing?: ReactNode;
+	/** Optional actions to display in the header */
 	readonly headerActions?: ReactNode;
+	/** Items per page (default: 20) */
 	readonly pageSize?: number;
 };
 
@@ -115,7 +141,7 @@ export function CollectionGrid<T>({
 				search: (prev: Record<string, unknown>) => ({
 					...prev,
 					[sortKey]: sort,
-					[pageKey]: 1,
+					[pageKey]: "1",
 				}),
 				replace: true,
 			});
@@ -128,7 +154,7 @@ export function CollectionGrid<T>({
 			navigate({
 				search: (prev: Record<string, unknown>) => ({
 					...prev,
-					[pageKey]: page,
+					[pageKey]: String(page),
 				}),
 				replace: true,
 			});
@@ -181,7 +207,11 @@ export function CollectionGrid<T>({
 				<div className="flex items-center gap-3">
 					{headerActions}
 					<div className="relative">
+						<label htmlFor={`${paramPrefix}-filter`} className="sr-only">
+							Filter {title}
+						</label>
 						<input
+							id={`${paramPrefix}-filter`}
 							type="text"
 							placeholder="Filter..."
 							value={filterText}
@@ -193,13 +223,13 @@ export function CollectionGrid<T>({
 							}}
 							className="bg-[var(--color-bg-highlight)] border border-[var(--color-border)] text-[var(--color-text)] py-1.5 pl-8 pr-3 rounded-md text-[13px] w-[180px] outline-none focus:border-[var(--color-border-active)] transition-colors"
 						/>
-						<Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--color-text-dim)] w-4 h-4" />
+						<Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--color-text-dim)] w-4 h-4" aria-hidden="true" />
 					</div>
 				</div>
 			</div>
 
 			{/* Sort pills */}
-			<div className="flex gap-1.5 mb-4 flex-wrap">
+			<div className="flex gap-1.5 mb-4 flex-wrap" role="group" aria-label="Sort options">
 				{sortOptions.map((option) => {
 					const Icon = option.icon;
 					const isActive = currentSort === option.key;
@@ -207,6 +237,7 @@ export function CollectionGrid<T>({
 						<button
 							key={option.key}
 							type="button"
+							aria-pressed={isActive}
 							onClick={() => {
 								if (option.comparator === "shuffle" && isActive) {
 									shuffleSeedRef.current += 1;
@@ -221,7 +252,7 @@ export function CollectionGrid<T>({
 									: "bg-transparent border border-[var(--color-border)] text-[var(--color-text-dim)] py-1 px-3.5 rounded-full text-xs cursor-pointer inline-flex items-center gap-1.5 hover:text-[var(--color-text)] hover:border-[var(--color-text-dim)] transition-colors"
 							}
 						>
-							<Icon className="w-[13px] h-[13px]" />
+							<Icon className="w-[13px] h-[13px]" aria-hidden="true" />
 							{option.label}
 						</button>
 					);
@@ -238,7 +269,7 @@ export function CollectionGrid<T>({
 
 			{/* Pagination */}
 			{showPagination ? (
-				<div className="flex items-center justify-between mt-5 pt-4 border-t border-[var(--color-bg-highlight)]">
+				<nav className="flex items-center justify-between mt-5 pt-4 border-t border-[var(--color-bg-highlight)]" aria-label="Pagination">
 					<span className="text-[var(--color-text-dim)] text-xs opacity-60">
 						Page {String(safePage)} of {String(totalPages)}
 					</span>
@@ -247,15 +278,17 @@ export function CollectionGrid<T>({
 							type="button"
 							disabled={safePage === 1}
 							onClick={() => setPage(safePage - 1)}
+							aria-label="Previous page"
 							className="bg-[var(--color-bg-highlight)] border-none w-7 h-7 rounded-md flex items-center justify-center disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer text-[var(--color-text-dim)] hover:text-[var(--color-text)] transition-colors"
 						>
-							<ChevronLeft className="w-4 h-4" />
+							<ChevronLeft className="w-4 h-4" aria-hidden="true" />
 						</button>
 						{getPageNumbers(safePage, totalPages).map((p, idx) =>
 							p === "ellipsis" ? (
 								<span
 									key={`ellipsis-${String(idx)}`}
 									className="text-[var(--color-border)] text-xs px-0.5"
+									aria-hidden="true"
 								>
 									...
 								</span>
@@ -264,6 +297,8 @@ export function CollectionGrid<T>({
 									key={p}
 									type="button"
 									onClick={() => setPage(p)}
+									aria-label={`Page ${String(p)}`}
+									aria-current={p === safePage ? "page" : undefined}
 									className={
 										p === safePage
 											? "bg-[var(--color-bg-elevated)] border-none text-[var(--color-text)] min-w-[28px] h-7 rounded-md text-xs font-medium"
@@ -278,9 +313,10 @@ export function CollectionGrid<T>({
 							type="button"
 							disabled={safePage === totalPages}
 							onClick={() => setPage(safePage + 1)}
+							aria-label="Next page"
 							className="bg-[var(--color-bg-highlight)] border-none w-7 h-7 rounded-md flex items-center justify-center disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer text-[var(--color-text-dim)] hover:text-[var(--color-text)] transition-colors"
 						>
-							<ChevronRight className="w-4 h-4" />
+							<ChevronRight className="w-4 h-4" aria-hidden="true" />
 						</button>
 					</div>
 					<button
@@ -290,14 +326,17 @@ export function CollectionGrid<T>({
 						className="bg-[var(--color-bg-highlight)] border border-[var(--color-border)] text-[var(--color-text-dim)] py-1 px-3.5 rounded-md text-xs cursor-pointer inline-flex items-center gap-1 disabled:opacity-30 disabled:cursor-not-allowed hover:text-[var(--color-text)] transition-colors"
 					>
 						Next
-						<ChevronRight className="w-3.5 h-3.5" />
+						<ChevronRight className="w-3.5 h-3.5" aria-hidden="true" />
 					</button>
-				</div>
+				</nav>
 			) : null}
 		</section>
 	);
 }
 
+/**
+ * Section header with title.
+ */
 function SectionHeader({ title }: { readonly title: string }) {
 	return (
 		<div className="flex items-center justify-between mb-3">
@@ -310,18 +349,25 @@ function SectionHeader({ title }: { readonly title: string }) {
 	);
 }
 
+/**
+ * Props for skeleton loading state.
+ */
 type SkeletonProps = {
 	readonly title: string;
+	/** Number of skeleton items to show. Default: 6 */
 	readonly count?: number;
 };
 
+/**
+ * Loading skeleton for CollectionGrid.
+ */
 function CollectionGridSkeleton({ title, count = 6 }: SkeletonProps) {
 	return (
-		<section>
+		<section role="status" aria-label={`Loading ${title}`}>
 			<SectionHeader title={title} />
 			<div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-3">
 				{Array.from({ length: count }, (_, i) => (
-					<div key={i}>
+					<div key={i} aria-hidden="true">
 						<div className="aspect-square bg-[var(--color-bg-highlight)] rounded-lg mb-2 animate-pulse" />
 						<div className="h-4 bg-[var(--color-bg-highlight)] rounded animate-pulse mb-1 w-3/4" />
 						<div className="h-3 bg-[var(--color-bg-highlight)] rounded animate-pulse w-1/2" />
@@ -332,11 +378,18 @@ function CollectionGridSkeleton({ title, count = 6 }: SkeletonProps) {
 	);
 }
 
+/**
+ * Props for empty state.
+ */
 type EmptyProps = {
 	readonly title: string;
+	/** Custom message to display. Default: "No items found." */
 	readonly message?: string;
 };
 
+/**
+ * Empty state for CollectionGrid when no items match.
+ */
 function CollectionGridEmpty({
 	title,
 	message = "No items found.",
@@ -344,7 +397,7 @@ function CollectionGridEmpty({
 	return (
 		<section>
 			<SectionHeader title={title} />
-			<p className="text-sm text-[var(--color-text-dim)]">{message}</p>
+			<p className="text-sm text-[var(--color-text-dim)]" role="status">{message}</p>
 		</section>
 	);
 }

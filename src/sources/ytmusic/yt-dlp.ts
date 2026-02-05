@@ -1,27 +1,61 @@
+/**
+ * @module yt-dlp
+ * Wrapper around the yt-dlp CLI tool for YouTube Music operations.
+ * Provides functions for extracting audio URLs, track info, and playlist data.
+ */
+
 import { spawn } from "node:child_process";
 
+/**
+ * Track information extracted from yt-dlp JSON output.
+ * Contains metadata and direct audio URL for a single video.
+ */
 type YtDlpTrackInfo = {
+	/** YouTube video ID */
 	readonly id: string;
+	/** Track title */
 	readonly title: string;
+	/** Artist or uploader name */
 	readonly artist: string;
+	/** Album name if available */
 	readonly album: string;
+	/** Duration in seconds */
 	readonly duration: number;
+	/** URL to thumbnail image */
 	readonly thumbnail: string | undefined;
+	/** Direct audio stream URL */
 	readonly url: string;
 };
 
+/**
+ * Single entry from a playlist extraction.
+ * Represents minimal track metadata from flat playlist extraction.
+ */
 type YtDlpPlaylistEntry = {
+	/** YouTube video ID */
 	readonly id: string;
+	/** Track title */
 	readonly title: string;
+	/** Channel/uploader name */
 	readonly uploader?: string;
+	/** Album name if tagged */
 	readonly album?: string;
+	/** Duration in seconds */
 	readonly duration?: number;
+	/** Thumbnail URL */
 	readonly thumbnail?: string;
 };
 
+/**
+ * Complete playlist information including all entries.
+ * Returned by playlist extraction operations.
+ */
 type YtDlpPlaylistInfo = {
+	/** YouTube playlist ID */
 	readonly id: string;
+	/** Playlist title */
 	readonly title: string;
+	/** All tracks in the playlist */
 	readonly entries: readonly YtDlpPlaylistEntry[];
 };
 
@@ -53,6 +87,14 @@ function runYtDlp(args: readonly string[]): Promise<string> {
 	});
 }
 
+/**
+ * Extracts the direct audio stream URL for a YouTube Music video.
+ * Uses yt-dlp to resolve the best available audio format.
+ *
+ * @param videoId - YouTube video ID (e.g., "dQw4w9WgXcQ")
+ * @returns Direct URL to the audio stream (expires after some time)
+ * @throws Error if yt-dlp fails or video is unavailable
+ */
 export async function getAudioUrl(videoId: string): Promise<string> {
 	const output = await runYtDlp([
 		"--format",
@@ -64,6 +106,14 @@ export async function getAudioUrl(videoId: string): Promise<string> {
 	return output;
 }
 
+/**
+ * Fetches complete track metadata for a YouTube Music video.
+ * Includes title, artist, album, duration, thumbnail, and stream URL.
+ *
+ * @param videoId - YouTube video ID (e.g., "dQw4w9WgXcQ")
+ * @returns Full track information including audio URL
+ * @throws Error if yt-dlp fails or video is unavailable
+ */
 export async function getTrackInfo(
 	videoId: string,
 ): Promise<YtDlpTrackInfo> {
@@ -93,6 +143,15 @@ export async function getTrackInfo(
 	};
 }
 
+/**
+ * Searches YouTube Music for tracks matching the query.
+ * Uses yt-dlp's ytsearch prefix for video search.
+ *
+ * @param query - Search query string
+ * @param maxResults - Maximum number of results to return (default: 10)
+ * @returns Array of track entries matching the search query
+ * @throws Error if yt-dlp fails
+ */
 export async function searchYtMusic(
 	query: string,
 	maxResults = 10,
@@ -128,6 +187,14 @@ export async function searchYtMusic(
 	return entries;
 }
 
+/**
+ * Extracts all tracks from a YouTube Music album.
+ * Returns album metadata along with the track listing.
+ *
+ * @param albumUrl - Full YouTube Music album URL
+ * @returns Album metadata (id, title, artist, thumbnail) and array of track entries
+ * @throws Error if yt-dlp fails or album is unavailable
+ */
 export async function getAlbumEntries(
 	albumUrl: string,
 ): Promise<{
@@ -181,6 +248,14 @@ export async function getAlbumEntries(
 	};
 }
 
+/**
+ * Extracts all tracks from a YouTube Music playlist.
+ * Returns playlist metadata and complete track listing.
+ *
+ * @param playlistUrl - Full YouTube Music playlist URL or playlist ID
+ * @returns Playlist info containing id, title, and array of track entries
+ * @throws Error if yt-dlp fails or playlist is unavailable/private
+ */
 export async function getPlaylistEntries(
 	playlistUrl: string,
 ): Promise<YtDlpPlaylistInfo> {

@@ -1,9 +1,20 @@
+/**
+ * @module server/routers/album
+ * Album operations router for retrieving album metadata and track listings.
+ * Supports multiple music sources through the unified SourceManager abstraction.
+ */
+
 import { z } from "zod";
 import { router, publicProcedure } from "../trpc.js";
 import { formatSourceId, parseId } from "../lib/ids.js";
 import { ensureSourceManager } from "../services/sourceManager.js";
 import type { CanonicalTrack } from "../../src/sources/types.js";
 
+/**
+ * Transforms a canonical track into API response format with opaque ID.
+ * @param track - The canonical track from the source layer
+ * @returns Encoded track object with source-prefixed opaque ID
+ */
 function encodeTrack(track: CanonicalTrack) {
 	const opaqueId = formatSourceId(track.sourceId.source, track.sourceId.id);
 	return {
@@ -16,6 +27,13 @@ function encodeTrack(track: CanonicalTrack) {
 	};
 }
 
+/**
+ * Album router providing album metadata and track listing operations.
+ *
+ * Endpoints:
+ * - `get` - Retrieve album metadata (title, artist, year, artwork)
+ * - `tracks` - Get all tracks belonging to an album
+ */
 export const albumRouter = router({
 	get: publicProcedure
 		.input(z.object({ id: z.string() }))

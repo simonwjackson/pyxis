@@ -167,7 +167,17 @@ export function NowPlayingBar() {
 					ref={progressBarRef}
 					className="group relative h-1 bg-[var(--color-progress-track)] cursor-pointer"
 					onClick={handleSeek}
-					title="Seek"
+					role="slider"
+					aria-label="Playback progress"
+					aria-valuemin={0}
+					aria-valuemax={Math.round(duration)}
+					aria-valuenow={Math.round(progress)}
+					aria-valuetext={`${formatTime(progress)} of ${formatTime(duration)}`}
+					tabIndex={0}
+					onKeyDown={(e) => {
+						if (e.key === "ArrowRight") seek(Math.min(duration, progress + 5));
+						if (e.key === "ArrowLeft") seek(Math.max(0, progress - 5));
+					}}
 				>
 					<div
 						className="h-full bg-[var(--color-progress)] transition-all duration-300"

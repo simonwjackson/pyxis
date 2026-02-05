@@ -1,3 +1,10 @@
+/**
+ * @module server/routers/radio
+ * Radio station operations router for Pandora integration.
+ * Provides comprehensive station management including listing, creation,
+ * deletion, renaming, track retrieval, and seed/QuickMix management.
+ */
+
 import { z } from "zod";
 import { Effect } from "effect";
 import { router, pandoraProtectedProcedure } from "../trpc.js";
@@ -9,6 +16,12 @@ import type { PlaylistItem } from "../../src/sources/pandora/types/api.js";
 
 const log = createLogger("radio").child({ component: "radio" });
 
+/**
+ * Transforms a Pandora playlist item into API response format.
+ * Filters out items with missing required metadata (song name, artist, album).
+ * @param item - Raw playlist item from Pandora API
+ * @returns Encoded track object with opaque ID and capabilities, or null if metadata is missing
+ */
 function encodePlaylistItem(item: PlaylistItem) {
 	if (!item.songName || !item.artistName || !item.albumName) {
 		log.warn({
@@ -31,6 +44,21 @@ function encodePlaylistItem(item: PlaylistItem) {
 	};
 }
 
+/**
+ * Radio station router providing full station lifecycle management.
+ *
+ * Endpoints:
+ * - `list` - Get all user's radio stations
+ * - `getStation` - Get detailed station info including seeds and feedback
+ * - `getTracks` - Fetch next batch of tracks for a station
+ * - `create` - Create new station from artist, song, or genre seed
+ * - `delete` - Delete a station
+ * - `rename` - Rename a station
+ * - `genres` - Get available genre station categories
+ * - `quickMix` - Configure QuickMix station selection
+ * - `addSeed` - Add artist or song seed to station
+ * - `removeSeed` - Remove seed from station
+ */
 export const radioRouter = router({
 	list: pandoraProtectedProcedure.query(async ({ ctx }) => {
 		const result = await Effect.runPromise(

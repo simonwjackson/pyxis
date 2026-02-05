@@ -1,3 +1,10 @@
+/**
+ * @module pandora
+ *
+ * Pandora source adapter implementing the unified Source interface.
+ * Converts Pandora-specific data types to canonical formats and manages
+ * track caching for stream URL resolution.
+ */
 import { Effect } from "effect";
 import type { PandoraSession } from "./client.js";
 import * as Pandora from "./client.js";
@@ -8,10 +15,26 @@ import type {
 } from "../types.js";
 import type { PlaylistItem, Station } from "./types/api.js";
 
+/**
+ * Extended Source interface specific to Pandora.
+ * Includes Pandora-specific methods for managing playlist item cache.
+ */
 export type PandoraSource = Source & {
+	/**
+	 * Registers playlist items in the internal cache for stream URL resolution.
+	 * Must be called after receiving playlist items to enable getStreamUrl.
+	 *
+	 * @param items - Playlist items from a getPlaylist response
+	 */
 	registerPlaylistItems: (items: readonly PlaylistItem[]) => void;
 };
 
+/**
+ * Type guard to check if a Source is a PandoraSource.
+ *
+ * @param source - Source instance to check
+ * @returns true if the source is a Pandora source with registerPlaylistItems method
+ */
 export function isPandoraSource(source: Source): source is PandoraSource {
 	return source.type === "pandora" && typeof (source as Partial<PandoraSource>).registerPlaylistItems === "function";
 }
@@ -61,6 +84,21 @@ function resolveAudioUrl(item: PlaylistItem): string | undefined {
 	);
 }
 
+/**
+ * Creates a Pandora source adapter from an authenticated session.
+ * The returned source implements the unified Source interface for
+ * listing playlists, fetching tracks, searching, and streaming.
+ *
+ * @param session - Active authenticated Pandora session
+ * @returns PandoraSource adapter with caching for stream URL resolution
+ *
+ * @example
+ * ```ts
+ * const session = await Effect.runPromise(Pandora.login(user, pass));
+ * const source = createPandoraSource(session);
+ * const playlists = await source.listPlaylists();
+ * ```
+ */
 export function createPandoraSource(session: PandoraSession): PandoraSource {
 	// Cache playlist items by track token for stream URL resolution
 	const trackCache = new Map<string, PlaylistItem>();

@@ -1,3 +1,9 @@
+/**
+ * @module SourceManager
+ * Aggregates multiple music sources into a unified interface.
+ * Handles source routing, metadata enrichment, and search aggregation.
+ */
+
 import type {
 	Source,
 	SourceType,
@@ -20,19 +26,30 @@ import {
 import { createMatcher } from "./matcher.js";
 import type { Logger } from "../logger.js";
 
+/**
+ * Unified interface for interacting with multiple music sources.
+ * Routes operations to the appropriate source and aggregates results.
+ */
 export type SourceManager = {
+	/** Get a specific source by type */
 	readonly getSource: (type: SourceType) => Source | undefined;
+	/** Get all registered sources */
 	readonly getAllSources: () => readonly Source[];
+	/** List playlists from all sources that support playlists */
 	readonly listAllPlaylists: () => Promise<readonly CanonicalPlaylist[]>;
+	/** Get tracks for a specific playlist from a specific source */
 	readonly getPlaylistTracks: (
 		source: SourceType,
 		playlistId: string,
 	) => Promise<readonly CanonicalTrack[]>;
+	/** Resolve a stream URL for a track from a specific source */
 	readonly getStreamUrl: (
 		source: SourceType,
 		trackId: string,
 	) => Promise<string>;
+	/** Search all sources and aggregate results with metadata enrichment */
 	readonly searchAll: (query: string) => Promise<SearchResult>;
+	/** Get album details and tracks from a specific source */
 	readonly getAlbumTracks: (
 		source: SourceType,
 		albumId: string,
@@ -84,6 +101,25 @@ function normalizedToCanonicalAlbum(nr: NormalizedRelease): CanonicalAlbum {
 	};
 }
 
+/**
+ * Creates a unified source manager that aggregates multiple music sources.
+ * Supports both primary sources (streaming) and metadata-only sources (enrichment).
+ *
+ * @param sources - Primary sources with streaming capability (Pandora, YTMusic, etc.)
+ * @param metadataSources - Metadata-only sources for album enrichment (MusicBrainz, Discogs, etc.)
+ * @param logger - Optional logger for search diagnostics
+ * @returns A SourceManager instance
+ *
+ * @example
+ * ```ts
+ * const manager = createSourceManager(
+ *   [pandoraSource, ytMusicSource],
+ *   [musicBrainzSource, discogsSource],
+ *   logger
+ * );
+ * const results = await manager.searchAll("Beatles");
+ * ```
+ */
 export function createSourceManager(
 	sources: readonly Source[],
 	metadataSources: readonly MetadataSource[] = [],

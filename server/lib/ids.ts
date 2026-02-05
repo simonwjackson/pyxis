@@ -1,3 +1,9 @@
+/**
+ * @module IDs
+ * Source-agnostic ID system and capability helpers.
+ * Handles both library items (nanoid) and source-prefixed IDs (source:trackId).
+ */
+
 import { nanoid } from "nanoid";
 import type { SourceType } from "../../src/sources/types.js";
 import { getDb, schema } from "../../src/db/index.js";
@@ -5,22 +11,44 @@ import { eq } from "drizzle-orm";
 
 // --- Capability types ---
 
+/**
+ * Features available for a track based on its source.
+ * Pandora tracks have additional features (feedback, sleep, bookmark, explain).
+ */
 export type TrackCapabilities = {
+	/** Can give thumbs up/down */
 	readonly feedback: boolean;
+	/** Can temporarily hide from station */
 	readonly sleep: boolean;
+	/** Can bookmark song/artist */
 	readonly bookmark: boolean;
+	/** Can explain why track was selected */
 	readonly explain: boolean;
+	/** Can create radio station from track */
 	readonly radio: boolean;
 };
 
+/**
+ * Features available for an album.
+ */
 export type AlbumCapabilities = {
+	/** Can create radio station from album */
 	readonly radio: boolean;
 };
 
+/**
+ * Features available for a playlist.
+ */
 export type PlaylistCapabilities = {
+	/** Can create radio station from playlist */
 	readonly radio: boolean;
 };
 
+/**
+ * Returns available capabilities for a track based on its source.
+ * @param source - The track's source type
+ * @returns Capability flags for the track
+ */
 export function trackCapabilities(source: SourceType): TrackCapabilities {
 	const isPandora = source === "pandora";
 	return {
@@ -32,10 +60,20 @@ export function trackCapabilities(source: SourceType): TrackCapabilities {
 	};
 }
 
+/**
+ * Returns available capabilities for an album.
+ * @param _source - The album's source type (unused, all sources support radio)
+ * @returns Capability flags for the album
+ */
 export function albumCapabilities(_source: SourceType): AlbumCapabilities {
 	return { radio: true };
 }
 
+/**
+ * Returns available capabilities for a playlist.
+ * @param _source - The playlist's source type (unused, all sources support radio)
+ * @returns Capability flags for the playlist
+ */
 export function playlistCapabilities(_source: SourceType): PlaylistCapabilities {
 	return { radio: true };
 }

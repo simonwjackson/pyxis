@@ -1,3 +1,9 @@
+/**
+ * @module Database
+ * SQLite database connection using Drizzle ORM.
+ * Database is stored in XDG_DATA_HOME/pyxis/db/ (typically ~/.local/share/pyxis/db/).
+ */
+
 import { Database } from "bun:sqlite";
 import { drizzle } from "drizzle-orm/bun-sqlite";
 import { mkdirSync, existsSync, renameSync } from "node:fs";
@@ -86,6 +92,18 @@ DROP TABLE IF EXISTS source_credentials;
 DROP TABLE IF EXISTS credentials;
 `;
 
+/**
+ * Gets the singleton database instance, creating it if needed.
+ * Initializes the database with WAL mode, foreign keys, and runs migrations.
+ *
+ * @returns Drizzle ORM instance with typed schema
+ *
+ * @example
+ * ```ts
+ * const db = getDb();
+ * const albums = await db.select().from(schema.albums);
+ * ```
+ */
 export function getDb(): DbInstance {
 	if (dbInstance) return dbInstance;
 

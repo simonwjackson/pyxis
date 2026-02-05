@@ -1,9 +1,12 @@
 /**
- * Real-time metadata matcher for joining results from multiple sources
+ * @module Matcher
+ * Real-time metadata matcher for joining results from multiple sources.
  *
- * Matches releases from MusicBrainz and Discogs using:
- * 1. Exact fingerprint matching (fast path)
- * 2. Fuzzy string similarity via Jaro-Winkler (fallback)
+ * Matches releases from MusicBrainz, Discogs, and other sources using:
+ * 1. Exact fingerprint matching (fast path via artist::title::year hash)
+ * 2. Fuzzy string similarity via Jaro-Winkler algorithm (fallback)
+ *
+ * Merges matching releases to combine source IDs, genres, and artwork.
  */
 
 import type { NormalizedRelease, SourceId, SourceType } from "./types.js";
@@ -27,6 +30,15 @@ const normalizeArtist = (s: string): string =>
 
 // --- Fingerprint Generation ---
 
+/**
+ * Generates a normalized fingerprint for exact matching.
+ * Format: "normalizedartist::normalizedtitle::year" (year is "x" if unknown)
+ *
+ * @param artist - Artist name (will be normalized)
+ * @param title - Album/release title (will be normalized)
+ * @param year - Release year (optional)
+ * @returns Fingerprint string for hash-based matching
+ */
 export const generateFingerprint = (
 	artist: string,
 	title: string,
@@ -97,13 +109,29 @@ const jaroWinkler = (s1: string, s2: string, prefixScale = 0.1): number => {
 
 // --- Similarity Scoring ---
 
+/**
+ * Similarity score breakdown for fuzzy matching.
+ * All scores are 0-1 where 1 is a perfect match.
+ */
 export type SimilarityScore = {
+	/** Weighted combination of artist and title similarity */
 	readonly overall: number;
+	/** Artist name similarity (Jaro-Winkler) */
 	readonly artist: number;
+	/** Title similarity (Jaro-Winkler) */
 	readonly title: number;
+	/** Whether release years match exactly */
 	readonly yearMatch: boolean;
 };
 
+/**
+ * Computes similarity between two releases using Jaro-Winkler algorithm.
+ * Weights title slightly higher than artist (55/45) with a year match bonus.
+ *
+ * @param a - First release to compare
+ * @param b - Second release to compare
+ * @returns Similarity score breakdown
+ */
 export const computeSimilarity = (
 	a: NormalizedRelease,
 	b: NormalizedRelease,
@@ -133,10 +161,17 @@ export const computeSimilarity = (
 
 // --- Matcher ---
 
+/**
+ * Configuration for the release matcher.
+ */
 export type MatcherConfig = {
-	readonly similarityThreshold: number; // Default 0.85
+	/** Minimum similarity score (0-1) for fuzzy matches. Default: 0.85 */
+	readonly similarityThreshold: number;
 };
 
+/**
+ * Result of matching a release against the existing collection.
+ */
 export type MatchResult =
 	| { readonly type: "exact"; readonly existing: NormalizedRelease }
 	| {
@@ -146,14 +181,26 @@ export type MatchResult =
 	  }
 	| { readonly type: "new" };
 
+/**
+ * Interface for the release matcher.
+ * Manages a collection of releases and handles matching/merging.
+ */
 export type Matcher = {
+	/** Check if a release matches an existing entry */
 	readonly match: (release: NormalizedRelease) => MatchResult;
+	/** Add a release as a new entry (no matching check) */
 	readonly add: (release: NormalizedRelease) => NormalizedRelease;
+	/** Match and merge if found, otherwise add as new */
 	readonly addOrMerge: (release: NormalizedRelease) => NormalizedRelease;
+	/** Get all releases in the collection */
 	readonly getAll: () => readonly NormalizedRelease[];
+	/** Get matching statistics */
 	readonly getStats: () => MatcherStats;
 };
 
+/**
+ * Statistics about matcher operations.
+ */
 export type MatcherStats = {
 	readonly total: number;
 	readonly exactMatches: number;
@@ -161,6 +208,21 @@ export type MatcherStats = {
 	readonly newEntries: number;
 };
 
+/**
+ * Creates a new release matcher for deduplicating and merging releases.
+ *
+ * @param config - Optional configuration (similarityThreshold defaults to 0.85)
+ * @returns A Matcher instance
+ *
+ * @example
+ * ```ts
+ * const matcher = createMatcher({ similarityThreshold: 0.90 });
+ * for (const release of releases) {
+ *   matcher.addOrMerge(release);
+ * }
+ * const deduplicated = matcher.getAll();
+ * ```
+ */
 export const createMatcher = (
 	config: Partial<MatcherConfig> = {},
 ): Matcher => {

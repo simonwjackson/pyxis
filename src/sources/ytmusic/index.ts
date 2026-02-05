@@ -1,3 +1,9 @@
+/**
+ * @module ytmusic
+ * YouTube Music source implementation for the Pyxis music player.
+ * Provides search, playlist, album, and streaming capabilities via yt-dlp and internal API client.
+ */
+
 import type {
 	Source,
 	CanonicalTrack,
@@ -11,14 +17,27 @@ import {
 	type YTMusicApiClient,
 } from "./api-client.js";
 
+/**
+ * Configuration entry for a YouTube Music playlist.
+ * Used to define playlists that the source should expose.
+ */
 export type YtMusicPlaylistEntry = {
+	/** Unique identifier for the playlist within the application */
 	readonly id: string;
+	/** Full YouTube Music URL to the playlist */
 	readonly url: string;
+	/** Display name for the playlist */
 	readonly name: string;
+	/** Whether this playlist represents a radio/mix station */
 	readonly isRadio?: boolean;
 };
 
+/**
+ * Configuration options for the YouTube Music source.
+ * Defines which playlists are available through the source.
+ */
 export type YtMusicConfig = {
+	/** List of playlist entries to expose through the source */
 	readonly playlists: readonly YtMusicPlaylistEntry[];
 };
 
@@ -41,10 +60,25 @@ function entryToCanonical(entry: {
 	};
 }
 
+/**
+ * Generates a YouTube Music radio URL for a given video.
+ * Radio URLs start playback of the specified video followed by similar tracks.
+ *
+ * @param videoId - YouTube video ID (e.g., "dQw4w9WgXcQ")
+ * @returns Full YouTube Music watch URL with radio playlist parameter
+ */
 export function generateRadioUrl(videoId: string): string {
 	return `https://music.youtube.com/watch?v=${videoId}&list=RDAMVM${videoId}`;
 }
 
+/**
+ * Creates a YouTube Music source instance that implements the Source interface.
+ * The source provides search, playlist, album, and streaming capabilities.
+ * Uses yt-dlp for track searches and streaming, and internal API client for album operations.
+ *
+ * @param config - Configuration specifying playlists and other source options
+ * @returns A Source implementation for YouTube Music with search, playlist, album, and streaming methods
+ */
 export function createYtMusicSource(config: YtMusicConfig): Source {
 	// Cache resolved playlist data
 	const playlistCache = new Map<

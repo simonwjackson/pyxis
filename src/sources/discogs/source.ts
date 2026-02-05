@@ -1,3 +1,9 @@
+/**
+ * @module discogs/source
+ * Discogs metadata source implementation.
+ * Provides release search capabilities using the Discogs API.
+ */
+
 import type { NormalizedRelease, MetadataSource, MetadataSearchQuery } from "../types.js";
 import { createDiscogsClient } from "./client.js";
 import type { DiscogsSearchResult } from "./schemas.js";
@@ -42,18 +48,38 @@ const normalizeSearchResult = (
 
 // --- Source Config ---
 
+/**
+ * Configuration options for creating a Discogs metadata source.
+ * Includes required application identification and optional authentication/rate limiting.
+ */
 export type DiscogsSourceConfig = {
+	/** Application name for User-Agent header (required by Discogs API) */
 	readonly appName: string;
+	/** Application version for User-Agent header */
 	readonly version: string;
+	/** Contact email/URL for User-Agent header */
 	readonly contact: string;
+	/** Discogs personal access token for authenticated requests (higher rate limits) */
 	readonly token?: string;
+	/** Maximum requests per second (default varies by auth status) */
 	readonly requestsPerSecond?: number;
+	/** Token bucket burst size for rate limiting */
 	readonly burstSize?: number;
+	/** Maximum retry attempts on rate limit errors */
 	readonly maxRetries?: number;
 };
 
 // --- Source Factory ---
 
+/**
+ * Creates a Discogs metadata source for searching release information.
+ * The source queries Discogs' master release endpoint and normalizes results
+ * to the common NormalizedRelease format. Supports both text queries and
+ * structured artist/title searches.
+ *
+ * @param config - Configuration including app identification, optional auth token, and rate limits
+ * @returns MetadataSource with searchReleases capability
+ */
 export const createDiscogsSource = (
 	config: DiscogsSourceConfig,
 ): MetadataSource => {

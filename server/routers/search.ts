@@ -1,3 +1,10 @@
+/**
+ * @module server/routers/search
+ * Search operations router for querying tracks, albums, and artists
+ * across multiple music sources. Supports both Pandora-specific search
+ * and unified cross-source search.
+ */
+
 import { z } from "zod";
 import { Effect } from "effect";
 import { router, publicProcedure, pandoraProtectedProcedure } from "../trpc.js";
@@ -7,6 +14,11 @@ import * as Pandora from "../../src/sources/pandora/client.js";
 import type { CanonicalTrack, CanonicalAlbum } from "../../src/sources/types.js";
 import type { SearchArtist, SearchGenreStation } from "../../src/sources/pandora/types/api.js";
 
+/**
+ * Transforms a canonical track into API response format with opaque ID.
+ * @param track - The canonical track from the source layer
+ * @returns Encoded track object with source-prefixed opaque ID and capabilities
+ */
 function encodeTrack(track: CanonicalTrack) {
 	return {
 		id: formatSourceId(track.sourceId.source, track.sourceId.id),
@@ -19,6 +31,11 @@ function encodeTrack(track: CanonicalTrack) {
 	};
 }
 
+/**
+ * Transforms a canonical album into API response format with opaque IDs.
+ * @param album - The canonical album from the source layer
+ * @returns Encoded album object with source-prefixed opaque ID and metadata
+ */
 function encodeAlbum(album: CanonicalAlbum) {
 	const primarySource = album.sourceIds[0];
 	return {
@@ -37,6 +54,13 @@ function encodeAlbum(album: CanonicalAlbum) {
 	};
 }
 
+/**
+ * Search router providing music search across multiple sources.
+ *
+ * Endpoints:
+ * - `search` - Pandora-only search returning raw Pandora results
+ * - `unified` - Cross-source search aggregating tracks, albums, and Pandora-specific results
+ */
 export const searchRouter = router({
 	search: pandoraProtectedProcedure
 		.input(z.object({ searchText: z.string().min(1) }))

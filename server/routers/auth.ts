@@ -1,9 +1,26 @@
+/**
+ * @module server/routers/auth
+ * Authentication and user settings router for Pandora integration.
+ * Provides endpoints for checking authentication status, retrieving and
+ * modifying user settings, and managing content filters.
+ */
+
 import { z } from "zod";
 import { Effect } from "effect";
 import { router, publicProcedure, pandoraProtectedProcedure } from "../trpc.js";
 import * as Pandora from "../../src/sources/pandora/client.js";
 import { getPandoraSessionFromCredentials } from "../services/credentials.js";
 
+/**
+ * Authentication router providing user status, settings, and account management.
+ *
+ * Endpoints:
+ * - `status` - Check authentication state
+ * - `settings` - Retrieve user settings
+ * - `usage` - Get account usage information
+ * - `changeSettings` - Update user settings
+ * - `setExplicitFilter` - Toggle explicit content filter
+ */
 export const authRouter = router({
 	status: publicProcedure.query(() => {
 		return {

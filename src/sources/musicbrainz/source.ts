@@ -1,3 +1,9 @@
+/**
+ * @module musicbrainz/source
+ * MusicBrainz metadata source implementation.
+ * Provides release search capabilities using the MusicBrainz API.
+ */
+
 import type { NormalizedRelease, ReleaseType, MetadataSource, MetadataSearchQuery } from "../types.js";
 import { createMusicBrainzClient } from "./client.js";
 import type { ReleaseGroup } from "./schemas.js";
@@ -65,17 +71,35 @@ const normalizeReleaseGroup = (rg: ReleaseGroup): NormalizedRelease => {
 
 // --- Source Config ---
 
+/**
+ * Configuration options for creating a MusicBrainz metadata source.
+ * Includes required application identification and optional rate limiting settings.
+ */
 export type MusicBrainzSourceConfig = {
+	/** Application name for User-Agent header (required by MusicBrainz API) */
 	readonly appName: string;
+	/** Application version for User-Agent header */
 	readonly version: string;
+	/** Contact email/URL for User-Agent header (required by MusicBrainz API) */
 	readonly contact: string;
+	/** Maximum requests per second (default: 1 per MusicBrainz guidelines) */
 	readonly requestsPerSecond?: number;
+	/** Token bucket burst size for rate limiting */
 	readonly burstSize?: number;
+	/** Maximum retry attempts on rate limit errors */
 	readonly maxRetries?: number;
 };
 
 // --- Source Factory ---
 
+/**
+ * Creates a MusicBrainz metadata source for searching release information.
+ * The source queries MusicBrainz's release-group endpoint and normalizes results
+ * to the common NormalizedRelease format.
+ *
+ * @param config - Configuration including app identification and rate limit settings
+ * @returns MetadataSource with searchReleases capability
+ */
 export const createMusicBrainzSource = (
 	config: MusicBrainzSourceConfig,
 ): MetadataSource => {

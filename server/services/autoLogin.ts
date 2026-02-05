@@ -1,5 +1,6 @@
 import { getSourceManager, setGlobalSourceManager, ensureSourceManager } from "./sourceManager.js";
-import { loginPandora } from "./credentials.js";
+import { loginPandora, refreshPandoraSession } from "./credentials.js";
+import { ApiCallError } from "../../src/sources/pandora/types/errors.js";
 import * as PlayerService from "./player.js";
 import * as QueueService from "./queue.js";
 import { formatSourceId, parseId } from "../lib/ids.js";
@@ -7,34 +8,64 @@ import { getPandoraPassword } from "../../src/config.js";
 import type { AppConfig } from "../../src/config.js";
 import type { Logger } from "../../src/logger.js";
 import type { QueueTrack } from "./queue.js";
+import type { SourceType } from "../../src/sources/types.js";
+
+/** Pandora error codes that indicate an expired/invalid session */
+const AUTH_ERROR_CODES = new Set([0, 1001, 1002]);
+
+function isPandoraAuthError(err: unknown): boolean {
+	return err instanceof ApiCallError && err.code != null && AUTH_ERROR_CODES.has(err.code);
+}
+
+function mapTracksToQueue(tracks: ReadonlyArray<{ readonly sourceId: { readonly source: SourceType; readonly id: string }; readonly title: string; readonly artist: string; readonly album: string; readonly duration?: number | null; readonly artworkUrl?: string | null }>): QueueTrack[] {
+	return tracks.map((t): QueueTrack => ({
+		id: formatSourceId(t.sourceId.source, t.sourceId.id),
+		title: t.title,
+		artist: t.artist,
+		album: t.album,
+		duration: t.duration ?? null,
+		artworkUrl: t.artworkUrl ?? null,
+		source: t.sourceId.source,
+	}));
+}
+
+async function fetchPlaylistTracks(
+	source: SourceType,
+	id: string,
+): Promise<QueueTrack[]> {
+	const sourceManager = await ensureSourceManager();
+	const tracks = await sourceManager.getPlaylistTracks(source, id);
+	return mapTracksToQueue(tracks);
+}
 
 function registerAutoFetchHandler(logger: Logger): void {
 	QueueService.setAutoFetchHandler(async (context) => {
 		if (context.type !== "radio") return [];
+		const parsed = parseId(context.seedId);
+		if (!parsed.source) {
+			logger.warn({ seedId: context.seedId }, "auto-fetch: seedId has no source prefix");
+			return [];
+		}
+
 		try {
-			const sourceManager = await ensureSourceManager();
-			const parsed = parseId(context.seedId);
-			if (!parsed.source) {
-				logger.warn({ seedId: context.seedId }, "auto-fetch: seedId has no source prefix");
+			return await fetchPlaylistTracks(parsed.source, parsed.id);
+		} catch (err: unknown) {
+			if (!isPandoraAuthError(err)) {
+				const msg = err instanceof Error ? err.message : String(err);
+				logger.warn({ err: msg }, "auto-fetch failed");
 				return [];
 			}
-			const tracks = await sourceManager.getPlaylistTracks(
-				parsed.source,
-				parsed.id,
-			);
-			return tracks.map((t): QueueTrack => ({
-				id: formatSourceId(t.sourceId.source, t.sourceId.id),
-				title: t.title,
-				artist: t.artist,
-				album: t.album,
-				duration: t.duration ?? null,
-				artworkUrl: t.artworkUrl ?? null,
-				source: t.sourceId.source,
-			}));
-		} catch (err: unknown) {
-			const msg = err instanceof Error ? err.message : String(err);
-			logger.warn({ err: msg }, "auto-fetch failed");
-			return [];
+
+			logger.warn({ code: (err as ApiCallError).code }, "auto-fetch: Pandora auth error, refreshing session");
+			try {
+				const freshSession = await refreshPandoraSession();
+				if (!freshSession) return [];
+				return await fetchPlaylistTracks(parsed.source, parsed.id);
+			} catch (retryErr: unknown) {
+				const msg = retryErr instanceof Error ? retryErr.message : String(retryErr);
+				logger.error({ err: msg }, "auto-fetch: retry after session refresh failed");
+				return [];
+			}
 		}
 	});
 }

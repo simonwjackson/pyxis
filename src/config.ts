@@ -1,3 +1,9 @@
+/**
+ * @module Config
+ * Application configuration with layered resolution: schema defaults → YAML file → environment variables.
+ * Configuration file is located at XDG_CONFIG_HOME/pyxis/config.yaml.
+ */
+
 import { z } from "zod";
 import { parse as parseYaml } from "yaml";
 import { readFileSync, existsSync } from "node:fs";
@@ -60,6 +66,10 @@ const LogSchema = z.object({
 		.default("info"),
 });
 
+/**
+ * Zod schema for the complete application configuration.
+ * Validates and provides defaults for server, web, sources, and log settings.
+ */
 export const ConfigSchema = z.object({
 	server: ServerSchema.default(() => ServerSchema.parse({})),
 	web: WebSchema.default(() => WebSchema.parse({})),
@@ -67,6 +77,10 @@ export const ConfigSchema = z.object({
 	log: LogSchema.default(() => LogSchema.parse({})),
 });
 
+/**
+ * Fully resolved application configuration type.
+ * Derived from ConfigSchema with all defaults applied.
+ */
 export type AppConfig = z.infer<typeof ConfigSchema>;
 
 const paths = envPaths("pyxis", { suffix: "" });
@@ -129,6 +143,22 @@ function applyEnvOverrides(config: Record<string, unknown>): Record<string, unkn
 	return result;
 }
 
+/**
+ * Resolves the complete application configuration with layered precedence.
+ * Resolution order: schema defaults → YAML file → environment variables.
+ *
+ * @param configPath - Optional path to config YAML file. Defaults to ~/.config/pyxis/config.yaml
+ * @returns Fully resolved and validated configuration
+ *
+ * @example
+ * ```ts
+ * const config = resolveConfig();
+ * console.log(config.server.port); // 8765 (default)
+ *
+ * // With custom config file
+ * const config = resolveConfig("/path/to/config.yaml");
+ * ```
+ */
 export function resolveConfig(configPath?: string): AppConfig {
 	const yamlPath = configPath ?? DEFAULT_CONFIG_PATH;
 	const raw = loadYaml(yamlPath);
@@ -136,6 +166,12 @@ export function resolveConfig(configPath?: string): AppConfig {
 	return ConfigSchema.parse(withEnv);
 }
 
+/**
+ * Retrieves the Pandora password from PYXIS_PANDORA_PASSWORD environment variable.
+ * Passwords are never stored in config files or database for security.
+ *
+ * @returns The Pandora password if set, undefined otherwise
+ */
 export function getPandoraPassword(): string | undefined {
 	return process.env["PYXIS_PANDORA_PASSWORD"];
 }

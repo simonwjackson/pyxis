@@ -3,6 +3,7 @@ import { appRouter } from "./router.js";
 import { createContext } from "./trpc.js";
 import { handleStreamRequest, prefetchToCache } from "./services/stream.js";
 import { ensureSourceManager, setAppConfig } from "./services/sourceManager.js";
+import { setCredentialsConfig } from "./services/credentials.js";
 import { tryAutoLogin } from "./services/autoLogin.js";
 import { resolveTrackForStream } from "./lib/ids.js";
 import { createLogger } from "../src/logger.js";
@@ -12,6 +13,7 @@ const configFlagIndex = process.argv.indexOf("--config");
 const configPath = configFlagIndex !== -1 ? process.argv[configFlagIndex + 1] : undefined;
 const config = resolveConfig(configPath);
 setAppConfig(config);
+setCredentialsConfig(config);
 
 const serverLogger = createLogger("server");
 const streamLog = serverLogger.child({ component: "stream" });

@@ -1,7 +1,8 @@
 /**
+ * @module api-client
  * YouTube Music internal API client.
  * Uses /youtubei/v1/search and /browse endpoints for album search and details.
- * Ported from raziel — only album-related methods included.
+ * Ported from raziel - only album-related methods included.
  */
 
 import { createRateLimiter, type RateLimiterStats } from "../rate-limiter.js";
@@ -14,33 +15,78 @@ import {
 	type ParsedTrack,
 } from "./parsers.js";
 
+/**
+ * Configuration options for creating a YouTube Music API client.
+ * Includes rate limiting and retry behavior settings.
+ */
 export type YTMusicApiClientConfig = {
+	/** Application name for User-Agent header */
 	readonly appName: string;
+	/** Application version for User-Agent header */
 	readonly version: string;
+	/** Contact URL/email for User-Agent header (required by API) */
 	readonly contact: string;
+	/** Maximum requests per second (default: 1) */
 	readonly requestsPerSecond?: number;
+	/** Token bucket burst size for rate limiting (default: 5) */
 	readonly burstSize?: number;
+	/** Maximum retry attempts on rate limit or server errors (default: 3) */
 	readonly maxRetries?: number;
 };
 
+/**
+ * Complete album details including metadata and track listing.
+ * Returned by the getAlbum method after parsing browse response.
+ */
 export type AlbumDetails = {
+	/** Album ID (OLAK format preferred when available) */
 	readonly id: string;
+	/** Album title */
 	readonly name: string;
+	/** Artist information with name and YouTube Music artist ID */
 	readonly artists?: readonly {
 		readonly name: string;
 		readonly id: string;
 	}[];
+	/** Release year if available */
 	readonly year: number | null;
+	/** URL to album artwork thumbnail */
 	readonly thumbnailUrl: string | null;
+	/** All tracks on the album with full metadata */
 	readonly tracks: readonly ParsedTrack[];
 };
 
+/**
+ * Interface for the YouTube Music API client.
+ * Provides album search, album details, and rate limiter stats.
+ */
 export type YTMusicApiClient = {
+	/**
+	 * Searches for albums matching the query.
+	 * @param query - Search query string
+	 * @returns Array of parsed album results
+	 */
 	readonly searchAlbums: (query: string) => Promise<readonly ParsedAlbum[]>;
+	/**
+	 * Fetches complete album details including track listing.
+	 * @param albumId - Album ID (MPREb_ or OLAK format)
+	 * @returns Full album details with tracks
+	 */
 	readonly getAlbum: (albumId: string) => Promise<AlbumDetails>;
+	/**
+	 * Returns current rate limiter statistics.
+	 * @returns Stats including requests made, tokens available, etc.
+	 */
 	readonly getStats: () => RateLimiterStats;
 };
 
+/**
+ * Creates a YouTube Music API client with rate limiting and retry logic.
+ * The client uses YouTube's internal API endpoints (not public API).
+ *
+ * @param config - Client configuration including app info and rate limit settings
+ * @returns API client with searchAlbums, getAlbum, and getStats methods
+ */
 export const createYTMusicApiClient = (
 	config: YTMusicApiClientConfig,
 ): YTMusicApiClient => {

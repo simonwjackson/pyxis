@@ -1,3 +1,10 @@
+/**
+ * @module persistence
+ * Database persistence layer for player and queue state.
+ * Provides debounced saves to avoid excessive database writes during rapid state changes.
+ * Uses PGlite (in-browser Postgres) with Drizzle ORM.
+ */
+
 import { getDb, schema } from "../../src/db/index.js";
 import { eq } from "drizzle-orm";
 import type { QueueTrack, QueueContext, QueueState } from "./queue.js";
@@ -7,18 +14,36 @@ import type { SourceType } from "../../src/sources/types.js";
 // Debounce state: separate timers for player and queue
 let playerTimer: ReturnType<typeof setTimeout> | undefined;
 let queueTimer: ReturnType<typeof setTimeout> | undefined;
+
+/** Debounce delay in milliseconds for database writes */
 const DEBOUNCE_MS = 1000;
 
 // --- Player persistence ---
 
+/**
+ * Player state fields that are persisted to the database.
+ * Excludes track references which are managed by queue persistence.
+ */
 type PersistedPlayerState = {
+	/** Current playback status */
 	readonly status: PlayerStatus;
+	/** Playback position in seconds */
 	readonly progress: number;
+	/** Track duration in seconds */
 	readonly duration: number;
+	/** Volume level from 0-100 */
 	readonly volume: number;
+	/** Unix timestamp (ms) of last update */
 	readonly updatedAt: number;
 };
 
+/**
+ * Schedules a debounced save of player state to the database.
+ * Cancels any pending save and schedules a new one after DEBOUNCE_MS.
+ * This prevents excessive database writes during rapid state changes (e.g., seeking).
+ *
+ * @param state - Player state to persist
+ */
 export function schedulePlayerSave(state: PersistedPlayerState): void {
 	if (playerTimer) clearTimeout(playerTimer);
 	playerTimer = setTimeout(() => {
@@ -54,6 +79,12 @@ async function savePlayerState(state: PersistedPlayerState): Promise<void> {
 	}
 }
 
+/**
+ * Loads the persisted player state from the database.
+ * Used on server startup to restore playback position and settings.
+ *
+ * @returns The persisted player state, or undefined if not found or on error
+ */
 export async function loadPlayerState(): Promise<PersistedPlayerState | undefined> {
 	try {
 		const db = await getDb();
@@ -104,6 +135,13 @@ function rowToContext(contextType: string, contextId: string | null): QueueConte
 	}
 }
 
+/**
+ * Schedules a debounced save of queue state to the database.
+ * Cancels any pending save and schedules a new one after DEBOUNCE_MS.
+ * This prevents excessive database writes during rapid queue modifications.
+ *
+ * @param state - Queue state to persist (items, currentIndex, context)
+ */
 export function scheduleQueueSave(state: QueueState): void {
 	if (queueTimer) clearTimeout(queueTimer);
 	queueTimer = setTimeout(() => {
@@ -154,6 +192,13 @@ async function saveQueueState(state: QueueState): Promise<void> {
 	}
 }
 
+/**
+ * Loads the persisted queue state from the database.
+ * Reconstructs the full queue including all tracks, current position, and context.
+ * Used on server startup to restore the playback queue.
+ *
+ * @returns The persisted queue state, or undefined if not found or on error
+ */
 export async function loadQueueState(): Promise<QueueState | undefined> {
 	try {
 		const db = await getDb();

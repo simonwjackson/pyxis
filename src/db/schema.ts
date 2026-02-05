@@ -1,3 +1,9 @@
+/**
+ * @module Schema
+ * Drizzle ORM schema definitions for the SQLite database.
+ * Tables store library albums, playlists, player state, and queue state.
+ */
+
 import {
 	sqliteTable,
 	text,
@@ -5,6 +11,9 @@ import {
 	real,
 } from "drizzle-orm/sqlite-core";
 
+/**
+ * Albums table - stores library albums with metadata.
+ */
 export const albums = sqliteTable("albums", {
 	id: text("id").primaryKey(),
 	title: text("title").notNull(),
@@ -16,6 +25,10 @@ export const albums = sqliteTable("albums", {
 		.$defaultFn(() => new Date()),
 });
 
+/**
+ * Album source references - links albums to their source-specific IDs.
+ * Enables multi-source album matching (same album from different sources).
+ */
 export const albumSourceRefs = sqliteTable("album_source_refs", {
 	id: text("id").primaryKey(),
 	albumId: text("album_id")
@@ -25,6 +38,10 @@ export const albumSourceRefs = sqliteTable("album_source_refs", {
 	sourceId: text("source_id").notNull(),
 });
 
+/**
+ * Album tracks table - stores individual tracks within library albums.
+ * Each track has a source-specific ID for streaming.
+ */
 export const albumTracks = sqliteTable("album_tracks", {
 	id: text("id").primaryKey(),
 	albumId: text("album_id")
@@ -39,6 +56,10 @@ export const albumTracks = sqliteTable("album_tracks", {
 	artworkUrl: text("artwork_url"),
 });
 
+/**
+ * Playlists table - stores user playlists and radio stations.
+ * Primarily used for YouTube Music playlists (Pandora stations are fetched live).
+ */
 export const playlists = sqliteTable("playlists", {
 	id: text("id").primaryKey(),
 	name: text("name").notNull(),
@@ -52,6 +73,10 @@ export const playlists = sqliteTable("playlists", {
 		.$defaultFn(() => new Date()),
 });
 
+/**
+ * Player state table - persists playback position across restarts.
+ * Single-row table (id is always "default").
+ */
 export const playerState = sqliteTable("player_state", {
 	id: text("id").primaryKey(),
 	status: text("status").notNull(),
@@ -61,6 +86,10 @@ export const playerState = sqliteTable("player_state", {
 	updatedAt: real("updated_at").notNull(),
 });
 
+/**
+ * Queue items table - stores tracks in the playback queue.
+ * Ordered by queueIndex for playback sequence.
+ */
 export const queueItems = sqliteTable("queue_items", {
 	id: text("id").primaryKey(),
 	queueIndex: integer("queue_index").notNull(),
@@ -73,6 +102,10 @@ export const queueItems = sqliteTable("queue_items", {
 	artworkUrl: text("artwork_url"),
 });
 
+/**
+ * Queue state table - stores current playback context.
+ * Single-row table tracking current index and context type.
+ */
 export const queueState = sqliteTable("queue_state", {
 	id: text("id").primaryKey(),
 	currentIndex: integer("current_index").notNull().default(0),

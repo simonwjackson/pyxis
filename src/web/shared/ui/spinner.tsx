@@ -1,16 +1,32 @@
+/**
+ * @module Spinner
+ * Loading spinner component with accessibility support.
+ */
+
 import { cn } from "../lib/utils";
 
+/**
+ * Props for the Spinner component.
+ */
 type SpinnerProps = {
 	readonly className?: string;
+	/** Accessible label for screen readers. Defaults to "Loading" */
+	readonly label?: string;
 };
 
-export function Spinner({ className }: SpinnerProps) {
+/**
+ * Animated loading spinner with accessibility support.
+ * @param props - Spinner props including optional className and label
+ */
+export function Spinner({ className, label = "Loading" }: SpinnerProps) {
 	return (
 		<svg
 			className={cn("h-5 w-5 animate-spin text-[var(--color-primary)]", className)}
 			xmlns="http://www.w3.org/2000/svg"
 			fill="none"
 			viewBox="0 0 24 24"
+			role="status"
+			aria-label={label}
 		>
 			<circle
 				className="opacity-25"

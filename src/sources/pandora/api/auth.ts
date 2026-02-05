@@ -1,3 +1,12 @@
+/**
+ * @module pandora/api/auth
+ *
+ * Pandora authentication API implementing the two-step login flow:
+ * 1. Partner login (unencrypted) - establishes device identity and receives sync time
+ * 2. User login (Blowfish encrypted) - authenticates user credentials
+ *
+ * All subsequent API calls require tokens from both steps.
+ */
 import { Effect } from "effect";
 import { PANDORA_API_URL, ANDROID_DEVICE } from "../constants.js";
 import { decrypt, encryptJson } from "../crypto/index.js";
@@ -25,6 +34,18 @@ const calculateSyncTime = (
 		),
 	);
 
+/**
+ * Performs partner-level authentication with Pandora using device credentials.
+ * This is the first step of the authentication flow and must be completed
+ * before user login. The syncTimeOffset returned is critical for all subsequent
+ * encrypted API calls.
+ *
+ * @returns Partner authentication response with sync time offset for time synchronization
+ *
+ * @effect
+ * - Success: PartnerLoginResponse & { syncTimeOffset } - partner tokens and time offset
+ * - Error: PartnerLoginError - when partner authentication fails or sync time decryption fails
+ */
 export const partnerLogin = (): Effect.Effect<
 	PartnerLoginResponse & { readonly syncTimeOffset: number },
 	PartnerLoginError
@@ -71,6 +92,30 @@ export const partnerLogin = (): Effect.Effect<
 		return { ...json.result, syncTimeOffset };
 	});
 
+/**
+ * Creates a user login function bound to partner credentials.
+ * This is the second step of authentication, requiring partner tokens from partnerLogin.
+ * The request body is encrypted using Blowfish ECB with the device encrypt key.
+ *
+ * @param partnerId - Partner ID from partnerLogin response
+ * @param partnerAuthToken - Partner auth token from partnerLogin response
+ * @param syncTimeOffset - Time offset calculated during partnerLogin for sync time
+ * @returns Curried function that accepts user credentials and returns login effect
+ *
+ * @example
+ * ```ts
+ * const partner = yield* partnerLogin();
+ * const user = yield* userLogin(
+ *   partner.partnerId,
+ *   partner.partnerAuthToken,
+ *   partner.syncTimeOffset
+ * )(username, password);
+ * ```
+ *
+ * @effect
+ * - Success: UserLoginResponse - user tokens for authenticated API calls
+ * - Error: UserLoginError - when user credentials are invalid or encryption fails
+ */
 export const userLogin =
 	(partnerId: string, partnerAuthToken: string, syncTimeOffset: number) =>
 	(

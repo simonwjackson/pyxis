@@ -1,9 +1,26 @@
+/**
+ * @module server/routers/track
+ * Track operations router for retrieving track metadata, streaming URLs,
+ * and managing track feedback (thumbs up/down, sleep, explanations).
+ */
+
 import { z } from "zod";
 import { Effect } from "effect";
 import { router, pandoraProtectedProcedure, publicProcedure } from "../trpc.js";
 import { formatSourceId, parseId, buildStreamUrl, trackCapabilities, resolveTrackSource } from "../lib/ids.js";
 import * as Pandora from "../../src/sources/pandora/client.js";
 
+/**
+ * Track router providing track metadata, streaming, and feedback operations.
+ *
+ * Endpoints:
+ * - `get` - Retrieve track metadata and capabilities
+ * - `streamUrl` - Generate streaming URL for a track
+ * - `feedback` - Add positive/negative feedback to a track
+ * - `removeFeedback` - Remove existing feedback
+ * - `sleep` - Temporarily hide a track from radio
+ * - `explain` - Get explanation of why a track was recommended
+ */
 export const trackRouter = router({
 	get: publicProcedure
 		.input(z.object({ id: z.string() }))

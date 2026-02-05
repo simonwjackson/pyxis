@@ -1,3 +1,9 @@
+/**
+ * @module Logger
+ * Structured logging utilities using pino with dual output to console and file.
+ * Logs are stored in XDG_STATE_HOME/pyxis/ (typically ~/.local/state/pyxis/).
+ */
+
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import pino from "pino";
@@ -22,8 +28,27 @@ const level = appConfig.log.level;
 
 const loggerCache = new Map<string, PinoLogger>();
 
+/**
+ * Re-exported pino Logger type for external use.
+ * Use `.child({ component: "name" })` for sub-contexts.
+ */
 export type Logger = PinoLogger;
 
+/**
+ * Creates a named logger with dual output to console and file.
+ * Logs are pretty-printed to console when TTY, JSON otherwise.
+ * File output is always pretty-printed without color.
+ *
+ * @param name - Logger name, also used as the log filename (e.g., "server" → server.log)
+ * @returns A pino logger instance configured for dual output
+ *
+ * @example
+ * ```ts
+ * const log = createLogger("server");
+ * log.info({ port: 8765 }, "server running");
+ * log.child({ component: "trpc" }).warn("request failed");
+ * ```
+ */
 export function createLogger(name: string): PinoLogger {
 	const cached = loggerCache.get(name);
 	if (cached) return cached;
@@ -70,10 +95,19 @@ export function createLogger(name: string): PinoLogger {
 	return logger;
 }
 
+/**
+ * Returns the base directory where log files are stored.
+ * @returns Absolute path to the log directory (XDG_STATE_HOME/pyxis/)
+ */
 export function getLogDir(): string {
 	return LOG_DIR;
 }
 
+/**
+ * Returns the full path to a specific log file.
+ * @param name - Log file name without extension
+ * @returns Absolute path to the log file (e.g., ~/.local/state/pyxis/server.log)
+ */
 export function getLogFile(name: string): string {
 	ensureLogDir();
 	return join(LOG_DIR, `${name}.log`);

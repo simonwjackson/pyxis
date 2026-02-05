@@ -1,4 +1,10 @@
-import { useNavigate } from "@tanstack/react-router";
+/**
+ * @module HomePage
+ * Main home page displaying user's playlists and albums.
+ */
+
+import { Link, useNavigate } from "@tanstack/react-router";
+import { useCallback, memo } from "react";
 import {
 	Play,
 	Plus,
@@ -49,7 +55,10 @@ type PlaylistData = {
 	readonly artworkUrl?: string | null;
 };
 
-function PlaylistCard({
+/**
+ * Card component for displaying a playlist with play-on-click.
+ */
+const PlaylistCard = memo(function PlaylistCard({
 	playlist,
 	onPlay,
 }: {
@@ -103,7 +112,7 @@ function PlaylistCard({
 			</p>
 		</button>
 	);
-}
+});
 
 type AlbumData = {
 	readonly id: string;
@@ -113,18 +122,20 @@ type AlbumData = {
 	readonly artworkUrl: string | null;
 };
 
-function AlbumCard({
+/**
+ * Card component for displaying an album with link to detail page.
+ */
+const AlbumCard = memo(function AlbumCard({
 	album,
-	onPlay,
 }: {
 	readonly album: AlbumData;
-	readonly onPlay: () => void;
 }) {
 	return (
-		<button
-			type="button"
-			onClick={onPlay}
-			className="group cursor-pointer text-left w-full"
+		<Link
+			to="/album/$albumId"
+			params={{ albumId: album.id }}
+			search={{ play: undefined, startIndex: undefined, shuffle: undefined }}
+			className="group cursor-pointer text-left w-full block"
 		>
 			<div className="aspect-square bg-[var(--color-bg-highlight)] rounded-lg mb-2 relative overflow-hidden">
 				{album.artworkUrl ? (
@@ -151,9 +162,9 @@ function AlbumCard({
 				{album.artist}
 				{album.year ? ` \u00B7 ${String(album.year)}` : ""}
 			</p>
-		</button>
+		</Link>
 	);
-}
+});
 
 const PLAYLIST_SORT_OPTIONS: readonly SortOption<PlaylistData>[] = [
 	{
@@ -218,6 +229,16 @@ const ALBUM_SORT_OPTIONS: readonly SortOption<AlbumData>[] = [
 	},
 ] as const;
 
+// Static filter functions - defined outside component to avoid recreation
+const filterPlaylist = (p: PlaylistData, q: string) => p.name.toLowerCase().includes(q);
+const filterAlbum = (a: AlbumData, q: string) => {
+	const lower = q.toLowerCase();
+	return a.title.toLowerCase().includes(lower) || a.artist.toLowerCase().includes(lower);
+};
+
+/**
+ * Home page component displaying user's playlists and albums.
+ */
 export function HomePage() {
 	const navigate = useNavigate();
 	const playlistsQuery = trpc.playlist.list.useQuery();
@@ -226,7 +247,7 @@ export function HomePage() {
 	const playlists = playlistsQuery.data ?? [];
 	const albums = albumsQuery.data ?? [];
 
-	const handleOpenPlaylist = (playlist: PlaylistData) => {
+	const handleOpenPlaylist = useCallback((playlist: PlaylistData) => {
 		if (playlist.id.startsWith("pandora:")) {
 			navigate({
 				to: "/station/$token",
@@ -240,7 +261,18 @@ export function HomePage() {
 				search: { play: undefined, startIndex: undefined, shuffle: undefined },
 			});
 		}
-	};
+	}, [navigate]);
+
+	const renderPlaylistItem = useCallback((playlist: PlaylistData) => (
+		<PlaylistCard
+			playlist={playlist}
+			onPlay={() => handleOpenPlaylist(playlist)}
+		/>
+	), [handleOpenPlaylist]);
+
+	const renderAlbumItem = useCallback((album: AlbumData) => (
+		<AlbumCard album={album} />
+	), []);
 
 	return (
 		<div className="flex-1 p-6 space-y-10">
@@ -256,13 +288,8 @@ export function HomePage() {
 					title="My Playlists"
 					items={playlists}
 					keyOf={(p) => p.id}
-					renderItem={(playlist) => (
-						<PlaylistCard
-							playlist={playlist}
-							onPlay={() => handleOpenPlaylist(playlist)}
-						/>
-					)}
-					filterFn={(p, q) => p.name.toLowerCase().includes(q)}
+					renderItem={renderPlaylistItem}
+					filterFn={filterPlaylist}
 					sortOptions={PLAYLIST_SORT_OPTIONS}
 					defaultSort="shuffle"
 					paramPrefix="pl"
@@ -290,25 +317,8 @@ export function HomePage() {
 					title="My Albums"
 					items={albums}
 					keyOf={(a) => a.id}
-					renderItem={(album) => (
-						<AlbumCard
-							album={album}
-							onPlay={() => {
-								navigate({
-									to: "/album/$albumId",
-									params: { albumId: album.id },
-									search: { play: undefined, startIndex: undefined, shuffle: undefined },
-								});
-							}}
-						/>
-					)}
-					filterFn={(a, q) => {
-						const lower = q.toLowerCase();
-						return (
-							a.title.toLowerCase().includes(lower) ||
-							a.artist.toLowerCase().includes(lower)
-						);
-					}}
+					renderItem={renderAlbumItem}
+					filterFn={filterAlbum}
 					sortOptions={ALBUM_SORT_OPTIONS}
 					defaultSort="shuffle"
 					paramPrefix="al"
@@ -317,8 +327,9 @@ export function HomePage() {
 							type="button"
 							className="aspect-square border-2 border-dashed border-[var(--color-border)] rounded-lg flex flex-col items-center justify-center cursor-pointer hover:border-[var(--color-text-dim)] transition-colors"
 							onClick={() => navigate({ to: "/search" })}
+							aria-label="Add album"
 						>
-							<Plus className="w-8 h-8 text-[var(--color-text-dim)] mb-1" />
+							<Plus className="w-8 h-8 text-[var(--color-text-dim)] mb-1" aria-hidden="true" />
 							<span className="text-xs text-[var(--color-text-dim)]">
 								Add album
 							</span>
