@@ -1,7 +1,15 @@
+/**
+ * @module DeleteStationDialog
+ * Confirmation dialog for deleting a radio station.
+ */
+
 import { Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { trpc } from "@/web/shared/lib/trpc";
 
+/**
+ * Props for the DeleteStationDialog component.
+ */
 type DeleteStationDialogProps = {
 	readonly stationId: string;
 	readonly stationName: string;
@@ -9,6 +17,11 @@ type DeleteStationDialogProps = {
 	readonly onCancel: () => void;
 };
 
+/**
+ * Confirmation dialog for permanently deleting a radio station.
+ * Shows warning message and requires explicit confirmation.
+ * Closes on Escape key or cancel button.
+ */
 export function DeleteStationDialog({
 	stationId,
 	stationName,
@@ -37,6 +50,10 @@ export function DeleteStationDialog({
 			onKeyDown={(e) => {
 				if (e.key === "Escape") onCancel();
 			}}
+			role="alertdialog"
+			aria-modal="true"
+			aria-labelledby="delete-dialog-title"
+			aria-describedby="delete-dialog-desc"
 		>
 			<div
 				className="bg-[var(--color-bg)] border border-[var(--color-border)] rounded-xl p-6 max-w-sm w-full shadow-2xl"
@@ -44,10 +61,10 @@ export function DeleteStationDialog({
 				onKeyDown={() => {}}
 			>
 				<div className="flex items-center gap-3 mb-4">
-					<div className="w-10 h-10 rounded-full bg-[var(--color-bg-highlight)] flex items-center justify-center">
+					<div className="w-10 h-10 rounded-full bg-[var(--color-bg-highlight)] flex items-center justify-center" aria-hidden="true">
 						<Trash2 className="w-5 h-5 text-[var(--color-error)]" />
 					</div>
-					<h2 className="text-lg font-semibold text-[var(--color-text)]">
+					<h2 id="delete-dialog-title" className="text-lg font-semibold text-[var(--color-text)]">
 						Delete Station
 					</h2>
 				</div>
@@ -58,7 +75,7 @@ export function DeleteStationDialog({
 				<p className="text-sm font-medium text-[var(--color-text)] mb-4">
 					&ldquo;{stationName}&rdquo;?
 				</p>
-				<p className="text-xs text-[var(--color-text-dim)] mb-6">
+				<p id="delete-dialog-desc" className="text-xs text-[var(--color-text-dim)] mb-6">
 					This action cannot be undone.
 				</p>
 

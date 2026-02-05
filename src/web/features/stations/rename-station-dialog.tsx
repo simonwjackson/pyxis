@@ -1,7 +1,15 @@
+/**
+ * @module RenameStationDialog
+ * Dialog for renaming a radio station.
+ */
+
 import { useState, useEffect, useRef } from "react";
 import { toast } from "sonner";
 import { trpc } from "@/web/shared/lib/trpc";
 
+/**
+ * Props for the RenameStationDialog component.
+ */
 type RenameStationDialogProps = {
 	readonly stationId: string;
 	readonly stationName: string;
@@ -9,6 +17,11 @@ type RenameStationDialogProps = {
 	readonly onCancel: () => void;
 };
 
+/**
+ * Modal dialog for renaming a radio station.
+ * Shows input field with current name pre-selected.
+ * Closes on Escape key or cancel button.
+ */
 export function RenameStationDialog({
 	stationId,
 	stationName,
@@ -50,13 +63,16 @@ export function RenameStationDialog({
 			onKeyDown={(e) => {
 				if (e.key === "Escape") onCancel();
 			}}
+			role="dialog"
+			aria-modal="true"
+			aria-labelledby="rename-dialog-title"
 		>
 			<div
 				className="bg-[var(--color-bg)] border border-[var(--color-border)] rounded-xl p-6 max-w-sm w-full shadow-2xl"
 				onClick={(e) => e.stopPropagation()}
 				onKeyDown={() => {}}
 			>
-				<h2 className="text-lg font-semibold text-[var(--color-text)] mb-4">
+				<h2 id="rename-dialog-title" className="text-lg font-semibold text-[var(--color-text)] mb-4">
 					Rename Station
 				</h2>
 

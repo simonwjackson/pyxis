@@ -1,16 +1,45 @@
+/**
+ * @module ErrorBoundary
+ * React error boundary for catching and displaying component errors.
+ */
+
 import { Component, type ReactNode } from "react";
 import { Button } from "./button";
 
+/**
+ * Props for the ErrorBoundary component.
+ */
 type ErrorBoundaryProps = {
+	/** Child components to wrap with error boundary */
 	readonly children: ReactNode;
+	/** Custom fallback UI to show on error (optional) */
 	readonly fallback?: ReactNode;
 };
 
+/**
+ * Internal state tracking error status.
+ */
 type ErrorBoundaryState = {
+	/** Whether an error has been caught */
 	readonly hasError: boolean;
+	/** The caught error object, or null */
 	readonly error: Error | null;
 };
 
+/**
+ * Error boundary component that catches JavaScript errors in child components.
+ * Displays a fallback UI with error message and retry option.
+ *
+ * Note: This uses a class component because React's error boundaries
+ * require getDerivedStateFromError or componentDidCatch lifecycle methods.
+ *
+ * @example
+ * ```tsx
+ * <ErrorBoundary>
+ *   <RiskyComponent />
+ * </ErrorBoundary>
+ * ```
+ */
 export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
 	constructor(props: ErrorBoundaryProps) {
 		super(props);

@@ -1,27 +1,64 @@
+/**
+ * @module usePlayback
+ * Audio playback hook with server synchronization.
+ * Manages HTML Audio element and syncs state with server via SSE subscriptions.
+ */
+
 import { useState, useRef, useCallback, useEffect } from "react";
 import { trpc } from "../lib/trpc";
 import type { SourceType } from "../../../sources/types.js";
 
+/**
+ * Track information for playback.
+ */
 export type PlaybackTrack = {
+	/** Opaque track token (source:trackId format) */
 	readonly trackToken: string;
+	/** Track title */
 	readonly songName: string;
+	/** Artist name */
 	readonly artistName: string;
+	/** Album name */
 	readonly albumName: string;
+	/** Direct audio stream URL */
 	readonly audioUrl: string;
+	/** Album artwork URL */
 	readonly artUrl?: string;
+	/** Source backend (pandora, ytmusic, etc.) */
 	readonly source?: SourceType;
 };
 
+/**
+ * Internal playback state.
+ */
 type PlaybackState = {
+	/** Currently playing track, or null if stopped */
 	readonly currentTrack: PlaybackTrack | null;
+	/** Current station token (for Pandora radio context) */
 	readonly currentStationToken: string | null;
+	/** Whether audio is currently playing */
 	readonly isPlaying: boolean;
+	/** Current playback position in seconds */
 	readonly progress: number;
+	/** Total track duration in seconds */
 	readonly duration: number;
+	/** Error message if playback failed, null otherwise */
 	readonly error: string | null;
+	/** Volume level from 0-100 */
 	readonly volume: number;
 };
 
+/**
+ * Main playback hook providing audio controls and server synchronization.
+ * Manages HTML Audio element lifecycle, SSE state subscriptions, and server mutations.
+ *
+ * @returns Playback state and control functions
+ *
+ * @example
+ * ```tsx
+ * const { isPlaying, togglePlayPause, currentTrack, seek } = usePlayback();
+ * ```
+ */
 export function usePlayback() {
 	const audioRef = useRef<HTMLAudioElement | null>(null);
 	const [state, setState] = useState<PlaybackState>({

@@ -1,3 +1,9 @@
+/**
+ * @module SearchPage
+ * Unified search page for discovering music across all sources.
+ * Supports searching tracks, albums, artists, and genre stations.
+ */
+
 import { useState, useCallback, useMemo } from "react";
 import { Search as SearchIcon } from "lucide-react";
 import { toast } from "sonner";
@@ -12,6 +18,9 @@ import type {
 } from "./search-results";
 import { Spinner } from "@/web/shared/ui/spinner";
 
+/**
+ * Combined search results from all sources.
+ */
 type SearchData = {
 	readonly tracks: readonly SearchTrack[];
 	readonly albums: readonly SearchAlbum[];
@@ -86,6 +95,10 @@ function SearchContent({
 	}
 }
 
+/**
+ * Main search page with debounced search and results display.
+ * Shows albums, tracks, artists, and genre stations from unified search.
+ */
 export function SearchPage() {
 	const [query, setQuery] = useState("");
 	const utils = trpc.useUtils();

@@ -1,3 +1,9 @@
+/**
+ * @module NowPlayingBar
+ * Global playback control bar fixed to the bottom of the viewport.
+ * Shows current track info, progress, transport controls, and Pandora-specific actions.
+ */
+
 import { useState, useRef, useCallback } from "react";
 import {
 	Play,
@@ -18,16 +24,29 @@ import { trpc } from "../lib/trpc";
 import { formatTime } from "../lib/now-playing-utils";
 import { TrackInfoModal } from "../track-info-modal";
 
+/**
+ * Queue context describing the origin of the current playback.
+ */
 type QueueContext =
 	| { readonly type: "radio"; readonly seedId: string }
 	| { readonly type: "album"; readonly albumId: string }
 	| { readonly type: "playlist"; readonly playlistId: string }
 	| { readonly type: "manual" };
 
+/**
+ * Checks if a track token represents a Pandora track.
+ * @param trackToken - Track token to check
+ * @returns True if the track is from Pandora
+ */
 function isPandoraTrack(trackToken: string): boolean {
 	return trackToken.startsWith("pandora:");
 }
 
+/**
+ * Navigates to the appropriate page based on queue context.
+ * @param navigate - Router navigate function
+ * @param context - Current queue context
+ */
 function navigateToContext(
 	navigate: ReturnType<typeof useNavigate>,
 	context: QueueContext,
@@ -63,6 +82,17 @@ function navigateToContext(
 	}
 }
 
+/**
+ * Fixed bottom bar showing current playback state and controls.
+ * Responsive: shows compact layout on mobile, full layout on desktop.
+ * Includes seekable progress bar, transport controls, and Pandora-specific actions.
+ *
+ * Features:
+ * - Seekable progress bar with keyboard navigation (Arrow keys)
+ * - Play/pause, skip, previous controls
+ * - Pandora-specific: like/dislike, bookmark, sleep, track info
+ * - Click track info to navigate to context (album, playlist, station)
+ */
 export function NowPlayingBar() {
 	const playback = usePlaybackContext();
 	const { currentTrack, isPlaying, progress, duration, togglePlayPause, triggerSkip, triggerPrevious, seek } = playback;

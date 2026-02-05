@@ -1,21 +1,38 @@
+/**
+ * @module SearchResults
+ * Components for displaying search results: albums, tracks, artists, and genres.
+ */
+
 import { User, Music, LayoutGrid, Disc3, Radio } from "lucide-react";
 
+/**
+ * Pandora artist search result.
+ */
 export type SearchArtist = {
 	readonly musicToken: string;
 	readonly artistName: string;
 };
 
+/**
+ * Pandora song search result.
+ */
 export type SearchSong = {
 	readonly musicToken: string;
 	readonly songName: string;
 	readonly artistName: string;
 };
 
+/**
+ * Pandora genre station search result.
+ */
 export type SearchGenreStation = {
 	readonly musicToken: string;
 	readonly stationName: string;
 };
 
+/**
+ * Unified track search result from any source.
+ */
 export type SearchTrack = {
 	readonly id: string;
 	readonly title: string;
@@ -25,6 +42,9 @@ export type SearchTrack = {
 	readonly capabilities: { readonly radio: boolean };
 };
 
+/**
+ * Unified album search result from any source.
+ */
 export type SearchAlbum = {
 	readonly id: string;
 	readonly title: string;

@@ -1,3 +1,9 @@
+/**
+ * @module Sidebar
+ * Main navigation sidebar for desktop viewports.
+ * Shows application branding and navigation links.
+ */
+
 import { type ReactNode } from "react";
 import { Link, useRouterState } from "@tanstack/react-router";
 import {
@@ -11,13 +17,21 @@ import {
 import { cn } from "../lib/utils";
 import { trpc } from "../lib/trpc";
 
+/**
+ * Navigation item configuration.
+ */
 type NavItem = {
+	/** Display label for the nav item */
 	readonly label: string;
+	/** Route path to navigate to */
 	readonly path: string;
+	/** Icon component to render */
 	readonly icon: ReactNode;
+	/** If true, only show when Pandora is authenticated */
 	readonly requiresPandora?: boolean;
 };
 
+/** All navigation items in display order */
 const navItems: readonly NavItem[] = [
 	{ label: "Home", path: "/", icon: <Home className="w-5 h-5" /> },
 	{ label: "Stations", path: "/stations", icon: <Radio className="w-5 h-5" />, requiresPandora: true },
@@ -41,6 +55,11 @@ const navItems: readonly NavItem[] = [
 	},
 ];
 
+/**
+ * Desktop navigation sidebar with branding and navigation links.
+ * Hidden on mobile viewports (< md breakpoint).
+ * Conditionally shows Pandora-specific links based on authentication status.
+ */
 export function Sidebar() {
 	const { location } = useRouterState();
 	const statusQuery = trpc.auth.status.useQuery();

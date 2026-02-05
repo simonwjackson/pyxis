@@ -1,17 +1,35 @@
+/**
+ * @module StationList
+ * List component for displaying and interacting with radio stations.
+ */
+
 import { type ReactNode, useState } from "react";
 import { Radio, Shuffle, MoreVertical } from "lucide-react";
 import { StationContextMenu } from "./station-context-menu";
 
+/**
+ * Radio station data for display in the list.
+ */
 export type RadioStation = {
+	/** Opaque station identifier (pandora:stationToken) */
 	readonly id: string;
+	/** Station token */
 	readonly stationId: string;
+	/** Display name */
 	readonly name: string;
+	/** Whether this is the QuickMix/Shuffle station */
 	readonly isQuickMix: boolean;
+	/** Whether deletion is allowed */
 	readonly allowDelete?: boolean;
+	/** Whether renaming is allowed */
 	readonly allowRename?: boolean;
+	/** Station IDs included in QuickMix (if this is QuickMix) */
 	readonly quickMixStationIds?: readonly string[];
 };
 
+/**
+ * Props for the StationList component.
+ */
 type StationListProps = {
 	readonly stations: readonly RadioStation[];
 	readonly currentStationId?: string | undefined;
@@ -118,6 +136,12 @@ const StationItem = {
 	Actions: StationItemActions,
 };
 
+/**
+ * List of radio stations with selection and context menu actions.
+ * Displays stations with play, rename, delete, and details options.
+ *
+ * @param props - Station list props including handlers for user actions
+ */
 export function StationList({
 	stations,
 	currentStationId,

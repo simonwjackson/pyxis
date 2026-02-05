@@ -1,8 +1,18 @@
+/**
+ * @module SettingsPage
+ * User settings and account information page.
+ * Shows Pandora account settings, explicit content filter, and usage statistics.
+ */
+
 import { Settings } from "lucide-react";
 import { toast } from "sonner";
 import { trpc } from "@/web/shared/lib/trpc";
 import { Spinner } from "@/web/shared/ui/spinner";
 
+/**
+ * Settings page displaying account information and preferences.
+ * Shows Pandora-specific settings when authenticated.
+ */
 export function SettingsPage() {
 	const statusQuery = trpc.auth.status.useQuery();
 	const hasPandora = statusQuery.data?.hasPandora ?? false;
@@ -79,6 +89,9 @@ export function SettingsPage() {
 									: "bg-[var(--color-bg-highlight)]"
 							}`}
 							type="button"
+							role="switch"
+							aria-checked={settings.isExplicitContentFilterEnabled}
+							aria-label="Explicit content filter"
 						>
 							<div
 								className={`w-5 h-5 rounded-full bg-white transition-transform absolute top-0.5 ${
@@ -86,6 +99,7 @@ export function SettingsPage() {
 										? "translate-x-6"
 										: "translate-x-0.5"
 								}`}
+								aria-hidden="true"
 							/>
 						</button>
 					</div>

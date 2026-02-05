@@ -1,13 +1,28 @@
+/**
+ * @module TrackInfoModal
+ * Modal dialog displaying detailed track information and Pandora Music Genome traits.
+ */
+
 import { X, Loader2, Music } from "lucide-react";
 import { trpc } from "./lib/trpc";
 
+/**
+ * Props for the TrackInfoModal component.
+ */
 type TrackInfoModalProps = {
+	/** Track ID for fetching Music Genome traits */
 	readonly trackId: string;
+	/** Track title */
 	readonly songName: string;
+	/** Artist name */
 	readonly artistName: string;
+	/** Album name */
 	readonly albumName: string;
+	/** Album artwork URL */
 	readonly albumArtUrl?: string | undefined;
+	/** Track duration in seconds */
 	readonly duration: number;
+	/** Callback to close the modal */
 	readonly onClose: () => void;
 };
 
@@ -154,6 +169,13 @@ function Traits({ trackId }: { readonly trackId: string }) {
 	);
 }
 
+/**
+ * Modal dialog showing track details and Music Genome traits.
+ * Includes track metadata, album artwork, and Pandora's musical analysis.
+ * Closes on Escape key or clicking outside the modal.
+ *
+ * @param props - Track information and close callback
+ */
 export function TrackInfoModal({
 	trackId,
 	songName,

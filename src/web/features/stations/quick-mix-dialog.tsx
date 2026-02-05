@@ -1,14 +1,26 @@
+/**
+ * @module QuickMixDialog
+ * Dialog for managing which stations are included in QuickMix/Shuffle.
+ */
+
 import { useState, useMemo } from "react";
 import { Shuffle } from "lucide-react";
 import { toast } from "sonner";
 import { trpc } from "@/web/shared/lib/trpc";
 import type { RadioStation } from "./station-list";
 
+/**
+ * Props for the QuickMixDialog component.
+ */
 type QuickMixDialogProps = {
 	readonly stations: readonly RadioStation[];
 	readonly onClose: () => void;
 };
 
+/**
+ * Modal dialog for selecting stations to include in QuickMix (Shuffle) mode.
+ * Shows all stations with checkboxes and All/None selection helpers.
+ */
 export function QuickMixDialog({ stations, onClose }: QuickMixDialogProps) {
 	const quickMixStation = stations.find((s) => s.isQuickMix);
 	const initialIds = useMemo(
@@ -64,6 +76,9 @@ export function QuickMixDialog({ stations, onClose }: QuickMixDialogProps) {
 			onKeyDown={(e) => {
 				if (e.key === "Escape") onClose();
 			}}
+			role="dialog"
+			aria-modal="true"
+			aria-labelledby="quickmix-dialog-title"
 		>
 			<div
 				className="bg-[var(--color-bg)] border border-[var(--color-border)] rounded-xl w-full max-w-md max-h-[70vh] flex flex-col shadow-2xl"
@@ -72,11 +87,11 @@ export function QuickMixDialog({ stations, onClose }: QuickMixDialogProps) {
 			>
 				<div className="p-4 border-b border-[var(--color-border)] flex items-center justify-between shrink-0">
 					<div className="flex items-center gap-3">
-						<div className="w-9 h-9 rounded-lg bg-[var(--color-bg-highlight)] flex items-center justify-center">
+						<div className="w-9 h-9 rounded-lg bg-[var(--color-bg-highlight)] flex items-center justify-center" aria-hidden="true">
 							<Shuffle className="w-4 h-4 text-[var(--color-secondary)]" />
 						</div>
 						<div>
-							<h2 className="text-lg font-semibold text-[var(--color-text)]">
+							<h2 id="quickmix-dialog-title" className="text-lg font-semibold text-[var(--color-text)]">
 								Manage Shuffle
 							</h2>
 							<p className="text-sm text-[var(--color-text-dim)]">

@@ -1,33 +1,72 @@
+/**
+ * @module Themes
+ * Theme definitions and utilities for the application.
+ * Provides predefined color themes and CSS variable application.
+ */
+
+/**
+ * Color palette for a theme.
+ */
 type ThemeColors = {
+	/** Primary accent color (buttons, links) */
 	readonly primary: string;
+	/** Secondary accent color */
 	readonly secondary: string;
+	/** Tertiary/highlight accent */
 	readonly accent: string;
+	/** Main text color */
 	readonly text: string;
+	/** Muted text color (subtitles, metadata) */
 	readonly textMuted: string;
+	/** Dimmed text color (placeholders, disabled) */
 	readonly textDim: string;
+	/** Main background color */
 	readonly background: string;
+	/** Panel/sidebar background */
 	readonly backgroundPanel: string;
+	/** Highlighted/hover background */
 	readonly backgroundHighlight: string;
+	/** Selection/focus background */
 	readonly backgroundSelection: string;
+	/** Border color */
 	readonly border: string;
+	/** Active/focused border color */
 	readonly borderActive: string;
+	/** Error state color */
 	readonly error: string;
+	/** Warning state color */
 	readonly warning: string;
+	/** Success state color */
 	readonly success: string;
+	/** Currently playing indicator */
 	readonly playing: string;
+	/** Liked/thumbs up indicator */
 	readonly liked: string;
+	/** Disliked/thumbs down indicator */
 	readonly disliked: string;
+	/** Progress bar fill */
 	readonly progress: string;
+	/** Progress bar track */
 	readonly progressTrack: string;
 };
 
+/**
+ * Complete theme definition including colors and metadata.
+ */
 type ThemeDefinition = {
+	/** Theme identifier */
 	readonly name: string;
+	/** Human-readable label */
 	readonly label: string;
+	/** Theme colors */
 	readonly colors: ThemeColors;
+	/** CSS gradient for theme preview */
 	readonly gradient: string;
 };
 
+/**
+ * All available theme definitions keyed by name.
+ */
 export const themes: Record<string, ThemeDefinition> = {
 	system: {
 		name: "system",
@@ -247,8 +286,14 @@ export const themes: Record<string, ThemeDefinition> = {
 	},
 };
 
+/** Array of all theme names for iteration */
 export const themeNames = Object.keys(themes);
 
+/**
+ * Applies a theme by setting CSS custom properties on the document root.
+ *
+ * @param themeName - Name of the theme to apply
+ */
 export function applyTheme(themeName: string) {
 	const theme = themes[themeName];
 	if (!theme) return;
@@ -279,14 +324,26 @@ export function applyTheme(themeName: string) {
 	updateThemeColor(c.background);
 }
 
+/**
+ * Updates the browser theme-color meta tag.
+ * Affects mobile browser chrome color on supported platforms.
+ *
+ * @param color - CSS color value for browser chrome
+ */
 export function updateThemeColor(color: string) {
 	document
 		.querySelector('meta[name="theme-color"]')
 		?.setAttribute("content", color);
 }
 
+/** localStorage key for persisted theme preference */
 const STORAGE_KEY = "pyxis-theme";
 
+/**
+ * Retrieves the saved theme from localStorage.
+ *
+ * @returns Saved theme name, or "system" if not set or on error
+ */
 export function getSavedTheme(): string {
 	try {
 		return localStorage.getItem(STORAGE_KEY) ?? "system";
@@ -295,6 +352,11 @@ export function getSavedTheme(): string {
 	}
 }
 
+/**
+ * Persists the theme selection to localStorage.
+ *
+ * @param name - Theme name to save
+ */
 export function saveTheme(name: string) {
 	try {
 		localStorage.setItem(STORAGE_KEY, name);

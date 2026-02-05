@@ -1,11 +1,29 @@
+/**
+ * @module Commands
+ * Command palette definitions and utilities.
+ * Provides keyboard shortcuts and command filtering for the command palette UI.
+ */
+
+/**
+ * Represents a command in the command palette.
+ */
 type Command = {
+	/** Unique command identifier */
 	readonly id: string;
+	/** Human-readable command label */
 	readonly label: string;
+	/** Category for grouping commands */
 	readonly category: "playback" | "navigation" | "station" | "appearance";
+	/** Keyboard shortcut (e.g., "Space", "N", "+") */
 	readonly shortcut?: string;
+	/** Action identifier for command execution */
 	readonly action: string;
 };
 
+/**
+ * All available commands in the application.
+ * Organized by category: playback, navigation, station, appearance.
+ */
 export const commands: readonly Command[] = [
 	// Playback
 	{ id: "playPause", label: "Play / Pause", category: "playback", shortcut: "Space", action: "playPause" },
@@ -26,8 +44,16 @@ export const commands: readonly Command[] = [
 	{ id: "changeTheme", label: "Change Theme", category: "appearance", action: "changeTheme" },
 ];
 
+/** Order in which categories are displayed in the command palette */
 const categoryOrder: readonly string[] = ["playback", "navigation", "appearance"];
 
+/**
+ * Filters commands by search query.
+ * Matches against label and category (case-insensitive).
+ *
+ * @param query - Search query string
+ * @returns Filtered commands matching the query
+ */
 export function filterCommands(query: string): readonly Command[] {
 	if (!query.trim()) return commands;
 	const lower = query.toLowerCase();
@@ -38,6 +64,13 @@ export function filterCommands(query: string): readonly Command[] {
 	);
 }
 
+/**
+ * Groups commands by category for display in the command palette.
+ * Categories are ordered according to categoryOrder.
+ *
+ * @param cmds - Commands to group
+ * @returns Array of category groups, each containing a category name and commands
+ */
 export function groupCommands(
 	cmds: readonly Command[],
 ): readonly { readonly category: string; readonly commands: readonly Command[] }[] {
