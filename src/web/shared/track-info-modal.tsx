@@ -170,15 +170,18 @@ export function TrackInfoModal({
 			onKeyDown={(e) => {
 				if (e.key === "Escape") onClose();
 			}}
+			role="dialog"
+			aria-modal="true"
+			aria-labelledby="track-info-title"
 		>
-			<div className="fixed inset-0 bg-black/60" />
+			<div className="fixed inset-0 bg-black/60" aria-hidden="true" />
 			<div
 				className="relative bg-[var(--color-bg)] border border-[var(--color-border)] rounded-xl max-w-md w-full shadow-2xl mx-4 max-h-[80vh] flex flex-col"
 				onClick={(e) => e.stopPropagation()}
 				onKeyDown={() => {}}
 			>
 				<div className="flex items-center justify-between p-4 border-b border-[var(--color-border)]">
-					<h2 className="text-lg font-semibold text-[var(--color-text)]">
+					<h2 id="track-info-title" className="text-lg font-semibold text-[var(--color-text)]">
 						Track Info
 					</h2>
 					<button

@@ -1,3 +1,10 @@
+/**
+ * @module stream
+ * Audio streaming proxy with disk caching.
+ * Fetches audio from source backends, caches to disk for non-Pandora sources,
+ * and supports HTTP range requests for seeking.
+ */
+
 import { mkdirSync, existsSync, readFileSync, writeFileSync, renameSync, unlinkSync } from "node:fs";
 import { join } from "node:path";
 import envPaths from "env-paths";
@@ -57,12 +64,23 @@ const activePrefetches = new Set<string>();
 
 // --- Stream request types ---
 
+/**
+ * Parsed stream request containing source and track identifier.
+ */
 export type StreamRequest = {
+	/** Source backend identifier */
 	readonly source: SourceType;
+	/** Source-specific track identifier */
 	readonly trackId: string;
 };
 
-// Parse a composite track ID (format: "source:trackId")
+/**
+ * Parses a composite track ID into source and track components.
+ * Format: "source:trackId" (e.g., "ytmusic:dQw4w9WgXcQ")
+ *
+ * @param compositeId - Composite ID in "source:trackId" format
+ * @returns Parsed source type and track ID
+ */
 export function parseTrackId(compositeId: string): StreamRequest {
 	const separatorIndex = compositeId.indexOf(":");
 	if (separatorIndex === -1) {
@@ -74,10 +92,24 @@ export function parseTrackId(compositeId: string): StreamRequest {
 	return { source, trackId };
 }
 
+/**
+ * Encodes a source type and track ID into a composite ID string.
+ *
+ * @param source - Source backend identifier
+ * @param trackId - Source-specific track identifier
+ * @returns Composite ID in "source:trackId" format
+ */
 export function encodeTrackId(source: SourceType, trackId: string): string {
 	return `${source}:${trackId}`;
 }
 
+/**
+ * Resolves a composite track ID to a streamable audio URL.
+ *
+ * @param sourceManager - Source manager for URL resolution
+ * @param compositeId - Composite ID in "source:trackId" format
+ * @returns Direct audio stream URL
+ */
 export async function resolveStreamUrl(
 	sourceManager: SourceManager,
 	compositeId: string,
@@ -193,6 +225,14 @@ async function streamThroughAndCache(
 
 // --- Prefetch ---
 
+/**
+ * Prefetches a track to the local cache in the background.
+ * Skips Pandora tracks (short-lived URLs) and already-cached tracks.
+ * Deduplicates concurrent prefetch requests for the same track.
+ *
+ * @param sourceManager - Source manager for URL resolution
+ * @param compositeId - Composite ID of track to prefetch
+ */
 export async function prefetchToCache(
 	sourceManager: SourceManager,
 	compositeId: string,
@@ -259,7 +299,16 @@ export async function prefetchToCache(
 	}
 }
 
-// Handle the stream proxy - fetches from source and pipes through
+/**
+ * Handles an audio stream request, serving from cache or fetching upstream.
+ * For non-Pandora sources, caches the response to disk on first request.
+ * Supports HTTP range requests for seeking within cached files.
+ *
+ * @param sourceManager - Source manager for URL resolution
+ * @param compositeId - Composite ID of track to stream
+ * @param rangeHeader - HTTP Range header for partial content requests
+ * @returns HTTP Response with audio stream
+ */
 export async function handleStreamRequest(
 	sourceManager: SourceManager,
 	compositeId: string,

@@ -1,3 +1,9 @@
+/**
+ * @module trpc
+ * tRPC server configuration with context factory and middleware.
+ * Provides base procedures and authentication middleware for Pandora-protected routes.
+ */
+
 import { initTRPC, TRPCError } from "@trpc/server";
 import { getSourceManager, ensureSourceManager } from "./services/sourceManager.js";
 import { getPandoraSessionFromCredentials, refreshPandoraSession } from "./services/credentials.js";
@@ -15,11 +21,24 @@ function isPandoraAuthError(err: unknown): boolean {
 	return err instanceof ApiCallError && err.code != null && AUTH_ERROR_CODES.has(err.code);
 }
 
+/**
+ * tRPC context available to all procedures.
+ * Contains authentication state and source manager for API operations.
+ */
 export type Context = {
+	/** Authenticated Pandora session, undefined if not logged in */
 	readonly pandoraSession: PandoraSession | undefined;
+	/** Unified source manager for multi-backend operations */
 	readonly sourceManager: SourceManager;
 };
 
+/**
+ * Creates tRPC context for each request.
+ * Initializes authentication state and source manager based on stored credentials.
+ *
+ * @param _req - The incoming HTTP request (unused, auth from stored credentials)
+ * @returns Context with Pandora session (if logged in) and source manager
+ */
 export async function createContext(_req: Request): Promise<Context> {
 	const pandoraSession = getPandoraSessionFromCredentials();
 
@@ -32,7 +51,10 @@ export async function createContext(_req: Request): Promise<Context> {
 
 const t = initTRPC.context<Context>().create();
 
+/** tRPC router factory for creating sub-routers */
 export const router = t.router;
+
+/** Base procedure without authentication requirements */
 export const publicProcedure = t.procedure;
 
 /**

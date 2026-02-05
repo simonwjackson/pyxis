@@ -72,6 +72,7 @@ function StationItemRoot({
 				onClick={onSelect}
 				className="flex items-center gap-3 flex-1 min-w-0 text-left"
 				type="button"
+				aria-label="Play station"
 			>
 				<div className="w-10 h-10 rounded flex items-center justify-center shrink-0 bg-[var(--color-bg-highlight)]">
 					{icon}

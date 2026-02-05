@@ -1,3 +1,9 @@
+/**
+ * @module autoLogin
+ * Server startup initialization handling auto-login, state restoration, and auto-fetch registration.
+ * Called once during server boot to set up Pandora session and restore playback state.
+ */
+
 import { getSourceManager, setGlobalSourceManager, ensureSourceManager } from "./sourceManager.js";
 import { loginPandora, refreshPandoraSession } from "./credentials.js";
 import { ApiCallError } from "../../src/sources/pandora/types/errors.js";
@@ -70,6 +76,14 @@ function registerAutoFetchHandler(logger: Logger): void {
 	});
 }
 
+/**
+ * Attempts auto-login on server startup using configured credentials.
+ * Sets up radio auto-fetch handler and restores persisted playback state.
+ * Continues gracefully if login fails or credentials aren't configured.
+ *
+ * @param logger - Logger for status messages
+ * @param config - Application configuration with Pandora credentials
+ */
 export async function tryAutoLogin(logger: Logger, config: AppConfig): Promise<void> {
 	const username = config.sources.pandora.username;
 	const password = getPandoraPassword();

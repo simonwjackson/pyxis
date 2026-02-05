@@ -1,3 +1,10 @@
+/**
+ * @module sourceManager
+ * Factory and lifecycle management for music source managers.
+ * Creates per-session source managers with Pandora auth, caches shared sources,
+ * and provides a global fallback manager for unauthenticated requests.
+ */
+
 import type { PandoraSession } from "../../src/sources/pandora/client.js";
 import { createSourceManager } from "../../src/sources/index.js";
 import type { SourceManager } from "../../src/sources/index.js";
@@ -121,16 +128,33 @@ async function buildSharedSources(config: AppConfig): Promise<SharedSources> {
 // Store config reference for metadata source creation
 let appConfig: AppConfig | undefined;
 
+/**
+ * Sets the application config for source initialization.
+ * Resets cached shared sources to pick up config changes.
+ *
+ * @param config - Application configuration with source settings
+ */
 export function setAppConfig(config: AppConfig): void {
 	appConfig = config;
 	// Reset cached shared sources when config changes
 	cachedSharedSources = undefined;
 }
 
+/**
+ * Clears all cached source managers.
+ * Call after session refresh or credential changes to force re-creation.
+ */
 export function invalidateManagers(): void {
 	managers.clear();
 }
 
+/**
+ * Gets or creates a source manager for an authenticated Pandora session.
+ * Caches managers by userAuthToken to avoid recreating sources per-request.
+ *
+ * @param session - Authenticated Pandora session
+ * @returns Source manager with Pandora, YTMusic, and configured metadata sources
+ */
 export async function getSourceManager(
 	session: PandoraSession,
 ): Promise<SourceManager> {
@@ -153,6 +177,13 @@ export async function getSourceManager(
 	return manager;
 }
 
+/**
+ * Registers Pandora playlist items in the source's track cache.
+ * Required before getStreamUrl can resolve Pandora track URLs.
+ *
+ * @param manager - Source manager containing a Pandora source
+ * @param items - Playlist items from a Pandora getPlaylist response
+ */
 export function registerPandoraPlaylistItems(
 	manager: SourceManager,
 	items: readonly PlaylistItem[],
@@ -166,6 +197,12 @@ export function registerPandoraPlaylistItems(
 // For the stream endpoint which may not have a session context
 let globalManager: SourceManager | undefined;
 
+/**
+ * Gets the global source manager if one exists.
+ * Falls back to any cached per-session manager if no global manager is set.
+ *
+ * @returns The global source manager, or undefined if none exists
+ */
 export function getGlobalSourceManager(): SourceManager | undefined {
 	if (globalManager) return globalManager;
 	const first = managers.values().next();
@@ -176,6 +213,12 @@ export function getGlobalSourceManager(): SourceManager | undefined {
 	return undefined;
 }
 
+/**
+ * Sets the global source manager explicitly.
+ * Used after successful login to make the authenticated manager globally available.
+ *
+ * @param manager - Source manager to set as the global default
+ */
 export function setGlobalSourceManager(manager: SourceManager): void {
 	globalManager = manager;
 }
