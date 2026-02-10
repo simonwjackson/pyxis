@@ -1,11 +1,12 @@
 /**
  * @module AlbumDetailPage
  * Album detail view showing track listing with play and shuffle controls.
+ * Supports both library albums (nanoid) and source-backed albums (source:id).
  */
 
-import { useEffect, useRef, useCallback } from "react";
-import { useNavigate } from "@tanstack/react-router";
-import { Play, Shuffle, Music, ArrowLeft } from "lucide-react";
+import { useEffect, useRef, useCallback, useState } from "react";
+import { useRouter } from "@tanstack/react-router";
+import { Play, Shuffle, Music, ArrowLeft, BookmarkPlus, Check } from "lucide-react";
 import { toast } from "sonner";
 import { trpc } from "@/web/shared/lib/trpc";
 import { usePlaybackContext } from "@/web/shared/playback/playback-context";
@@ -13,10 +14,12 @@ import { Skeleton } from "@/web/shared/ui/skeleton";
 import { Button } from "@/web/shared/ui/button";
 import {
 	albumTrackToNowPlaying,
+	sourceAlbumTrackToNowPlaying,
 	shuffleArray,
 	tracksToQueuePayload,
 	formatTime,
 } from "@/web/shared/lib/now-playing-utils";
+import type { SourceAlbumTrack } from "@/web/shared/lib/now-playing-utils";
 
 /**
  * Formats total duration as human-readable string.
@@ -36,7 +39,7 @@ function formatTotalDuration(totalSeconds: number): string {
  * Props for the AlbumDetailPage component.
  */
 type AlbumDetailPageProps = {
-	/** Album ID to display */
+	/** Album ID to display (nanoid for library, source:id for browsing) */
 	readonly albumId: string;
 	/** Whether to auto-play on mount */
 	readonly autoPlay?: boolean;
@@ -48,7 +51,7 @@ type AlbumDetailPageProps = {
 
 /**
  * Album detail page showing album art, metadata, and track listing.
- * Supports play, shuffle, and clicking individual tracks to start playback.
+ * Supports both library albums and source-backed albums.
  *
  * @param props - Album detail page props
  */
@@ -58,18 +61,66 @@ export function AlbumDetailPage({
 	startIndex,
 	shuffle,
 }: AlbumDetailPageProps) {
-	const navigate = useNavigate();
+	const router = useRouter();
 	const playback = usePlaybackContext();
 	const playbackRef = useRef(playback);
 	playbackRef.current = playback;
 
-	const albumsQuery = trpc.library.albums.useQuery();
-	const tracksQuery = trpc.library.albumTracks.useQuery({ albumId });
+	const isSourceBacked = albumId.includes(":");
 
-	const album = albumsQuery.data?.find((a) => a.id === albumId);
-	const tracks = tracksQuery.data;
+	// Library data (disabled when source-backed)
+	const libraryAlbumsQuery = trpc.library.albums.useQuery(undefined, {
+		enabled: !isSourceBacked,
+	});
+	const libraryTracksQuery = trpc.library.albumTracks.useQuery(
+		{ albumId },
+		{ enabled: !isSourceBacked },
+	);
 
-	const isLoading = albumsQuery.isLoading || tracksQuery.isLoading;
+	// Source data (disabled when library)
+	const sourceQuery = trpc.album.getWithTracks.useQuery(
+		{ id: albumId },
+		{ enabled: isSourceBacked },
+	);
+
+	// Normalize album data
+	const album = isSourceBacked
+		? sourceQuery.data?.album
+		: libraryAlbumsQuery.data?.find((a) => a.id === albumId);
+
+	// Normalize tracks to a common shape for rendering
+	const libraryTracks = libraryTracksQuery.data;
+	const sourceTracks = sourceQuery.data?.tracks;
+
+	const tracks = isSourceBacked ? sourceTracks : libraryTracks;
+
+	const isLoading = isSourceBacked
+		? sourceQuery.isLoading
+		: libraryAlbumsQuery.isLoading || libraryTracksQuery.isLoading;
+
+	const isError = isSourceBacked ? sourceQuery.isError : false;
+
+	// Save to library mutation
+	const utils = trpc.useUtils();
+	const [isSaved, setIsSaved] = useState(false);
+	const saveAlbum = trpc.library.saveAlbum.useMutation({
+		onSuccess(data) {
+			if (data.alreadyExists) {
+				toast.info("Album already in your collection");
+			} else {
+				toast.success("Album saved to collection");
+			}
+			setIsSaved(true);
+			utils.library.albums.invalidate();
+		},
+		onError(err) {
+			toast.error(`Failed to save album: ${err.message}`);
+		},
+	});
+
+	const handleSave = useCallback(() => {
+		saveAlbum.mutate({ id: albumId });
+	}, [saveAlbum, albumId]);
 
 	const hasAutoPlayedRef = useRef(false);
 
@@ -78,9 +129,33 @@ export function AlbumDetailPage({
 	const startPlayback = useCallback(
 		(idx: number, doShuffle: boolean) => {
 			if (!tracks || !album) return;
-			const ordered = tracks.map((t) =>
-				albumTrackToNowPlaying(t, album.title, album.artworkUrl),
-			);
+			const ordered = isSourceBacked
+				? (tracks as readonly SourceAlbumTrack[]).map((t) =>
+						sourceAlbumTrackToNowPlaying(
+							t,
+							album.title,
+							album.artworkUrl ?? null,
+						),
+					)
+				: (
+						tracks as readonly {
+							readonly id: string;
+							readonly trackIndex: number;
+							readonly title: string;
+							readonly artist: string;
+							readonly duration: number | null;
+							readonly artworkUrl: string | null;
+							readonly capabilities: {
+								readonly feedback: boolean;
+								readonly sleep: boolean;
+								readonly bookmark: boolean;
+								readonly explain: boolean;
+								readonly radio: boolean;
+							};
+						}[]
+					).map((t) =>
+						albumTrackToNowPlaying(t, album.title, album.artworkUrl ?? null),
+					);
 			const newTracks = doShuffle ? shuffleArray(ordered) : ordered;
 			const startIdx = doShuffle ? 0 : idx;
 			playbackRef.current.setCurrentStationToken(albumId);
@@ -90,7 +165,7 @@ export function AlbumDetailPage({
 				startIndex: startIdx,
 			});
 		},
-		[tracks, album, albumId],
+		[tracks, album, albumId, isSourceBacked],
 	);
 
 	// Auto-play on mount if search params request it
@@ -119,6 +194,23 @@ export function AlbumDetailPage({
 		return <AlbumDetailSkeleton />;
 	}
 
+	if (isError) {
+		return (
+			<div className="flex-1 flex flex-col items-center justify-center p-4 gap-3">
+				<p className="text-[var(--color-text-dim)]">
+					Couldn't load album
+				</p>
+				<Button
+					variant="outline"
+					onClick={() => sourceQuery.refetch()}
+					className="rounded-full"
+				>
+					Retry
+				</Button>
+			</div>
+		);
+	}
+
 	if (!album) {
 		return (
 			<div className="flex-1 flex items-center justify-center p-4">
@@ -135,19 +227,9 @@ export function AlbumDetailPage({
 		<div className="flex-1 p-6 max-w-2xl mx-auto space-y-6">
 			<button
 				type="button"
-				onClick={() =>
-					navigate({
-						to: "/",
-						search: {
-							pl_sort: undefined,
-							pl_page: undefined,
-							al_sort: undefined,
-							al_page: undefined,
-						},
-					})
-				}
+				onClick={() => router.history.back()}
 				className="flex items-center gap-1.5 text-sm text-[var(--color-text-dim)] hover:text-[var(--color-text)] transition-colors"
-				aria-label="Back to home"
+				aria-label="Go back"
 			>
 				<ArrowLeft className="w-4 h-4" aria-hidden="true" />
 				Back
@@ -197,6 +279,26 @@ export function AlbumDetailPage({
 							<Shuffle className="w-4 h-4" />
 							Shuffle
 						</Button>
+						{isSourceBacked && (
+							<Button
+								variant="outline"
+								onClick={handleSave}
+								disabled={isSaved || saveAlbum.isPending}
+								className="gap-2 rounded-full"
+							>
+								{isSaved ? (
+									<>
+										<Check className="w-4 h-4" />
+										Saved
+									</>
+								) : (
+									<>
+										<BookmarkPlus className="w-4 h-4" />
+										{saveAlbum.isPending ? "Saving..." : "Save"}
+									</>
+								)}
+							</Button>
+						)}
 					</div>
 				</div>
 			</div>

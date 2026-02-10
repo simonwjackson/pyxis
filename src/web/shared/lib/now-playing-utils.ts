@@ -134,6 +134,46 @@ export function albumTrackToNowPlaying(
 }
 
 /**
+ * Source-backed album track type from the album.getWithTracks endpoint.
+ * Unlike AlbumTrackRow (library), these have source-prefixed IDs directly.
+ */
+export type SourceAlbumTrack = {
+	readonly id: string;
+	readonly trackIndex: number;
+	readonly title: string;
+	readonly artist: string;
+	readonly album: string;
+	readonly duration?: number;
+	readonly artworkUrl?: string;
+	readonly capabilities: TrackCapabilities;
+};
+
+/**
+ * Converts a source-backed album track to the unified NowPlayingTrack format.
+ *
+ * @param track - Source album track with source-prefixed ID
+ * @param albumName - Name of the album containing this track
+ * @param albumArtUrl - Fallback artwork URL if track has no artwork
+ * @returns Normalized NowPlayingTrack
+ */
+export function sourceAlbumTrackToNowPlaying(
+	track: SourceAlbumTrack,
+	albumName: string,
+	albumArtUrl: string | null,
+): NowPlayingTrack {
+	const artUrl = track.artworkUrl ?? albumArtUrl;
+	return {
+		id: track.id,
+		songName: track.title,
+		artistName: track.artist,
+		albumName,
+		...(artUrl != null ? { albumArtUrl: artUrl } : {}),
+		capabilities: track.capabilities,
+		...(track.duration != null ? { duration: track.duration } : {}),
+	};
+}
+
+/**
  * Converts an array of NowPlayingTracks to queue API payload format.
  *
  * @param tracks - Array of NowPlayingTracks to convert
