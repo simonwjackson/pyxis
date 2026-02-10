@@ -11,6 +11,8 @@ import {
 	trackCapabilities,
 	albumCapabilities,
 	playlistCapabilities,
+	resolveTrackForStream,
+	resolveTrackSource,
 } from "./ids.js";
 
 describe("generateId", () => {
@@ -158,5 +160,65 @@ describe("playlistCapabilities", () => {
 			const caps = playlistCapabilities(source);
 			expect(caps.radio).toBe(true);
 		}
+	});
+});
+
+describe("resolveTrackForStream", () => {
+
+	it("returns source-prefixed ID as-is for pandora", async () => {
+		const result = await resolveTrackForStream("pandora:tracktoken123");
+		expect(result).toBe("pandora:tracktoken123");
+	});
+
+	it("returns source-prefixed ID as-is for ytmusic", async () => {
+		const result = await resolveTrackForStream("ytmusic:dQw4w9WgXcQ");
+		expect(result).toBe("ytmusic:dQw4w9WgXcQ");
+	});
+
+	it("returns source-prefixed ID as-is for bandcamp", async () => {
+		const result = await resolveTrackForStream("bandcamp:12345");
+		expect(result).toBe("bandcamp:12345");
+	});
+
+	it("returns source-prefixed ID as-is with colons in track ID", async () => {
+		const result = await resolveTrackForStream("pandora:track:with:colons");
+		expect(result).toBe("pandora:track:with:colons");
+	});
+
+	it("throws for unknown bare nanoid when DB lookup fails", async () => {
+		// A bare nanoid should trigger DB lookup, which will fail for non-existent IDs
+		await expect(resolveTrackForStream("unknownId1")).rejects.toThrow("Unknown track ID");
+	});
+});
+
+describe("resolveTrackSource", () => {
+
+	it("extracts source from pandora prefixed ID", async () => {
+		const result = await resolveTrackSource("pandora:tracktoken123");
+		expect(result).toBe("pandora");
+	});
+
+	it("extracts source from ytmusic prefixed ID", async () => {
+		const result = await resolveTrackSource("ytmusic:dQw4w9WgXcQ");
+		expect(result).toBe("ytmusic");
+	});
+
+	it("extracts source from bandcamp prefixed ID", async () => {
+		const result = await resolveTrackSource("bandcamp:12345");
+		expect(result).toBe("bandcamp");
+	});
+
+	it("extracts source from soundcloud prefixed ID", async () => {
+		const result = await resolveTrackSource("soundcloud:track456");
+		expect(result).toBe("soundcloud");
+	});
+
+	it("extracts source with colons in track ID", async () => {
+		const result = await resolveTrackSource("pandora:track:with:many:colons");
+		expect(result).toBe("pandora");
+	});
+
+	it("throws for unknown bare nanoid when DB lookup fails", async () => {
+		await expect(resolveTrackSource("unknownId2")).rejects.toThrow("Unknown track ID");
 	});
 });
