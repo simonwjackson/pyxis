@@ -1,7 +1,19 @@
+/**
+ * @module deezer/source
+ * Deezer metadata source implementation for the Pyxis music player.
+ * Provides album search capabilities using the Deezer API.
+ */
+
 import type { NormalizedRelease, MetadataSource, MetadataSearchQuery, ReleaseType } from "../types.js";
 import { createDeezerClient } from "./client.js";
 import type { AlbumSearchItem } from "./schemas.js";
 
+/**
+ * Maps Deezer record type to canonical release type.
+ *
+ * @param recordType - Deezer record type string (album, single, ep, compilation)
+ * @returns Canonical release type
+ */
 const mapRecordTypeToReleaseType = (recordType: string | undefined): ReleaseType => {
 	if (!recordType) return "album";
 	const normalized = recordType.toLowerCase();
@@ -11,6 +23,12 @@ const mapRecordTypeToReleaseType = (recordType: string | undefined): ReleaseType
 	return "album";
 };
 
+/**
+ * Converts a Deezer album search item to normalized release format.
+ *
+ * @param album - Deezer album search result item
+ * @returns Normalized release object for cross-source compatibility
+ */
 const normalizeAlbum = (album: AlbumSearchItem): NormalizedRelease => {
 	const artistName = album.artist?.name ?? "Unknown";
 	const artworkUrl = album.cover_medium ?? album.cover;
@@ -33,20 +51,52 @@ const normalizeAlbum = (album: AlbumSearchItem): NormalizedRelease => {
 	};
 };
 
+/**
+ * Configuration options for creating a Deezer metadata source.
+ * Includes application identification and rate limiting settings.
+ */
 export type DeezerSourceConfig = {
+	/** Application name for User-Agent header */
 	readonly appName: string;
+	/** Application version for User-Agent header */
 	readonly version: string;
+	/** Contact URL/email for User-Agent header */
 	readonly contact: string;
+	/** Maximum requests per second (default: 5) */
 	readonly requestsPerSecond?: number;
+	/** Token bucket burst size for rate limiting (default: 10) */
 	readonly burstSize?: number;
+	/** Maximum retry attempts on rate limit errors (default: 3) */
 	readonly maxRetries?: number;
 };
 
+/**
+ * Builds a search query string from a metadata search query.
+ *
+ * @param input - Metadata search query (text or structured)
+ * @returns Search query string for Deezer API
+ */
 const buildQuery = (input: MetadataSearchQuery): string => {
 	if (input.kind === "text") return input.query;
 	return `${input.artist} ${input.title}`;
 };
 
+/**
+ * Creates a Deezer metadata source for searching release information.
+ * The source queries Deezer's album search endpoint and normalizes results
+ * to the common NormalizedRelease format.
+ *
+ * @param config - Configuration including app identification and rate limit settings
+ * @returns MetadataSource with searchReleases capability
+ *
+ * @example
+ * const source = createDeezerSource({
+ *   appName: "Pyxis",
+ *   version: "1.0.0",
+ *   contact: "https://github.com/user/pyxis"
+ * });
+ * const releases = await source.searchReleases({ kind: "text", query: "daft punk" });
+ */
 export const createDeezerSource = (
 	config: DeezerSourceConfig,
 ): MetadataSource => {

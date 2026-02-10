@@ -1,3 +1,10 @@
+/**
+ * @module discogs/client
+ * Discogs API client with rate limiting and retry logic.
+ * Uses the official Discogs API for searching masters and artists.
+ * @see https://www.discogs.com/developers
+ */
+
 import { createRateLimiter, type RateLimiterStats } from "../rate-limiter.js";
 import {
 	type DiscogsMaster,
@@ -7,17 +14,38 @@ import {
 	DiscogsSearchResponseSchema,
 } from "./schemas.js";
 
+/**
+ * Configuration options for creating a Discogs API client.
+ * Includes application identification, authentication, and rate limiting settings.
+ */
 export type DiscogsClientConfig = {
+	/** Application name for User-Agent header (required by Discogs API) */
 	readonly appName: string;
+	/** Application version for User-Agent header */
 	readonly version: string;
+	/** Contact URL/email for User-Agent header */
 	readonly contact: string;
+	/** Discogs personal access token for higher rate limits (optional) */
 	readonly token?: string;
+	/** Maximum requests per second (default: 1 for unauthenticated) */
 	readonly requestsPerSecond?: number;
+	/** Token bucket burst size for rate limiting (default: 3) */
 	readonly burstSize?: number;
+	/** Maximum retry attempts on rate limit errors (default: 3) */
 	readonly maxRetries?: number;
 };
 
+/**
+ * Discogs API client interface.
+ * Provides methods for searching masters, getting master details, and rate limit info.
+ */
 export type DiscogsClient = {
+	/**
+	 * Searches Discogs for master releases.
+	 * @param query - Search query string
+	 * @param options - Optional search parameters (artist filter, limit)
+	 * @returns Paginated search response with master releases
+	 */
 	readonly searchMasters: (
 		query: string,
 		options?: {
@@ -25,15 +53,50 @@ export type DiscogsClient = {
 			readonly limit?: number;
 		},
 	) => Promise<DiscogsSearchResponse>;
+	/**
+	 * Fetches detailed information about a master release.
+	 * @param id - Discogs master release ID
+	 * @returns Full master release details including tracklist
+	 */
 	readonly getMaster: (id: number) => Promise<DiscogsMaster>;
+	/**
+	 * Searches Discogs for artists.
+	 * @param query - Search query string
+	 * @param limit - Maximum number of results (default: 20)
+	 * @returns Paginated search response with artist results
+	 */
 	readonly searchArtists: (
 		query: string,
 		limit?: number,
 	) => Promise<DiscogsSearchResponse>;
+	/**
+	 * Returns the last rate limit information from response headers.
+	 * @returns Rate limit info (limit, used, remaining) or null if not available
+	 */
 	readonly getRateLimit: () => DiscogsRateLimit | null;
+	/**
+	 * Returns current rate limiter statistics.
+	 * @returns Stats including requests made, tokens available, etc.
+	 */
 	readonly getStats: () => RateLimiterStats;
 };
 
+/**
+ * Creates a Discogs API client with rate limiting and retry logic.
+ * Uses Discogs' official API with proper User-Agent identification.
+ *
+ * @param config - Client configuration including app info, optional token, and rate limit settings
+ * @returns Discogs API client with search and fetch methods
+ *
+ * @example
+ * const client = createDiscogsClient({
+ *   appName: "MyApp",
+ *   version: "1.0.0",
+ *   contact: "https://myapp.example.com",
+ *   token: "your-discogs-token" // Optional, for higher rate limits
+ * });
+ * const results = await client.searchMasters("dark side of the moon", { artist: "pink floyd" });
+ */
 export const createDiscogsClient = (
 	config: DiscogsClientConfig,
 ): DiscogsClient => {

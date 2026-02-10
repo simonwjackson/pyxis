@@ -1,3 +1,9 @@
+/**
+ * @module bandcamp/source
+ * Bandcamp source implementation for the Pyxis music player.
+ * Provides search, album details, and streaming capabilities.
+ */
+
 import type {
 	NormalizedRelease,
 	MetadataSource,
@@ -11,6 +17,12 @@ import type {
 import { createBandcampClient } from "./client.js";
 import type { AutocompleteItem, Track } from "./schemas.js";
 
+/**
+ * Maps Bandcamp item type codes to canonical release types.
+ *
+ * @param type - Bandcamp type code ("a" for album, "t" for track)
+ * @returns Canonical release type
+ */
 const mapBandcampTypeToReleaseType = (type: string): ReleaseType => {
 	switch (type) {
 		case "a":
@@ -22,6 +34,12 @@ const mapBandcampTypeToReleaseType = (type: string): ReleaseType => {
 	}
 };
 
+/**
+ * Converts a Bandcamp autocomplete item to a normalized release format.
+ *
+ * @param item - Bandcamp autocomplete search result item
+ * @returns Normalized release object for cross-source compatibility
+ */
 const normalizeAutocompleteItem = (item: AutocompleteItem): NormalizedRelease => {
 	const artistName = item.band_name ?? "Unknown";
 	const releaseType = mapBandcampTypeToReleaseType(item.type);
@@ -50,10 +68,24 @@ const normalizeAutocompleteItem = (item: AutocompleteItem): NormalizedRelease =>
 	};
 };
 
-// Bandcamp album IDs encode both band_id and album_id as "bandId:albumId"
+/**
+ * Encodes band ID and item ID into a composite ID string.
+ * Format: "bandId:itemId" (e.g., "123456:789012")
+ *
+ * @param bandId - Bandcamp band/artist ID
+ * @param itemId - Bandcamp album or track ID
+ * @returns Composite ID string
+ */
 const encodeCompositeId = (bandId: number, itemId: number): string =>
 	`${bandId}:${itemId}`;
 
+/**
+ * Decodes a composite ID string back into band ID and item ID.
+ *
+ * @param compositeId - Composite ID in "bandId:itemId" format
+ * @returns Object with bandId and itemId numbers
+ * @throws Error if the composite ID format is invalid
+ */
 const decodeCompositeId = (compositeId: string): { readonly bandId: number; readonly itemId: number } => {
 	const idx = compositeId.indexOf(":");
 	if (idx === -1) {
@@ -65,6 +97,15 @@ const decodeCompositeId = (compositeId: string): { readonly bandId: number; read
 	};
 };
 
+/**
+ * Converts a Bandcamp track to canonical track format.
+ *
+ * @param track - Bandcamp track object from API
+ * @param albumTitle - Parent album title
+ * @param albumArtist - Parent album artist name
+ * @param bandId - Bandcamp band ID for composite ID generation
+ * @returns Canonical track object
+ */
 const bandcampTrackToCanonical = (
 	track: Track,
 	albumTitle: string,
@@ -82,23 +123,58 @@ const bandcampTrackToCanonical = (
 		: {}),
 });
 
+/**
+ * Configuration options for creating a Bandcamp source.
+ * Includes application identification and rate limiting settings.
+ */
 export type BandcampSourceConfig = {
+	/** Application name for User-Agent header */
 	readonly appName: string;
+	/** Application version for User-Agent header */
 	readonly version: string;
+	/** Contact URL/email for User-Agent header */
 	readonly contact: string;
+	/** Maximum requests per second (default: 1) */
 	readonly requestsPerSecond?: number;
+	/** Token bucket burst size for rate limiting (default: 5) */
 	readonly burstSize?: number;
+	/** Maximum retry attempts on rate limit errors (default: 3) */
 	readonly maxRetries?: number;
 };
 
+/**
+ * Builds a search query string from a metadata search query.
+ *
+ * @param input - Metadata search query (text or structured)
+ * @returns Search query string for Bandcamp API
+ */
 const buildQuery = (input: MetadataSearchQuery): string => {
 	if (input.kind === "text") return input.query;
 	return `${input.artist} ${input.title}`;
 };
 
-// Combined type: satisfies both Source and MetadataSource
+/**
+ * Combined Bandcamp source type implementing both Source and MetadataSource.
+ * Provides full playback capabilities (search, albums, streaming) plus metadata search.
+ */
 export type BandcampFullSource = Source & MetadataSource;
 
+/**
+ * Creates a full Bandcamp source with both playback and metadata capabilities.
+ * Implements SearchCapability, AlbumCapability, StreamCapability, and MetadataSource.
+ *
+ * @param config - Source configuration including app info and rate limit settings
+ * @returns Full Bandcamp source with all capabilities
+ *
+ * @example
+ * const source = createBandcampFullSource({
+ *   appName: "Pyxis",
+ *   version: "1.0.0",
+ *   contact: "https://github.com/user/pyxis"
+ * });
+ * const results = await source.search("ambient");
+ * const album = await source.getAlbumTracks("123456:789012");
+ */
 export const createBandcampFullSource = (
 	config: BandcampSourceConfig,
 ): BandcampFullSource => {
@@ -235,7 +311,13 @@ export const createBandcampFullSource = (
 	};
 };
 
-// Backwards-compatible factory that returns metadata-only source
+/**
+ * Creates a Bandcamp metadata-only source for release search.
+ * Backwards-compatible factory that wraps createBandcampFullSource.
+ *
+ * @param config - Source configuration including app info and rate limit settings
+ * @returns MetadataSource with searchReleases capability
+ */
 export const createBandcampSource = (
 	config: BandcampSourceConfig,
 ): MetadataSource => createBandcampFullSource(config);

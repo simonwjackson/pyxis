@@ -1,8 +1,14 @@
 /**
- * YouTube Music API Configuration
- * Based on the WEB_REMIX client used by the official web player
+ * @module api-config
+ * YouTube Music API configuration constants.
+ * Based on the WEB_REMIX client used by the official web player.
  */
 
+/**
+ * Base context object for YouTube Music API requests.
+ * Contains client identification, user preferences, and request settings
+ * that mimic the official web player.
+ */
 export const BASE_CONTEXT = {
 	context: {
 		client: {
@@ -39,6 +45,10 @@ export const BASE_CONTEXT = {
 	},
 } as const;
 
+/**
+ * Default HTTP headers for YouTube Music API requests.
+ * Includes browser identification, security headers, and API versioning.
+ */
 export const DEFAULT_HEADERS = {
 	"Accept-Encoding": "gzip, deflate, br, zstd",
 	"Accept-Language": "en-US,en;q=0.5",
@@ -62,7 +72,10 @@ export const DEFAULT_HEADERS = {
 	Referer: "https://music.youtube.com/library",
 } as const;
 
-// Search params for different content types (base64-encoded filter tokens)
+/**
+ * Search filter parameters for different content types.
+ * Base64-encoded filter tokens that restrict search results to specific types.
+ */
 export const SEARCH_PARAMS = {
 	song: "EgWKAQIIAWoQEAMQBBAJEAoQBRAREBAQFQ%3D%3D",
 	album: "EgWKAQIYAWoOEAMQBBAJEAoQERAQEBU%3D",
@@ -70,4 +83,8 @@ export const SEARCH_PARAMS = {
 	playlist: "EgeKAQQoAEABahAQAxAEEAkQChAFEBEQEBAV",
 } as const;
 
+/**
+ * Valid search content types for YouTube Music.
+ * Determines which filter parameter to use in search requests.
+ */
 export type SearchType = keyof typeof SEARCH_PARAMS;

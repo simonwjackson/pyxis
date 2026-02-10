@@ -1,23 +1,55 @@
-/*
- * Blowfish.js from Dojo Toolkit 1.8.1
- * Cut of by Sladex (xslade@gmail.com)
- * Converted to TypeScript with Effect patterns
+/**
+ * @module pandora/crypto/blowfish
+ * Blowfish cipher implementation from Dojo Toolkit 1.8.1.
+ * Used for encrypting/decrypting Pandora API payloads with ECB mode.
  *
- * Usage:
- * blowfish.encrypt(String 'subj to encrypt', String 'key', Object {outputType: 1, cipherMode: 0});
+ * @remarks
+ * Original source: Dojo Toolkit 1.8.1 by Sladex (xslade@gmail.com)
+ * Converted to TypeScript with Effect patterns.
  *
+ * @example
+ * ```ts
+ * const encrypted = blowfish.encrypt("plaintext", "key", { cipherMode: 0, outputType: 1 });
+ * const decrypted = blowfish.decrypt(encrypted, "key", { cipherMode: 0, outputType: 1 });
+ * ```
  */
 
-// Type definitions
+/**
+ * Options for Blowfish encryption/decryption operations.
+ */
 export type BlowfishOptions = {
   readonly cipherMode: 0 | 1 | 2 | 3 | 4 | 5  // ECB, CBC, PCBC, CFB, OFB, CTR
   readonly outputType: 0 | 1 | 2 | 3           // Base64, Hex, String, Raw
 }
 
+/**
+ * Blowfish cipher interface for encryption and decryption operations.
+ */
 export type Blowfish = {
+  /**
+   * Gets the current initialization vector.
+   * @param outputType - Output format (0=Base64, 1=Hex, 2=String, 3=Raw)
+   */
   getIV(outputType?: number): string | number[]
+  /**
+   * Sets the initialization vector for CBC mode.
+   * @param data - IV data in the specified format
+   * @param inputType - Input format (0=Base64, 1=Hex, 2=String, 3=Raw)
+   */
   setIV(data: string, inputType?: number): void
+  /**
+   * Encrypts plaintext using Blowfish.
+   * @param plaintext - Text to encrypt
+   * @param key - Encryption key
+   * @param ao - Options for cipher mode and output type
+   */
   encrypt(plaintext: string, key: string, ao?: BlowfishOptions): string | number[]
+  /**
+   * Decrypts ciphertext using Blowfish.
+   * @param ciphertext - Encrypted data
+   * @param key - Decryption key
+   * @param ao - Options for cipher mode and input type
+   */
   decrypt(ciphertext: string, key: string, ao?: BlowfishOptions): string
 }
 
@@ -629,6 +661,10 @@ const decrypt = (ciphertext: string, key: string, ao?: BlowfishOptions): string 
 
 setIV("0000000000000000", outputTypes.Hex)
 
+/**
+ * Blowfish cipher singleton instance.
+ * Pre-configured with IV "0000000000000000" for ECB mode compatibility.
+ */
 export const blowfish: Blowfish = {
   getIV,
   setIV,

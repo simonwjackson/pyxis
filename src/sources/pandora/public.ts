@@ -1,3 +1,9 @@
+/**
+ * @module pandora/public
+ * Public API exports for the Pandora source library.
+ * Re-exports types, client functions, and quality utilities for external consumers.
+ */
+
 // Types
 export type { PandoraConfig, DeviceKey } from "./types/config.js"
 export type {

@@ -1,8 +1,9 @@
 /**
- * Audio quality abstraction for Pandora API
+ * @module pandora/quality
+ * Audio quality abstraction for Pandora API.
  *
  * Simplifies the complexity of audioUrlMap vs additionalAudioUrl into
- * three simple quality levels: high, medium, low
+ * three simple quality levels: high, medium, low.
  */
 
 import type { PlaylistItem } from "./types/api.js"
@@ -31,7 +32,8 @@ export type QualityInfo = {
 }
 
 /**
- * Quality level information
+ * Quality level metadata lookup table.
+ * Maps each quality level to its bitrate, format, and human-readable description.
  */
 export const QUALITY_INFO: Record<Quality, QualityInfo> = {
   high: {
@@ -57,10 +59,17 @@ export const QUALITY_INFO: Record<Quality, QualityInfo> = {
 export const DEFAULT_QUALITY: Quality = "high"
 
 /**
- * Map quality level to API audio format parameter
+ * Maps a quality level to the Pandora API audio format parameter.
+ * Returns the format to request via PlaylistRequest.additionalAudioUrl.
  *
- * Returns the format to request via PlaylistRequest.additionalAudioUrl
- * Returns undefined for qualities that use audioUrlMap
+ * @param quality - Desired quality level ("low", "medium", or "high")
+ * @returns AudioFormat string for high quality, undefined for medium/low (use audioUrlMap)
+ *
+ * @example
+ * ```ts
+ * const format = getAudioFormat("high"); // "HTTP_128_MP3"
+ * const format = getAudioFormat("medium"); // undefined
+ * ```
  */
 export function getAudioFormat(quality: Quality): AudioFormat | undefined {
   switch (quality) {
@@ -112,14 +121,20 @@ export function getAudioUrl(
 }
 
 /**
- * Get quality information for display purposes
+ * Gets quality information for display purposes.
+ *
+ * @param quality - Quality level to look up
+ * @returns QualityInfo containing bitrate, format, and description
  */
 export function getQualityInfo(quality: Quality): QualityInfo {
   return QUALITY_INFO[quality]
 }
 
 /**
- * Validate quality string is a valid Quality type
+ * Type guard to validate a string is a valid Quality type.
+ *
+ * @param value - String to validate
+ * @returns True if value is "low", "medium", or "high"
  */
 export function isValidQuality(value: string): value is Quality {
   return ["low", "medium", "high"].includes(value)

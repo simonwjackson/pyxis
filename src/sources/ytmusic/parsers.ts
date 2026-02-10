@@ -1,37 +1,77 @@
 /**
- * Parser functions to extract structured data from YT Music API responses.
+ * @module parsers
+ * Parser functions to extract structured data from YouTube Music API responses.
  * Only album-related parsers are included (track/artist search uses yt-dlp).
  */
 
-// Lightweight types for parsed results (no Zod dependency)
+/**
+ * Parsed artist information from YouTube Music API.
+ * Contains the artist name and their YouTube Music channel ID.
+ */
 export type ParsedArtist = {
+	/** Artist display name */
 	readonly name: string;
+	/** YouTube Music artist/channel ID (UC prefix + 22 characters) */
 	readonly id: string;
 };
 
+/**
+ * Parsed album metadata from search results.
+ * Lightweight representation without full track listing.
+ */
 export type ParsedAlbum = {
+	/** Album title */
 	readonly name: string;
+	/** YouTube Music album ID (MPREb_ or OLAK format) */
 	readonly id: string;
+	/** Artists credited on the album */
 	readonly artists?: readonly ParsedArtist[];
+	/** Release year if available */
 	readonly year: number | null;
+	/** URL to album artwork thumbnail */
 	readonly thumbnailUrl: string | null;
 };
 
+/**
+ * Parsed track information from album browse response.
+ * Contains playback and metadata for a single track.
+ */
 export type ParsedTrack = {
+	/** Track title */
 	readonly name: string;
+	/** YouTube video ID for playback */
 	readonly videoId: string;
+	/** Track duration in seconds */
 	readonly duration: number | null;
+	/** Artists credited on this specific track */
 	readonly artists?: readonly ParsedArtist[];
 };
 
+/**
+ * Parsed album metadata from browse response header.
+ * Contains album-level information without tracks.
+ */
 export type ParsedAlbumInfo = {
+	/** Album title */
 	readonly name: string;
+	/** Album artists */
 	readonly artists: readonly ParsedArtist[];
+	/** Release year if available */
 	readonly year: number | null;
+	/** URL to album artwork thumbnail */
 	readonly thumbnailUrl: string | null;
 };
 
-// Helper to convert duration string (mm:ss or hh:mm:ss) to seconds
+/**
+ * Converts a duration string to seconds.
+ *
+ * @param duration - Duration in "mm:ss" or "hh:mm:ss" format
+ * @returns Duration in seconds, or null if invalid format
+ *
+ * @example
+ * durationToSeconds("3:45") // returns 225
+ * durationToSeconds("1:02:30") // returns 3750
+ */
 const durationToSeconds = (duration: string | undefined): number | null => {
 	if (!duration || typeof duration !== "string") return null;
 
@@ -70,7 +110,12 @@ type ListItem = {
 	};
 };
 
-// Extract artist from a text run
+/**
+ * Extracts artist information from a text run element.
+ *
+ * @param run - Raw text run object from API response
+ * @returns ParsedArtist if valid artist link found, null otherwise
+ */
 const extractArtist = (run: Record<string, unknown>): ParsedArtist | null => {
 	const endpoint = run?.navigationEndpoint as
 		| Record<string, unknown>
@@ -88,7 +133,12 @@ const extractArtist = (run: Record<string, unknown>): ParsedArtist | null => {
 	return null;
 };
 
-// Get the search results contents from API response
+/**
+ * Extracts the search results contents array from API response.
+ *
+ * @param response - Raw API response object
+ * @returns Array of list items from the search results shelf
+ */
 const getSearchContents = (response: RawApiResponse): ReadonlyArray<ListItem> => {
 	const tabs = (
 		response?.contents as {
@@ -115,7 +165,17 @@ const getSearchContents = (response: RawApiResponse): ReadonlyArray<ListItem> =>
 	);
 };
 
-// Parse album search results
+/**
+ * Parses album search results from YouTube Music API response.
+ * Extracts album metadata including ID, name, artists, year, and artwork.
+ *
+ * @param response - Raw API response from /search endpoint with album filter
+ * @returns Array of parsed album objects
+ *
+ * @example
+ * const albums = parseAlbumSearchResults(searchResponse);
+ * // Returns: [{ id: "MPREb_xxx", name: "Album Title", artists: [...], year: 2024, thumbnailUrl: "..." }]
+ */
 export const parseAlbumSearchResults = (
 	response: RawApiResponse,
 ): readonly ParsedAlbum[] => {
@@ -178,7 +238,17 @@ export const parseAlbumSearchResults = (
 		.filter((album): album is ParsedAlbum => album !== null);
 };
 
-// Parse album tracks from browse API response (twoColumnBrowseResultsRenderer)
+/**
+ * Parses album tracks from browse API response.
+ * Extracts track listing with video IDs, titles, durations, and artists.
+ *
+ * @param response - Raw API response from /browse endpoint for an album
+ * @returns Array of parsed track objects with playback information
+ *
+ * @example
+ * const tracks = parseAlbumBrowseTracks(browseResponse);
+ * // Returns: [{ name: "Track 1", videoId: "abc123", duration: 180, artists: [...] }]
+ */
 export const parseAlbumBrowseTracks = (
 	response: RawApiResponse,
 ): readonly ParsedTrack[] => {
@@ -286,7 +356,17 @@ export const parseAlbumBrowseTracks = (
 		.filter((track): track is ParsedTrack => track !== null);
 };
 
-// Extract album info from browse API header
+/**
+ * Extracts album metadata from browse API response header.
+ * Parses title, artists, year, and thumbnail from the header renderer.
+ *
+ * @param response - Raw API response from /browse endpoint for an album
+ * @returns Album metadata object (falls back to track-based extraction if header missing)
+ *
+ * @example
+ * const info = parseAlbumBrowseInfo(browseResponse);
+ * // Returns: { name: "Album Title", artists: [...], year: 2024, thumbnailUrl: "..." }
+ */
 export const parseAlbumBrowseInfo = (
 	response: RawApiResponse,
 ): ParsedAlbumInfo => {
@@ -329,7 +409,13 @@ export const parseAlbumBrowseInfo = (
 	return parseFromTrackFallback(twoColumn);
 };
 
-// Parse album info from the musicResponsiveHeaderRenderer (legacy path)
+/**
+ * Parses album info from the musicResponsiveHeaderRenderer.
+ * Used for standard album browse responses with header metadata.
+ *
+ * @param headerRenderer - Header renderer object from browse response
+ * @returns Parsed album metadata
+ */
 const parseFromHeaderRenderer = (
 	headerRenderer: Record<string, unknown>,
 ): ParsedAlbumInfo => {
@@ -393,7 +479,13 @@ const parseFromHeaderRenderer = (
 	return { name, artists, year, thumbnailUrl };
 };
 
-// Fallback: extract album info from the first track's flexColumns
+/**
+ * Fallback parser for album info when header renderer is not available.
+ * Extracts metadata from the first track's flex columns instead.
+ *
+ * @param twoColumn - Two column browse results renderer object
+ * @returns Parsed album metadata with best-effort extraction
+ */
 const parseFromTrackFallback = (
 	twoColumn:
 		| {

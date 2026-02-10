@@ -1,3 +1,9 @@
+/**
+ * @module soundcloud/source
+ * SoundCloud source implementation for the Pyxis music player.
+ * Provides search, album details, and streaming capabilities.
+ */
+
 import type {
 	NormalizedRelease,
 	MetadataSource,
@@ -11,6 +17,13 @@ import type {
 import { createSoundCloudClient, type SoundCloudClient } from "./client.js";
 import type { Playlist, Track } from "./schemas.js";
 
+/**
+ * Maps SoundCloud set_type to canonical release type.
+ *
+ * @param setType - SoundCloud set_type value
+ * @param isAlbum - Whether is_album flag is set
+ * @returns Canonical release type
+ */
 const mapSetTypeToReleaseType = (
 	setType: string | null | undefined,
 	isAlbum: boolean | undefined,
@@ -22,6 +35,12 @@ const mapSetTypeToReleaseType = (
 	return "other";
 };
 
+/**
+ * Converts a SoundCloud playlist to normalized release format.
+ *
+ * @param playlist - SoundCloud playlist object
+ * @returns Normalized release object for cross-source compatibility
+ */
 const normalizePlaylist = (playlist: Playlist): NormalizedRelease => {
 	const artistName = playlist.user?.username ?? "Unknown";
 	const rawYear = playlist.created_at
@@ -49,6 +68,13 @@ const normalizePlaylist = (playlist: Playlist): NormalizedRelease => {
 	};
 };
 
+/**
+ * Converts a SoundCloud track to canonical track format.
+ *
+ * @param track - SoundCloud track object
+ * @param albumTitle - Parent album/playlist title
+ * @returns Canonical track object
+ */
 const soundcloudTrackToCanonical = (
 	track: Track,
 	albumTitle: string,
@@ -63,6 +89,15 @@ const soundcloudTrackToCanonical = (
 	...(track.artwork_url != null ? { artworkUrl: track.artwork_url } : {}),
 });
 
+/**
+ * Resolves a direct stream URL from track transcoding data.
+ * Fetches the progressive HTTP stream URL using the client_id.
+ *
+ * @param track - SoundCloud track with media transcoding data
+ * @param clientId - SoundCloud client_id for URL resolution
+ * @returns Direct audio stream URL
+ * @throws Error if no progressive transcoding is available
+ */
 const resolveStreamUrl = async (track: Track, clientId: string): Promise<string> => {
 	// Find a progressive (HTTP) stream URL from transcodings
 	const transcoding = track.media?.transcodings?.find(
@@ -86,24 +121,50 @@ const resolveStreamUrl = async (track: Track, clientId: string): Promise<string>
 	return data.url;
 };
 
+/**
+ * Configuration options for creating a SoundCloud source.
+ * Includes application identification and rate limiting settings.
+ */
 export type SoundCloudSourceConfig = {
+	/** Application name for User-Agent header */
 	readonly appName: string;
+	/** Application version for User-Agent header */
 	readonly version: string;
+	/** Contact URL/email for User-Agent header */
 	readonly contact: string;
+	/** SoundCloud client_id (auto-extracted if not provided) */
 	readonly clientId?: string;
+	/** Maximum requests per second (default: 2) */
 	readonly requestsPerSecond?: number;
+	/** Token bucket burst size for rate limiting (default: 5) */
 	readonly burstSize?: number;
+	/** Maximum retry attempts on rate limit errors (default: 3) */
 	readonly maxRetries?: number;
 };
 
+/**
+ * Builds a search query string from a metadata search query.
+ *
+ * @param input - Metadata search query (text or structured)
+ * @returns Search query string for SoundCloud API
+ */
 const buildQuery = (input: MetadataSearchQuery): string => {
 	if (input.kind === "text") return input.query;
 	return `${input.artist} ${input.title}`;
 };
 
-// Combined type: satisfies both Source and MetadataSource
+/**
+ * Combined SoundCloud source type implementing both Source and MetadataSource.
+ * Provides full playback capabilities (search, albums, streaming) plus metadata search.
+ */
 export type SoundCloudFullSource = Source & MetadataSource;
 
+/**
+ * Builds a full SoundCloud source from an initialized client.
+ *
+ * @param client - Initialized SoundCloud API client
+ * @returns Full SoundCloud source with all capabilities
+ */
 const buildFullSource = (client: SoundCloudClient): SoundCloudFullSource => {
 	// --- MetadataSource capability ---
 
@@ -193,6 +254,23 @@ const buildFullSource = (client: SoundCloudClient): SoundCloudFullSource => {
 	};
 };
 
+/**
+ * Creates a full SoundCloud source with both playback and metadata capabilities.
+ * Implements SearchCapability, AlbumCapability, StreamCapability, and MetadataSource.
+ * If no client_id is provided, it will be auto-extracted from SoundCloud's website.
+ *
+ * @param config - Source configuration including app info and rate limit settings
+ * @returns Promise resolving to full SoundCloud source with all capabilities
+ *
+ * @example
+ * const source = await createSoundCloudFullSource({
+ *   appName: "Pyxis",
+ *   version: "1.0.0",
+ *   contact: "https://github.com/user/pyxis"
+ * });
+ * const results = await source.search("ambient");
+ * const album = await source.getAlbumTracks("12345678");
+ */
 export const createSoundCloudFullSource = async (
 	config: SoundCloudSourceConfig,
 ): Promise<SoundCloudFullSource> => {
@@ -209,7 +287,13 @@ export const createSoundCloudFullSource = async (
 	return buildFullSource(client);
 };
 
-// Backwards-compatible factory that returns metadata-only source
+/**
+ * Creates a SoundCloud metadata-only source for release search.
+ * Backwards-compatible factory that wraps createSoundCloudFullSource.
+ *
+ * @param config - Source configuration including app info and rate limit settings
+ * @returns Promise resolving to MetadataSource with searchReleases capability
+ */
 export const createSoundCloudSource = async (
 	config: SoundCloudSourceConfig,
 ): Promise<MetadataSource> => createSoundCloudFullSource(config);

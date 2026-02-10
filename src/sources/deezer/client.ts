@@ -1,3 +1,9 @@
+/**
+ * @module deezer/client
+ * Deezer API client with rate limiting and retry logic.
+ * Uses the public api.deezer.com endpoints for album search.
+ */
+
 import { createRateLimiter, type RateLimiterStats } from "../rate-limiter.js";
 import {
 	AlbumSearchResultSchema,
@@ -5,23 +11,62 @@ import {
 	type AlbumSearchItem,
 } from "./schemas.js";
 
+/**
+ * Configuration options for creating a Deezer API client.
+ * Includes application identification and rate limiting settings.
+ */
 export type DeezerClientConfig = {
+	/** Application name for User-Agent header */
 	readonly appName: string;
+	/** Application version for User-Agent header */
 	readonly version: string;
+	/** Contact URL/email for User-Agent header */
 	readonly contact: string;
+	/** Maximum requests per second (default: 5) */
 	readonly requestsPerSecond?: number;
+	/** Token bucket burst size for rate limiting (default: 10) */
 	readonly burstSize?: number;
+	/** Maximum retry attempts on rate limit errors (default: 3) */
 	readonly maxRetries?: number;
 };
 
+/**
+ * Deezer API client interface.
+ * Provides methods for searching albums and accessing rate limiter stats.
+ */
 export type DeezerClient = {
+	/**
+	 * Searches Deezer for albums matching the query.
+	 * @param query - Search query string
+	 * @param limit - Maximum number of results to return (default: 25)
+	 * @returns Array of album search items
+	 */
 	readonly searchAlbums: (
 		query: string,
 		limit?: number,
 	) => Promise<readonly AlbumSearchItem[]>;
+	/**
+	 * Returns current rate limiter statistics.
+	 * @returns Stats including requests made, tokens available, etc.
+	 */
 	readonly getStats: () => RateLimiterStats;
 };
 
+/**
+ * Creates a Deezer API client with rate limiting and retry logic.
+ * Uses Deezer's public API endpoints (no authentication required).
+ *
+ * @param config - Client configuration including app info and rate limit settings
+ * @returns Deezer API client with searchAlbums and getStats methods
+ *
+ * @example
+ * const client = createDeezerClient({
+ *   appName: "MyApp",
+ *   version: "1.0.0",
+ *   contact: "https://myapp.example.com"
+ * });
+ * const albums = await client.searchAlbums("daft punk", 10);
+ */
 export const createDeezerClient = (config: DeezerClientConfig): DeezerClient => {
 	const {
 		appName,

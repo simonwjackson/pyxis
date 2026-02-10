@@ -1,3 +1,10 @@
+/**
+ * @module musicbrainz/client
+ * MusicBrainz API client with rate limiting and retry logic.
+ * Uses the official MusicBrainz web service API.
+ * @see https://musicbrainz.org/doc/MusicBrainz_API
+ */
+
 import { createRateLimiter, type RateLimiterStats } from "../rate-limiter.js";
 import {
 	ArtistSchema,
@@ -12,39 +19,103 @@ import {
 	type ReleaseSearchResult,
 } from "./schemas.js";
 
+/**
+ * Configuration options for creating a MusicBrainz API client.
+ * Includes application identification and rate limiting settings.
+ * MusicBrainz requires proper User-Agent identification.
+ */
 export type MusicBrainzClientConfig = {
+	/** Application name for User-Agent header (required by MusicBrainz API) */
 	readonly appName: string;
+	/** Application version for User-Agent header */
 	readonly version: string;
+	/** Contact email/URL for User-Agent header (required) */
 	readonly contact: string;
+	/** Maximum requests per second (default: 1 per MusicBrainz guidelines) */
 	readonly requestsPerSecond?: number;
+	/** Token bucket burst size for rate limiting (default: 5) */
 	readonly burstSize?: number;
+	/** Maximum retry attempts on rate limit errors (default: 3) */
 	readonly maxRetries?: number;
 };
 
+/**
+ * MusicBrainz API client interface.
+ * Provides methods for searching artists, releases, recordings, and release groups.
+ */
 export type MusicBrainzClient = {
+	/**
+	 * Searches MusicBrainz for artists.
+	 * @param query - Lucene search query or plain text
+	 * @param limit - Maximum number of results (default: 10)
+	 * @returns Artist search results with scores
+	 */
 	readonly searchArtist: (
 		query: string,
 		limit?: number,
 	) => Promise<ArtistSearchResult>;
+	/**
+	 * Searches MusicBrainz for releases (specific editions).
+	 * @param query - Lucene search query or plain text
+	 * @param limit - Maximum number of results (default: 10)
+	 * @returns Release search results with scores
+	 */
 	readonly searchRelease: (
 		query: string,
 		limit?: number,
 	) => Promise<ReleaseSearchResult>;
+	/**
+	 * Searches MusicBrainz for release groups (albums, EPs, singles).
+	 * @param query - Lucene search query or plain text
+	 * @param limit - Maximum number of results (default: 10)
+	 * @returns Release group search results with scores
+	 */
 	readonly searchReleaseGroup: (
 		query: string,
 		limit?: number,
 	) => Promise<ReleaseGroupSearchResult>;
+	/**
+	 * Searches MusicBrainz for recordings (individual tracks).
+	 * @param query - Lucene search query or plain text
+	 * @param limit - Maximum number of results (default: 10)
+	 * @returns Recording search results with scores
+	 */
 	readonly searchRecording: (
 		query: string,
 		limit?: number,
 	) => Promise<RecordingSearchResult>;
+	/**
+	 * Fetches detailed artist information by MBID.
+	 * @param mbid - MusicBrainz artist ID (UUID format)
+	 * @param includes - Optional sub-queries to include (e.g., "release-groups")
+	 * @returns Full artist details
+	 */
 	readonly getArtist: (
 		mbid: string,
 		includes?: readonly string[],
 	) => Promise<Artist>;
+	/**
+	 * Returns current rate limiter statistics.
+	 * @returns Stats including requests made, tokens available, etc.
+	 */
 	readonly getStats: () => RateLimiterStats;
 };
 
+/**
+ * Creates a MusicBrainz API client with rate limiting and retry logic.
+ * Follows MusicBrainz rate limiting guidelines (1 req/sec by default).
+ *
+ * @param config - Client configuration including app info and rate limit settings
+ * @returns MusicBrainz API client with search and fetch methods
+ *
+ * @example
+ * const client = createMusicBrainzClient({
+ *   appName: "MyApp",
+ *   version: "1.0.0",
+ *   contact: "myemail@example.com"
+ * });
+ * const results = await client.searchReleaseGroup("dark side of the moon");
+ */
 export const createMusicBrainzClient = (
 	config: MusicBrainzClientConfig,
 ): MusicBrainzClient => {

@@ -1,12 +1,20 @@
 /**
- * Test utilities for Effect-TS based tests with Bun test runner
+ * @module pandora/test-utils
+ * Test utilities for Effect-TS based tests with Bun test runner.
+ * Provides helpers for running Effects in tests and managing fixture modes.
  */
 
 import { Effect, Exit, Cause } from "effect"
 
 /**
- * Run an Effect and return the success value, throwing on failure
- * Use in tests where you expect success
+ * Runs an Effect and returns the success value, throwing on failure.
+ * Use in tests where you expect the Effect to succeed.
+ *
+ * @typeParam A - Success value type
+ * @typeParam E - Error type
+ * @param effect - Effect to execute
+ * @returns Promise resolving to the success value
+ * @throws When the Effect fails
  */
 export const runEffectTest = <A, E>(
   effect: Effect.Effect<A, E>
@@ -14,7 +22,13 @@ export const runEffectTest = <A, E>(
   Effect.runPromise(effect)
 
 /**
- * Run an Effect and return the Exit, allowing inspection of both success and failure
+ * Runs an Effect and returns the Exit, allowing inspection of both success and failure.
+ * Useful when testing both success and failure cases.
+ *
+ * @typeParam A - Success value type
+ * @typeParam E - Error type
+ * @param effect - Effect to execute
+ * @returns Promise resolving to Exit containing either success value or failure cause
  */
 export const runEffectExit = <A, E>(
   effect: Effect.Effect<A, E>
@@ -22,8 +36,13 @@ export const runEffectExit = <A, E>(
   Effect.runPromiseExit(effect)
 
 /**
- * Assert that an Effect fails with a specific error type
- * Returns the error for further assertions
+ * Asserts that an Effect fails and extracts the error for further assertions.
+ * Throws if the Effect succeeds instead of failing.
+ *
+ * @typeParam E - Expected error type
+ * @param effect - Effect expected to fail
+ * @returns Promise resolving to the failure error
+ * @throws When the Effect succeeds instead of failing
  */
 export const expectEffectFailure = async <E>(
   effect: Effect.Effect<unknown, E>
@@ -42,8 +61,14 @@ export const expectEffectFailure = async <E>(
 }
 
 /**
- * Assert that an Effect succeeds
- * Returns the value for further assertions
+ * Asserts that an Effect succeeds and extracts the value for further assertions.
+ * Throws if the Effect fails instead of succeeding.
+ *
+ * @typeParam A - Expected success value type
+ * @typeParam E - Error type
+ * @param effect - Effect expected to succeed
+ * @returns Promise resolving to the success value
+ * @throws When the Effect fails instead of succeeding
  */
 export const expectEffectSuccess = async <A, E>(
   effect: Effect.Effect<A, E>
@@ -56,22 +81,38 @@ export const expectEffectSuccess = async <A, E>(
 }
 
 /**
- * Set fixture mode for testing
- * Call this before tests that need a specific fixture mode
+ * Sets the fixture mode for testing via environment variable.
+ * Call this before tests that need a specific fixture mode.
+ *
+ * @param mode - Fixture mode: "record" saves responses, "replay" loads fixtures, "live" makes real requests
  */
 export const setFixtureMode = (mode: "record" | "replay" | "live"): void => {
   process.env.PYXIS_FIXTURE_MODE = mode
 }
 
 /**
- * Reset fixture mode to default (live)
+ * Resets fixture mode to default (live) by clearing the environment variable.
  */
 export const resetFixtureMode = (): void => {
   delete process.env.PYXIS_FIXTURE_MODE
 }
 
 /**
- * Run a test with a specific fixture mode, then reset
+ * Runs a test function with a specific fixture mode, then resets to default.
+ * Ensures fixture mode is always reset even if the test throws.
+ *
+ * @typeParam T - Return type of the test function
+ * @param mode - Fixture mode to use during the test
+ * @param fn - Test function to execute
+ * @returns Promise resolving to the test function's return value
+ *
+ * @example
+ * ```ts
+ * await withFixtureMode("replay", async () => {
+ *   const result = await runEffectTest(someApiCall());
+ *   expect(result).toBeDefined();
+ * });
+ * ```
  */
 export const withFixtureMode = async <T>(
   mode: "record" | "replay" | "live",
