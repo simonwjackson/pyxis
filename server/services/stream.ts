@@ -299,6 +299,47 @@ export async function prefetchToCache(
 	// Skip Pandora (short-lived URLs)
 	if (source === "pandora") return;
 
+	// YouTube chapter tracks: prefetch by extracting the chapter
+	if (source === "youtube" && trackId.includes("@")) {
+		if (findCachedFile(source, trackId)) {
+			log.info({ compositeId }, "prefetch skip (cached)");
+			return;
+		}
+		if (activePrefetches.has(compositeId)) {
+			log.info({ compositeId }, "prefetch skip (in-flight)");
+			return;
+		}
+		activePrefetches.add(compositeId);
+		try {
+			const decoded = decodeChapterTrackId(trackId);
+			if (!decoded) return;
+			const { videoId, startTime, endTime } = decoded;
+			const fullVideoCached = findCachedFile(source, videoId);
+			const ffmpegInput = fullVideoCached
+				? fullVideoCached.filePath
+				: await sourceManager.getStreamUrl(source, trackId);
+			ensureCacheDir(source);
+			const chapterFinalPath = join(cacheDirForSource(source), `${trackId}.webm`);
+			const chapterPartialPath = `${chapterFinalPath}.partial`;
+			const chapterMetaPath = `${chapterFinalPath}.meta`;
+			await extractChapter(ffmpegInput, startTime, endTime, chapterPartialPath);
+			renameSync(chapterPartialPath, chapterFinalPath);
+			const { size } = Bun.file(chapterFinalPath);
+			writeFileSync(chapterMetaPath, JSON.stringify({
+				contentType: "audio/webm",
+				contentLength: size,
+				cachedAt: new Date().toISOString(),
+			}));
+			log.info({ compositeId, size }, "prefetch chapter complete");
+		} catch (err) {
+			const message = err instanceof Error ? err.message : String(err);
+			log.error({ compositeId, err: message }, "prefetch chapter failed");
+		} finally {
+			activePrefetches.delete(compositeId);
+		}
+		return;
+	}
+
 	if (findCachedFile(source, trackId)) {
 		log.info({ compositeId }, "prefetch skip (cached)");
 		return;
@@ -357,25 +398,27 @@ export async function prefetchToCache(
 }
 
 /**
- * Extracts a time range from an audio file using ffmpeg codec-copy.
- * Fast operation — no re-encoding, just container-level trimming.
+ * Extracts a time range from an audio source using ffmpeg codec-copy.
+ * The input can be a local file path or a remote URL — ffmpeg handles both.
+ * Uses -ss before -i for fast input seeking (HTTP Range for URLs).
  *
- * @param inputPath - Path to the full audio file
+ * @param input - Path to local audio file or remote URL
  * @param startTime - Start time in seconds
  * @param endTime - End time in seconds
  * @param outputPath - Path to write the extracted segment
  */
 export function extractChapter(
-	inputPath: string,
+	input: string,
 	startTime: number,
 	endTime: number,
 	outputPath: string,
 ): Promise<void> {
+	const duration = endTime - startTime;
 	return new Promise((resolve, reject) => {
 		const proc = spawn("ffmpeg", [
-			"-i", inputPath,
 			"-ss", String(startTime),
-			"-to", String(endTime),
+			"-i", input,
+			"-t", String(duration),
 			"-vn",
 			"-c:a", "copy",
 			"-y",
@@ -399,8 +442,8 @@ export function extractChapter(
 
 /**
  * Handles streaming for chapter-based YouTube tracks.
- * Downloads the full video audio, extracts the chapter time range with ffmpeg,
- * and caches both the full video and extracted chapter.
+ * Uses ffmpeg to extract the chapter directly from either a cached full video
+ * or the remote stream URL — avoids downloading the entire video first.
  */
 async function handleChapterStreamRequest(
 	sourceManager: SourceManager,
@@ -423,69 +466,33 @@ async function handleChapterStreamRequest(
 		return serveCachedFile(chapterCached.filePath, meta, rangeHeader);
 	}
 
-	// 2. Ensure full video is cached
-	let fullVideoCached = findCachedFile(source, videoId);
-	if (!fullVideoCached) {
-		log.info({ videoId, source }, "downloading full video for chapter extraction");
-		const url = await sourceManager.getStreamUrl(source, trackId);
-		const upstream = await fetch(url);
-		if (!upstream.ok || !upstream.body) {
-			log.error({ status: upstream.status, videoId }, "upstream error for full video");
-			return new Response("Failed to fetch upstream audio", { status: 502 });
-		}
-
-		const contentType = upstream.headers.get("content-type") ?? "audio/webm";
-		ensureCacheDir(source);
-		const ext = extensionForContentType(contentType);
-		const finalPath = join(cacheDirForSource(source), `${videoId}${ext}`);
-		const partialPath = `${finalPath}.partial`;
-		const metaPath = `${finalPath}.meta`;
-
-		const writer = Bun.file(partialPath).writer();
-		const reader = upstream.body.getReader();
-		let totalWritten = 0;
-
-		for (;;) {
-			const { done, value } = await reader.read();
-			if (done) break;
-			writer.write(value);
-			totalWritten += value.byteLength;
-		}
-		await writer.end();
-
-		renameSync(partialPath, finalPath);
-		const meta: CacheMeta = {
-			contentType,
-			contentLength: totalWritten,
-			cachedAt: new Date().toISOString(),
-		};
-		writeFileSync(metaPath, JSON.stringify(meta));
-		log.info({ videoId, size: totalWritten }, "full video cached");
-
-		fullVideoCached = findCachedFile(source, videoId);
-		if (!fullVideoCached) {
-			return new Response("Cache write failed", { status: 500 });
-		}
+	// 2. Determine ffmpeg input: cached full video (fast) or remote URL
+	let ffmpegInput: string;
+	const fullVideoCached = findCachedFile(source, videoId);
+	if (fullVideoCached) {
+		ffmpegInput = fullVideoCached.filePath;
+		log.info({ videoId, source }, "extracting chapter from cached full video");
 	} else {
-		log.info({ videoId, source }, "full video already cached");
+		// Resolve the stream URL (yt-dlp call, ~2s) — ffmpeg reads from it directly
+		ffmpegInput = await sourceManager.getStreamUrl(source, trackId);
+		log.info({ videoId, source }, "extracting chapter from remote URL");
 	}
 
-	// 3. Extract chapter with ffmpeg
-	const fullMeta = readMeta(fullVideoCached.metaPath);
-	const chapterExt = extensionForContentType(fullMeta.contentType);
+	// 3. Extract chapter with ffmpeg directly to cache
 	ensureCacheDir(source);
-	const chapterFinalPath = join(cacheDirForSource(source), `${trackId}${chapterExt}`);
+	const ext = ".webm";
+	const chapterFinalPath = join(cacheDirForSource(source), `${trackId}${ext}`);
 	const chapterPartialPath = `${chapterFinalPath}.partial`;
 	const chapterMetaPath = `${chapterFinalPath}.meta`;
 
 	log.info({ trackId, startTime, endTime }, "extracting chapter with ffmpeg");
-	await extractChapter(fullVideoCached.filePath, startTime, endTime, chapterPartialPath);
+	await extractChapter(ffmpegInput, startTime, endTime, chapterPartialPath);
 
 	// Atomic rename + meta
 	renameSync(chapterPartialPath, chapterFinalPath);
 	const { size: chapterSize } = Bun.file(chapterFinalPath);
 	const chapterMeta: CacheMeta = {
-		contentType: fullMeta.contentType,
+		contentType: "audio/webm",
 		contentLength: chapterSize,
 		cachedAt: new Date().toISOString(),
 	};
