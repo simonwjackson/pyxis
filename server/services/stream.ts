@@ -443,8 +443,9 @@ export function extractChapter(
 
 /**
  * Handles streaming for chapter-based YouTube tracks.
- * Uses ffmpeg to extract the chapter directly from either a cached full video
- * or the remote stream URL — avoids downloading the entire video first.
+ * Pipes ffmpeg stdout directly to the HTTP response so audio bytes reach the
+ * client within seconds. Simultaneously tees to disk cache for subsequent plays.
+ * If the chapter is already cached, serves from disk with range request support.
  */
 async function handleChapterStreamRequest(
 	sourceManager: SourceManager,
@@ -458,6 +459,7 @@ async function handleChapterStreamRequest(
 	}
 
 	const { videoId, startTime, endTime } = decoded;
+	const duration = endTime - startTime;
 
 	// 1. Check chapter-specific cache
 	const chapterCached = findCachedFile(source, trackId);
@@ -474,33 +476,73 @@ async function handleChapterStreamRequest(
 		ffmpegInput = fullVideoCached.filePath;
 		log.info({ videoId, source }, "extracting chapter from cached full video");
 	} else {
-		// Resolve the stream URL (yt-dlp call, ~2s) — ffmpeg reads from it directly
 		ffmpegInput = await sourceManager.getStreamUrl(source, trackId);
 		log.info({ videoId, source }, "extracting chapter from remote URL");
 	}
 
-	// 3. Extract chapter with ffmpeg directly to cache
+	// 3. Stream ffmpeg output directly to client, tee to cache
 	ensureCacheDir(source);
-	const ext = ".webm";
-	const chapterFinalPath = join(cacheDirForSource(source), `${trackId}${ext}`);
+	const chapterFinalPath = join(cacheDirForSource(source), `${trackId}.webm`);
 	const chapterPartialPath = `${chapterFinalPath}.partial`;
 	const chapterMetaPath = `${chapterFinalPath}.meta`;
 
-	log.info({ trackId, startTime, endTime }, "extracting chapter with ffmpeg");
-	await extractChapter(ffmpegInput, startTime, endTime, chapterPartialPath);
+	log.info({ trackId, startTime, endTime, duration }, "streaming chapter via ffmpeg");
 
-	// Atomic rename + meta
-	renameSync(chapterPartialPath, chapterFinalPath);
-	const { size: chapterSize } = Bun.file(chapterFinalPath);
-	const chapterMeta: CacheMeta = {
-		contentType: "audio/webm",
-		contentLength: chapterSize,
-		cachedAt: new Date().toISOString(),
-	};
-	writeFileSync(chapterMetaPath, JSON.stringify(chapterMeta));
-	log.info({ trackId, size: chapterSize }, "chapter cached");
+	const proc = spawn("ffmpeg", [
+		"-ss", String(startTime),
+		"-i", ffmpegInput,
+		"-t", String(duration),
+		"-vn",
+		"-c:a", "copy",
+		"-f", "webm",
+		"pipe:1",
+	], { stdio: ["ignore", "pipe", "pipe"] });
 
-	return serveCachedFile(chapterFinalPath, chapterMeta, rangeHeader);
+	const cacheWriter = Bun.file(chapterPartialPath).writer();
+	let totalWritten = 0;
+
+	const stream = new ReadableStream({
+		start(controller) {
+			proc.stdout.on("data", (chunk: Buffer) => {
+				controller.enqueue(new Uint8Array(chunk));
+				cacheWriter.write(chunk);
+				totalWritten += chunk.byteLength;
+			});
+			proc.stdout.on("end", () => {
+				controller.close();
+				void Promise.resolve(cacheWriter.end()).then(() => {
+					if (totalWritten > 0) {
+						try {
+							renameSync(chapterPartialPath, chapterFinalPath);
+							const meta: CacheMeta = {
+								contentType: "audio/webm",
+								contentLength: totalWritten,
+								cachedAt: new Date().toISOString(),
+							};
+							writeFileSync(chapterMetaPath, JSON.stringify(meta));
+							log.info({ trackId, size: totalWritten }, "chapter cached");
+						} catch (err) {
+							log.error({ trackId, err: String(err) }, "chapter cache write failed");
+						}
+					}
+				}).catch(() => { /* ignore cache cleanup failure */ });
+			});
+			proc.on("error", (err) => {
+				controller.error(err);
+				void Promise.resolve(cacheWriter.end()).catch(() => {});
+				try { unlinkSync(chapterPartialPath); } catch { /* ignore */ }
+			});
+			proc.stderr.on("data", () => { /* discard ffmpeg status output */ });
+		},
+	});
+
+	const responseHeaders = new Headers();
+	responseHeaders.set("Content-Type", "audio/webm");
+	responseHeaders.set("Accept-Ranges", "none");
+	responseHeaders.set("Access-Control-Allow-Origin", "*");
+	responseHeaders.set("Access-Control-Expose-Headers", "Content-Type");
+
+	return new Response(stream, { status: 200, headers: responseHeaders });
 }
 
 /**
