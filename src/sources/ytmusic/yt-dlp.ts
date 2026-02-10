@@ -160,6 +160,26 @@ export async function getAudioUrl(videoId: string): Promise<string> {
 }
 
 /**
+ * Extracts the direct audio stream URL for a regular YouTube video.
+ * Uses youtube.com (not music.youtube.com) for videos that may not be
+ * available on YouTube Music.
+ *
+ * @param videoId - YouTube video ID (e.g., "6uJ0eRFQszo")
+ * @returns Direct URL to the audio stream (expires after some time)
+ * @throws Error if yt-dlp fails or video is unavailable
+ */
+export async function getYouTubeAudioUrl(videoId: string): Promise<string> {
+	const output = await runYtDlp([
+		"--format",
+		"bestaudio",
+		"--get-url",
+		"--no-playlist",
+		`https://www.youtube.com/watch?v=${videoId}`,
+	]);
+	return output;
+}
+
+/**
  * Fetches complete track metadata for a YouTube Music video.
  * Includes title, artist, album, duration, thumbnail, and stream URL.
  *

@@ -115,7 +115,7 @@ export function createYouTubeSource(): Source {
 			// Strip the @start-end suffix to get the base video ID
 			const decoded = decodeChapterTrackId(trackId);
 			const videoId = decoded ? decoded.videoId : trackId;
-			return ytdlp.getAudioUrl(videoId);
+			return ytdlp.getYouTubeAudioUrl(videoId);
 		},
 	};
 }
