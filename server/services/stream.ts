@@ -421,6 +421,7 @@ export function extractChapter(
 			"-t", String(duration),
 			"-vn",
 			"-c:a", "copy",
+			"-f", "webm",
 			"-y",
 			outputPath,
 		], { stdio: ["ignore", "pipe", "pipe"] });
