@@ -6,7 +6,7 @@
 
 import { z } from "zod";
 import { router, publicProcedure } from "../trpc.js";
-import { formatSourceId, parseId } from "../lib/ids.js";
+import { formatSourceId, parseId, trackCapabilities } from "../lib/ids.js";
 import { ensureSourceManager } from "../services/sourceManager.js";
 import type { CanonicalTrack } from "../../src/sources/types.js";
 
@@ -65,5 +65,30 @@ export const albumRouter = router({
 			const sourceManager = await ensureSourceManager();
 			const { tracks } = await sourceManager.getAlbumTracks(parsed.source, parsed.id);
 			return tracks.map(encodeTrack);
+		}),
+
+	getWithTracks: publicProcedure
+		.input(z.object({ id: z.string() }))
+		.query(async ({ input }) => {
+			const parsed = parseId(input.id);
+			if (!parsed.source) {
+				throw new Error(`Album getWithTracks requires a source-prefixed ID, got: ${input.id}`);
+			}
+			const sourceManager = await ensureSourceManager();
+			const { album, tracks } = await sourceManager.getAlbumTracks(parsed.source, parsed.id);
+			return {
+				album: {
+					id: input.id,
+					title: album.title,
+					artist: album.artist,
+					...(album.year != null ? { year: album.year } : {}),
+					...(album.artworkUrl != null ? { artworkUrl: album.artworkUrl } : {}),
+				},
+				tracks: tracks.map((t, index) => ({
+					...encodeTrack(t),
+					trackIndex: index,
+					capabilities: trackCapabilities(t.sourceId.source),
+				})),
+			};
 		}),
 });
