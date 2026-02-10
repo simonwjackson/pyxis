@@ -33,6 +33,9 @@ export function extractVideoId(query: string): string | null {
 		const match = query.match(pattern);
 		if (match?.[1]) return match[1];
 	}
+	// Bare video ID (exactly 11 chars: alphanumeric, dash, underscore)
+	const trimmed = query.trim();
+	if (/^[a-zA-Z0-9_-]{11}$/.test(trimmed)) return trimmed;
 	return null;
 }
 

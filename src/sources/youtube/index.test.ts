@@ -109,6 +109,18 @@ describe("extractVideoId", () => {
 		).toBe("6uJ0eRFQszo");
 	});
 
+	it("extracts from bare video ID", () => {
+		expect(extractVideoId("6uJ0eRFQszo")).toBe("6uJ0eRFQszo");
+	});
+
+	it("extracts from bare video ID with whitespace", () => {
+		expect(extractVideoId("  6uJ0eRFQszo  ")).toBe("6uJ0eRFQszo");
+	});
+
+	it("extracts from bare video ID with all valid chars", () => {
+		expect(extractVideoId("a-b_C-D1234")).toBe("a-b_C-D1234");
+	});
+
 	it("returns null for non-YouTube URLs", () => {
 		expect(extractVideoId("https://example.com/watch?v=abc")).toBeNull();
 	});
