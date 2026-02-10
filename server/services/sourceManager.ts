@@ -20,6 +20,7 @@ import { createDiscogsSource } from "../../src/sources/discogs/index.js";
 import { createDeezerSource } from "../../src/sources/deezer/index.js";
 import { createBandcampFullSource } from "../../src/sources/bandcamp/index.js";
 import { createSoundCloudFullSource } from "../../src/sources/soundcloud/index.js";
+import { createYouTubeSource } from "../../src/sources/youtube/index.js";
 import type { AppConfig } from "../../src/config.js";
 import { createLogger } from "../../src/logger.js";
 
@@ -106,6 +107,9 @@ async function buildSharedSources(config: AppConfig): Promise<SharedSources> {
 			}),
 		);
 	}
+
+	// --- Always-available sources ---
+	primarySources.push(createYouTubeSource());
 
 	// --- Dual-registered sources (primary + metadata) ---
 
@@ -251,7 +255,10 @@ export async function ensureSourceManager(): Promise<SourceManager> {
 	if (existing) return existing;
 
 	const dbPlaylists = await loadYtMusicPlaylistsFromDb();
-	const sources: Source[] = [createYtMusicSource({ playlists: dbPlaylists })];
+	const sources: Source[] = [
+		createYtMusicSource({ playlists: dbPlaylists }),
+		createYouTubeSource(),
+	];
 
 	// Add shared primary sources (Bandcamp, SoundCloud)
 	const shared = appConfig ? await buildSharedSources(appConfig) : { primarySources: [], metadataSources: [] };

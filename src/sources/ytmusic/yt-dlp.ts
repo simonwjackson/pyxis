@@ -88,6 +88,59 @@ function runYtDlp(args: readonly string[]): Promise<string> {
 }
 
 /**
+ * Chapter information from yt-dlp JSON output.
+ */
+export type YtDlpChapter = {
+	readonly title: string;
+	readonly start_time: number;
+	readonly end_time: number;
+};
+
+/**
+ * Full video metadata from yt-dlp, including chapter markers.
+ */
+export type YtDlpVideoInfo = {
+	readonly id: string;
+	readonly title: string;
+	readonly uploader: string;
+	readonly thumbnail?: string;
+	readonly duration: number;
+	readonly chapters: readonly YtDlpChapter[] | null;
+};
+
+/**
+ * Fetches full video metadata including chapter markers.
+ * Uses yt-dlp to dump JSON info for a YouTube video.
+ *
+ * @param videoId - YouTube video ID (e.g., "6uJ0eRFQszo")
+ * @returns Video metadata including chapters array (null if no chapters)
+ * @throws Error if yt-dlp fails or video is unavailable
+ */
+export async function getVideoInfo(videoId: string): Promise<YtDlpVideoInfo> {
+	const output = await runYtDlp([
+		"--dump-json",
+		"--no-playlist",
+		`https://www.youtube.com/watch?v=${videoId}`,
+	]);
+	const data = JSON.parse(output) as {
+		id?: string;
+		title?: string;
+		uploader?: string;
+		thumbnail?: string;
+		duration?: number;
+		chapters?: readonly { title: string; start_time: number; end_time: number }[] | null;
+	};
+	return {
+		id: typeof data.id === "string" ? data.id : videoId,
+		title: typeof data.title === "string" ? data.title : "Unknown",
+		uploader: typeof data.uploader === "string" ? data.uploader : "Unknown",
+		...(typeof data.thumbnail === "string" ? { thumbnail: data.thumbnail } : {}),
+		duration: typeof data.duration === "number" ? data.duration : 0,
+		chapters: Array.isArray(data.chapters) && data.chapters.length > 0 ? data.chapters : null,
+	};
+}
+
+/**
  * Extracts the direct audio stream URL for a YouTube Music video.
  * Uses yt-dlp to resolve the best available audio format.
  *

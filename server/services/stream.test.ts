@@ -62,6 +62,18 @@ describe("parseTrackId", () => {
 		expect(result.source).toBe("ytmusic");
 		expect(result.trackId).toBe("OLAK5uy_nUXE-test_id-123");
 	});
+
+	it("parses a youtube composite ID", () => {
+		const result = parseTrackId("youtube:6uJ0eRFQszo@0-245.5");
+		expect(result.source).toBe("youtube");
+		expect(result.trackId).toBe("6uJ0eRFQszo@0-245.5");
+	});
+
+	it("parses a youtube composite ID without chapter markers", () => {
+		const result = parseTrackId("youtube:6uJ0eRFQszo");
+		expect(result.source).toBe("youtube");
+		expect(result.trackId).toBe("6uJ0eRFQszo");
+	});
 });
 
 describe("encodeTrackId", () => {
@@ -125,6 +137,7 @@ describe("StreamRequest type", () => {
 		const sources = [
 			"pandora",
 			"ytmusic",
+			"youtube",
 			"local",
 			"musicbrainz",
 			"discogs",

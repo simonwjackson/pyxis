@@ -7,9 +7,11 @@
 
 import { mkdirSync, existsSync, readFileSync, writeFileSync, renameSync, unlinkSync } from "node:fs";
 import { join } from "node:path";
+import { spawn } from "node:child_process";
 import envPaths from "env-paths";
 import type { SourceManager } from "../../src/sources/index.js";
 import type { SourceType } from "../../src/sources/types.js";
+import { decodeChapterTrackId } from "../../src/sources/youtube/index.js";
 import { createLogger } from "../../src/logger.js";
 
 const log = createLogger("stream").child({ component: "stream" });
@@ -355,6 +357,145 @@ export async function prefetchToCache(
 }
 
 /**
+ * Extracts a time range from an audio file using ffmpeg codec-copy.
+ * Fast operation — no re-encoding, just container-level trimming.
+ *
+ * @param inputPath - Path to the full audio file
+ * @param startTime - Start time in seconds
+ * @param endTime - End time in seconds
+ * @param outputPath - Path to write the extracted segment
+ */
+export function extractChapter(
+	inputPath: string,
+	startTime: number,
+	endTime: number,
+	outputPath: string,
+): Promise<void> {
+	return new Promise((resolve, reject) => {
+		const proc = spawn("ffmpeg", [
+			"-i", inputPath,
+			"-ss", String(startTime),
+			"-to", String(endTime),
+			"-vn",
+			"-c:a", "copy",
+			"-y",
+			outputPath,
+		], { stdio: ["ignore", "pipe", "pipe"] });
+
+		let stderr = "";
+		proc.stderr.on("data", (chunk: Buffer) => {
+			stderr += chunk.toString();
+		});
+		proc.on("close", (code) => {
+			if (code === 0) {
+				resolve();
+			} else {
+				reject(new Error(`ffmpeg exited with code ${String(code)}: ${stderr.trim()}`));
+			}
+		});
+		proc.on("error", reject);
+	});
+}
+
+/**
+ * Handles streaming for chapter-based YouTube tracks.
+ * Downloads the full video audio, extracts the chapter time range with ffmpeg,
+ * and caches both the full video and extracted chapter.
+ */
+async function handleChapterStreamRequest(
+	sourceManager: SourceManager,
+	source: SourceType,
+	trackId: string,
+	rangeHeader: string | null,
+): Promise<Response> {
+	const decoded = decodeChapterTrackId(trackId);
+	if (!decoded) {
+		return new Response("Invalid chapter track ID", { status: 400 });
+	}
+
+	const { videoId, startTime, endTime } = decoded;
+
+	// 1. Check chapter-specific cache
+	const chapterCached = findCachedFile(source, trackId);
+	if (chapterCached) {
+		const meta = readMeta(chapterCached.metaPath);
+		log.info({ trackId, source }, "chapter cache hit");
+		return serveCachedFile(chapterCached.filePath, meta, rangeHeader);
+	}
+
+	// 2. Ensure full video is cached
+	let fullVideoCached = findCachedFile(source, videoId);
+	if (!fullVideoCached) {
+		log.info({ videoId, source }, "downloading full video for chapter extraction");
+		const url = await sourceManager.getStreamUrl(source, trackId);
+		const upstream = await fetch(url);
+		if (!upstream.ok || !upstream.body) {
+			log.error({ status: upstream.status, videoId }, "upstream error for full video");
+			return new Response("Failed to fetch upstream audio", { status: 502 });
+		}
+
+		const contentType = upstream.headers.get("content-type") ?? "audio/webm";
+		ensureCacheDir(source);
+		const ext = extensionForContentType(contentType);
+		const finalPath = join(cacheDirForSource(source), `${videoId}${ext}`);
+		const partialPath = `${finalPath}.partial`;
+		const metaPath = `${finalPath}.meta`;
+
+		const writer = Bun.file(partialPath).writer();
+		const reader = upstream.body.getReader();
+		let totalWritten = 0;
+
+		for (;;) {
+			const { done, value } = await reader.read();
+			if (done) break;
+			writer.write(value);
+			totalWritten += value.byteLength;
+		}
+		await writer.end();
+
+		renameSync(partialPath, finalPath);
+		const meta: CacheMeta = {
+			contentType,
+			contentLength: totalWritten,
+			cachedAt: new Date().toISOString(),
+		};
+		writeFileSync(metaPath, JSON.stringify(meta));
+		log.info({ videoId, size: totalWritten }, "full video cached");
+
+		fullVideoCached = findCachedFile(source, videoId);
+		if (!fullVideoCached) {
+			return new Response("Cache write failed", { status: 500 });
+		}
+	} else {
+		log.info({ videoId, source }, "full video already cached");
+	}
+
+	// 3. Extract chapter with ffmpeg
+	const fullMeta = readMeta(fullVideoCached.metaPath);
+	const chapterExt = extensionForContentType(fullMeta.contentType);
+	ensureCacheDir(source);
+	const chapterFinalPath = join(cacheDirForSource(source), `${trackId}${chapterExt}`);
+	const chapterPartialPath = `${chapterFinalPath}.partial`;
+	const chapterMetaPath = `${chapterFinalPath}.meta`;
+
+	log.info({ trackId, startTime, endTime }, "extracting chapter with ffmpeg");
+	await extractChapter(fullVideoCached.filePath, startTime, endTime, chapterPartialPath);
+
+	// Atomic rename + meta
+	renameSync(chapterPartialPath, chapterFinalPath);
+	const { size: chapterSize } = Bun.file(chapterFinalPath);
+	const chapterMeta: CacheMeta = {
+		contentType: fullMeta.contentType,
+		contentLength: chapterSize,
+		cachedAt: new Date().toISOString(),
+	};
+	writeFileSync(chapterMetaPath, JSON.stringify(chapterMeta));
+	log.info({ trackId, size: chapterSize }, "chapter cached");
+
+	return serveCachedFile(chapterFinalPath, chapterMeta, rangeHeader);
+}
+
+/**
  * Handles an audio stream request, serving from cache or fetching upstream.
  * For non-Pandora sources, caches the response to disk on first request.
  * Supports HTTP range requests for seeking within cached files.
@@ -372,6 +513,11 @@ export async function handleStreamRequest(
 	const startTime = Date.now();
 	const { source, trackId } = parseTrackId(compositeId);
 	log.info({ compositeId, range: rangeHeader ?? "none" }, "request");
+
+	// Delegate chapter-based YouTube tracks to specialized handler
+	if (source === "youtube" && trackId.includes("@")) {
+		return handleChapterStreamRequest(sourceManager, source, trackId, rangeHeader);
+	}
 
 	// Only cache non-Pandora sources (Pandora URLs are short-lived)
 	if (source !== "pandora") {

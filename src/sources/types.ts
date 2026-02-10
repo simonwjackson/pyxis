@@ -8,7 +8,7 @@
  * Identifier for a music source backend.
  * Used to route requests and identify where data originated.
  */
-export type SourceType = "pandora" | "ytmusic" | "local" | "musicbrainz" | "discogs" | "deezer" | "bandcamp" | "soundcloud";
+export type SourceType = "pandora" | "ytmusic" | "youtube" | "local" | "musicbrainz" | "discogs" | "deezer" | "bandcamp" | "soundcloud";
 
 /**
  * Classification of a music release.
@@ -285,6 +285,7 @@ export function hasMetadataSearchCapability(
  */
 export const SOURCE_PRIORITY: Readonly<Record<SourceType, number>> = {
 	ytmusic: 1,     // opus/m4a ~128-256 kbps variable
+	youtube: 1,     // same quality tier as ytmusic (both use yt-dlp)
 	soundcloud: 2,  // mp3/opus ~128-256 kbps progressive
 	bandcamp: 3,    // mp3 128 kbps fixed
 	pandora: 4,     // aac/mp3 64-192 kbps, radio-only (not album-capable)
