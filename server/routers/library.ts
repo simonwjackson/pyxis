@@ -156,6 +156,44 @@ export const libraryRouter = router({
 			return { success: true };
 		}),
 
+	updateAlbum: publicProcedure
+		.input(
+			z
+				.object({
+					id: z.string(),
+					title: z.string().trim().min(1).optional(),
+					artist: z.string().trim().min(1).optional(),
+				})
+				.refine((d) => d.title !== undefined || d.artist !== undefined),
+		)
+		.mutation(async ({ input }) => {
+			const db = await getDb();
+			const fields: { title?: string; artist?: string } = {};
+			if (input.title !== undefined) fields.title = input.title;
+			if (input.artist !== undefined) fields.artist = input.artist;
+			await db
+				.update(schema.albums)
+				.set(fields)
+				.where(eq(schema.albums.id, input.id));
+			return { success: true };
+		}),
+
+	updateTrack: publicProcedure
+		.input(
+			z.object({
+				id: z.string(),
+				title: z.string().trim().min(1),
+			}),
+		)
+		.mutation(async ({ input }) => {
+			const db = await getDb();
+			await db
+				.update(schema.albumTracks)
+				.set({ title: input.title })
+				.where(eq(schema.albumTracks.id, input.id));
+			return { success: true };
+		}),
+
 	bookmarks: pandoraProtectedProcedure.query(async ({ ctx }) => {
 		return Effect.runPromise(
 			Pandora.getBookmarks(ctx.pandoraSession),

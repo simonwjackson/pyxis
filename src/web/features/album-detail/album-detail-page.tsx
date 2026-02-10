@@ -12,6 +12,7 @@ import { trpc } from "@/web/shared/lib/trpc";
 import { usePlaybackContext } from "@/web/shared/playback/playback-context";
 import { Skeleton } from "@/web/shared/ui/skeleton";
 import { Button } from "@/web/shared/ui/button";
+import { EditableText } from "@/web/shared/ui/editable-text";
 import {
 	albumTrackToNowPlaying,
 	sourceAlbumTrackToNowPlaying,
@@ -116,6 +117,21 @@ export function AlbumDetailPage({
 		onError(err) {
 			toast.error(`Failed to save album: ${err.message}`);
 		},
+	});
+
+	const updateAlbum = trpc.library.updateAlbum.useMutation({
+		onSuccess: () => {
+			utils.library.albums.invalidate();
+			utils.library.albumTracks.invalidate({ albumId });
+		},
+		onError: (err) => toast.error(`Failed to rename: ${err.message}`),
+	});
+
+	const updateTrack = trpc.library.updateTrack.useMutation({
+		onSuccess: () => {
+			utils.library.albumTracks.invalidate({ albumId });
+		},
+		onError: (err) => toast.error(`Failed to rename: ${err.message}`),
 	});
 
 	const handleSave = useCallback(() => {
@@ -250,12 +266,24 @@ export function AlbumDetailPage({
 					)}
 				</div>
 				<div className="space-y-1 min-w-0">
-					<h1 className="text-2xl md:text-3xl font-bold text-[var(--color-text)] leading-tight">
-						{album.title}
-					</h1>
-					<p className="text-lg text-[var(--color-text-muted)]">
-						{album.artist}
-					</p>
+					<EditableText
+						value={album.title}
+						onSave={(title) => updateAlbum.mutate({ id: albumId, title })}
+						disabled={isSourceBacked}
+					>
+						<h1 className="text-2xl md:text-3xl font-bold text-[var(--color-text)] leading-tight">
+							{album.title}
+						</h1>
+					</EditableText>
+					<EditableText
+						value={album.artist}
+						onSave={(artist) => updateAlbum.mutate({ id: albumId, artist })}
+						disabled={isSourceBacked}
+					>
+						<p className="text-lg text-[var(--color-text-muted)]">
+							{album.artist}
+						</p>
+					</EditableText>
 					<p className="text-sm text-[var(--color-text-dim)]">
 						{album.year ? `${String(album.year)} \u00B7 ` : ""}
 						{String(trackCount)} track{trackCount !== 1 ? "s" : ""}
@@ -321,9 +349,16 @@ export function AlbumDetailPage({
 								<span className="w-6 text-right text-sm">
 									{String(index + 1)}
 								</span>
-								<span className="flex-1 text-sm truncate">
-									{track.title}
-								</span>
+								<EditableText
+									value={track.title}
+									onSave={(title) => updateTrack.mutate({ id: track.id, title })}
+									disabled={isSourceBacked}
+									className="flex-1 min-w-0"
+								>
+									<span className="text-sm truncate block">
+										{track.title}
+									</span>
+								</EditableText>
 								{track.duration != null && (
 									<span className="text-xs">
 										{formatTime(track.duration)}
