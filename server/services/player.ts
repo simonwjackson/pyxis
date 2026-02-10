@@ -8,6 +8,8 @@
 import * as Queue from "./queue.js";
 import { schedulePlayerSave, loadPlayerState } from "./persistence.js";
 import { createLogger } from "../../src/logger.js";
+import { getDb, schema } from "../../src/db/index.js";
+import { generateId } from "../lib/ids.js";
 
 const log = createLogger("playback").child({ component: "player" });
 
@@ -111,6 +113,40 @@ function getProgress(): number {
 	return progress;
 }
 
+const LISTEN_THRESHOLD_SECONDS = 30;
+
+/**
+ * Records the outgoing track to the listen log if it was played for >= 30 seconds.
+ * Must be called BEFORE state is overwritten in transition functions.
+ */
+function maybeLogListen(): void {
+	const currentTrack = Queue.currentTrack();
+	if (!currentTrack) return;
+
+	const currentProgress = getProgress();
+	if (currentProgress < LISTEN_THRESHOLD_SECONDS) return;
+
+	try {
+		const db = getDb();
+		db.insert(schema.listenLog)
+			.values({
+				id: generateId(),
+				compositeId: currentTrack.id,
+				title: currentTrack.title,
+				artist: currentTrack.artist,
+				album: currentTrack.album,
+				source: currentTrack.source,
+			})
+			.run();
+		log.info(
+			{ track: currentTrack.id, progress: currentProgress },
+			"listen logged",
+		);
+	} catch (err) {
+		log.error({ err, track: currentTrack.id }, "failed to log listen");
+	}
+}
+
 /**
  * Subscribes to player state changes.
  * The listener is called immediately on state changes with the full state snapshot.
@@ -157,6 +193,7 @@ export function subscribe(listener: PlayerListener): () => void {
 export function play(tracks?: readonly Queue.QueueTrack[], context?: Queue.QueueContext, startIndex?: number): void {
 	log.info({ tracks: tracks?.length ?? "none", startIndex: startIndex ?? "none" }, "play() called");
 	if (tracks && context) {
+		maybeLogListen();
 		Queue.setQueue(tracks, context, startIndex);
 	}
 
@@ -207,6 +244,7 @@ export function resume(): void {
  * Resets progress and duration to zero.
  */
 export function stop(): void {
+	maybeLogListen();
 	progress = 0;
 	duration = 0;
 	status = "stopped";
@@ -223,6 +261,7 @@ export function stop(): void {
  */
 export function skip(): Queue.QueueTrack | undefined {
 	log.info({ currentIndex: Queue.getState().currentIndex, queueLen: Queue.getState().items.length }, "skip() called");
+	maybeLogListen();
 	const nextTrack = Queue.next();
 	if (!nextTrack) {
 		status = "stopped";
@@ -249,6 +288,7 @@ export function skip(): Queue.QueueTrack | undefined {
  */
 export function previousTrack(): Queue.QueueTrack | undefined {
 	log.info({ currentIndex: Queue.getState().currentIndex }, "previous() called");
+	maybeLogListen();
 	const prev = Queue.previous();
 	if (!prev) return undefined;
 
@@ -276,6 +316,7 @@ export function previousTrack(): Queue.QueueTrack | undefined {
  */
 export function jumpToIndex(index: number): Queue.QueueTrack | undefined {
 	log.info({ index, currentIndex: Queue.getState().currentIndex }, "jumpTo() called");
+	maybeLogListen();
 	const track = Queue.jumpTo(index);
 	if (!track) return undefined;
 

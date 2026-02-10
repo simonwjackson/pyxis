@@ -12,6 +12,7 @@ import {
 	Search,
 	Bookmark,
 	LayoutGrid,
+	History,
 	Settings,
 } from "lucide-react";
 import { cn } from "../lib/utils";
@@ -47,6 +48,11 @@ const navItems: readonly NavItem[] = [
 		path: "/genres",
 		icon: <LayoutGrid className="w-5 h-5" />,
 		requiresPandora: true,
+	},
+	{
+		label: "History",
+		path: "/history",
+		icon: <History className="w-5 h-5" />,
 	},
 	{
 		label: "Settings",

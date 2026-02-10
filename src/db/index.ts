@@ -87,6 +87,16 @@ CREATE TABLE IF NOT EXISTS queue_state (
 	context_id TEXT
 );
 
+CREATE TABLE IF NOT EXISTS listen_log (
+	id TEXT PRIMARY KEY,
+	composite_id TEXT NOT NULL,
+	title TEXT NOT NULL,
+	artist TEXT NOT NULL,
+	album TEXT,
+	source TEXT NOT NULL,
+	listened_at INTEGER NOT NULL
+);
+
 -- Drop legacy credential tables if they exist
 DROP TABLE IF EXISTS source_credentials;
 DROP TABLE IF EXISTS credentials;

@@ -16,6 +16,7 @@ import { searchRouter } from "./routers/search.js";
 import { playerRouter } from "./routers/player.js";
 import { queueRouter } from "./routers/queue.js";
 import { logRouter } from "./routers/log.js";
+import { listenLogRouter } from "./routers/listenLog.js";
 
 /**
  * Combined tRPC application router containing all API endpoints.
@@ -34,6 +35,7 @@ export const appRouter = router({
 	player: playerRouter,
 	queue: queueRouter,
 	log: logRouter,
+	listenLog: listenLogRouter,
 });
 
 /**

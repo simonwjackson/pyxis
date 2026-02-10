@@ -12,6 +12,7 @@ import {
 	Search,
 	Bookmark,
 	LayoutGrid,
+	History,
 	Settings,
 	Menu,
 	X,
@@ -45,6 +46,11 @@ const navItems: readonly NavItem[] = [
 		path: "/genres",
 		icon: <LayoutGrid className="w-5 h-5" />,
 		requiresPandora: true,
+	},
+	{
+		label: "History",
+		path: "/history",
+		icon: <History className="w-5 h-5" />,
 	},
 	{
 		label: "Settings",

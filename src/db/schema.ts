@@ -112,3 +112,19 @@ export const queueState = sqliteTable("queue_state", {
 	contextType: text("context_type").notNull(),
 	contextId: text("context_id"),
 });
+
+/**
+ * Listen log table - append-only record of played tracks.
+ * Denormalized: stores track metadata directly for durability.
+ */
+export const listenLog = sqliteTable("listen_log", {
+	id: text("id").primaryKey(),
+	compositeId: text("composite_id").notNull(),
+	title: text("title").notNull(),
+	artist: text("artist").notNull(),
+	album: text("album"),
+	source: text("source").notNull(),
+	listenedAt: integer("listened_at", { mode: "timestamp" })
+		.notNull()
+		.$defaultFn(() => new Date()),
+});
