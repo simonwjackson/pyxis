@@ -1,3 +1,9 @@
+/**
+ * @module CommandPalette
+ * Keyboard-driven command palette for quick actions and navigation.
+ * Supports command search, theme selection, and playback controls.
+ */
+
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import {
@@ -22,12 +28,18 @@ import { useTheme } from "../theme/theme-context";
 import { usePlaybackContext } from "../playback/playback-context";
 import { trpc } from "../lib/trpc";
 
+/**
+ * Props for the CommandPalette component.
+ */
 type CommandPaletteProps = {
+	/** Callback to close the command palette */
 	readonly onClose: () => void;
 };
 
+/** Active panel state within the command palette */
 type ActivePanel = "commands" | "themes";
 
+/** Icon mapping for command actions */
 const iconMap: Record<string, typeof Play> = {
 	playPause: Play,
 	skipTrack: SkipForward,
@@ -43,13 +55,23 @@ const iconMap: Record<string, typeof Play> = {
 	changeTheme: Palette,
 };
 
+/**
+ * Props for selectable list items in the command palette.
+ */
 type SelectableItemProps = {
+	/** Whether this item is currently selected */
 	readonly selected: boolean;
+	/** Click handler for selection */
 	readonly onClick: () => void;
+	/** Mouse enter handler for hover selection */
 	readonly onMouseEnter: () => void;
+	/** Item content */
 	readonly children: React.ReactNode;
 };
 
+/**
+ * Selectable list item with keyboard and mouse interaction support.
+ */
 function SelectableItem({ selected, onClick, onMouseEnter, children }: SelectableItemProps) {
 	return (
 		<button
@@ -68,6 +90,19 @@ function SelectableItem({ selected, onClick, onMouseEnter, children }: Selectabl
 	);
 }
 
+/**
+ * Modal command palette with search, keyboard navigation, and theme selection.
+ * Open with Cmd/Ctrl+K. Navigate with arrow keys, select with Enter, close with Escape.
+ *
+ * Features:
+ * - Searchable command list
+ * - Keyboard navigation (arrow keys)
+ * - Theme picker sub-panel
+ * - Playback control actions
+ * - Navigation shortcuts
+ *
+ * @param props - Command palette props
+ */
 export function CommandPalette({ onClose }: CommandPaletteProps) {
 	const [query, setQuery] = useState("");
 	const [activePanel, setActivePanel] = useState<ActivePanel>("commands");
@@ -233,14 +268,25 @@ export function CommandPalette({ onClose }: CommandPaletteProps) {
 	);
 }
 
+/**
+ * Props for the command list sub-component.
+ */
 type CommandListProps = {
+	/** Current search query */
 	readonly query: string;
+	/** Ref to scrollable list container */
 	readonly listRef: React.RefObject<HTMLDivElement | null>;
+	/** Handler to execute a command action */
 	readonly onExecute: (action: string) => void;
+	/** Handler to switch to theme selection panel */
 	readonly onOpenThemes: () => void;
+	/** Handler to close the palette */
 	readonly onClose: () => void;
 };
 
+/**
+ * Filtered and grouped command list with keyboard navigation.
+ */
 function CommandList({
 	query,
 	listRef,
@@ -350,15 +396,27 @@ function CommandList({
 	);
 }
 
+/**
+ * Props for the theme list sub-component.
+ */
 type ThemeListProps = {
+	/** Ref to scrollable list container */
 	readonly listRef: React.RefObject<HTMLDivElement | null>;
+	/** Currently active theme name */
 	readonly currentTheme: string;
+	/** Handler to select a theme */
 	readonly onSelect: (name: string) => void;
+	/** Handler to navigate back to commands */
 	readonly onBack: () => void;
+	/** Handler to close the palette */
 	readonly onClose: () => void;
+	/** Current search query */
 	readonly query: string;
 };
 
+/**
+ * Theme selection list with keyboard navigation.
+ */
 function ThemeList({
 	listRef,
 	currentTheme,

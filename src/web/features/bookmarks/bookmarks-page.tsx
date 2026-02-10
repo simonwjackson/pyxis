@@ -1,9 +1,18 @@
+/**
+ * @module BookmarksPage
+ * Page for viewing and managing bookmarked artists and songs.
+ */
+
 import { User, Music, Bookmark, Trash2, Plus } from "lucide-react";
 import { toast } from "sonner";
 import { trpc } from "@/web/shared/lib/trpc";
 import { Spinner } from "@/web/shared/ui/spinner";
 import { Button } from "@/web/shared/ui/button";
 
+/**
+ * Bookmarks page displaying user's saved artists and songs.
+ * Allows removing bookmarks and creating stations from bookmarked items.
+ */
 export function BookmarksPage() {
 	const bookmarksQuery = trpc.library.bookmarks.useQuery();
 	const utils = trpc.useUtils();
@@ -73,6 +82,7 @@ export function BookmarksPage() {
 											})
 										}
 										title="Create station"
+										aria-label={`Create station from ${a.artistName}`}
 									>
 										<Plus className="w-4 h-4" />
 									</Button>
@@ -87,6 +97,7 @@ export function BookmarksPage() {
 											})
 										}
 										title="Remove bookmark"
+										aria-label={`Remove ${a.artistName} bookmark`}
 									>
 										<Trash2 className="w-4 h-4" />
 									</Button>
@@ -131,6 +142,7 @@ export function BookmarksPage() {
 											})
 										}
 										title="Create station"
+										aria-label={`Create station from ${s.songName}`}
 									>
 										<Plus className="w-4 h-4" />
 									</Button>
@@ -145,6 +157,7 @@ export function BookmarksPage() {
 											})
 										}
 										title="Remove bookmark"
+										aria-label={`Remove ${s.songName} bookmark`}
 									>
 										<Trash2 className="w-4 h-4" />
 									</Button>

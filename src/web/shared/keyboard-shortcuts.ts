@@ -1,3 +1,9 @@
+/**
+ * @module KeyboardShortcuts
+ * Global keyboard shortcut handling hook.
+ * Manages playback controls, navigation, and UI toggles via keyboard.
+ */
+
 import { useEffect, useCallback, useRef } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
@@ -5,11 +11,31 @@ import { matchShortcut } from "./lib/shortcuts";
 import { usePlaybackContext } from "./playback/playback-context";
 import { trpc } from "./lib/trpc";
 
+/**
+ * Handler callbacks for keyboard shortcut actions.
+ */
 type KeyboardShortcutHandlers = {
+	/** Callback to open the command palette */
 	readonly onCommandPalette: () => void;
+	/** Callback to toggle the help overlay */
 	readonly onToggleHelp: () => void;
 };
 
+/**
+ * Hook that registers global keyboard shortcuts for playback and navigation.
+ * Handles actions like play/pause, skip, like/dislike, bookmarking, and navigation.
+ * Shortcuts are disabled when typing in input fields (except Escape and Cmd/Ctrl+K).
+ *
+ * @param handlers - Callbacks for command palette and help toggle
+ *
+ * @example
+ * ```tsx
+ * useKeyboardShortcuts({
+ *   onCommandPalette: () => setCommandOpen(true),
+ *   onToggleHelp: () => setHelpOpen(!helpOpen),
+ * });
+ * ```
+ */
 export function useKeyboardShortcuts({ onCommandPalette, onToggleHelp }: KeyboardShortcutHandlers) {
 	const navigate = useNavigate();
 	const playback = usePlaybackContext();

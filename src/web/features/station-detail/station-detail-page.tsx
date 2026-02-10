@@ -1,3 +1,8 @@
+/**
+ * @module StationDetailPage
+ * Radio station detail view showing seeds, feedback, and playback controls.
+ */
+
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import {
@@ -21,6 +26,9 @@ import {
 	tracksToQueuePayload,
 } from "@/web/shared/lib/now-playing-utils";
 
+/**
+ * Station seed (artist or song that influences the station).
+ */
 type StationSeed = {
 	readonly seedId: string;
 	readonly musicToken?: string;
@@ -28,12 +36,18 @@ type StationSeed = {
 	readonly artistName?: string;
 };
 
+/**
+ * Station feedback entry (liked or disliked track).
+ */
 type StationFeedback = {
 	readonly feedbackId: string;
 	readonly songName: string;
 	readonly artistName: string;
 };
 
+/**
+ * Displays a station seed (artist or song) with remove button.
+ */
 function SeedItem({
 	seed,
 	type,
@@ -70,13 +84,17 @@ function SeedItem({
 				disabled={isRemoving}
 				className="opacity-0 group-hover:opacity-100 p-1.5 text-[var(--color-text-dim)] hover:text-[var(--color-error)] hover:bg-[var(--color-bg-highlight)] rounded transition-all disabled:opacity-50"
 				title="Remove seed"
+				aria-label={`Remove ${type === "song" ? seed.songName ?? "song" : seed.artistName ?? "artist"} seed`}
 			>
-				<X className="w-4 h-4" />
+				<X className="w-4 h-4" aria-hidden="true" />
 			</button>
 		</div>
 	);
 }
 
+/**
+ * Displays a feedback entry (liked or disliked track).
+ */
 function FeedbackItem({
 	feedback,
 }: {
@@ -94,6 +112,9 @@ function FeedbackItem({
 	);
 }
 
+/**
+ * Loading skeleton for station details.
+ */
 function DetailsSkeleton() {
 	return (
 		<div className="flex-1 p-4 space-y-6 max-w-2xl">
@@ -124,13 +145,26 @@ function DetailsSkeleton() {
 	);
 }
 
+/**
+ * Props for the StationDetailPage component.
+ */
+type StationDetailPageProps = {
+	/** Station token (pandora:stationToken format) */
+	readonly token: string;
+	/** Whether to auto-play on mount */
+	readonly autoPlay?: boolean;
+};
+
+/**
+ * Radio station detail page showing seeds, feedback history, and playback controls.
+ * Allows managing station seeds and viewing liked/disliked tracks.
+ *
+ * @param props - Station detail page props
+ */
 export function StationDetailPage({
 	token,
 	autoPlay,
-}: {
-	readonly token: string;
-	readonly autoPlay?: boolean;
-}) {
+}: StationDetailPageProps) {
 	const [showAddSeed, setShowAddSeed] = useState(false);
 	const navigate = useNavigate();
 	const playback = usePlaybackContext();

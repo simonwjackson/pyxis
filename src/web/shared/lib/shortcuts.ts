@@ -1,12 +1,31 @@
+/**
+ * @module Shortcuts
+ * Keyboard shortcut definitions and matching utilities.
+ * Provides shortcut configuration and event matching for keyboard navigation.
+ */
+
+/**
+ * Keyboard shortcut definition.
+ */
 type Shortcut = {
+	/** Key to match (e.g., " " for space, "n" for N key) */
 	readonly key: string;
+	/** Required modifier keys */
 	readonly modifiers?: readonly ("ctrl" | "meta" | "shift" | "alt")[];
+	/** Action identifier for dispatch */
 	readonly action: string;
+	/** Human-readable label for UI display */
 	readonly label: string;
+	/** Display-friendly key representation (e.g., "Space", "Cmd+K") */
 	readonly displayKey: string;
+	/** Context where shortcut is active */
 	readonly context?: "global" | "playing" | "stations";
 };
 
+/**
+ * All registered keyboard shortcuts.
+ * Includes playback controls, navigation, and UI toggles.
+ */
 export const shortcuts: readonly Shortcut[] = [
 	// Playback
 	{ key: " ", action: "playPause", label: "Play / Pause", displayKey: "Space", context: "global" },
@@ -32,12 +51,24 @@ export const shortcuts: readonly Shortcut[] = [
 	{ key: "5", action: "goToSettings", label: "Go to Settings", displayKey: "5", context: "global" },
 ];
 
+/**
+ * Checks if an element is a text input that should suppress shortcuts.
+ * @param el - Element to check
+ * @returns True if element is input, textarea, or contenteditable
+ */
 function isInputElement(el: Element | null): boolean {
 	if (!el) return false;
 	const tag = el.tagName.toLowerCase();
 	return tag === "input" || tag === "textarea" || el.hasAttribute("contenteditable");
 }
 
+/**
+ * Matches a keyboard event against registered shortcuts.
+ * Ignores shortcuts when typing in form elements, except Escape and Cmd/Ctrl+K.
+ *
+ * @param e - Keyboard event to match
+ * @returns Matching shortcut definition, or undefined if no match
+ */
 export function matchShortcut(
 	e: KeyboardEvent,
 ): Shortcut | undefined {
@@ -68,7 +99,12 @@ export function matchShortcut(
 	return undefined;
 }
 
-// Get unique display shortcuts (deduplicate actions like likeTrack which has + and =)
+/**
+ * Returns unique shortcuts for display in help UI.
+ * Deduplicates actions that have multiple key bindings (e.g., + and = for likeTrack).
+ *
+ * @returns Array of unique shortcuts for display
+ */
 export function getDisplayShortcuts(): readonly Shortcut[] {
 	const seen = new Set<string>();
 	return shortcuts.filter((s) => {

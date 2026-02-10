@@ -1,3 +1,8 @@
+/**
+ * @module PlaylistDetailPage
+ * Playlist detail view showing track listing with play and shuffle controls.
+ */
+
 import { useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { Play, Shuffle, Music, ArrowLeft } from "lucide-react";
@@ -13,6 +18,11 @@ import {
 	formatTime,
 } from "@/web/shared/lib/now-playing-utils";
 
+/**
+ * Formats total duration as human-readable string.
+ * @param totalSeconds - Duration in seconds
+ * @returns Formatted string (e.g., "1 hr 23 min" or "45 min")
+ */
 function formatTotalDuration(totalSeconds: number): string {
 	const hours = Math.floor(totalSeconds / 3600);
 	const mins = Math.floor((totalSeconds % 3600) / 60);
@@ -22,17 +32,32 @@ function formatTotalDuration(totalSeconds: number): string {
 	return `${String(mins)} min`;
 }
 
+/**
+ * Props for the PlaylistDetailPage component.
+ */
+type PlaylistDetailPageProps = {
+	/** Playlist ID to display */
+	readonly playlistId: string;
+	/** Whether to auto-play on mount */
+	readonly autoPlay?: boolean;
+	/** Track index to start playback from */
+	readonly startIndex?: number;
+	/** Whether to shuffle tracks on play */
+	readonly shuffle?: boolean;
+};
+
+/**
+ * Playlist detail page showing artwork, metadata, and track listing.
+ * Supports play, shuffle, and clicking individual tracks to start playback.
+ *
+ * @param props - Playlist detail page props
+ */
 export function PlaylistDetailPage({
 	playlistId,
 	autoPlay,
 	startIndex,
 	shuffle,
-}: {
-	readonly playlistId: string;
-	readonly autoPlay?: boolean;
-	readonly startIndex?: number;
-	readonly shuffle?: boolean;
-}) {
+}: PlaylistDetailPageProps) {
 	const navigate = useNavigate();
 	const playback = usePlaybackContext();
 	const playbackRef = useRef(playback);
@@ -120,8 +145,9 @@ export function PlaylistDetailPage({
 					})
 				}
 				className="flex items-center gap-1.5 text-sm text-[var(--color-text-dim)] hover:text-[var(--color-text)] transition-colors"
+				aria-label="Back to home"
 			>
-				<ArrowLeft className="w-4 h-4" />
+				<ArrowLeft className="w-4 h-4" aria-hidden="true" />
 				Back
 			</button>
 
@@ -209,6 +235,9 @@ export function PlaylistDetailPage({
 	);
 }
 
+/**
+ * Loading skeleton for the playlist detail page.
+ */
 function PlaylistDetailSkeleton() {
 	return (
 		<div className="flex-1 p-6 max-w-2xl mx-auto space-y-6">

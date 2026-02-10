@@ -1,11 +1,26 @@
+/**
+ * @module StationContextMenu
+ * Context menu component for station actions (details, rename, delete).
+ */
+
 import { type ReactNode, useEffect, useRef } from "react";
 import { Info, Pencil, Trash2 } from "lucide-react";
 
+/**
+ * Props for the StationContextMenu component.
+ */
 type StationContextMenuProps = {
+	/** Callback to close the menu */
 	readonly onClose: () => void;
+	/** Menu item children */
 	readonly children: ReactNode;
 };
 
+/**
+ * Context menu for station actions.
+ * Closes on click outside or Escape key.
+ * Use with StationContextMenu.Details, .Rename, and .Delete sub-components.
+ */
 export function StationContextMenu({
 	onClose,
 	children,
@@ -42,6 +57,9 @@ export function StationContextMenu({
 	);
 }
 
+/**
+ * Details menu item - navigates to station details page.
+ */
 function Details({ onClick }: { readonly onClick: () => void }) {
 	return (
 		<button
@@ -55,6 +73,9 @@ function Details({ onClick }: { readonly onClick: () => void }) {
 	);
 }
 
+/**
+ * Rename menu item - opens rename dialog.
+ */
 function Rename({ onClick }: { readonly onClick: () => void }) {
 	return (
 		<button
@@ -68,6 +89,9 @@ function Rename({ onClick }: { readonly onClick: () => void }) {
 	);
 }
 
+/**
+ * Delete menu item - opens delete confirmation dialog.
+ */
 function Delete({ onClick }: { readonly onClick: () => void }) {
 	return (
 		<>

@@ -1,3 +1,8 @@
+/**
+ * @module StationsPage
+ * Page for viewing and managing radio stations.
+ */
+
 import { useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { Search, Shuffle } from "lucide-react";
@@ -10,12 +15,19 @@ import { StationListSkeleton } from "@/web/shared/ui/skeleton";
 import { usePlaybackContext } from "@/web/shared/playback/playback-context";
 import type { RadioStation } from "./station-list";
 
+/**
+ * Dialog state for station management modals.
+ */
 type DialogState =
 	| { readonly type: "none" }
 	| { readonly type: "delete"; readonly station: RadioStation }
 	| { readonly type: "rename"; readonly station: RadioStation }
 	| { readonly type: "quickmix" };
 
+/**
+ * Stations page showing list of radio stations with filter and management options.
+ * Allows playing, renaming, deleting stations, and managing QuickMix selection.
+ */
 export function StationsPage() {
 	const [filter, setFilter] = useState("");
 	const [dialog, setDialog] = useState<DialogState>({ type: "none" });

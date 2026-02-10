@@ -1,3 +1,8 @@
+/**
+ * @module GenresPage
+ * Page for browsing and creating stations from genre categories.
+ */
+
 import { useState } from "react";
 import { ChevronDown, ChevronRight, Plus } from "lucide-react";
 import { toast } from "sonner";
@@ -5,6 +10,10 @@ import { trpc } from "@/web/shared/lib/trpc";
 import { Spinner } from "@/web/shared/ui/spinner";
 import { Button } from "@/web/shared/ui/button";
 
+/**
+ * Genre stations browser with expandable categories.
+ * Shows Pandora genre categories and allows creating new stations.
+ */
 export function GenresPage() {
 	const [expanded, setExpanded] = useState<string | null>(null);
 	const genresQuery = trpc.radio.genres.useQuery();
