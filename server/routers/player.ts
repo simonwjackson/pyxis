@@ -1,3 +1,10 @@
+/**
+ * @module server/routers/player
+ * Player control router for playback state management.
+ * Provides endpoints for controlling audio playback (play, pause, skip, seek)
+ * and real-time state subscriptions via Server-Sent Events.
+ */
+
 import { z } from "zod";
 import { observable } from "@trpc/server/observable";
 import { router, publicProcedure } from "../trpc.js";
@@ -7,6 +14,13 @@ import { createLogger } from "../../src/logger.js";
 
 const log = createLogger("playback").child({ component: "sse:player" });
 
+/**
+ * Transforms internal player state into API response format.
+ * Adds stream URL with prefetch hint for the next track.
+ *
+ * @param state - Internal player state from PlayerService
+ * @returns Serialized player state for API response
+ */
 function serializePlayerState(state: PlayerService.PlayerState) {
 	const track = state.currentTrack;
 	const nextTrack = state.nextTrack;
@@ -30,6 +44,25 @@ function serializePlayerState(state: PlayerService.PlayerState) {
 	};
 }
 
+/**
+ * Player router providing playback control and state synchronization.
+ *
+ * Endpoints:
+ * - `state` - Get current player state
+ * - `play` - Start playback with optional new tracks and context
+ * - `pause` - Pause playback
+ * - `resume` - Resume paused playback
+ * - `stop` - Stop playback and clear queue
+ * - `skip` - Skip to next track
+ * - `previous` - Go to previous track
+ * - `jumpTo` - Jump to specific queue index
+ * - `seek` - Seek to position in current track
+ * - `volume` - Set volume level (0-100)
+ * - `reportProgress` - Client reports current playback position
+ * - `reportDuration` - Client reports actual track duration
+ * - `trackEnded` - Client signals track finished playing
+ * - `onStateChange` - SSE subscription for real-time state updates
+ */
 export const playerRouter = router({
 	state: publicProcedure.query(() => {
 		return serializePlayerState(PlayerService.getState());

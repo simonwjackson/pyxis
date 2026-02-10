@@ -109,6 +109,12 @@ export async function loadPlayerState(): Promise<PersistedPlayerState | undefine
 
 // --- Queue persistence ---
 
+/**
+ * Converts a QueueContext to database row format.
+ *
+ * @param ctx - Queue context describing playback origin
+ * @returns Object with contextType string and contextId (null for manual)
+ */
 function contextToRow(ctx: QueueContext): { contextType: string; contextId: string | null } {
 	switch (ctx.type) {
 		case "radio":
@@ -122,6 +128,13 @@ function contextToRow(ctx: QueueContext): { contextType: string; contextId: stri
 	}
 }
 
+/**
+ * Converts database row format back to a QueueContext.
+ *
+ * @param contextType - Context type string from database
+ * @param contextId - Context ID from database (null for manual)
+ * @returns Reconstructed QueueContext union type
+ */
 function rowToContext(contextType: string, contextId: string | null): QueueContext {
 	switch (contextType) {
 		case "radio":

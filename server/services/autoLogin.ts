@@ -19,10 +19,22 @@ import type { SourceType } from "../../src/sources/types.js";
 /** Pandora error codes that indicate an expired/invalid session */
 const AUTH_ERROR_CODES = new Set([0, 1001, 1002]);
 
+/**
+ * Checks if an error is a Pandora authentication error requiring session refresh.
+ *
+ * @param err - Error to check
+ * @returns True if error indicates expired/invalid Pandora session
+ */
 function isPandoraAuthError(err: unknown): boolean {
 	return err instanceof ApiCallError && err.code != null && AUTH_ERROR_CODES.has(err.code);
 }
 
+/**
+ * Converts source layer tracks to queue-compatible track format.
+ *
+ * @param tracks - Tracks from source layer with sourceId structure
+ * @returns Array of QueueTrack objects with flattened IDs
+ */
 function mapTracksToQueue(tracks: ReadonlyArray<{ readonly sourceId: { readonly source: SourceType; readonly id: string }; readonly title: string; readonly artist: string; readonly album: string; readonly duration?: number | null; readonly artworkUrl?: string | null }>): QueueTrack[] {
 	return tracks.map((t): QueueTrack => ({
 		id: formatSourceId(t.sourceId.source, t.sourceId.id),
@@ -35,6 +47,13 @@ function mapTracksToQueue(tracks: ReadonlyArray<{ readonly sourceId: { readonly 
 	}));
 }
 
+/**
+ * Fetches tracks for a playlist/radio station from the source manager.
+ *
+ * @param source - Source type (pandora, ytmusic, etc.)
+ * @param id - Source-specific playlist/station ID
+ * @returns Array of tracks in queue format
+ */
 async function fetchPlaylistTracks(
 	source: SourceType,
 	id: string,
@@ -44,6 +63,13 @@ async function fetchPlaylistTracks(
 	return mapTracksToQueue(tracks);
 }
 
+/**
+ * Registers the radio auto-fetch handler for queue track replenishment.
+ * When playing a radio station, automatically fetches more tracks when
+ * the queue runs low. Handles session refresh on Pandora auth errors.
+ *
+ * @param logger - Logger for status and error messages
+ */
 function registerAutoFetchHandler(logger: Logger): void {
 	QueueService.setAutoFetchHandler(async (context) => {
 		if (context.type !== "radio") return [];

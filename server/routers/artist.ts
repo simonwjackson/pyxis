@@ -1,8 +1,21 @@
+/**
+ * @module server/routers/artist
+ * Artist operations router for retrieving artist metadata and search.
+ * Note: Artist IDs are derived from track results since neither Pandora
+ * nor YTMusic provides a dedicated artist API.
+ */
+
 import { z } from "zod";
 import { router, publicProcedure } from "../trpc.js";
 import { parseId, formatSourceId } from "../lib/ids.js";
 
-
+/**
+ * Artist router providing artist metadata and search operations.
+ *
+ * Endpoints:
+ * - `get` - Retrieve artist metadata by ID (limited data available)
+ * - `search` - Search for artists (derived from track search results)
+ */
 export const artistRouter = router({
 	get: publicProcedure
 		.input(z.object({ id: z.string() }))

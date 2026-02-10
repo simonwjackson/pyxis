@@ -29,12 +29,22 @@ const logger = createLogger("server");
 const managers = new Map<string, SourceManager>();
 
 // Cached shared sources (built once, reused across all sessions)
+/**
+ * Container for sources that are shared across all sessions.
+ * Primary sources provide streaming/search, metadata sources enrich album data.
+ */
 type SharedSources = {
 	readonly primarySources: readonly Source[];
 	readonly metadataSources: readonly MetadataSource[];
 };
 let cachedSharedSources: SharedSources | undefined;
 
+/**
+ * Loads YTMusic playlist entries from the database.
+ * These are user-saved playlists and radio stations persisted in PGlite.
+ *
+ * @returns Array of YTMusic playlist entries with id, url, name, and isRadio flag
+ */
 async function loadYtMusicPlaylistsFromDb(): Promise<YtMusicPlaylistEntry[]> {
 	const db = await getDb();
 	const rows = await db
@@ -49,6 +59,14 @@ async function loadYtMusicPlaylistsFromDb(): Promise<YtMusicPlaylistEntry[]> {
 	}));
 }
 
+/**
+ * Builds and caches the shared source instances based on application config.
+ * Creates metadata sources (MusicBrainz, Discogs, Deezer) and dual-purpose
+ * sources (Bandcamp, SoundCloud) that are reused across all sessions.
+ *
+ * @param config - Application configuration with source enable flags and credentials
+ * @returns Object containing arrays of primary and metadata sources
+ */
 async function buildSharedSources(config: AppConfig): Promise<SharedSources> {
 	if (cachedSharedSources) return cachedSharedSources;
 

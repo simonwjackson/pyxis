@@ -1,3 +1,23 @@
+/**
+ * @module server/index
+ * Main HTTP server entry point for Pyxis music server.
+ * Sets up Bun HTTP server with tRPC endpoint, audio streaming proxy,
+ * CORS handling, and server-sent events for real-time state updates.
+ *
+ * Server endpoints:
+ * - `/trpc/*` - tRPC API including SSE subscriptions
+ * - `/stream/:compositeTrackId` - Audio streaming proxy with caching
+ *
+ * @example
+ * ```bash
+ * # Start server with default config
+ * bun run server/index.ts
+ *
+ * # Start with custom config path
+ * bun run server/index.ts --config /path/to/config.yaml
+ * ```
+ */
+
 import { fetchRequestHandler } from "@trpc/server/adapters/fetch";
 import { appRouter } from "./router.js";
 import { createContext } from "./trpc.js";
@@ -21,6 +41,10 @@ const trpcLog = serverLogger.child({ component: "trpc" });
 
 const corsOrigin = `http://${config.server.hostname}:${config.web.port}`;
 
+/**
+ * Standard CORS headers for cross-origin requests from the web frontend.
+ * Allows credentials and common HTTP methods/headers for API access.
+ */
 const CORS_HEADERS = {
 	"Access-Control-Allow-Origin": corsOrigin,
 	"Access-Control-Allow-Methods": "GET, POST, OPTIONS",

@@ -16,6 +16,10 @@ const log = createLogger("stream").child({ component: "stream" });
 
 // --- Audio cache ---
 
+/**
+ * Metadata stored alongside cached audio files.
+ * Used to serve correct Content-Type and Content-Length headers on cache hits.
+ */
 type CacheMeta = {
 	readonly contentType: string;
 	readonly contentLength: number;
@@ -24,6 +28,12 @@ type CacheMeta = {
 
 const CACHE_BASE = join(envPaths("pyxis", { suffix: "" }).cache, "audio");
 
+/**
+ * Maps audio MIME type to file extension for cache storage.
+ *
+ * @param contentType - MIME type from upstream response
+ * @returns File extension including dot (e.g., ".webm", ".mp3")
+ */
 function extensionForContentType(contentType: string): string {
 	if (contentType.includes("webm")) return ".webm";
 	if (contentType.includes("mp4") || contentType.includes("m4a")) return ".m4a";
@@ -32,12 +42,25 @@ function extensionForContentType(contentType: string): string {
 	return ".audio";
 }
 
+/**
+ * Returns the cache directory path for a specific source type.
+ *
+ * @param source - Source type (ytmusic, bandcamp, etc.)
+ * @returns Absolute path to the source's cache directory
+ */
 function cacheDirForSource(source: SourceType): string {
 	return join(CACHE_BASE, source);
 }
 
 const KNOWN_EXTENSIONS = [".webm", ".m4a", ".ogg", ".mp3", ".audio"] as const;
 
+/**
+ * Searches for a cached audio file across all known extensions.
+ *
+ * @param source - Source type for cache directory
+ * @param trackId - Track identifier (used as filename without extension)
+ * @returns Object with filePath and metaPath if found, null otherwise
+ */
 function findCachedFile(source: SourceType, trackId: string): { filePath: string; metaPath: string } | null {
 	const dir = cacheDirForSource(source);
 	if (!existsSync(dir)) return null;
@@ -51,10 +74,21 @@ function findCachedFile(source: SourceType, trackId: string): { filePath: string
 	return null;
 }
 
+/**
+ * Reads and parses cache metadata JSON file.
+ *
+ * @param metaPath - Absolute path to the .meta file
+ * @returns Parsed CacheMeta object
+ */
 function readMeta(metaPath: string): CacheMeta {
 	return JSON.parse(readFileSync(metaPath, "utf-8")) as CacheMeta;
 }
 
+/**
+ * Creates the cache directory for a source type if it doesn't exist.
+ *
+ * @param source - Source type for cache directory
+ */
 function ensureCacheDir(source: SourceType): void {
 	mkdirSync(cacheDirForSource(source), { recursive: true });
 }
@@ -120,6 +154,15 @@ export async function resolveStreamUrl(
 
 // --- Cache hit: serve from disk ---
 
+/**
+ * Serves a cached audio file as an HTTP response.
+ * Supports HTTP range requests for seeking within the file.
+ *
+ * @param filePath - Absolute path to the cached audio file
+ * @param meta - Cache metadata containing content type and length
+ * @param rangeHeader - HTTP Range header for partial content requests
+ * @returns HTTP Response with full file or partial content (206)
+ */
 function serveCachedFile(
 	filePath: string,
 	meta: CacheMeta,
@@ -155,6 +198,18 @@ function serveCachedFile(
 
 // --- Cache miss: stream-through (tee to client + cache file) ---
 
+/**
+ * Streams audio from upstream while simultaneously caching to disk.
+ * Uses a tee stream to send data to both the client response and a file writer.
+ * Atomic file rename ensures partial downloads don't leave corrupt cache entries.
+ *
+ * @param upstream - Fetch response from the audio source
+ * @param source - Source type for cache directory
+ * @param trackId - Track identifier for cache filename
+ * @param contentType - MIME type for file extension selection
+ * @param contentLength - Expected content length, or null if unknown
+ * @returns HTTP Response streaming the audio to the client
+ */
 async function streamThroughAndCache(
 	upstream: globalThis.Response,
 	source: SourceType,

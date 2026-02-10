@@ -1,3 +1,10 @@
+/**
+ * @module server/routers/playlist
+ * Playlist operations router for listing and managing playlists.
+ * Supports both YTMusic playlists stored in the database and
+ * creating radio stations from track seeds.
+ */
+
 import { z } from "zod";
 import { router, publicProcedure } from "../trpc.js";
 import { formatSourceId, parseId, trackCapabilities, playlistCapabilities } from "../lib/ids.js";
@@ -9,6 +16,12 @@ import { getDb, schema } from "../../src/db/index.js";
 import { generateRadioUrl } from "../../src/sources/ytmusic/index.js";
 import type { CanonicalTrack, CanonicalPlaylist } from "../../src/sources/types.js";
 
+/**
+ * Transforms a canonical track into API response format with opaque ID.
+ *
+ * @param track - The canonical track from the source layer
+ * @returns Encoded track object with source-prefixed opaque ID and capabilities
+ */
 function encodeTrack(track: CanonicalTrack) {
 	const opaqueId = formatSourceId(track.sourceId.source, track.sourceId.id);
 	return {
@@ -22,6 +35,12 @@ function encodeTrack(track: CanonicalTrack) {
 	};
 }
 
+/**
+ * Transforms a canonical playlist into API response format.
+ *
+ * @param playlist - The canonical playlist from the source layer
+ * @returns Encoded playlist object with source-prefixed opaque ID
+ */
 function encodePlaylist(playlist: CanonicalPlaylist) {
 	return {
 		id: formatSourceId(playlist.source, playlist.id),
@@ -36,6 +55,14 @@ function encodePlaylist(playlist: CanonicalPlaylist) {
 	};
 }
 
+/**
+ * Playlist router providing playlist listing, track retrieval, and radio creation.
+ *
+ * Endpoints:
+ * - `list` - Get all playlists from all connected sources
+ * - `getTracks` - Get tracks for a specific playlist
+ * - `createRadio` - Create a YTMusic radio station from a track seed
+ */
 export const playlistRouter = router({
 	list: publicProcedure.query(async ({ ctx }) => {
 		const sourceManager = ctx.sourceManager;

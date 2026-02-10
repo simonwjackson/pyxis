@@ -1,3 +1,10 @@
+/**
+ * @module server/routers/library
+ * User library management router for albums, tracks, and bookmarks.
+ * Provides CRUD operations for the local album library stored in PGlite,
+ * and Pandora bookmark management for authenticated users.
+ */
+
 import { z } from "zod";
 import { Effect } from "effect";
 import { router, pandoraProtectedProcedure, publicProcedure } from "../trpc.js";
@@ -8,6 +15,18 @@ import { eq, and } from "drizzle-orm";
 import { ensureSourceManager } from "../services/sourceManager.js";
 import * as Pandora from "../../src/sources/pandora/client.js";
 
+/**
+ * Library router providing local album management and Pandora bookmark operations.
+ *
+ * Endpoints:
+ * - `albums` - List all saved albums in the library
+ * - `albumTracks` - Get tracks for a library album
+ * - `saveAlbum` - Save an album from any source to the library
+ * - `removeAlbum` - Delete an album from the library
+ * - `bookmarks` - Get Pandora bookmarks (requires auth)
+ * - `addBookmark` - Bookmark an artist or song (requires auth)
+ * - `removeBookmark` - Remove a bookmark (requires auth)
+ */
 export const libraryRouter = router({
 	albums: publicProcedure.query(async () => {
 		const db = await getDb();

@@ -1,3 +1,10 @@
+/**
+ * @module server/routers/queue
+ * Playback queue management router for track ordering and manipulation.
+ * Provides endpoints for queue operations (add, remove, shuffle, jump)
+ * and real-time queue state subscriptions via Server-Sent Events.
+ */
+
 import { z } from "zod";
 import { observable } from "@trpc/server/observable";
 import { router, publicProcedure } from "../trpc.js";
@@ -8,6 +15,12 @@ import { createLogger } from "../../src/logger.js";
 
 const log = createLogger("playback").child({ component: "sse:queue" });
 
+/**
+ * Transforms internal queue state into API response format.
+ *
+ * @param state - Internal queue state from QueueService
+ * @returns Serialized queue state for API response
+ */
 function serializeQueueState(state: QueueState) {
 	return {
 		items: state.items.map((track) => ({
@@ -23,6 +36,18 @@ function serializeQueueState(state: QueueState) {
 	};
 }
 
+/**
+ * Queue router providing playback queue management and state synchronization.
+ *
+ * Endpoints:
+ * - `get` - Get current queue state
+ * - `add` - Add tracks to queue (at end or after current)
+ * - `remove` - Remove track at specific index
+ * - `clear` - Clear all tracks from queue
+ * - `jump` - Jump to specific track index
+ * - `shuffle` - Randomize queue order (keeps current track first)
+ * - `onChange` - SSE subscription for real-time queue updates
+ */
 export const queueRouter = router({
 	get: publicProcedure.query(() => {
 		return serializeQueueState(QueueService.getState());

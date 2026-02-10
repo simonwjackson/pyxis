@@ -1,7 +1,20 @@
 /**
- * Enrich existing library albums with metadata from MusicBrainz, Discogs, Deezer, etc.
+ * @module server/scripts/enrich-library
+ * Batch enrichment script for library albums using metadata sources.
+ * Queries MusicBrainz, Discogs, Deezer, Bandcamp, and SoundCloud to add
+ * missing source IDs and improve album artwork for existing library entries.
  *
- * Usage: bun server/scripts/enrich-library.ts [--config <path>] [--delay <ms>] [--dry-run]
+ * @example
+ * ```bash
+ * # Enrich with default settings (1.5s delay between albums)
+ * bun server/scripts/enrich-library.ts
+ *
+ * # Custom config and faster processing
+ * bun server/scripts/enrich-library.ts --config ./config.yaml --delay 500
+ *
+ * # Preview changes without writing to database
+ * bun server/scripts/enrich-library.ts --dry-run
+ * ```
  */
 
 import { getDb, schema } from "../../src/db/index.js";
@@ -32,6 +45,7 @@ let configPath: string | undefined;
 let delayMs = 1500;
 let dryRun = false;
 
+// Parse CLI arguments
 for (let i = 0; i < cliArgs.length; i++) {
 	const arg = cliArgs[i];
 	if (arg === "--config" && cliArgs[i + 1]) {
@@ -43,10 +57,21 @@ for (let i = 0; i < cliArgs.length; i++) {
 	}
 }
 
+/**
+ * Promise-based delay utility for rate limiting API requests.
+ *
+ * @param ms - Milliseconds to wait
+ * @returns Promise that resolves after the delay
+ */
 function sleep(ms: number): Promise<void> {
 	return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+/**
+ * Main enrichment loop.
+ * Initializes metadata sources, iterates through all library albums,
+ * queries each source for matches, merges results, and updates the database.
+ */
 async function main(): Promise<void> {
 	const config = resolveConfig(configPath);
 

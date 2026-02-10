@@ -1,3 +1,29 @@
+/**
+ * @module server/scripts/import-albums
+ * Batch import script for adding albums to the library from a YAML file.
+ * Reads album definitions with source IDs, fetches full album data via YTMusic,
+ * and persists albums with tracks to the database.
+ *
+ * @example
+ * ```bash
+ * # Import from default path
+ * bun server/scripts/import-albums.ts
+ *
+ * # Import from custom YAML file
+ * bun server/scripts/import-albums.ts /path/to/albums.yaml
+ * ```
+ *
+ * YAML format:
+ * ```yaml
+ * albums:
+ *   - title: "Album Name"
+ *     artist: "Artist Name"
+ *     sources:
+ *       - type: ytmusic
+ *         id: "OLAK5uy_..."
+ * ```
+ */
+
 import { readFileSync } from "node:fs";
 import { parse } from "yaml";
 import { getDb, schema } from "../../src/db/index.js";
@@ -17,11 +43,17 @@ const RETRY_DELAY_MS = 5000;
 
 const logger = createLogger("import");
 
+/**
+ * Source reference within an album YAML entry.
+ */
 type AlbumSource = {
 	readonly type: string;
 	readonly id: string;
 };
 
+/**
+ * Album entry structure from the YAML import file.
+ */
 type AlbumEntry = {
 	readonly title: string;
 	readonly artist: string;
@@ -30,18 +62,38 @@ type AlbumEntry = {
 	readonly sources: readonly AlbumSource[];
 };
 
+/**
+ * Root structure of the albums YAML file.
+ */
 type YamlData = {
 	readonly albums: readonly AlbumEntry[];
 };
 
+/**
+ * Promise-based delay utility for rate limiting API requests.
+ *
+ * @param ms - Milliseconds to wait
+ * @returns Promise that resolves after the delay
+ */
 function sleep(ms: number): Promise<void> {
 	return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+/**
+ * Generates a short unique ID for database records.
+ *
+ * @returns 10-character nanoid string
+ */
 function generateId(): string {
 	return nanoid(10);
 }
 
+/**
+ * Main import loop.
+ * Reads YAML file, initializes YTMusic source, iterates through albums,
+ * fetches full album data with tracks, and persists to database.
+ * Includes retry logic for transient failures.
+ */
 async function main(): Promise<void> {
 	const raw = readFileSync(YAML_PATH, "utf-8");
 	const data = parse(raw) as YamlData;
