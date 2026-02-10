@@ -429,7 +429,10 @@ export function usePlayback() {
 		if (state.isPlaying) {
 			logToServer("[action] togglePlayPause → pause");
 			const audio = audioRef.current;
-			if (audio) audio.pause();
+			if (audio) {
+				serverProgressRef.current = audio.currentTime;
+				audio.pause();
+			}
 			setState((prev) => ({ ...prev, isPlaying: false }));
 			pauseMutation.mutate();
 		} else {
