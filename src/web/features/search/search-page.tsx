@@ -4,10 +4,15 @@
  * Supports searching tracks, albums, artists, and genre stations.
  */
 
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback, useMemo, useRef } from "react";
 import { Search as SearchIcon } from "lucide-react";
 import { toast } from "sonner";
 import { trpc } from "@/web/shared/lib/trpc";
+import { usePlaybackContext } from "@/web/shared/playback/playback-context";
+import {
+	sourceAlbumTrackToNowPlaying,
+	tracksToQueuePayload,
+} from "@/web/shared/lib/now-playing-utils";
 import { SearchInput } from "./search-input";
 import { SearchResults } from "./search-results";
 import type {
@@ -36,11 +41,15 @@ type SearchState =
 
 function SearchContent({
 	state,
+	onPlayAlbum,
+	playingAlbumId,
 	onSaveAlbum,
 	onStartRadio,
 	onCreateStation,
 }: {
 	readonly state: SearchState;
+	readonly onPlayAlbum: (albumId: string) => void;
+	readonly playingAlbumId: string | null;
 	readonly onSaveAlbum: (albumId: string) => void;
 	readonly onStartRadio: (track: SearchTrack) => void;
 	readonly onCreateStation: (musicToken: string) => void;
@@ -60,6 +69,8 @@ function SearchContent({
 					{state.data.albums.length > 0 && (
 						<SearchResults.Albums
 							albums={state.data.albums}
+							onPlayAlbum={onPlayAlbum}
+							playingAlbumId={playingAlbumId}
 							onSaveAlbum={onSaveAlbum}
 						/>
 					)}
@@ -101,7 +112,11 @@ function SearchContent({
  */
 export function SearchPage() {
 	const [query, setQuery] = useState("");
+	const [playingAlbumId, setPlayingAlbumId] = useState<string | null>(null);
 	const utils = trpc.useUtils();
+	const playback = usePlaybackContext();
+	const playbackRef = useRef(playback);
+	playbackRef.current = playback;
 
 	const unifiedQuery = trpc.search.unified.useQuery(
 		{ query },
@@ -160,6 +175,34 @@ export function SearchPage() {
 		[saveAlbum],
 	)
 
+	const handlePlayAlbum = useCallback(
+		async (albumId: string) => {
+			if (playingAlbumId) return;
+			setPlayingAlbumId(albumId);
+			try {
+				const data = await utils.album.getWithTracks.fetch({ id: albumId });
+				const ordered = data.tracks.map((t) =>
+					sourceAlbumTrackToNowPlaying(
+						t,
+						data.album.title,
+						data.album.artworkUrl ?? null,
+					),
+				);
+				playbackRef.current.setCurrentStationToken(albumId);
+				playbackRef.current.playMutation.mutate({
+					tracks: tracksToQueuePayload(ordered),
+					context: { type: "album", albumId },
+					startIndex: 0,
+				});
+			} catch {
+				toast.error("Failed to load album");
+			} finally {
+				setPlayingAlbumId(null);
+			}
+		},
+		[playingAlbumId, utils.album.getWithTracks],
+	)
+
 	const handleStartRadio = useCallback(
 		(track: SearchTrack) => {
 			createRadio.mutate({
@@ -206,6 +249,8 @@ export function SearchPage() {
 			/>
 			<SearchContent
 				state={searchState}
+				onPlayAlbum={handlePlayAlbum}
+				playingAlbumId={playingAlbumId}
 				onSaveAlbum={handleSaveAlbum}
 				onStartRadio={handleStartRadio}
 				onCreateStation={handleCreateStation}

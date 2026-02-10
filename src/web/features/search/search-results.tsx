@@ -3,7 +3,8 @@
  * Components for displaying search results: albums, tracks, artists, and genres.
  */
 
-import { User, Music, LayoutGrid, Disc3, Radio } from "lucide-react";
+import { Link } from "@tanstack/react-router";
+import { User, Music, LayoutGrid, Disc3, Radio, Play, Loader2 } from "lucide-react";
 
 /**
  * Pandora artist search result.
@@ -74,9 +75,13 @@ function Empty() {
 
 function Albums({
 	albums,
+	onPlayAlbum,
+	playingAlbumId,
 	onSaveAlbum,
 }: {
 	readonly albums: readonly SearchAlbum[];
+	readonly onPlayAlbum?: (albumId: string) => void;
+	readonly playingAlbumId?: string | null;
 	readonly onSaveAlbum?: (albumId: string) => void;
 }) {
 	if (albums.length === 0) return null;
@@ -85,73 +90,96 @@ function Albums({
 		<section>
 			<SectionHeader>Albums</SectionHeader>
 			<div className="space-y-1">
-				{albums.map((album) => (
-					<div
-						key={album.id}
-						className="flex items-center gap-3 p-3 rounded-lg hover:bg-[var(--color-bg-highlight)] group"
-					>
-						<div className="w-12 h-12 rounded bg-[var(--color-bg-highlight)] flex items-center justify-center shrink-0 overflow-hidden">
-							{album.artworkUrl ? (
-								<img
-									src={album.artworkUrl}
-									alt={album.title}
-									className="w-full h-full object-cover"
-								/>
-							) : (
-								<Disc3 className="w-6 h-6 text-[var(--color-text-dim)]" />
-							)}
-						</div>
-						<div className="flex-1 min-w-0">
-							<p className="text-sm font-medium text-[var(--color-text)] truncate">
-								{album.title}
-							</p>
-							<div className="flex items-center gap-1.5 flex-wrap">
-								<span className="text-xs text-[var(--color-text-dim)]">
-									{album.artist}
-								</span>
-								{album.year && (
-									<>
-										<span className="text-xs text-[var(--color-text-muted)]">&middot;</span>
-										<span className="text-xs text-[var(--color-text-dim)]">
-											{String(album.year)}
-										</span>
-									</>
-								)}
-								{album.releaseType && album.releaseType !== "album" && (
-									<>
-										<span className="text-xs text-[var(--color-text-muted)]">&middot;</span>
-										<span className="text-[10px] uppercase tracking-wider text-[var(--color-text-muted)] bg-[var(--color-bg-highlight)] px-1.5 py-0.5 rounded">
-											{album.releaseType}
-										</span>
-									</>
-								)}
-							</div>
-							{album.genres && album.genres.length > 0 && (
-								<div className="flex gap-1 mt-1 flex-wrap">
-									{album.genres.slice(0, 5).map((genre) => (
-										<span
-											key={genre}
-											className="text-[10px] text-[var(--color-text-muted)] bg-[var(--color-bg-highlight)]/80 px-1.5 py-0.5 rounded"
-										>
-											{genre}
-										</span>
-									))}
-								</div>
-							)}
-						</div>
-						{onSaveAlbum && (
+				{albums.map((album) => {
+					const isLoadingPlay = playingAlbumId === album.id;
+					return (
+						<div
+							key={album.id}
+							className="flex items-center gap-3 p-3 rounded-lg hover:bg-[var(--color-bg-highlight)] group"
+						>
 							<button
 								type="button"
-								onClick={() =>
-									onSaveAlbum(album.id)
-								}
-								className="text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text)] bg-[var(--color-bg-highlight)] hover:bg-[var(--color-border)] px-2.5 py-1.5 rounded transition-colors shrink-0"
+								onClick={() => onPlayAlbum?.(album.id)}
+								disabled={isLoadingPlay}
+								className="relative w-12 h-12 rounded bg-[var(--color-bg-highlight)] flex items-center justify-center shrink-0 overflow-hidden cursor-pointer"
+								aria-label={`Play ${album.title}`}
 							>
-								Save
+								{album.artworkUrl ? (
+									<img
+										src={album.artworkUrl}
+										alt={album.title}
+										className="w-full h-full object-cover"
+									/>
+								) : (
+									<Disc3 className="w-6 h-6 text-[var(--color-text-dim)]" />
+								)}
+								<div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors flex items-center justify-center">
+									{isLoadingPlay ? (
+										<Loader2 className="w-5 h-5 text-white animate-spin" />
+									) : (
+										<Play
+											className="w-5 h-5 text-white opacity-0 group-hover:opacity-100 transition-opacity"
+											fill="currentColor"
+										/>
+									)}
+								</div>
 							</button>
-						)}
-					</div>
-				))}
+							<div className="flex-1 min-w-0">
+								<Link
+									to="/album/$albumId"
+									params={{ albumId: album.id }}
+									className="text-sm font-medium text-[var(--color-text)] truncate block hover:underline"
+								>
+									{album.title}
+								</Link>
+								<div className="flex items-center gap-1.5 flex-wrap">
+									<span className="text-xs text-[var(--color-text-dim)]">
+										{album.artist}
+									</span>
+									{album.year && (
+										<>
+											<span className="text-xs text-[var(--color-text-muted)]">&middot;</span>
+											<span className="text-xs text-[var(--color-text-dim)]">
+												{String(album.year)}
+											</span>
+										</>
+									)}
+									{album.releaseType && album.releaseType !== "album" && (
+										<>
+											<span className="text-xs text-[var(--color-text-muted)]">&middot;</span>
+											<span className="text-[10px] uppercase tracking-wider text-[var(--color-text-muted)] bg-[var(--color-bg-highlight)] px-1.5 py-0.5 rounded">
+												{album.releaseType}
+											</span>
+										</>
+									)}
+								</div>
+								{album.genres && album.genres.length > 0 && (
+									<div className="flex gap-1 mt-1 flex-wrap">
+										{album.genres.slice(0, 5).map((genre) => (
+											<span
+												key={genre}
+												className="text-[10px] text-[var(--color-text-muted)] bg-[var(--color-bg-highlight)]/80 px-1.5 py-0.5 rounded"
+											>
+												{genre}
+											</span>
+										))}
+									</div>
+								)}
+							</div>
+							{onSaveAlbum && (
+								<button
+									type="button"
+									onClick={() =>
+										onSaveAlbum(album.id)
+									}
+									className="text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text)] bg-[var(--color-bg-highlight)] hover:bg-[var(--color-border)] px-2.5 py-1.5 rounded transition-colors shrink-0"
+								>
+									Save
+								</button>
+							)}
+						</div>
+					);
+				})}
 			</div>
 		</section>
 	);
