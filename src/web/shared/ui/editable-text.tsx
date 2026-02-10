@@ -83,6 +83,15 @@ export function EditableText({
 		}
 	}, []);
 
+	const handleDoubleClick = useCallback(
+		(e: React.MouseEvent) => {
+			if (disabled) return;
+			e.stopPropagation();
+			enterEditMode();
+		},
+		[disabled, enterEditMode],
+	);
+
 	const handleContextMenu = useCallback(
 		(e: React.MouseEvent) => {
 			if (!disabled) {
@@ -111,6 +120,7 @@ export function EditableText({
 			onPointerDown={handlePointerDown}
 			onPointerUp={handlePointerUp}
 			onPointerCancel={handlePointerCancel}
+			onDoubleClick={handleDoubleClick}
 			onContextMenu={handleContextMenu}
 			className={className}
 		>
