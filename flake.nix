@@ -3,6 +3,7 @@
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+    bun2nix.url = "github:nix-community/bun2nix";
     yt-dlp-src = {
       url = "github:yt-dlp/yt-dlp";
       flake = false;
@@ -12,17 +13,11 @@
   outputs = {
     self,
     nixpkgs,
+    bun2nix,
     yt-dlp-src,
   }: let
     systems = ["x86_64-linux" "aarch64-linux" "x86_64-darwin" "aarch64-darwin"];
     forAllSystems = nixpkgs.lib.genAttrs systems;
-    defaultNpmDepsHash = "sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=";
-    hashesFile = ./nix/hashes.json;
-    hashesData =
-      if builtins.pathExists hashesFile
-      then builtins.fromJSON (builtins.readFile hashesFile)
-      else {};
-    npmDepsHash = hashesData.npmDeps or defaultNpmDepsHash;
     yt-dlp-overlay = final: prev: {
       yt-dlp = prev.yt-dlp.overridePythonAttrs (old: {
         src = yt-dlp-src;
@@ -35,22 +30,28 @@
     packages = forAllSystems (system: let
       pkgs = import nixpkgs {
         inherit system;
-        overlays = [yt-dlp-overlay];
+        overlays = [yt-dlp-overlay bun2nix.overlays.default];
       };
     in {
-      default = pkgs.buildNpmPackage {
+      default = pkgs.stdenv.mkDerivation {
         pname = "pyxis";
         version = "0.1.0";
         src = ./.;
 
-        inherit npmDepsHash;
-        makeCacheWritable = true;
+        nativeBuildInputs = [
+          pkgs.bun2nix.hook
+          pkgs.bun
+          pkgs.nodejs_22
+          pkgs.makeWrapper
+        ];
 
-        nativeBuildInputs = [pkgs.makeWrapper];
+        bunDeps = pkgs.bun2nix.fetchBunDeps {
+          bunNix = ./bun.nix;
+        };
 
         buildPhase = ''
           runHook preBuild
-          npm run build:web
+          bun x vite build
           runHook postBuild
         '';
 
@@ -82,11 +83,12 @@
       };
     in {
       default = pkgs.mkShell {
-        packages = with pkgs; [
-          bun
-          ffmpeg
-          mpv
-          yt-dlp
+        packages = [
+          pkgs.bun
+          pkgs.ffmpeg
+          pkgs.mpv
+          pkgs.yt-dlp
+          bun2nix.packages.${system}.default
         ];
       };
     });

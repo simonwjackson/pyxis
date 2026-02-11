@@ -19,7 +19,7 @@ bun test <file>     # Run single test file
 bun run typecheck   # TypeScript type checking
 
 # After dependency changes
-just update-hashes  # Update Nix npm dependency hash
+just nix-lock       # Regenerate bun.nix from bun.lock
 ```
 
 ## Architecture

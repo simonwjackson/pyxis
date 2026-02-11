@@ -1,8 +1,8 @@
 # Pyxis development commands
 
-# Update nix hashes after dependency changes
-update-hashes:
-    ./nix/scripts/update-hashes.sh
+# Regenerate bun.nix from bun.lock
+nix-lock:
+    bun2nix --lock-file bun.lock --output-file bun.nix
 
 # Build the nix package
 build:
