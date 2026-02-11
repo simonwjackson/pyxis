@@ -92,5 +92,6 @@
     });
 
     homeManagerModules.default = ./nix/modules/home-manager.nix;
+    nixosModules.default = ./nix/modules/nixos.nix;
   };
 }
