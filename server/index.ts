@@ -65,6 +65,10 @@ const CORS_HEADERS = {
 
 const server = Bun.serve({
 	port: config.server.port,
+	error(err) {
+		serverLogger.error({ err: err.message }, "unhandled server error");
+		return new Response("Internal Server Error", { status: 500 });
+	},
 	async fetch(req) {
 		const url = new URL(req.url);
 
@@ -119,6 +123,9 @@ const server = Bun.serve({
 				req,
 				router: appRouter,
 				createContext: () => createContext(req),
+				onError({ error, path }) {
+					trpcLog.error({ path, code: error.code, err: error.message }, "tRPC error");
+				},
 			}).then((response) => {
 				// Set CORS headers directly on the original response to preserve
 				// SSE stream lifecycle (wrapping in new Response() disconnects
@@ -129,6 +136,13 @@ const server = Bun.serve({
 					trpcLog.info({ path: "radio.getTracks", status: response.status }, "response");
 				}
 				return response;
+			}).catch((err: unknown) => {
+				const message = err instanceof Error ? err.message : String(err);
+				trpcLog.error({ path: trpcPath, err: message }, "unhandled tRPC error");
+				return new Response(
+					JSON.stringify([{ error: { message: "Internal server error", code: -32603 } }]),
+					{ status: 500, headers: { "Content-Type": "application/json", ...CORS_HEADERS } },
+				);
 			});
 		}
 
