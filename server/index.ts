@@ -7,6 +7,7 @@
  * Server endpoints:
  * - `/trpc/*` - tRPC API including SSE subscriptions
  * - `/stream/:compositeTrackId` - Audio streaming proxy with caching
+ * - `/*` - Static files from dist-web/ with SPA fallback (production only)
  *
  * @example
  * ```bash
@@ -26,6 +27,8 @@ import { ensureSourceManager, setAppConfig } from "./services/sourceManager.js";
 import { setCredentialsConfig } from "./services/credentials.js";
 import { tryAutoLogin } from "./services/autoLogin.js";
 import { resolveTrackForStream } from "./lib/ids.js";
+import { join, resolve } from "node:path";
+import { existsSync } from "node:fs";
 import { createLogger } from "../src/logger.js";
 import { resolveConfig } from "../src/config.js";
 
@@ -39,7 +42,15 @@ const serverLogger = createLogger("server");
 const streamLog = serverLogger.child({ component: "stream" });
 const trpcLog = serverLogger.child({ component: "trpc" });
 
-const corsOrigin = `http://${config.server.hostname}:${config.web.port}`;
+// Static file serving: only active when dist-web/ exists (production build)
+const DIST_DIR = join(import.meta.dirname, "../dist-web");
+const hasDistWeb = existsSync(DIST_DIR);
+
+// Production: frontend is same-origin, no CORS needed for browser requests
+// Development: frontend is on different Vite port, needs CORS
+const corsOrigin = hasDistWeb
+	? `http://${config.server.hostname}:${config.server.port}`
+	: `http://${config.server.hostname}:${config.web.port}`;
 
 /**
  * Standard CORS headers for cross-origin requests from the web frontend.
@@ -54,7 +65,7 @@ const CORS_HEADERS = {
 
 const server = Bun.serve({
 	port: config.server.port,
-	fetch(req) {
+	async fetch(req) {
 		const url = new URL(req.url);
 
 		// CORS preflight
@@ -121,11 +132,24 @@ const server = Bun.serve({
 			});
 		}
 
+		// Static file serving (production: dist-web/ exists)
+		if (hasDistWeb) {
+			const filePath = resolve(DIST_DIR, `.${url.pathname}`);
+			if (filePath.startsWith(DIST_DIR)) {
+				const file = Bun.file(filePath);
+				if (await file.exists()) {
+					return new Response(file);
+				}
+			}
+			// SPA fallback: serve index.html for client-side routing
+			return new Response(Bun.file(join(DIST_DIR, "index.html")));
+		}
+
 		return new Response("Not Found", { status: 404 });
 	},
 });
 
-serverLogger.info({ port: config.server.port }, "server running");
+serverLogger.info({ port: config.server.port, staticFiles: hasDistWeb }, "server running");
 
 // Attempt auto-login from config credentials
 tryAutoLogin(serverLogger, config).catch(() => {
