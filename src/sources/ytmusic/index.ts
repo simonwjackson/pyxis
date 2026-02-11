@@ -133,35 +133,12 @@ export function createYtMusicSource(config: YtMusicConfig): Source {
 		},
 
 		async listPlaylists(): Promise<readonly CanonicalPlaylist[]> {
-			const results: CanonicalPlaylist[] = [];
-			for (const playlist of config.playlists) {
-				try {
-					const info = await ytdlp.getPlaylistEntries(playlist.url);
-					playlistCache.set(playlist.id, {
-						title: playlist.name,
-						entries: info.entries.map(entryToCanonical),
-					});
-					results.push({
-						id: playlist.id,
-						name: playlist.name,
-						source: "ytmusic",
-						...(playlist.isRadio
-							? { description: "Radio" }
-							: {}),
-					});
-				} catch {
-					// Skip playlists that fail to load — still show them
-					results.push({
-						id: playlist.id,
-						name: playlist.name,
-						source: "ytmusic",
-						...(playlist.isRadio
-							? { description: "Radio" }
-							: {}),
-					});
-				}
-			}
-			return results;
+			return config.playlists.map((playlist) => ({
+				id: playlist.id,
+				name: playlist.name,
+				source: "ytmusic" as const,
+				...(playlist.isRadio ? { description: "Radio" } : {}),
+			}));
 		},
 
 		async getPlaylistTracks(
