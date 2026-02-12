@@ -12,6 +12,7 @@ import envPaths from "env-paths";
 import type { SourceManager } from "../../src/sources/index.js";
 import type { SourceType } from "../../src/sources/types.js";
 import { decodeChapterTrackId } from "../../src/sources/youtube/index.js";
+import { downloadAudio, needsProxy } from "../../src/sources/ytmusic/yt-dlp.js";
 import { createLogger } from "../../src/logger.js";
 
 const log = createLogger("stream").child({ component: "stream" });
@@ -280,6 +281,66 @@ async function streamThroughAndCache(
 	});
 }
 
+// --- Piped stream-through (yt-dlp -o - → client + cache) ---
+
+/**
+ * Streams audio from a ReadableStream (e.g. yt-dlp -o -) while caching to disk.
+ * Used when audio must be downloaded through yt-dlp's proxy to avoid IP-lock issues.
+ */
+async function streamPipedAndCache(
+	audioStream: ReadableStream<Uint8Array>,
+	source: SourceType,
+	trackId: string,
+): Promise<Response> {
+	ensureCacheDir(source);
+	const contentType = "audio/webm";
+	const ext = extensionForContentType(contentType);
+	const finalPath = join(cacheDirForSource(source), `${trackId}${ext}`);
+	const partialPath = `${finalPath}.partial`;
+	const metaPath = `${finalPath}.meta`;
+
+	const writer = Bun.file(partialPath).writer();
+	let totalWritten = 0;
+
+	const teeStream = new ReadableStream({
+		async start(controller) {
+			const reader = audioStream.getReader();
+			try {
+				for (;;) {
+					const { done, value } = await reader.read();
+					if (done) break;
+					controller.enqueue(value);
+					writer.write(value);
+					totalWritten += value.byteLength;
+				}
+				controller.close();
+				await writer.end();
+
+				renameSync(partialPath, finalPath);
+				const meta: CacheMeta = {
+					contentType,
+					contentLength: totalWritten,
+					cachedAt: new Date().toISOString(),
+				};
+				writeFileSync(metaPath, JSON.stringify(meta));
+				log.info({ trackId, size: totalWritten }, "cached");
+			} catch (err) {
+				controller.error(err);
+				try { await writer.end(); } catch { /* ignore cleanup failure */ }
+				try { unlinkSync(partialPath); } catch { /* ignore cleanup failure */ }
+			}
+		},
+	});
+
+	const responseHeaders = new Headers();
+	responseHeaders.set("Content-Type", contentType);
+	responseHeaders.set("Accept-Ranges", "bytes");
+	responseHeaders.set("Access-Control-Allow-Origin", "*");
+	responseHeaders.set("Access-Control-Expose-Headers", "Content-Range, Accept-Ranges, Content-Length");
+
+	return new Response(teeStream, { status: 200, headers: responseHeaders });
+}
+
 // --- Prefetch ---
 
 /**
@@ -354,6 +415,39 @@ export async function prefetchToCache(
 	log.info({ compositeId }, "prefetch start");
 
 	try {
+		// For ytmusic on cloud servers: pipe through yt-dlp to avoid IP-lock
+		if (source === "ytmusic" && needsProxy()) {
+			const audioStream = await downloadAudio(trackId);
+			const contentType = "audio/webm";
+			ensureCacheDir(source);
+			const ext = extensionForContentType(contentType);
+			const finalPath = join(cacheDirForSource(source), `${trackId}${ext}`);
+			const partialPath = `${finalPath}.partial`;
+			const metaPath = `${finalPath}.meta`;
+
+			const writer = Bun.file(partialPath).writer();
+			const reader = audioStream.getReader();
+			let totalWritten = 0;
+
+			for (;;) {
+				const { done, value } = await reader.read();
+				if (done) break;
+				writer.write(value);
+				totalWritten += value.byteLength;
+			}
+			await writer.end();
+
+			renameSync(partialPath, finalPath);
+			const meta: CacheMeta = {
+				contentType,
+				contentLength: totalWritten,
+				cachedAt: new Date().toISOString(),
+			};
+			writeFileSync(metaPath, JSON.stringify(meta));
+			log.info({ compositeId, size: totalWritten }, "prefetch complete");
+			return;
+		}
+
 		const url = await resolveStreamUrl(sourceManager, compositeId);
 		const upstream = await fetch(url);
 
@@ -582,6 +676,20 @@ export async function handleStreamRequest(
 
 	// Cache miss (or Pandora) — resolve URL and fetch upstream
 	log.info({ compositeId }, "cache miss");
+
+	// For ytmusic on cloud servers (bot-detected): pipe audio directly through yt-dlp
+	// to avoid IP-lock on stream URLs. On residential IPs, use normal resolve+fetch.
+	if (source === "ytmusic" && needsProxy()) {
+		log.info({ compositeId }, "yt-dlp pipe download");
+		try {
+			const audioStream = await downloadAudio(trackId);
+			return streamPipedAndCache(audioStream, source, trackId);
+		} catch (err) {
+			const message = err instanceof Error ? err.message : String(err);
+			log.error({ compositeId, err: message }, "yt-dlp pipe failed");
+			throw err;
+		}
+	}
 
 	let url: string;
 	try {

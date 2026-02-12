@@ -6,6 +6,7 @@
  */
 
 import { spawn } from "node:child_process";
+import { Readable } from "node:stream";
 
 /**
  * Track information extracted from yt-dlp JSON output.
@@ -69,6 +70,14 @@ let proxyFetchedAt = 0;
 const PROXY_REFRESH_INTERVAL = 30 * 60 * 1000; // 30 minutes
 const MAX_PROXY_FAILURES = 3;
 const MAX_RETRIES = 3;
+
+// Once direct access fails with bot detection, skip it for future calls
+let directFailed = false;
+
+/** Returns true if direct yt-dlp access has been blocked by bot detection. */
+export function needsProxy(): boolean {
+	return directFailed;
+}
 
 async function fetchProxyList(): Promise<readonly string[]> {
 	try {
@@ -135,15 +144,19 @@ function runYtDlpRaw(args: readonly string[]): Promise<string> {
 	});
 }
 
+function isBotDetection(err: unknown): boolean {
+	const msg = err instanceof Error ? err.message : "";
+	return msg.includes("Sign in") || msg.includes("bot");
+}
+
 async function runYtDlp(args: readonly string[]): Promise<string> {
-	// First try without proxy (works on residential IPs)
-	try {
-		return await runYtDlpRaw(args);
-	} catch (directError) {
-		const errMsg = directError instanceof Error ? directError.message : "";
-		// Only use proxies for bot detection / sign-in errors
-		if (!errMsg.includes("Sign in") && !errMsg.includes("bot")) {
-			throw directError;
+	// Skip direct if previously failed with bot detection
+	if (!directFailed) {
+		try {
+			return await runYtDlpRaw(args);
+		} catch (directError) {
+			if (!isBotDetection(directError)) throw directError;
+			directFailed = true;
 		}
 	}
 
@@ -162,6 +175,83 @@ async function runYtDlp(args: readonly string[]): Promise<string> {
 		}
 	}
 	throw lastError ?? new Error("All proxies failed");
+}
+
+/**
+ * Downloads audio and returns a ReadableStream, piping through a proxy if needed.
+ * Unlike getAudioUrl() + fetch(), this avoids the IP-lock issue because yt-dlp
+ * downloads through the same proxy it used for URL resolution.
+ */
+export async function downloadAudio(
+	videoId: string,
+	domain = "music.youtube.com",
+): Promise<ReadableStream<Uint8Array>> {
+	const url = `https://${domain}/watch?v=${videoId}`;
+	const baseArgs = ["--format", "bestaudio", "--no-playlist", "-o", "-"];
+
+	// Skip direct if previously failed
+	if (!directFailed) {
+		try {
+			return await spawnAudioPipe([...baseArgs, url]);
+		} catch (err) {
+			if (!isBotDetection(err)) throw err;
+			directFailed = true;
+		}
+	}
+
+	// Proxy fallback
+	const proxies = await getProxies();
+	let lastError: unknown;
+	for (let i = 0; i < Math.min(MAX_RETRIES, proxies.length); i++) {
+		const proxy = proxies[i];
+		if (!proxy) continue;
+		try {
+			return await spawnAudioPipe(["--proxy", proxy.url, ...baseArgs, url]);
+		} catch (err) {
+			markProxyFailed(proxy.url);
+			lastError = err;
+		}
+	}
+	throw lastError ?? new Error("All proxies failed for download");
+}
+
+/**
+ * Spawns yt-dlp with -o - and waits for first data chunk to confirm success.
+ * Returns a ReadableStream of the audio bytes.
+ */
+function spawnAudioPipe(args: readonly string[]): Promise<ReadableStream<Uint8Array>> {
+	return new Promise((resolve, reject) => {
+		const proc = spawn("yt-dlp", args, {
+			stdio: ["ignore", "pipe", "pipe"],
+		});
+		let stderr = "";
+		let resolved = false;
+
+		proc.stderr.on("data", (chunk: Buffer) => {
+			stderr += chunk.toString();
+		});
+
+		// Wait for first stdout data to confirm yt-dlp resolved successfully
+		proc.stdout.once("data", (firstChunk: Buffer) => {
+			resolved = true;
+			// Push the first chunk back so Readable.toWeb gets the full stream
+			proc.stdout.unshift(firstChunk);
+			resolve(Readable.toWeb(proc.stdout) as ReadableStream<Uint8Array>);
+		});
+
+		proc.on("close", (code) => {
+			if (!resolved) {
+				reject(
+					new Error(
+						`yt-dlp exited with code ${String(code)}: ${stderr.trim()}`,
+					),
+				);
+			}
+		});
+		proc.on("error", (err) => {
+			if (!resolved) reject(err);
+		});
+	});
 }
 
 /**
