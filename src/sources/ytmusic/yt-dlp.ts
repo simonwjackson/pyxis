@@ -2,11 +2,9 @@
  * @module yt-dlp
  * Wrapper around the yt-dlp CLI tool for YouTube Music operations.
  * Provides functions for extracting audio URLs, track info, and playlist data.
- * Includes proxy rotation to bypass IP-based bot detection on cloud servers.
  */
 
 import { spawn } from "node:child_process";
-import { Readable } from "node:stream";
 
 /**
  * Track information extracted from yt-dlp JSON output.
@@ -61,62 +59,7 @@ type YtDlpPlaylistInfo = {
 	readonly entries: readonly YtDlpPlaylistEntry[];
 };
 
-// --- Proxy rotation ---
-
-type ProxyEntry = { readonly url: string; failures: number };
-
-let proxyList: ProxyEntry[] = [];
-let proxyFetchedAt = 0;
-const PROXY_REFRESH_INTERVAL = 30 * 60 * 1000; // 30 minutes
-const MAX_PROXY_FAILURES = 3;
-const MAX_RETRIES = 3;
-
-// Once direct access fails with bot detection, skip it for future calls
-let directFailed = false;
-
-/** Returns true if direct yt-dlp access has been blocked by bot detection. */
-export function needsProxy(): boolean {
-	return directFailed;
-}
-
-async function fetchProxyList(): Promise<readonly string[]> {
-	try {
-		const res = await fetch("https://free-proxy-list.net/");
-		const html = await res.text();
-		// Parse the HTML table for proxy entries
-		const proxies: string[] = [];
-		// Match table rows: IP, port, country code, country, anonymity, google, https
-		// Cells may have class attributes like class='hm' or class='hx'
-		const rowRegex = /<tr><td>(\d+\.\d+\.\d+\.\d+)<\/td><td>(\d+)<\/td><td[^>]*>[^<]*<\/td><td[^>]*>[^<]*<\/td><td[^>]*>(anonymous|elite proxy)<\/td><td[^>]*>[^<]*<\/td><td[^>]*>(yes)<\/td>/gi;
-		let match: RegExpExecArray | null;
-		while ((match = rowRegex.exec(html)) !== null) {
-			proxies.push(`http://${match[1]}:${match[2]}`);
-		}
-		return proxies;
-	} catch {
-		return [];
-	}
-}
-
-async function getProxies(): Promise<ProxyEntry[]> {
-	const now = Date.now();
-	if (proxyList.length === 0 || now - proxyFetchedAt > PROXY_REFRESH_INTERVAL) {
-		const urls = await fetchProxyList();
-		// Shuffle the list so we don't always hit the same proxies
-		const shuffled = [...urls].sort(() => Math.random() - 0.5);
-		proxyList = shuffled.map((url) => ({ url, failures: 0 }));
-		proxyFetchedAt = now;
-	}
-	// Filter out proxies that have failed too many times
-	return proxyList.filter((p) => p.failures < MAX_PROXY_FAILURES);
-}
-
-function markProxyFailed(proxyUrl: string): void {
-	const entry = proxyList.find((p) => p.url === proxyUrl);
-	if (entry) entry.failures++;
-}
-
-function runYtDlpRaw(args: readonly string[]): Promise<string> {
+function runYtDlp(args: readonly string[]): Promise<string> {
 	return new Promise((resolve, reject) => {
 		const proc = spawn("yt-dlp", args, {
 			stdio: ["ignore", "pipe", "pipe"],
@@ -141,116 +84,6 @@ function runYtDlpRaw(args: readonly string[]): Promise<string> {
 			}
 		});
 		proc.on("error", reject);
-	});
-}
-
-function isBotDetection(err: unknown): boolean {
-	const msg = err instanceof Error ? err.message : "";
-	return msg.includes("Sign in") || msg.includes("bot");
-}
-
-async function runYtDlp(args: readonly string[]): Promise<string> {
-	// Skip direct if previously failed with bot detection
-	if (!directFailed) {
-		try {
-			return await runYtDlpRaw(args);
-		} catch (directError) {
-			if (!isBotDetection(directError)) throw directError;
-			directFailed = true;
-		}
-	}
-
-	// Proxy fallback with rotation
-	const proxies = await getProxies();
-	let lastError: unknown;
-	for (let i = 0; i < Math.min(MAX_RETRIES, proxies.length); i++) {
-		const proxy = proxies[i];
-		if (!proxy) continue;
-		try {
-			const result = await runYtDlpRaw(["--proxy", proxy.url, ...args]);
-			return result;
-		} catch (err) {
-			markProxyFailed(proxy.url);
-			lastError = err;
-		}
-	}
-	throw lastError ?? new Error("All proxies failed");
-}
-
-/**
- * Downloads audio and returns a ReadableStream, piping through a proxy if needed.
- * Unlike getAudioUrl() + fetch(), this avoids the IP-lock issue because yt-dlp
- * downloads through the same proxy it used for URL resolution.
- */
-export async function downloadAudio(
-	videoId: string,
-	domain = "music.youtube.com",
-): Promise<ReadableStream<Uint8Array>> {
-	const url = `https://${domain}/watch?v=${videoId}`;
-	const baseArgs = ["--format", "bestaudio", "--no-playlist", "-o", "-"];
-
-	// Skip direct if previously failed
-	if (!directFailed) {
-		try {
-			return await spawnAudioPipe([...baseArgs, url]);
-		} catch (err) {
-			if (!isBotDetection(err)) throw err;
-			directFailed = true;
-		}
-	}
-
-	// Proxy fallback
-	const proxies = await getProxies();
-	let lastError: unknown;
-	for (let i = 0; i < Math.min(MAX_RETRIES, proxies.length); i++) {
-		const proxy = proxies[i];
-		if (!proxy) continue;
-		try {
-			return await spawnAudioPipe(["--proxy", proxy.url, ...baseArgs, url]);
-		} catch (err) {
-			markProxyFailed(proxy.url);
-			lastError = err;
-		}
-	}
-	throw lastError ?? new Error("All proxies failed for download");
-}
-
-/**
- * Spawns yt-dlp with -o - and waits for first data chunk to confirm success.
- * Returns a ReadableStream of the audio bytes.
- */
-function spawnAudioPipe(args: readonly string[]): Promise<ReadableStream<Uint8Array>> {
-	return new Promise((resolve, reject) => {
-		const proc = spawn("yt-dlp", args, {
-			stdio: ["ignore", "pipe", "pipe"],
-		});
-		let stderr = "";
-		let resolved = false;
-
-		proc.stderr.on("data", (chunk: Buffer) => {
-			stderr += chunk.toString();
-		});
-
-		// Wait for first stdout data to confirm yt-dlp resolved successfully
-		proc.stdout.once("data", (firstChunk: Buffer) => {
-			resolved = true;
-			// Push the first chunk back so Readable.toWeb gets the full stream
-			proc.stdout.unshift(firstChunk);
-			resolve(Readable.toWeb(proc.stdout) as ReadableStream<Uint8Array>);
-		});
-
-		proc.on("close", (code) => {
-			if (!resolved) {
-				reject(
-					new Error(
-						`yt-dlp exited with code ${String(code)}: ${stderr.trim()}`,
-					),
-				);
-			}
-		});
-		proc.on("error", (err) => {
-			if (!resolved) reject(err);
-		});
 	});
 }
 
