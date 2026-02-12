@@ -2,6 +2,7 @@
  * @module yt-dlp
  * Wrapper around the yt-dlp CLI tool for YouTube Music operations.
  * Provides functions for extracting audio URLs, track info, and playlist data.
+ * Includes proxy rotation to bypass IP-based bot detection on cloud servers.
  */
 
 import { spawn } from "node:child_process";
@@ -59,7 +60,54 @@ type YtDlpPlaylistInfo = {
 	readonly entries: readonly YtDlpPlaylistEntry[];
 };
 
-function runYtDlp(args: readonly string[]): Promise<string> {
+// --- Proxy rotation ---
+
+type ProxyEntry = { readonly url: string; failures: number };
+
+let proxyList: ProxyEntry[] = [];
+let proxyFetchedAt = 0;
+const PROXY_REFRESH_INTERVAL = 30 * 60 * 1000; // 30 minutes
+const MAX_PROXY_FAILURES = 3;
+const MAX_RETRIES = 3;
+
+async function fetchProxyList(): Promise<readonly string[]> {
+	try {
+		const res = await fetch("https://free-proxy-list.net/");
+		const html = await res.text();
+		// Parse the HTML table for proxy entries
+		const proxies: string[] = [];
+		// Match table rows: IP, port, country code, country, anonymity, google, https
+		// Cells may have class attributes like class='hm' or class='hx'
+		const rowRegex = /<tr><td>(\d+\.\d+\.\d+\.\d+)<\/td><td>(\d+)<\/td><td[^>]*>[^<]*<\/td><td[^>]*>[^<]*<\/td><td[^>]*>(anonymous|elite proxy)<\/td><td[^>]*>[^<]*<\/td><td[^>]*>(yes)<\/td>/gi;
+		let match: RegExpExecArray | null;
+		while ((match = rowRegex.exec(html)) !== null) {
+			proxies.push(`http://${match[1]}:${match[2]}`);
+		}
+		return proxies;
+	} catch {
+		return [];
+	}
+}
+
+async function getProxies(): Promise<ProxyEntry[]> {
+	const now = Date.now();
+	if (proxyList.length === 0 || now - proxyFetchedAt > PROXY_REFRESH_INTERVAL) {
+		const urls = await fetchProxyList();
+		// Shuffle the list so we don't always hit the same proxies
+		const shuffled = [...urls].sort(() => Math.random() - 0.5);
+		proxyList = shuffled.map((url) => ({ url, failures: 0 }));
+		proxyFetchedAt = now;
+	}
+	// Filter out proxies that have failed too many times
+	return proxyList.filter((p) => p.failures < MAX_PROXY_FAILURES);
+}
+
+function markProxyFailed(proxyUrl: string): void {
+	const entry = proxyList.find((p) => p.url === proxyUrl);
+	if (entry) entry.failures++;
+}
+
+function runYtDlpRaw(args: readonly string[]): Promise<string> {
 	return new Promise((resolve, reject) => {
 		const proc = spawn("yt-dlp", args, {
 			stdio: ["ignore", "pipe", "pipe"],
@@ -85,6 +133,35 @@ function runYtDlp(args: readonly string[]): Promise<string> {
 		});
 		proc.on("error", reject);
 	});
+}
+
+async function runYtDlp(args: readonly string[]): Promise<string> {
+	// First try without proxy (works on residential IPs)
+	try {
+		return await runYtDlpRaw(args);
+	} catch (directError) {
+		const errMsg = directError instanceof Error ? directError.message : "";
+		// Only use proxies for bot detection / sign-in errors
+		if (!errMsg.includes("Sign in") && !errMsg.includes("bot")) {
+			throw directError;
+		}
+	}
+
+	// Proxy fallback with rotation
+	const proxies = await getProxies();
+	let lastError: unknown;
+	for (let i = 0; i < Math.min(MAX_RETRIES, proxies.length); i++) {
+		const proxy = proxies[i];
+		if (!proxy) continue;
+		try {
+			const result = await runYtDlpRaw(["--proxy", proxy.url, ...args]);
+			return result;
+		} catch (err) {
+			markProxyFailed(proxy.url);
+			lastError = err;
+		}
+	}
+	throw lastError ?? new Error("All proxies failed");
 }
 
 /**
