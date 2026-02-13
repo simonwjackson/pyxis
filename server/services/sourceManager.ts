@@ -13,8 +13,7 @@ import type { PlaylistItem } from "../../src/sources/pandora/types/api.js";
 import { createYtMusicSource } from "../../src/sources/ytmusic/index.js";
 import type { YtMusicPlaylistEntry } from "../../src/sources/ytmusic/index.js";
 import type { Source, MetadataSource } from "../../src/sources/types.js";
-import { getDb, schema } from "../../src/db/index.js";
-import { eq } from "drizzle-orm";
+import { getDb } from "../../src/db/index.js";
 import { createMusicBrainzSource } from "../../src/sources/musicbrainz/index.js";
 import { createDiscogsSource } from "../../src/sources/discogs/index.js";
 import { createDeezerSource } from "../../src/sources/deezer/index.js";
@@ -42,16 +41,13 @@ let cachedSharedSources: SharedSources | undefined;
 
 /**
  * Loads YTMusic playlist entries from the database.
- * These are user-saved playlists and radio stations persisted in PGlite.
+ * These are user-saved playlists and radio stations persisted via ProseQL.
  *
  * @returns Array of YTMusic playlist entries with id, url, name, and isRadio flag
  */
 async function loadYtMusicPlaylistsFromDb(): Promise<YtMusicPlaylistEntry[]> {
 	const db = await getDb();
-	const rows = await db
-		.select()
-		.from(schema.playlists)
-		.where(eq(schema.playlists.source, "ytmusic"));
+	const rows = await db.playlists.query({ where: { source: "ytmusic" } }).runPromise;
 	return rows.map((row) => ({
 		id: row.id,
 		url: row.url,

@@ -6,7 +6,7 @@
 
 ## 2. Migrate all consumer files (9 files)
 
-- [ ] 2.1 Migrate all server routers, services, and lib files from Drizzle to ProseQL API. Files to change:
+- [x] 2.1 Migrate all server routers, services, and lib files from Drizzle to ProseQL API. Files to change:
   - `server/services/persistence.ts` — player state upsert via `db.playerState.upsert()`, queue via single `db.queueState.upsert()` with embedded items array, loads via `findById("current")`. Keep 1000ms debounce.
   - `server/routers/library.ts` — list albums via `db.albums.query()` + `db.albumSourceRefs.query()` (or `populate`), saveAlbum via `db.$transaction()` + `db.flush()`, removeAlbum via 3-step manual delete (tracks, refs, album), updateAlbum/updateTrack via `db.*.update()`, checkAlbumExists via indexed `db.albumSourceRefs.query({ where: { source, sourceId } })`, getAlbumTracks via `db.albumTracks.query({ where: { albumId }, sort: { trackIndex: "asc" } })`
   - `server/routers/listenLog.ts` — `db.listenLog.query({ sort: { listenedAt: "desc" }, limit, offset })`

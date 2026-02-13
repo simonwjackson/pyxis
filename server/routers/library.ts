@@ -1,7 +1,7 @@
 /**
  * @module server/routers/library
  * User library management router for albums, tracks, and bookmarks.
- * Provides CRUD operations for the local album library stored in PGlite,
+ * Provides CRUD operations for the local album library stored via ProseQL,
  * and Pandora bookmark management for authenticated users.
  */
 
@@ -10,8 +10,7 @@ import { Effect } from "effect";
 import { router, pandoraProtectedProcedure, publicProcedure } from "../trpc.js";
 import { formatSourceId, generateId, parseId, trackCapabilities } from "../lib/ids.js";
 import type { SourceType } from "../../src/sources/types.js";
-import { getDb, schema } from "../../src/db/index.js";
-import { eq, and } from "drizzle-orm";
+import { getDb } from "../../src/db/index.js";
 import { ensureSourceManager } from "../services/sourceManager.js";
 import * as Pandora from "../../src/sources/pandora/client.js";
 
@@ -30,8 +29,8 @@ import * as Pandora from "../../src/sources/pandora/client.js";
 export const libraryRouter = router({
 	albums: publicProcedure.query(async () => {
 		const db = await getDb();
-		const allAlbums = await db.select().from(schema.albums);
-		const allRefs = await db.select().from(schema.albumSourceRefs);
+		const allAlbums = await db.albums.query({}).runPromise;
+		const allRefs = await db.albumSourceRefs.query({}).runPromise;
 
 		return allAlbums.map((album) => {
 			const refs = allRefs.filter((ref) => ref.albumId === album.id);
@@ -50,21 +49,19 @@ export const libraryRouter = router({
 		.input(z.object({ albumId: z.string() }))
 		.query(async ({ input }) => {
 			const db = await getDb();
-			const tracks = await db
-				.select()
-				.from(schema.albumTracks)
-				.where(eq(schema.albumTracks.albumId, input.albumId));
-			return tracks
-				.sort((a, b) => a.trackIndex - b.trackIndex)
-				.map((t) => ({
-					id: t.id,
-					trackIndex: t.trackIndex,
-					title: t.title,
-					artist: t.artist,
-					duration: t.duration,
-					artworkUrl: t.artworkUrl,
-					capabilities: trackCapabilities(t.source as SourceType),
-				}));
+			const tracks = await db.albumTracks.query({
+				where: { albumId: input.albumId },
+				sort: { trackIndex: "asc" },
+			}).runPromise;
+			return tracks.map((t) => ({
+				id: t.id,
+				trackIndex: t.trackIndex,
+				title: t.title,
+				artist: t.artist,
+				duration: t.duration,
+				artworkUrl: t.artworkUrl,
+				capabilities: trackCapabilities(t.source as SourceType),
+			}));
 		}),
 
 	saveAlbum: publicProcedure
@@ -83,15 +80,10 @@ export const libraryRouter = router({
 			const sourceManager = await ensureSourceManager();
 
 			const db = await getDb();
-			const existing = await db
-				.select()
-				.from(schema.albumSourceRefs)
-				.where(
-					and(
-						eq(schema.albumSourceRefs.source, source),
-						eq(schema.albumSourceRefs.sourceId, albumId),
-					),
-				);
+			// Check if already exists using indexed [source, sourceId] query
+			const existing = await db.albumSourceRefs.query({
+				where: { source, sourceId: albumId },
+			}).runPromise;
 			const first = existing[0];
 			if (first) {
 				return { id: first.albumId, alreadyExists: true };
@@ -104,44 +96,52 @@ export const libraryRouter = router({
 
 			const newAlbumId = generateId();
 
-			await db.transaction(async (tx) => {
-				await tx.insert(schema.albums).values({
-					id: newAlbumId,
-					title: album.title,
-					artist: album.artist,
-					...(album.year != null ? { year: album.year } : {}),
-					...(album.artworkUrl != null
-						? { artworkUrl: album.artworkUrl }
-						: {}),
-				});
+			// Use Effect.gen for the transaction
+			await Effect.runPromise(
+				db.$transaction((tx) =>
+					Effect.gen(function* () {
+						yield* tx.albums.create({
+							id: newAlbumId,
+							title: album.title,
+							artist: album.artist,
+							...(album.year != null ? { year: album.year } : {}),
+							...(album.artworkUrl != null
+								? { artworkUrl: album.artworkUrl }
+								: {}),
+						});
 
-				for (const sid of album.sourceIds) {
-					await tx.insert(schema.albumSourceRefs).values({
-						id: `${newAlbumId}-${sid.source}-${sid.id}`,
-						albumId: newAlbumId,
-						source: sid.source,
-						sourceId: sid.id,
-					});
-				}
+						for (const sid of album.sourceIds) {
+							yield* tx.albumSourceRefs.create({
+								id: `${newAlbumId}-${sid.source}-${sid.id}`,
+								albumId: newAlbumId,
+								source: sid.source,
+								sourceId: sid.id,
+							});
+						}
 
-				for (const [index, track] of tracks.entries()) {
-					await tx.insert(schema.albumTracks).values({
-						id: generateId(),
-						albumId: newAlbumId,
-						trackIndex: index,
-						title: track.title,
-						artist: track.artist,
-						...(track.duration != null
-							? { duration: Math.round(track.duration) }
-							: {}),
-						source: track.sourceId.source,
-						sourceTrackId: track.sourceId.id,
-						...(track.artworkUrl != null
-							? { artworkUrl: track.artworkUrl }
-							: {}),
-					});
-				}
-			});
+						for (const [index, track] of tracks.entries()) {
+							yield* tx.albumTracks.create({
+								id: generateId(),
+								albumId: newAlbumId,
+								trackIndex: index,
+								title: track.title,
+								artist: track.artist,
+								source: track.sourceId.source,
+								sourceTrackId: track.sourceId.id,
+								...(track.duration != null
+									? { duration: Math.round(track.duration) }
+									: {}),
+								...(track.artworkUrl != null
+									? { artworkUrl: track.artworkUrl }
+									: {}),
+							});
+						}
+					})
+				)
+			);
+
+			// Flush to disk for immediate persistence
+			await db.flush();
 
 			return { id: newAlbumId, alreadyExists: false };
 		}),
@@ -150,9 +150,16 @@ export const libraryRouter = router({
 		.input(z.object({ id: z.string() }))
 		.mutation(async ({ input }) => {
 			const db = await getDb();
-			await db
-				.delete(schema.albums)
-				.where(eq(schema.albums.id, input.id));
+			// Manual cascade: delete tracks, then refs, then album
+			const tracks = await db.albumTracks.query({ where: { albumId: input.id } }).runPromise;
+			for (const track of tracks) {
+				await db.albumTracks.delete(track.id).runPromise;
+			}
+			const refs = await db.albumSourceRefs.query({ where: { albumId: input.id } }).runPromise;
+			for (const ref of refs) {
+				await db.albumSourceRefs.delete(ref.id).runPromise;
+			}
+			await db.albums.delete(input.id).runPromise;
 			return { success: true };
 		}),
 
@@ -171,10 +178,7 @@ export const libraryRouter = router({
 			const fields: { title?: string; artist?: string } = {};
 			if (input.title !== undefined) fields.title = input.title;
 			if (input.artist !== undefined) fields.artist = input.artist;
-			await db
-				.update(schema.albums)
-				.set(fields)
-				.where(eq(schema.albums.id, input.id));
+			await db.albums.update(input.id, fields).runPromise;
 			return { success: true };
 		}),
 
@@ -187,10 +191,7 @@ export const libraryRouter = router({
 		)
 		.mutation(async ({ input }) => {
 			const db = await getDb();
-			await db
-				.update(schema.albumTracks)
-				.set({ title: input.title })
-				.where(eq(schema.albumTracks.id, input.id));
+			await db.albumTracks.update(input.id, { title: input.title }).runPromise;
 			return { success: true };
 		}),
 

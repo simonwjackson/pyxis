@@ -12,7 +12,7 @@ import {
 	invalidateManagers,
 } from "../services/sourceManager.js";
 
-import { getDb, schema } from "../../src/db/index.js";
+import { getDb } from "../../src/db/index.js";
 import { generateRadioUrl } from "../../src/sources/ytmusic/index.js";
 import type { CanonicalTrack, CanonicalPlaylist } from "../../src/sources/types.js";
 
@@ -104,9 +104,10 @@ export const playlistRouter = router({
 			const radioUrl = generateRadioUrl(seedTrackId);
 			const id = `radio-${seedTrackId}`;
 
-			await db
-				.insert(schema.playlists)
-				.values({
+			// Use upsert to handle duplicates gracefully
+			await db.playlists.upsert({
+				where: { id },
+				create: {
 					id,
 					name: input.name,
 					source: "ytmusic",
@@ -116,8 +117,9 @@ export const playlistRouter = router({
 					...(input.artworkUrl != null
 						? { artworkUrl: input.artworkUrl }
 						: {}),
-				})
-				.onConflictDoNothing();
+				},
+				update: {}, // No-op on conflict (equivalent to onConflictDoNothing)
+			}).runPromise;
 
 			invalidateManagers();
 

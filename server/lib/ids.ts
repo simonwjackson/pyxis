@@ -6,8 +6,7 @@
 
 import { nanoid } from "nanoid";
 import type { SourceType } from "../../src/sources/types.js";
-import { getDb, schema } from "../../src/db/index.js";
-import { eq } from "drizzle-orm";
+import { getDb } from "../../src/db/index.js";
 
 // --- Capability types ---
 
@@ -125,21 +124,13 @@ export async function resolveTrackForStream(opaqueId: string): Promise<string> {
 		// Already a source-prefixed ID — return as composite "source:trackId"
 		return `${parsed.source}:${parsed.id}`;
 	}
-	// Bare nanoid — look up in DB
+	// Bare nanoid — look up in DB using ProseQL findById
 	const db = await getDb();
-	const rows = await db
-		.select({
-			source: schema.albumTracks.source,
-			sourceTrackId: schema.albumTracks.sourceTrackId,
-		})
-		.from(schema.albumTracks)
-		.where(eq(schema.albumTracks.id, opaqueId))
-		.limit(1);
-	const row = rows[0];
-	if (!row) {
+	const track = await db.albumTracks.findById(opaqueId).runPromise;
+	if (!track) {
 		throw new Error(`Unknown track ID: ${opaqueId}`);
 	}
-	return `${row.source}:${row.sourceTrackId}`;
+	return `${track.source}:${track.sourceTrackId}`;
 }
 
 /**
@@ -153,16 +144,11 @@ export async function resolveTrackSource(opaqueId: string): Promise<SourceType> 
 		return parsed.source;
 	}
 	const db = await getDb();
-	const rows = await db
-		.select({ source: schema.albumTracks.source })
-		.from(schema.albumTracks)
-		.where(eq(schema.albumTracks.id, opaqueId))
-		.limit(1);
-	const row = rows[0];
-	if (!row) {
+	const track = await db.albumTracks.findById(opaqueId).runPromise;
+	if (!track) {
 		throw new Error(`Unknown track ID: ${opaqueId}`);
 	}
-	return row.source as SourceType;
+	return track.source as SourceType;
 }
 
 /**

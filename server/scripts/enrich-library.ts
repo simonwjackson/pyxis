@@ -17,7 +17,8 @@
  * ```
  */
 
-import { getDb, schema } from "../../src/db/index.js";
+import { Effect } from "effect";
+import { getDb } from "../../src/db/index.js";
 import { resolveConfig } from "../../src/config.js";
 import { createMusicBrainzSource } from "../../src/sources/musicbrainz/index.js";
 import { createDiscogsSource } from "../../src/sources/discogs/index.js";
@@ -26,12 +27,10 @@ import { createBandcampFullSource } from "../../src/sources/bandcamp/index.js";
 import { createSoundCloudFullSource } from "../../src/sources/soundcloud/index.js";
 import { createMatcher } from "../../src/sources/matcher.js";
 import { createLogger } from "../../src/logger.js";
-import { eq } from "drizzle-orm";
 import type {
 	MetadataSource,
 	MetadataSearchQuery,
 	NormalizedRelease,
-	Source,
 	SourceType,
 } from "../../src/sources/types.js";
 import { hasMetadataSearchCapability } from "../../src/sources/types.js";
@@ -155,10 +154,10 @@ async function main(): Promise<void> {
 	console.log(`Delay between albums: ${delayMs}ms`);
 	console.log("---");
 
-	// Load all library albums with their existing source refs
+	// Load all library albums with their existing source refs using ProseQL
 	const db = await getDb();
-	const allAlbums = await db.select().from(schema.albums);
-	const allRefs = await db.select().from(schema.albumSourceRefs);
+	const allAlbums = await db.albums.query({}).runPromise;
+	const allRefs = await db.albumSourceRefs.query({}).runPromise;
 
 	console.log(`Library contains ${allAlbums.length} albums\n`);
 
@@ -276,28 +275,30 @@ async function main(): Promise<void> {
 			const changes: string[] = [];
 
 			if (!dryRun) {
-				await db.transaction(async (tx) => {
-					// Insert new source refs
-					for (const sid of newSourceIds) {
-						await tx
-							.insert(schema.albumSourceRefs)
-							.values({
-								id: `${album.id}-${sid.source}-${sid.id}`,
-								albumId: album.id,
-								source: sid.source,
-								sourceId: sid.id,
-							})
-							.onConflictDoNothing();
-					}
+				await Effect.runPromise(
+					db.$transaction((tx) =>
+						Effect.gen(function* () {
+							// Insert new source refs (upsert for idempotency)
+							for (const sid of newSourceIds) {
+								yield* tx.albumSourceRefs.upsert({
+									where: { id: `${album.id}-${sid.source}-${sid.id}` },
+									create: {
+										id: `${album.id}-${sid.source}-${sid.id}`,
+										albumId: album.id,
+										source: sid.source,
+										sourceId: sid.id,
+									},
+									update: {}, // No-op on conflict
+								});
+							}
 
-					// Update artwork if improved
-					if (artworkImproved) {
-						await tx
-							.update(schema.albums)
-							.set({ artworkUrl: merged.artworkUrl })
-							.where(eq(schema.albums.id, album.id));
-					}
-				});
+							// Update artwork if improved
+							if (artworkImproved) {
+								yield* tx.albums.update(album.id, { artworkUrl: merged.artworkUrl });
+							}
+						})
+					)
+				);
 			}
 
 			if (newSourceIds.length > 0) {

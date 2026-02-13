@@ -5,8 +5,7 @@
 
 import { z } from "zod";
 import { router, publicProcedure } from "../trpc.js";
-import { getDb, schema } from "../../src/db/index.js";
-import { desc } from "drizzle-orm";
+import { getDb } from "../../src/db/index.js";
 
 export const listenLogRouter = router({
 	list: publicProcedure
@@ -16,13 +15,12 @@ export const listenLogRouter = router({
 				offset: z.number().min(0).default(0),
 			}),
 		)
-		.query(({ input }) => {
-			const db = getDb();
-			return db
-				.select()
-				.from(schema.listenLog)
-				.orderBy(desc(schema.listenLog.listenedAt))
-				.limit(input.limit)
-				.offset(input.offset);
+		.query(async ({ input }) => {
+			const db = await getDb();
+			return db.listenLog.query({
+				sort: { listenedAt: "desc" },
+				limit: input.limit,
+				offset: input.offset,
+			}).runPromise;
 		}),
 });

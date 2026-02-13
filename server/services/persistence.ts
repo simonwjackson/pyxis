@@ -2,11 +2,10 @@
  * @module persistence
  * Database persistence layer for player and queue state.
  * Provides debounced saves to avoid excessive database writes during rapid state changes.
- * Uses PGlite (in-browser Postgres) with Drizzle ORM.
+ * Uses ProseQL with YAML/JSONL persistence.
  */
 
-import { getDb, schema } from "../../src/db/index.js";
-import { eq } from "drizzle-orm";
+import { getDb, type QueueItem } from "../../src/db/index.js";
 import type { QueueTrack, QueueContext, QueueState } from "./queue.js";
 import type { PlayerStatus } from "./player.js";
 import type { SourceType } from "../../src/sources/types.js";
@@ -54,26 +53,22 @@ export function schedulePlayerSave(state: PersistedPlayerState): void {
 async function savePlayerState(state: PersistedPlayerState): Promise<void> {
 	try {
 		const db = await getDb();
-		await db
-			.insert(schema.playerState)
-			.values({
+		await db.playerState.upsert({
+			where: { id: "current" },
+			create: {
 				id: "current",
 				status: state.status,
 				progress: state.progress,
 				duration: state.duration,
 				volume: state.volume,
-				updatedAt: state.updatedAt,
-			})
-			.onConflictDoUpdate({
-				target: schema.playerState.id,
-				set: {
-					status: state.status,
-					progress: state.progress,
-					duration: state.duration,
-					volume: state.volume,
-					updatedAt: state.updatedAt,
-				},
-			});
+			},
+			update: {
+				status: state.status,
+				progress: state.progress,
+				duration: state.duration,
+				volume: state.volume,
+			},
+		}).runPromise;
 	} catch {
 		// Silently ignore DB errors — in-memory state is authoritative
 	}
@@ -88,12 +83,7 @@ async function savePlayerState(state: PersistedPlayerState): Promise<void> {
 export async function loadPlayerState(): Promise<PersistedPlayerState | undefined> {
 	try {
 		const db = await getDb();
-		const rows = await db
-			.select()
-			.from(schema.playerState)
-			.where(eq(schema.playerState.id, "current"))
-			.limit(1);
-		const row = rows[0];
+		const row = await db.playerState.findById("current").runPromise;
 		if (!row) return undefined;
 		return {
 			status: row.status as PlayerStatus,
@@ -113,9 +103,9 @@ export async function loadPlayerState(): Promise<PersistedPlayerState | undefine
  * Converts a QueueContext to database row format.
  *
  * @param ctx - Queue context describing playback origin
- * @returns Object with contextType string and contextId (null for manual)
+ * @returns Object with contextType string and optional contextId
  */
-function contextToRow(ctx: QueueContext): { contextType: string; contextId: string | null } {
+function contextToRow(ctx: QueueContext): { contextType: string; contextId?: string } {
 	switch (ctx.type) {
 		case "radio":
 			return { contextType: "radio", contextId: ctx.seedId };
@@ -124,7 +114,7 @@ function contextToRow(ctx: QueueContext): { contextType: string; contextId: stri
 		case "playlist":
 			return { contextType: "playlist", contextId: ctx.playlistId };
 		case "manual":
-			return { contextType: "manual", contextId: null };
+			return { contextType: "manual" }; // Omit contextId for manual
 	}
 }
 
@@ -132,10 +122,10 @@ function contextToRow(ctx: QueueContext): { contextType: string; contextId: stri
  * Converts database row format back to a QueueContext.
  *
  * @param contextType - Context type string from database
- * @param contextId - Context ID from database (null for manual)
+ * @param contextId - Context ID from database (empty string for manual)
  * @returns Reconstructed QueueContext union type
  */
-function rowToContext(contextType: string, contextId: string | null): QueueContext {
+function rowToContext(contextType: string, contextId: string | undefined): QueueContext {
 	switch (contextType) {
 		case "radio":
 			return { type: "radio", seedId: contextId ?? "" };
@@ -146,6 +136,36 @@ function rowToContext(contextType: string, contextId: string | null): QueueConte
 		default:
 			return { type: "manual" };
 	}
+}
+
+/**
+ * Converts a QueueTrack to a QueueItem for ProseQL storage.
+ */
+function trackToItem(track: QueueTrack): QueueItem {
+	return {
+		opaqueTrackId: track.id,
+		source: track.source,
+		title: track.title,
+		artist: track.artist,
+		album: track.album,
+		...(track.duration != null ? { duration: track.duration } : {}),
+		...(track.artworkUrl != null ? { artworkUrl: track.artworkUrl } : {}),
+	};
+}
+
+/**
+ * Converts a QueueItem from ProseQL to a QueueTrack.
+ */
+function itemToTrack(item: QueueItem): QueueTrack {
+	return {
+		id: item.opaqueTrackId,
+		title: item.title,
+		artist: item.artist,
+		album: item.album,
+		duration: item.duration ?? null,
+		artworkUrl: item.artworkUrl ?? null,
+		source: item.source as SourceType,
+	};
 }
 
 /**
@@ -165,41 +185,25 @@ export function scheduleQueueSave(state: QueueState): void {
 async function saveQueueState(state: QueueState): Promise<void> {
 	try {
 		const db = await getDb();
-		// Delete old items and insert new ones in a single batch
-		await db.delete(schema.queueItems);
-		if (state.items.length > 0) {
-			await db.insert(schema.queueItems).values(
-				state.items.map((track, index) => ({
-					id: `qi-${String(index)}`,
-					queueIndex: index,
-					opaqueTrackId: track.id,
-					source: track.source,
-					title: track.title,
-					artist: track.artist,
-					album: track.album,
-					duration: track.duration,
-					artworkUrl: track.artworkUrl,
-				})),
-			);
-		}
-
 		const ctx = contextToRow(state.context);
-		await db
-			.insert(schema.queueState)
-			.values({
+		const items = state.items.map(trackToItem);
+		// ProseQL stores the queue as a single document with embedded items
+		await db.queueState.upsert({
+			where: { id: "current" },
+			create: {
 				id: "current",
 				currentIndex: state.currentIndex,
 				contextType: ctx.contextType,
-				contextId: ctx.contextId,
-			})
-			.onConflictDoUpdate({
-				target: schema.queueState.id,
-				set: {
-					currentIndex: state.currentIndex,
-					contextType: ctx.contextType,
-					contextId: ctx.contextId,
-				},
-			});
+				items,
+				...(ctx.contextId !== undefined ? { contextId: ctx.contextId } : {}),
+			},
+			update: {
+				currentIndex: state.currentIndex,
+				contextType: ctx.contextType,
+				items,
+				...(ctx.contextId !== undefined ? { contextId: ctx.contextId } : {}),
+			},
+		}).runPromise;
 	} catch {
 		// Silently ignore DB errors — in-memory state is authoritative
 	}
@@ -215,28 +219,10 @@ async function saveQueueState(state: QueueState): Promise<void> {
 export async function loadQueueState(): Promise<QueueState | undefined> {
 	try {
 		const db = await getDb();
-		const stateRows = await db
-			.select()
-			.from(schema.queueState)
-			.where(eq(schema.queueState.id, "current"))
-			.limit(1);
-		const stateRow = stateRows[0];
+		const stateRow = await db.queueState.findById("current").runPromise;
 		if (!stateRow) return undefined;
 
-		const itemRows = await db
-			.select()
-			.from(schema.queueItems)
-			.orderBy(schema.queueItems.queueIndex);
-
-		const items: QueueTrack[] = itemRows.map((row) => ({
-			id: row.opaqueTrackId,
-			title: row.title,
-			artist: row.artist,
-			album: row.album,
-			duration: row.duration,
-			artworkUrl: row.artworkUrl,
-			source: row.source as SourceType,
-		}));
+		const items: QueueTrack[] = stateRow.items.map(itemToTrack);
 
 		return {
 			items,

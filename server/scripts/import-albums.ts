@@ -26,11 +26,11 @@
 
 import { readFileSync } from "node:fs";
 import { parse } from "yaml";
-import { getDb, schema } from "../../src/db/index.js";
+import { Effect } from "effect";
+import { getDb } from "../../src/db/index.js";
 import { createSourceManager } from "../../src/sources/index.js";
 import { createYtMusicSource } from "../../src/sources/ytmusic/index.js";
 import { nanoid } from "nanoid";
-import { eq, and } from "drizzle-orm";
 import { createLogger } from "../../src/logger.js";
 import type { SourceType } from "../../src/sources/types.js";
 
@@ -134,16 +134,10 @@ async function main(): Promise<void> {
 		const sourceType = source.type as SourceType;
 		const albumId = source.id;
 
-		// Check if already exists
-		const existing = await db
-			.select()
-			.from(schema.albumSourceRefs)
-			.where(
-				and(
-					eq(schema.albumSourceRefs.source, sourceType),
-					eq(schema.albumSourceRefs.sourceId, albumId),
-				),
-			);
+		// Check if already exists using indexed [source, sourceId] query
+		const existing = await db.albumSourceRefs.query({
+			where: { source: sourceType, sourceId: albumId },
+		}).runPromise;
 		if (existing[0]) {
 			console.log(
 				`[${i + 1}/${albums.length}] EXISTS: ${album.title} - ${album.artist}`,
@@ -160,46 +154,54 @@ async function main(): Promise<void> {
 
 				const newAlbumId = generateId();
 
-				await db.transaction(async (tx) => {
-					await tx.insert(schema.albums).values({
-						id: newAlbumId,
-						title: fetchedAlbum.title,
-						artist: fetchedAlbum.artist,
-						...(fetchedAlbum.year != null
-							? { year: fetchedAlbum.year }
-							: {}),
-						...(fetchedAlbum.artworkUrl != null
-							? { artworkUrl: fetchedAlbum.artworkUrl }
-							: {}),
-					});
+				// Use Effect.gen for the transaction
+				await Effect.runPromise(
+					db.$transaction((tx) =>
+						Effect.gen(function* () {
+							yield* tx.albums.create({
+								id: newAlbumId,
+								title: fetchedAlbum.title,
+								artist: fetchedAlbum.artist,
+								...(fetchedAlbum.year != null
+									? { year: fetchedAlbum.year }
+									: {}),
+								...(fetchedAlbum.artworkUrl != null
+									? { artworkUrl: fetchedAlbum.artworkUrl }
+									: {}),
+							});
 
-					for (const sid of fetchedAlbum.sourceIds) {
-						await tx.insert(schema.albumSourceRefs).values({
-							id: `${newAlbumId}-${sid.source}-${sid.id}`,
-							albumId: newAlbumId,
-							source: sid.source,
-							sourceId: sid.id,
-						});
-					}
+							for (const sid of fetchedAlbum.sourceIds) {
+								yield* tx.albumSourceRefs.create({
+									id: `${newAlbumId}-${sid.source}-${sid.id}`,
+									albumId: newAlbumId,
+									source: sid.source,
+									sourceId: sid.id,
+								});
+							}
 
-					for (const [index, track] of tracks.entries()) {
-						await tx.insert(schema.albumTracks).values({
-							id: generateId(),
-							albumId: newAlbumId,
-							trackIndex: index,
-							title: track.title,
-							artist: track.artist,
-							...(track.duration != null
-								? { duration: Math.round(track.duration) }
-								: {}),
-							source: track.sourceId.source,
-							sourceTrackId: track.sourceId.id,
-							...(track.artworkUrl != null
-								? { artworkUrl: track.artworkUrl }
-								: {}),
-						});
-					}
-				});
+							for (const [index, track] of tracks.entries()) {
+								yield* tx.albumTracks.create({
+									id: generateId(),
+									albumId: newAlbumId,
+									trackIndex: index,
+									title: track.title,
+									artist: track.artist,
+									source: track.sourceId.source,
+									sourceTrackId: track.sourceId.id,
+									...(track.duration != null
+										? { duration: Math.round(track.duration) }
+										: {}),
+									...(track.artworkUrl != null
+										? { artworkUrl: track.artworkUrl }
+										: {}),
+								});
+							}
+						})
+					)
+				);
+
+				// Flush to disk after each album for immediate persistence
+				await db.flush();
 
 				console.log(
 					`[${i + 1}/${albums.length}] SAVED: ${fetchedAlbum.title} - ${fetchedAlbum.artist} (${newAlbumId}, ${tracks.length} tracks)`,

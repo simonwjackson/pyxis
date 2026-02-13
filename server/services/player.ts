@@ -8,7 +8,7 @@
 import * as Queue from "./queue.js";
 import { schedulePlayerSave, loadPlayerState } from "./persistence.js";
 import { createLogger } from "../../src/logger.js";
-import { getDb, schema } from "../../src/db/index.js";
+import { getDb } from "../../src/db/index.js";
 import { generateId } from "../lib/ids.js";
 
 const log = createLogger("playback").child({ component: "player" });
@@ -126,25 +126,28 @@ function maybeLogListen(): void {
 	const currentProgress = getProgress();
 	if (currentProgress < LISTEN_THRESHOLD_SECONDS) return;
 
-	try {
-		const db = getDb();
-		db.insert(schema.listenLog)
-			.values({
+	// Fire and forget — don't block on async DB write
+	void (async () => {
+		try {
+			const db = await getDb();
+			// ProseQL appendOnly collection: create appends a line to JSONL
+			await db.listenLog.create({
 				id: generateId(),
 				compositeId: currentTrack.id,
 				title: currentTrack.title,
 				artist: currentTrack.artist,
 				album: currentTrack.album,
 				source: currentTrack.source,
-			})
-			.run();
-		log.info(
-			{ track: currentTrack.id, progress: currentProgress },
-			"listen logged",
-		);
-	} catch (err) {
-		log.error({ err, track: currentTrack.id }, "failed to log listen");
-	}
+				listenedAt: Date.now(),
+			}).runPromise;
+			log.info(
+				{ track: currentTrack.id, progress: currentProgress },
+				"listen logged",
+			);
+		} catch (err) {
+			log.error({ err, track: currentTrack.id }, "failed to log listen");
+		}
+	})();
 }
 
 /**
