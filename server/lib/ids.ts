@@ -126,11 +126,12 @@ export async function resolveTrackForStream(opaqueId: string): Promise<string> {
 	}
 	// Bare nanoid — look up in DB using ProseQL findById
 	const db = await getDb();
-	const track = await db.albumTracks.findById(opaqueId).runPromise;
-	if (!track) {
+	try {
+		const track = await db.albumTracks.findById(opaqueId).runPromise;
+		return `${track.source}:${track.sourceTrackId}`;
+	} catch {
 		throw new Error(`Unknown track ID: ${opaqueId}`);
 	}
-	return `${track.source}:${track.sourceTrackId}`;
 }
 
 /**
@@ -144,11 +145,12 @@ export async function resolveTrackSource(opaqueId: string): Promise<SourceType> 
 		return parsed.source;
 	}
 	const db = await getDb();
-	const track = await db.albumTracks.findById(opaqueId).runPromise;
-	if (!track) {
+	try {
+		const track = await db.albumTracks.findById(opaqueId).runPromise;
+		return track.source as SourceType;
+	} catch {
 		throw new Error(`Unknown track ID: ${opaqueId}`);
 	}
-	return track.source as SourceType;
 }
 
 /**
