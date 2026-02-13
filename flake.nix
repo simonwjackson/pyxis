@@ -86,6 +86,7 @@
         packages = [
           pkgs.bun
           pkgs.ffmpeg
+          pkgs.just
           pkgs.mpv
           pkgs.yt-dlp
           bun2nix.packages.${system}.default

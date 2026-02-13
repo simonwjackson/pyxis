@@ -24,8 +24,8 @@ import type { Album, AlbumSourceRef, AlbumTrack, Playlist, PlayerState, QueueSta
 
 const paths = envPaths("pyxis", { suffix: "" });
 const DATA_DIR = join(paths.data, "db");
-const SQLITE_PATH = join(paths.data, "pyxis.db");
-const SQLITE_BAK_PATH = join(paths.data, "pyxis.db.bak");
+const SQLITE_PATH = join(DATA_DIR, "pyxis.db");
+const SQLITE_BAK_PATH = join(DATA_DIR, "pyxis.db.bak");
 
 // ProseQL YAML/JSONL file paths (must match config.ts)
 const YAML_FILES = {
@@ -35,8 +35,10 @@ const YAML_FILES = {
 	playlists: join(DATA_DIR, "playlists.yaml"),
 	playerState: join(DATA_DIR, "player-state.yaml"),
 	queueState: join(DATA_DIR, "queue-state.yaml"),
-	listenLog: join(DATA_DIR, "listen-log.jsonl"),
 };
+
+// Listen log path (written separately, not part of migration guard)
+const LISTEN_LOG_PATH = join(DATA_DIR, "listen-log.jsonl");
 
 /**
  * Check if any ProseQL data files already exist.
@@ -140,10 +142,14 @@ function toMs(timestamp: number): number {
 
 /**
  * Write a collection to a YAML file.
- * ProseQL stores collections as an array of entities.
+ * ProseQL stores collections as an object keyed by entity ID.
  */
-function writeYamlCollection<T>(filePath: string, entities: T[]): void {
-	const content = YAML.stringify(entities, { lineWidth: 0 });
+function writeYamlCollection<T extends { id: string }>(filePath: string, entities: T[]): void {
+	const obj: Record<string, T> = {};
+	for (const entity of entities) {
+		obj[entity.id] = entity;
+	}
+	const content = YAML.stringify(obj, { lineWidth: 0 });
 	writeFileSync(filePath, content, "utf-8");
 }
 
@@ -321,8 +327,8 @@ export async function migrateFromSqlite(): Promise<{
 		}));
 		counts.listenLog = logs.length;
 		// Create empty file first, then append
-		writeFileSync(YAML_FILES.listenLog, "", "utf-8");
-		appendJsonl(YAML_FILES.listenLog, logs);
+		writeFileSync(LISTEN_LOG_PATH, "", "utf-8");
+		appendJsonl(LISTEN_LOG_PATH, logs);
 		console.log(`Migrated ${logs.length} listen log entries`);
 
 		console.log("\nMigration complete!");

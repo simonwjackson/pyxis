@@ -19,10 +19,11 @@ import envPaths from "env-paths";
 import { dbConfig, DB_DIR, type DbConfig } from "./config.js";
 
 const paths = envPaths("pyxis", { suffix: "" });
-const SQLITE_PATH = join(paths.data, "pyxis.db");
-const SQLITE_BAK_PATH = join(paths.data, "pyxis.db.bak");
+const SQLITE_PATH = join(DB_DIR, "pyxis.db");
+const SQLITE_BAK_PATH = join(DB_DIR, "pyxis.db.bak");
 
-// YAML/JSONL file paths to check for existing ProseQL data
+// YAML file paths to check for existing ProseQL data.
+// Excludes listen-log.jsonl since it gets created during normal operation.
 const YAML_FILES = [
 	join(DB_DIR, "albums.yaml"),
 	join(DB_DIR, "album-source-refs.yaml"),
@@ -30,7 +31,6 @@ const YAML_FILES = [
 	join(DB_DIR, "playlists.yaml"),
 	join(DB_DIR, "player-state.yaml"),
 	join(DB_DIR, "queue-state.yaml"),
-	join(DB_DIR, "listen-log.jsonl"),
 ];
 
 /**
