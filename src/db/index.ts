@@ -1,150 +1,63 @@
 /**
  * @module Database
- * SQLite database connection using Drizzle ORM.
- * Database is stored in XDG_DATA_HOME/pyxis/db/ (typically ~/.local/share/pyxis/db/).
+ * ProseQL database connection using Effect and YAML/JSONL persistence.
+ * Database files are stored in XDG_DATA_HOME/pyxis/db/ (typically ~/.local/share/pyxis/db/).
  */
 
-import { Database } from "bun:sqlite";
-import { drizzle } from "drizzle-orm/bun-sqlite";
-import { mkdirSync, existsSync, renameSync } from "node:fs";
-import { join } from "node:path";
-import envPaths from "env-paths";
-import * as schema from "./schema.js";
+import { Effect, Exit, Scope } from "effect";
+import {
+	createNodeDatabase,
+	type GenerateDatabaseWithPersistence,
+} from "@proseql/node";
+import { mkdirSync } from "node:fs";
+import { dbConfig, DB_DIR, type DbConfig } from "./config.js";
 
-type DbInstance = ReturnType<typeof drizzle<typeof schema>>;
+export type DbInstance = GenerateDatabaseWithPersistence<DbConfig>;
 
 let dbInstance: DbInstance | undefined;
-
-const paths = envPaths("pyxis", { suffix: "" });
-const DB_DIR = join(paths.data, "db");
-const DB_FILE = join(DB_DIR, "pyxis.db");
-
-const MIGRATION_SQL = `
-CREATE TABLE IF NOT EXISTS albums (
-	id TEXT PRIMARY KEY,
-	title TEXT NOT NULL,
-	artist TEXT NOT NULL,
-	year INTEGER,
-	artwork_url TEXT,
-	created_at INTEGER NOT NULL DEFAULT (unixepoch())
-);
-
-CREATE TABLE IF NOT EXISTS album_source_refs (
-	id TEXT PRIMARY KEY,
-	album_id TEXT NOT NULL REFERENCES albums(id) ON DELETE CASCADE,
-	source TEXT NOT NULL,
-	source_id TEXT NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS album_tracks (
-	id TEXT PRIMARY KEY,
-	album_id TEXT NOT NULL REFERENCES albums(id) ON DELETE CASCADE,
-	track_index INTEGER NOT NULL,
-	title TEXT NOT NULL,
-	artist TEXT NOT NULL,
-	duration INTEGER,
-	source TEXT NOT NULL,
-	source_track_id TEXT NOT NULL,
-	artwork_url TEXT
-);
-
-CREATE TABLE IF NOT EXISTS playlists (
-	id TEXT PRIMARY KEY,
-	name TEXT NOT NULL,
-	source TEXT NOT NULL,
-	url TEXT NOT NULL,
-	is_radio INTEGER NOT NULL DEFAULT 0,
-	seed_track_id TEXT,
-	artwork_url TEXT,
-	created_at INTEGER NOT NULL DEFAULT (unixepoch())
-);
-
-CREATE TABLE IF NOT EXISTS player_state (
-	id TEXT PRIMARY KEY,
-	status TEXT NOT NULL,
-	progress REAL NOT NULL DEFAULT 0,
-	duration REAL NOT NULL DEFAULT 0,
-	volume INTEGER NOT NULL DEFAULT 100,
-	updated_at REAL NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS queue_items (
-	id TEXT PRIMARY KEY,
-	queue_index INTEGER NOT NULL,
-	opaque_track_id TEXT NOT NULL,
-	source TEXT NOT NULL,
-	title TEXT NOT NULL,
-	artist TEXT NOT NULL,
-	album TEXT NOT NULL,
-	duration INTEGER,
-	artwork_url TEXT
-);
-
-CREATE TABLE IF NOT EXISTS queue_state (
-	id TEXT PRIMARY KEY,
-	current_index INTEGER NOT NULL DEFAULT 0,
-	context_type TEXT NOT NULL,
-	context_id TEXT
-);
-
-CREATE TABLE IF NOT EXISTS listen_log (
-	id TEXT PRIMARY KEY,
-	composite_id TEXT NOT NULL,
-	title TEXT NOT NULL,
-	artist TEXT NOT NULL,
-	album TEXT,
-	source TEXT NOT NULL,
-	listened_at INTEGER NOT NULL
-);
-
--- Drop legacy credential tables if they exist
-DROP TABLE IF EXISTS source_credentials;
-DROP TABLE IF EXISTS credentials;
-`;
+let dbScope: Scope.CloseableScope | undefined;
 
 /**
  * Gets the singleton database instance, creating it if needed.
- * Initializes the database with WAL mode, foreign keys, and runs migrations.
+ * Initializes ProseQL with NodeStorageLayer and yamlCodec.
  *
- * @returns Drizzle ORM instance with typed schema
+ * @returns Promise resolving to ProseQL database instance
  *
  * @example
  * ```ts
- * const db = getDb();
- * const albums = await db.select().from(schema.albums);
+ * const db = await getDb();
+ * const albums = await db.albums.query({}).runPromise;
  * ```
  */
-export function getDb(): DbInstance {
+export async function getDb(): Promise<DbInstance> {
 	if (dbInstance) return dbInstance;
 
 	mkdirSync(DB_DIR, { recursive: true, mode: 0o700 });
 
-	// Migrate from PGlite if needed
-	migratePgliteIfNeeded();
+	// Create a scope for the database lifecycle
+	dbScope = await Effect.runPromise(Scope.make());
 
-	const sqlite = new Database(DB_FILE);
-	sqlite.exec("PRAGMA journal_mode = WAL");
-	sqlite.exec("PRAGMA foreign_keys = ON");
-	sqlite.exec(MIGRATION_SQL);
-	dbInstance = drizzle(sqlite, { schema });
+	const program = createNodeDatabase(dbConfig);
+
+	// Use Scope.extend to provide the scope without auto-closing
+	dbInstance = await Effect.runPromise(Scope.extend(program, dbScope));
+
 	return dbInstance;
 }
 
 /**
- * If PGlite data exists (PG_VERSION marker) but no SQLite file yet,
- * back up the PGlite directory. Data migration from PGlite's internal
- * format requires PGlite itself; since we're removing that dependency,
- * we preserve the directory as a backup for manual recovery.
+ * Closes the database and releases resources.
+ * Call this on server shutdown for clean exit.
  */
-function migratePgliteIfNeeded(): void {
-	const pgVersionPath = join(DB_DIR, "PG_VERSION");
-	if (existsSync(pgVersionPath) && !existsSync(DB_FILE)) {
-		const backupDir = `${DB_DIR}.pglite.bak`;
-		if (!existsSync(backupDir)) {
-			renameSync(DB_DIR, backupDir);
-			mkdirSync(DB_DIR, { recursive: true, mode: 0o700 });
-		}
+export async function closeDb(): Promise<void> {
+	if (dbInstance) {
+		await dbInstance.flush();
 	}
+	if (dbScope) {
+		await Effect.runPromise(Scope.close(dbScope, Exit.void));
+		dbScope = undefined;
+	}
+	dbInstance = undefined;
 }
 
-export { schema };
+export * from "./config.js";
