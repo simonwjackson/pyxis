@@ -3,8 +3,7 @@
 	"version": "0.1.0",
 	"type": "module",
 	"scripts": {
-		"dev:web": "vite",
-		"dev:server": "bun --watch server/index.ts",
+		"dev": "bun --watch server/index.ts",
 		"build:web": "vite build",
 		"typecheck": "tsc --noEmit",
 		"test": "bun test",

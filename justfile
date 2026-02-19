@@ -16,9 +16,6 @@ test:
 typecheck:
     bun run typecheck
 
-# Dev mode (web frontend + server)
-dev-web:
-    bun run dev:web
-
-dev-server:
-    bun run dev:server
+# Dev mode (Vite embedded in Bun server)
+dev:
+    bun run dev

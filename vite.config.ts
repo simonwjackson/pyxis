@@ -6,10 +6,7 @@ import { TanStackRouterVite } from "@tanstack/router-plugin/vite";
 import tailwindcss from "@tailwindcss/vite";
 import orchestraSource from "./plugins/vite-plugin-orchestra-source/index";
 import { getLogFile } from "./src/logger";
-import { resolveConfig } from "./src/config";
 
-const appConfig = resolveConfig();
-const proxyTarget = `http://${appConfig.server.hostname}:${appConfig.server.port}`;
 
 const logFile = getLogFile("web");
 const viteLogger = createViteLogger();
@@ -21,6 +18,8 @@ function writeToLog(text: string): void {
 const customLogger = {
 	...viteLogger,
 	info(msg: string, options?: { timestamp?: boolean }) {
+		const stripped = msg.replace(/\x1b\[[0-9;]*m/g, "");
+		if (/Local:|Network:|ready in|VITE v/.test(stripped)) return;
 		writeToLog(msg + "\n");
 		viteLogger.info(msg, options);
 	},
@@ -38,37 +37,51 @@ const customLogger = {
 	},
 };
 
+const hmrNoReloadPlugin = {
+	name: "hmr-no-reload-on-disconnect",
+	apply: "serve" as const,
+	transformIndexHtml(html: string) {
+		return html.replace(
+			"</head>",
+			`<script type="module">
+        if (import.meta.hot) {
+          const originalReload = location.reload.bind(location);
+          let suppressReload = false;
+
+          import.meta.hot.on("vite:ws:disconnect", () => {
+            suppressReload = true;
+            console.log("[HMR] WS disconnected — suppressing auto-reload");
+          });
+
+          import.meta.hot.on("vite:ws:connect", () => {
+            setTimeout(() => {
+              suppressReload = false;
+              console.log("[HMR] WS reconnected — reload re-enabled");
+            }, 3000);
+          });
+
+          Object.defineProperty(window.location, "reload", {
+            configurable: true,
+            value: (...args) => {
+              if (suppressReload) {
+                console.log("[HMR] Reload suppressed (sleep/wake recovery)");
+                return;
+              }
+              return originalReload(...args);
+            },
+          });
+        }
+      </script></head>`,
+		);
+	},
+};
+
 export default defineConfig({
-	plugins: [TanStackRouterVite(), orchestraSource({ serverUrl: "https://aka.hummingbird-lake.ts.net" }), react(), tailwindcss()],
+	plugins: [hmrNoReloadPlugin, TanStackRouterVite(), orchestraSource({ serverUrl: "https://aka.hummingbird-lake.ts.net" }), react(), tailwindcss()],
 	customLogger,
 	server: {
-		port: appConfig.web.port,
-		host: "0.0.0.0",
-		allowedHosts: appConfig.web.allowedHosts.length > 0 ? appConfig.web.allowedHosts : true,
-		proxy: {
-			"/trpc": {
-				target: proxyTarget,
-				changeOrigin: true,
-				configure: (proxy) => {
-					proxy.on("proxyRes", (proxyRes, _req, res) => {
-						const ct = proxyRes.headers["content-type"];
-						if (ct) res.setHeader("content-type", ct);
-						res.flushHeaders();
-					});
-				},
-			},
-			"/stream": {
-				target: proxyTarget,
-				changeOrigin: true,
-				ws: false,
-				configure: (proxy) => {
-					proxy.on("proxyRes", (proxyRes, _req, res) => {
-						const ct = proxyRes.headers["content-type"];
-						if (ct) res.setHeader("content-type", ct);
-						res.flushHeaders();
-					});
-				},
-			},
+		watch: {
+			ignored: ["**/.direnv/**"],
 		},
 	},
 	resolve: {

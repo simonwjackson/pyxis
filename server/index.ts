@@ -19,6 +19,8 @@
  * ```
  */
 
+import { IncomingMessage, ServerResponse } from "node:http";
+import { Socket } from "node:net";
 import { fetchRequestHandler } from "@trpc/server/adapters/fetch";
 import { appRouter } from "./router.js";
 import { createContext } from "./trpc.js";
@@ -46,11 +48,78 @@ const trpcLog = serverLogger.child({ component: "trpc" });
 const DIST_DIR = join(import.meta.dirname, "../dist-web");
 const hasDistWeb = existsSync(DIST_DIR);
 
-// Production: frontend is same-origin, no CORS needed for browser requests
-// Development: frontend is on different Vite port, needs CORS
-const corsOrigin = hasDistWeb
-	? `http://${config.server.hostname}:${config.server.port}`
-	: `http://${config.server.hostname}:${config.web.port}`;
+// --- Vite dev server (middleware mode) ---
+
+let viteDevServer: any = null;
+if (!hasDistWeb) {
+	const vite = await import("vite");
+	viteDevServer = await vite.createServer({
+		server: {
+			middlewareMode: true,
+			hmr: { port: config.server.port + 1 },
+		},
+		appType: "spa",
+	});
+}
+
+/** Bridge a web request through Vite's Connect middleware stack */
+function handleViteRequest(
+	middleware: any,
+	method: string,
+	url: string,
+	headers: Record<string, string>,
+): Promise<{ status: number; headers: Record<string, string>; body: Buffer }> {
+	return new Promise((resolve, reject) => {
+		const socket = new Socket();
+		const req = new IncomingMessage(socket);
+		req.method = method;
+		req.url = url;
+		req.headers = {};
+		for (const [k, v] of Object.entries(headers)) {
+			req.headers[k.toLowerCase()] = v;
+		}
+		req.push(null);
+
+		const res = new ServerResponse(req);
+		const chunks: Buffer[] = [];
+
+		res.write = (chunk: any, ..._args: any[]) => {
+			chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+			return true;
+		};
+
+		res.end = (chunk?: any, ..._args: any[]) => {
+			if (chunk) {
+				chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+			}
+			const responseHeaders: Record<string, string> = {};
+			for (const [k, v] of Object.entries(res.getHeaders())) {
+				if (v != null) responseHeaders[k] = String(v);
+			}
+			resolve({
+				status: res.statusCode,
+				headers: responseHeaders,
+				body: Buffer.concat(chunks),
+			});
+			return res;
+		};
+
+		middleware.handle(req, res, (err?: any) => {
+			if (err) {
+				reject(err);
+			} else {
+				resolve({
+					status: 404,
+					headers: { "content-type": "text/plain" },
+					body: Buffer.from("Not Found"),
+				});
+			}
+		});
+	});
+}
+
+// With Vite embedded, frontend is always same-origin in dev mode too
+const corsOrigin = `http://${config.server.hostname}:${config.server.port}`;
 
 /**
  * Standard CORS headers for cross-origin requests from the web frontend.
@@ -157,6 +226,28 @@ const server = Bun.serve({
 			}
 			// SPA fallback: serve index.html for client-side routing
 			return new Response(Bun.file(join(DIST_DIR, "index.html")));
+		}
+
+		// Dev mode: pipe through Vite middleware in-process
+		if (viteDevServer) {
+			try {
+				const headers: Record<string, string> = {};
+				req.headers.forEach((v, k) => {
+					headers[k] = v;
+				});
+				const result = await handleViteRequest(
+					viteDevServer.middlewares,
+					req.method,
+					`${url.pathname}${url.search}`,
+					headers,
+				);
+				return new Response(result.body, {
+					status: result.status,
+					headers: result.headers,
+				});
+			} catch {
+				return new Response("Vite dev server not ready", { status: 502 });
+			}
 		}
 
 		return new Response("Not Found", { status: 404 });
