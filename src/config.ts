@@ -51,6 +51,12 @@ const SoundCloudSourceSchema = z.object({
 	clientId: optionalString,
 });
 
+const SoulseekSourceSchema = z.object({
+	enabled: z.boolean().default(false),
+	username: optionalString,
+	maxConcurrentDownloads: z.number().int().min(1).default(2),
+});
+
 const SourcesSchema = z.object({
 	pandora: PandoraSourceSchema.default(() => PandoraSourceSchema.parse({})),
 	musicbrainz: MusicBrainzSourceSchema.default(() => MusicBrainzSourceSchema.parse({})),
@@ -58,6 +64,19 @@ const SourcesSchema = z.object({
 	deezer: DeezerSourceSchema.default(() => DeezerSourceSchema.parse({})),
 	bandcamp: BandcampSourceSchema.default(() => BandcampSourceSchema.parse({})),
 	soundcloud: SoundCloudSourceSchema.default(() => SoundCloudSourceSchema.parse({})),
+	soulseek: SoulseekSourceSchema.default(() => SoulseekSourceSchema.parse({})),
+});
+
+const UpgradeStorageSchema = z.object({
+	maxCapacityMB: z.number().positive().optional(),
+	ttlDays: z.number().positive().optional(),
+});
+
+const UpgradeSchema = z.object({
+	enabled: z.boolean().default(false),
+	radioLookahead: z.number().int().min(1).default(3),
+	retrySchedule: z.array(z.number().int().positive()).default([1, 3, 7, 30]),
+	storage: UpgradeStorageSchema.default(() => UpgradeStorageSchema.parse({})),
 });
 
 const LogSchema = z.object({
@@ -74,6 +93,7 @@ export const ConfigSchema = z.object({
 	server: ServerSchema.default(() => ServerSchema.parse({})),
 	web: WebSchema.default(() => WebSchema.parse({})),
 	sources: SourcesSchema.default(() => SourcesSchema.parse({})),
+	upgrade: UpgradeSchema.default(() => UpgradeSchema.parse({})),
 	log: LogSchema.default(() => LogSchema.parse({})),
 });
 
@@ -174,4 +194,8 @@ export function resolveConfig(configPath?: string): AppConfig {
  */
 export function getPandoraPassword(): string | undefined {
 	return process.env["PYXIS_PANDORA_PASSWORD"];
+}
+
+export function getSoulseekPassword(): string | undefined {
+	return process.env["PYXIS_SOULSEEK_PASSWORD"];
 }

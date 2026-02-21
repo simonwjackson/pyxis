@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from "bun:test";
-import { resolveConfig, ConfigSchema, getPandoraPassword } from "./config.js";
+import { resolveConfig, ConfigSchema, getPandoraPassword, getSoulseekPassword } from "./config.js";
 
 describe("ConfigSchema", () => {
 	describe("defaults", () => {
@@ -21,6 +21,12 @@ describe("ConfigSchema", () => {
 			const config = ConfigSchema.parse({
 				server: { port: 9000, hostname: "myhost" },
 				web: { port: 3000, allowedHosts: ["example.com"] },
+				upgrade: {
+					enabled: true,
+					radioLookahead: 5,
+					retrySchedule: [2, 4, 8],
+					storage: { maxCapacityMB: 2048, ttlDays: 60 },
+				},
 				log: { level: "debug" },
 			});
 
@@ -28,6 +34,11 @@ describe("ConfigSchema", () => {
 			expect(config.server.hostname).toBe("myhost");
 			expect(config.web.port).toBe(3000);
 			expect(config.web.allowedHosts).toEqual(["example.com"]);
+			expect(config.upgrade.enabled).toBe(true);
+			expect(config.upgrade.radioLookahead).toBe(5);
+			expect(config.upgrade.retrySchedule).toEqual([2, 4, 8]);
+			expect(config.upgrade.storage.maxCapacityMB).toBe(2048);
+			expect(config.upgrade.storage.ttlDays).toBe(60);
 			expect(config.log.level).toBe("debug");
 		});
 	});
@@ -41,6 +52,14 @@ describe("ConfigSchema", () => {
 			expect(config.sources.deezer.enabled).toBe(true);
 			expect(config.sources.bandcamp.enabled).toBe(true);
 			expect(config.sources.soundcloud.enabled).toBe(true);
+			expect(config.sources.soulseek.enabled).toBe(false);
+			expect(config.sources.soulseek.username).toBeUndefined();
+			expect(config.sources.soulseek.maxConcurrentDownloads).toBe(2);
+			expect(config.upgrade.enabled).toBe(false);
+			expect(config.upgrade.radioLookahead).toBe(3);
+			expect(config.upgrade.retrySchedule).toEqual([1, 3, 7, 30]);
+			expect(config.upgrade.storage.maxCapacityMB).toBeUndefined();
+			expect(config.upgrade.storage.ttlDays).toBeUndefined();
 		});
 
 		it("allows disabling sources", () => {
@@ -171,5 +190,30 @@ describe("getPandoraPassword", () => {
 	it("returns password when env var is set", () => {
 		process.env["PYXIS_PANDORA_PASSWORD"] = "secret123";
 		expect(getPandoraPassword()).toBe("secret123");
+	});
+});
+
+describe("getSoulseekPassword", () => {
+	const originalEnv = { ...process.env };
+
+	afterEach(() => {
+		Object.assign(process.env, originalEnv);
+	});
+
+	it("returns undefined when env var not set", () => {
+		delete process.env["PYXIS_SOULSEEK_PASSWORD"];
+		expect(getSoulseekPassword()).toBeUndefined();
+	});
+
+	it("returns password when env var is set", () => {
+		process.env["PYXIS_SOULSEEK_PASSWORD"] = "secret123";
+		expect(getSoulseekPassword()).toBe("secret123");
+	});
+
+	it("does not place soulseek password into resolved config", () => {
+		process.env["PYXIS_SOULSEEK_PASSWORD"] = "secret123";
+		const config = resolveConfig("/nonexistent/path/config.yaml");
+
+		expect(JSON.stringify(config)).not.toContain("secret123");
 	});
 });

@@ -1,0 +1,5 @@
+- group: Resolve TODO
+  tasks:
+    - text: "Resolve TODO 002: Numeric fields lack range/integer constraints in
+        persistence schema"
+      effort: medium

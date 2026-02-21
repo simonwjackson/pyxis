@@ -1,0 +1,5 @@
+- group: Resolve TODO
+  tasks:
+    - text: "Resolve TODO 005: Add explicit secret redaction/handling safeguards for
+        Soulseek password"
+      effort: medium

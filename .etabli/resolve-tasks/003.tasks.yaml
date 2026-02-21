@@ -1,0 +1,5 @@
+- group: Resolve TODO
+  tasks:
+    - text: "Resolve TODO 003: Tests over-index on happy-path CRUD and under-cover
+        invalid schema inputs"
+      effort: medium

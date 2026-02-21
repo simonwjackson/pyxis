@@ -1,0 +1,4 @@
+- group: Resolve TODO
+  tasks:
+    - text: "Resolve TODO 004: Potential index gap for anticipated hot query paths"
+      effort: medium

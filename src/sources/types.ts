@@ -8,7 +8,7 @@
  * Identifier for a music source backend.
  * Used to route requests and identify where data originated.
  */
-export type SourceType = "pandora" | "ytmusic" | "youtube" | "local" | "musicbrainz" | "discogs" | "deezer" | "bandcamp" | "soundcloud";
+export type SourceType = "pandora" | "ytmusic" | "youtube" | "local" | "musicbrainz" | "discogs" | "deezer" | "bandcamp" | "soundcloud" | "soulseek";
 
 /**
  * Classification of a music release.

@@ -5,7 +5,7 @@
  * playerState, queueState (with embedded items), and listenLog.
  */
 
-import { Schema } from "effect";
+import { Array as Arr, Schema } from "effect";
 import type { DatabaseConfig } from "@proseql/core";
 import envPaths from "env-paths";
 import { join } from "node:path";
@@ -124,6 +124,38 @@ export const ListenLogSchema = Schema.Struct({
 });
 export type ListenLog = Schema.Schema.Type<typeof ListenLogSchema>;
 
+export const TrackSourceSchema = Schema.Struct({
+	id: Schema.String,
+	trackId: Schema.String,
+	source: Schema.Literal("soulseek"),
+	sourceTrackId: Schema.String,
+	bitrate: Schema.optionalWith(Schema.Number, { exact: true }),
+	format: Schema.optionalWith(Schema.String, { exact: true }),
+	lossless: Schema.Boolean,
+	localPath: Schema.optionalWith(Schema.String, { exact: true }),
+	confidence: Schema.optionalWith(Schema.Number.pipe(Schema.between(0, 1)), { exact: true }),
+	reviewStatus: Schema.optionalWith(Schema.Literal("pending", "auto_approved", "manual_approved", "rejected"), { exact: true }),
+	slskUsername: Schema.optionalWith(Schema.String, { exact: true }),
+	slskFilename: Schema.optionalWith(Schema.String, { exact: true }),
+	createdAt: Schema.Number,
+});
+export type TrackSource = Schema.Schema.Type<typeof TrackSourceSchema>;
+
+export const UpgradeQueueSchema = Schema.Struct({
+	id: Schema.String,
+	trackId: Schema.String,
+	targetFormat: Schema.String,
+	currentBestFormat: Schema.optionalWith(Schema.String, { exact: true }),
+	currentBestBitrate: Schema.optionalWith(Schema.Number, { exact: true }),
+	retryCount: Schema.Number.pipe(Schema.nonNegative()),
+	nextRetryAt: Schema.Number.pipe(Schema.finite()),
+	status: Schema.Literal("pending", "searching", "completed", "failed"),
+	createdAt: Schema.Number,
+}).pipe(Schema.filter((value) => value.nextRetryAt >= value.createdAt || value.status === "completed", {
+	message: () => "nextRetryAt must be on or after createdAt unless status is completed",
+}));
+export type UpgradeQueue = Schema.Schema.Type<typeof UpgradeQueueSchema>;
+
 // --- ProseQL Database Configuration ---
 
 export const dbConfig = {
@@ -188,6 +220,22 @@ export const dbConfig = {
 		schema: ListenLogSchema,
 		file: join(DB_DIR, "listen-log.jsonl"),
 		appendOnly: true,
+		relationships: {},
+	},
+	trackSources: {
+		schema: TrackSourceSchema,
+		file: join(DB_DIR, "track-sources.yaml"),
+		indexes: [
+			"trackId" as const,
+			["trackId", "reviewStatus"] as const,
+			["source", "sourceTrackId"] as const,
+		],
+		relationships: {},
+	},
+	upgradeQueue: {
+		schema: UpgradeQueueSchema,
+		file: join(DB_DIR, "upgrade-queue.yaml"),
+		indexes: ["trackId" as const, "status" as const, "nextRetryAt" as const, ["status", "nextRetryAt"] as const],
 		relationships: {},
 	},
 } as const satisfies DatabaseConfig;

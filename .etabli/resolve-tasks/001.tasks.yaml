@@ -1,0 +1,5 @@
+- group: Resolve TODO
+  tasks:
+    - text: "Resolve TODO 001: DB schema uses unconstrained strings for
+        domain-critical state fields"
+      effort: medium
