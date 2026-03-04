@@ -96,7 +96,7 @@ export function createSoapEnvelope(actionBody: string): string {
 	].join("");
 }
 
-export function buildDidlLiteMetadata(metadata: TrackMetadata): string {
+export function buildDidlLiteMetadata(metadata: TrackMetadata, streamUrl?: string): string {
 	const title = escapeXml(metadata.title);
 	const artist = escapeXml(metadata.artist);
 	const album = escapeXml(metadata.album);
@@ -106,12 +106,17 @@ export function buildDidlLiteMetadata(metadata: TrackMetadata): string {
 		? `<upnp:albumArtURI>${albumArt}</upnp:albumArtURI>`
 		: "";
 
+	const resLine = streamUrl
+		? `<res protocolInfo="http-get:*:audio/mpeg:*">${escapeXml(streamUrl)}</res>`
+		: "";
+
 	return [
 		'<DIDL-Lite xmlns:dc="http://purl.org/dc/elements/1.1/"',
 		' xmlns:upnp="urn:schemas-upnp-org:metadata-1-0/upnp/"',
 		' xmlns:r="urn:schemas-rinconnetworks-com:metadata-1-0/"',
 		' xmlns="urn:schemas-upnp-org:metadata-1-0/DIDL-Lite/">',
 		'<item id="0" parentID="-1" restricted="true">',
+		resLine,
 		`<dc:title>${title}</dc:title>`,
 		`<upnp:artist>${artist}</upnp:artist>`,
 		`<upnp:album>${album}</upnp:album>`,
@@ -226,7 +231,7 @@ export function play(
 ): Effect.Effect<void, SonosCommandError> {
 	return withSpeaker(speakerUuid, (speaker) =>
 		runAction("play", async () => {
-			const didlLite = metadata ? buildDidlLiteMetadata(metadata) : "";
+			const didlLite = metadata ? buildDidlLiteMetadata(metadata, streamUrl) : "";
 			const setUriAction = [
 				'<u:SetAVTransportURI xmlns:u="urn:schemas-upnp-org:service:AVTransport:1">',
 				"<InstanceID>0</InstanceID>",
