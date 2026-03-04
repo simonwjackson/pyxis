@@ -75,7 +75,16 @@ export function Sidebar() {
 	return (
 		<aside className="hidden md:flex md:w-56 flex-col bg-[var(--color-bg-panel)] border-r border-[var(--color-border)]" aria-label="Main navigation">
 			<div className="p-4 border-b border-[var(--color-border)]">
-				<Link to="/" className="text-xl font-bold text-[var(--color-primary)]">
+				<Link
+					to="/"
+					search={{
+						pl_sort: undefined,
+						pl_page: undefined,
+						al_sort: undefined,
+						al_page: undefined,
+					}}
+					className="text-xl font-bold text-[var(--color-primary)]"
+				>
 					pyxis
 				</Link>
 			</div>

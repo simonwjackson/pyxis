@@ -1,0 +1,169 @@
+- group: Import Soulseek Client Library
+  tasks:
+    - text: Copy Raziel's `packages/raziel/src/` into `src/sources/soulseek/client/`
+        (client.ts, server.ts, peer.ts, listen.ts, downloads.ts, common.ts,
+        messages/*, utils/*)
+      effort: medium
+    - text: Adapt imports from `net`/`stream`/`crypto` to work in Bun worker context
+      effort: medium
+    - text: Remove `typed-emitter` dependency — replace with native TypeScript typed
+        EventEmitter pattern
+      effort: medium
+    - text: Add `'soulseek'` to `SourceType` union in `src/sources/types.ts`
+      effort: medium
+    - text: "Write integration test: login to Soulseek test server, perform search,
+        verify results structure"
+      effort: medium
+- group: Worker Thread Setup
+  tasks:
+    - text: Create `src/sources/soulseek/worker.ts` — Bun Worker entry point that
+        instantiates SlskClient and handles postMessage protocol
+      effort: medium
+    - text: "Define message types: `{type: 'login', credentials}`, `{type: 'search',
+        query, trackMeta}`, `{type: 'download', username, filename,
+        outputPath}`, `{type: 'status'}` and response types"
+      effort: medium
+    - text: Create `server/services/upgradeWorker.ts` — main-thread wrapper that
+        spawns/monitors/restarts the worker, exposes async API (`search()`,
+        `download()`, `getStatus()`)
+      effort: medium
+    - text: Implement worker crash detection and auto-restart with re-login
+      effort: medium
+    - text: "Write test: worker crash recovery — kill worker, verify restart and
+        re-login"
+      effort: medium
+- group: Track-Level Matcher
+  tasks:
+    - text: Export `jaroWinkler`, `normalize`, `normalizeArtist` from
+        `src/sources/matcher.ts` (currently module-private)
+      effort: medium
+    - text: Create `src/sources/soulseek/pathParser.ts` — `parseSlskPath(filepath)`
+        returning `{artist?, album?, title?, trackNumber?, format?, year?}`
+      effort: medium
+    - text: "Write path parser tests: standard format, flat format, deeply nested,
+        edge cases (no separators, unicode)"
+      effort: medium
+    - text: Create `src/sources/soulseek/matcher.ts` — `computeTrackConfidence(target,
+        candidate)` using title (0.35), artist (0.25), duration (0.20), album
+        (0.10), path (0.10)
+      effort: medium
+    - text: "Write matcher tests: high confidence, medium confidence, low confidence,
+        duration tolerance edge cases"
+      effort: medium
+- group: Database Schema Extension
+  tasks:
+    - text: "Add `TrackSourceSchema` to `src/db/config.ts` — fields: id, trackId,
+        source, sourceTrackId, bitrate?, format?, lossless, localPath?,
+        confidence?, reviewStatus?, slskUsername?, slskFilename?, createdAt"
+      effort: medium
+    - text: "Add `UpgradeQueueSchema` to `src/db/config.ts` — fields: id, trackId,
+        targetFormat, currentBestFormat?, currentBestBitrate?, retryCount,
+        nextRetryAt, status, createdAt"
+      effort: medium
+    - text: Register both collections in `dbConfig` with appropriate indexes (trackId,
+        source, status, nextRetryAt)
+      effort: medium
+    - text: "Write DB tests: CRUD operations for trackSources and upgradeQueue"
+      effort: medium
+- group: Quality Detection
+  tasks:
+    - text: "Create `src/sources/soulseek/ffprobe.ts` — `probeAudioFile(path)`
+        returning `{bitrate: number, format: string, lossless: boolean,
+        duration: number}` using ffprobe JSON output"
+      effort: medium
+    - text: Write tests with sample audio files (or mock ffprobe output)
+      effort: medium
+- group: Quality Resolver in Stream Proxy
+  tasks:
+    - text: Create `server/services/qualityResolver.ts` — `resolvebestSource(trackId)`
+        queries `trackSources`, returns highest-quality local path or null
+      effort: medium
+    - text: "Add content-hash lookup for ephemeral tracks: `computeContentHash(artist,
+        title, duration)` for radio track matching"
+      effort: medium
+    - text: Integrate into `handleStreamRequest()` in `server/services/stream.ts` —
+        check quality resolver before upstream fetch
+      effort: medium
+    - text: "Write tests: local file preferred, pending_review skipped, fallback to
+        upstream"
+      effort: medium
+- group: Upgrade Scheduler
+  tasks:
+    - text: Create `server/services/upgradeScheduler.ts` — manages upgrade queue
+        processing, retry scheduling, timer management
+      effort: medium
+    - text: Hook into `library.saveAlbum` in `server/routers/library.ts` — after
+        successful save, enqueue all tracks for upgrade
+      effort: medium
+    - text: "Implement exponential backoff logic: retry intervals 1d→3d→1w→1m, max 4
+        retries"
+      effort: medium
+    - text: "Implement upgrade pipeline: search → match → download → probe → store →
+        notify"
+      effort: medium
+    - text: "Write tests: album save triggers enqueue, retry scheduling, max retries
+        reached"
+      effort: medium
+- group: Mid-Stream Swap
+  tasks:
+    - text: Add `track-upgraded` WebSocket event type to the existing player
+        subscription system
+      effort: medium
+    - text: On upgrade completion, check current player/queue state — if upgraded
+        track is playing, emit event
+      effort: medium
+    - text: "Client-side: listen for `track-upgraded` event, capture current
+        `audio.currentTime`, switch `src` to new stream URL at same position"
+      effort: medium
+    - text: "Write test: upgrade during playback triggers WebSocket event with correct
+        metadata"
+      effort: medium
+- group: Radio Prefetch Integration
+  tasks:
+    - text: Hook into radio track fetching in `server/routers/radio.ts` — after
+        `getTracks`, trigger prefetch pipeline
+      effort: medium
+    - text: Implement cache check via content hash lookup in `trackSources`
+      effort: medium
+    - text: For cache misses, send one-shot search requests to upgrade worker (no
+        retry)
+      effort: medium
+    - text: "Write tests: cache hit skips search, cache miss triggers search, no retry
+        on failure"
+      effort: medium
+- group: Configuration
+  tasks:
+    - text: "Add `SoulseekSourceSchema` to `src/config.ts`: `{enabled, username,
+        maxConcurrentDownloads}`"
+      effort: medium
+    - text: "Add `UpgradeSchema` to `src/config.ts`: `{enabled, radioLookahead,
+        retrySchedule, storage: {maxCapacityMB, ttlDays}}`"
+      effort: medium
+    - text: Add `PYXIS_SOULSEEK_PASSWORD` env var support (like Pandora password
+        pattern)
+      effort: medium
+    - text: Wire config into upgrade scheduler and worker initialization
+      effort: medium
+- group: Storage Eviction
+  tasks:
+    - text: Create `server/services/storageEviction.ts` — periodic job checking total
+        size and file ages
+      effort: medium
+    - text: "Implement LRU eviction: evict oldest non-library files when capacity
+        exceeded"
+      effort: medium
+    - text: "Implement TTL eviction: evict non-library files older than configured
+        TTL"
+      effort: medium
+    - text: "Write tests: capacity eviction, TTL eviction, library files protected"
+      effort: medium
+- group: Logging
+  tasks:
+    - text: "Add `upgrade` logger: `createLogger('upgrade')` →
+        `~/.local/state/pyxis/upgrade.log`"
+      effort: medium
+    - text: "Log all upgrade pipeline events: search started, results found,
+        confidence scores, download progress, swap events"
+      effort: medium
+    - text: "Log worker lifecycle: spawn, crash, restart, login status"
+      effort: medium

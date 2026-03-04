@@ -23,6 +23,7 @@ import { usePlaybackContext } from "../playback/playback-context";
 import { trpc } from "../lib/trpc";
 import { formatTime } from "../lib/now-playing-utils";
 import { TrackInfoModal } from "../track-info-modal";
+import { SonosSpeakerPicker } from "./sonos-speaker-picker";
 
 /**
  * Queue context describing the origin of the current playback.
@@ -289,6 +290,8 @@ export function NowPlayingBar() {
 						</button>
 					</div>
 
+					<SonosSpeakerPicker currentTrackId={currentTrack.trackToken} />
+
 					{/* Pandora actions */}
 					{hasPandoraCapabilities && (
 						<>
@@ -407,59 +410,62 @@ export function NowPlayingBar() {
 					{/* Bottom row: time + actions */}
 					<div className="flex items-center justify-between px-3 pb-2 text-xs text-[var(--color-text-dim)]">
 						<span>{formatTime(progress)} / {formatTime(duration)}</span>
-						{hasPandoraCapabilities && (
-							<div className="flex items-center gap-1">
-								{isRadioContext && (
-									<>
-										<button
-											onClick={handleDislike}
-											className="h-7 w-7 flex items-center justify-center rounded text-[var(--color-disliked)]"
-											type="button"
-											title="Dislike"
-											aria-label="Dislike"
-										>
-											<ThumbsDown className="w-3.5 h-3.5" />
-										</button>
-										<button
-											onClick={handleLike}
-											className="h-7 w-7 flex items-center justify-center rounded text-[var(--color-liked)]"
-											type="button"
-											title="Like"
-											aria-label="Like"
-										>
-											<ThumbsUp className="w-3.5 h-3.5" />
-										</button>
-									</>
-								)}
-								<button
-									onClick={handleBookmark}
-									className="h-7 w-7 flex items-center justify-center rounded text-[var(--color-text-muted)]"
-									type="button"
-									title="Bookmark"
-									aria-label="Bookmark"
-								>
-									<Bookmark className="w-3.5 h-3.5" />
-								</button>
-								<button
-									onClick={handleSleep}
-									className="h-7 w-7 flex items-center justify-center rounded text-[var(--color-text-muted)]"
-									type="button"
-									title="Sleep (30 days)"
-									aria-label="Sleep track for 30 days"
-								>
-									<Moon className="w-3.5 h-3.5" />
-								</button>
-								<button
-									onClick={() => setShowTrackInfo(true)}
-									className="h-7 w-7 flex items-center justify-center rounded text-[var(--color-text-muted)]"
-									type="button"
-									title="Track info"
-									aria-label="Track info"
-								>
-									<Info className="w-3.5 h-3.5" />
-								</button>
-							</div>
-						)}
+						<div className="flex items-center gap-1">
+							<SonosSpeakerPicker currentTrackId={currentTrack.trackToken} />
+							{hasPandoraCapabilities && (
+								<>
+									{isRadioContext && (
+										<>
+											<button
+												onClick={handleDislike}
+												className="h-7 w-7 flex items-center justify-center rounded text-[var(--color-disliked)]"
+												type="button"
+												title="Dislike"
+												aria-label="Dislike"
+											>
+												<ThumbsDown className="w-3.5 h-3.5" />
+											</button>
+											<button
+												onClick={handleLike}
+												className="h-7 w-7 flex items-center justify-center rounded text-[var(--color-liked)]"
+												type="button"
+												title="Like"
+												aria-label="Like"
+											>
+												<ThumbsUp className="w-3.5 h-3.5" />
+											</button>
+										</>
+									)}
+									<button
+										onClick={handleBookmark}
+										className="h-7 w-7 flex items-center justify-center rounded text-[var(--color-text-muted)]"
+										type="button"
+										title="Bookmark"
+										aria-label="Bookmark"
+									>
+										<Bookmark className="w-3.5 h-3.5" />
+									</button>
+									<button
+										onClick={handleSleep}
+										className="h-7 w-7 flex items-center justify-center rounded text-[var(--color-text-muted)]"
+										type="button"
+										title="Sleep (30 days)"
+										aria-label="Sleep track for 30 days"
+									>
+										<Moon className="w-3.5 h-3.5" />
+									</button>
+									<button
+										onClick={() => setShowTrackInfo(true)}
+										className="h-7 w-7 flex items-center justify-center rounded text-[var(--color-text-muted)]"
+										type="button"
+										title="Track info"
+										aria-label="Track info"
+									>
+										<Info className="w-3.5 h-3.5" />
+									</button>
+								</>
+							)}
+						</div>
 					</div>
 				</div>
 			</div>

@@ -159,6 +159,13 @@ export function setAppConfig(config: AppConfig): void {
 }
 
 /**
+ * Returns the currently active application config if it has been set.
+ */
+export function getAppConfig(): AppConfig | undefined {
+	return appConfig;
+}
+
+/**
  * Clears all cached source managers.
  * Call after session refresh or credential changes to force re-creation.
  */

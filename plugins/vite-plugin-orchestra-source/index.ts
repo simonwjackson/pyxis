@@ -157,8 +157,7 @@ export default function orchestraSource(
 			const lines = code.split("\n");
 			const processedLines: string[] = [];
 
-			for (let lineIdx = 0; lineIdx < lines.length; lineIdx++) {
-				const line = lines[lineIdx];
+			for (const [lineIdx, line] of lines.entries()) {
 				const lineNum = lineIdx + 1;
 
 				// Find JSX opening tags on this line
@@ -171,6 +170,9 @@ export default function orchestraSource(
 
 				while ((match = tagPattern.exec(line)) !== null) {
 					const tagName = match[1];
+					if (!tagName) {
+						continue;
+					}
 
 					// Skip React.Fragment - only accepts key and children props
 					if (tagName === "Fragment") {
@@ -189,6 +191,9 @@ export default function orchestraSource(
 					// If preceded by an identifier character, it's likely a generic
 					if (beforeTrimmed.length > 0) {
 						const lastChar = beforeTrimmed[beforeTrimmed.length - 1];
+						if (!lastChar) {
+							continue;
+						}
 						// Generics follow identifiers: func<T>, Type<T>, etc.
 						// JSX follows: return <, ( <, { <, > <, = <, : <
 						if (/[a-zA-Z0-9_]/.test(lastChar)) {

@@ -286,6 +286,7 @@ export function hasMetadataSearchCapability(
 export const SOURCE_PRIORITY: Readonly<Record<SourceType, number>> = {
 	ytmusic: 1,     // opus/m4a ~128-256 kbps variable
 	youtube: 1,     // same quality tier as ytmusic (both use yt-dlp)
+	soulseek: 2,    // user-sourced files, often higher bitrate than stream services
 	soundcloud: 2,  // mp3/opus ~128-256 kbps progressive
 	bandcamp: 3,    // mp3 128 kbps fixed
 	pandora: 4,     // aac/mp3 64-192 kbps, radio-only (not album-capable)

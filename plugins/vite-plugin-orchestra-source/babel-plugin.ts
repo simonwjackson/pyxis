@@ -6,11 +6,33 @@
  * when users select elements on the page.
  */
 
-import type { PluginObj, NodePath, types as t } from '@babel/core';
+type BabelTypes = {
+	isJSXAttribute(node: unknown): node is { name: unknown };
+	isJSXIdentifier(node: unknown): node is { name: string };
+	jsxAttribute(name: unknown, value: unknown): unknown;
+	jsxIdentifier(name: string): unknown;
+	stringLiteral(value: string): unknown;
+};
+
+type JSXOpeningElementNode = {
+	loc?: { start: { line: number; column: number } };
+	attributes: unknown[];
+};
+
+type BabelNodePath = {
+	node: JSXOpeningElementNode;
+};
+
+type BabelPluginObj = {
+	name: string;
+	visitor: {
+		JSXOpeningElement(path: BabelNodePath, state: { filename?: string }): void;
+	};
+};
 
 export type OrchestraSourcePluginOptions = {
-  /** Project root directory for computing relative paths */
-  root: string;
+	/** Project root directory for computing relative paths */
+	root: string;
 };
 
 /**
@@ -23,53 +45,53 @@ export type OrchestraSourcePluginOptions = {
  *   <Button data-source="src/components/Button.tsx:42:5" onClick={...}>Click me</Button>
  */
 export default function orchestraSourceBabelPlugin(
-  { types: t }: { types: typeof import('@babel/core').types },
-  options: OrchestraSourcePluginOptions
-): PluginObj {
-  const { root } = options;
+	{ types: t }: { types: BabelTypes },
+	options: OrchestraSourcePluginOptions,
+): BabelPluginObj {
+	const { root } = options;
 
-  return {
-    name: 'orchestra-source',
-    visitor: {
-      JSXOpeningElement(path: NodePath<t.JSXOpeningElement>, state: { filename?: string }) {
-        const { node } = path;
-        const { loc } = node;
+	return {
+		name: "orchestra-source",
+		visitor: {
+			JSXOpeningElement(path, state) {
+				const { node } = path;
+				const { loc } = node;
 
-        // Skip if no location info
-        if (!loc || !state.filename) return;
+				// Skip if no location info
+				if (!loc || !state.filename) return;
 
-        // Skip if data-source already exists (don't override)
-        const hasDataSource = node.attributes.some(
-          (attr) =>
-            t.isJSXAttribute(attr) &&
-            t.isJSXIdentifier(attr.name) &&
-            attr.name.name === 'data-source'
-        );
-        if (hasDataSource) return;
+				// Skip if data-source already exists (don't override)
+				const hasDataSource = node.attributes.some(
+					(attr: unknown) =>
+						t.isJSXAttribute(attr) &&
+						t.isJSXIdentifier(attr.name) &&
+						attr.name.name === "data-source",
+				);
+				if (hasDataSource) return;
 
-        // Compute relative path from project root
-        let relativePath = state.filename;
-        if (relativePath.startsWith(root)) {
-          relativePath = relativePath.slice(root.length);
-          if (relativePath.startsWith('/')) {
-            relativePath = relativePath.slice(1);
-          }
-        }
+				// Compute relative path from project root
+				let relativePath = state.filename;
+				if (relativePath.startsWith(root)) {
+					relativePath = relativePath.slice(root.length);
+					if (relativePath.startsWith("/")) {
+						relativePath = relativePath.slice(1);
+					}
+				}
 
-        // Build data-source value: "path:line:column"
-        const line = loc.start.line;
-        const column = loc.start.column + 1; // 1-indexed for consistency with editors
-        const sourceValue = `${relativePath}:${line}:${column}`;
+				// Build data-source value: "path:line:column"
+				const line = loc.start.line;
+				const column = loc.start.column + 1; // 1-indexed for consistency with editors
+				const sourceValue = `${relativePath}:${line}:${column}`;
 
-        // Create the data-source attribute
-        const dataSourceAttr = t.jsxAttribute(
-          t.jsxIdentifier('data-source'),
-          t.stringLiteral(sourceValue)
-        );
+				// Create the data-source attribute
+				const dataSourceAttr = t.jsxAttribute(
+					t.jsxIdentifier("data-source"),
+					t.stringLiteral(sourceValue),
+				);
 
-        // Add to the beginning of attributes
-        node.attributes.unshift(dataSourceAttr);
-      },
-    },
-  };
+				// Add to the beginning of attributes
+				node.attributes.unshift(dataSourceAttr);
+			},
+		},
+	};
 }

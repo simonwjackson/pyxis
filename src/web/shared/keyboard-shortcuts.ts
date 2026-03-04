@@ -136,7 +136,15 @@ export function useKeyboardShortcuts({ onCommandPalette, onToggleHelp }: Keyboar
 					break;
 				case "goToStations":
 					e.preventDefault();
-					navigate({ to: "/" });
+					navigate({
+						to: "/",
+						search: {
+							pl_sort: undefined,
+							pl_page: undefined,
+							al_sort: undefined,
+							al_page: undefined,
+						},
+					});
 					break;
 				case "goToSearch":
 					e.preventDefault();

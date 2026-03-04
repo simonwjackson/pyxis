@@ -128,6 +128,7 @@ function Albums({
 								<Link
 									to="/album/$albumId"
 									params={{ albumId: album.id }}
+									search={{ play: undefined, startIndex: undefined, shuffle: undefined }}
 									className="text-sm font-medium text-[var(--color-text)] truncate block hover:underline"
 								>
 									{album.title}

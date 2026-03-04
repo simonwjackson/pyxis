@@ -1,0 +1,4 @@
+- group: test
+  tasks:
+    - text: test task
+      effort: small

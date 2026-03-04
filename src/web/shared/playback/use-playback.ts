@@ -300,7 +300,7 @@ export function usePlayback() {
 						artistName: track.artist,
 						albumName: track.album,
 						audioUrl: track.streamUrl,
-						artUrl: track.artworkUrl ?? undefined,
+						...(track.artworkUrl ? { artUrl: track.artworkUrl } : {}),
 					},
 					// On initial connect, always show paused
 					isPlaying: isInitialState ? false : serverState.status === "playing",

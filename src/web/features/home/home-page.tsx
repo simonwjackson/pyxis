@@ -245,14 +245,20 @@ export function HomePage() {
 	const albumsQuery = trpc.library.albums.useQuery();
 
 	const playlists = playlistsQuery.data ?? [];
-	const albums = albumsQuery.data ?? [];
+	const albums: readonly AlbumData[] = (albumsQuery.data ?? []).map((album) => ({
+		id: album.id,
+		title: album.title,
+		artist: album.artist,
+		year: album.year ?? null,
+		artworkUrl: album.artworkUrl ?? null,
+	}));
 
 	const handleOpenPlaylist = useCallback((playlist: PlaylistData) => {
 		if (playlist.id.startsWith("pandora:")) {
 			navigate({
 				to: "/station/$token",
 				params: { token: playlist.id },
-				search: { play: undefined, startIndex: undefined, shuffle: undefined },
+				search: { play: undefined },
 			});
 		} else {
 			navigate({

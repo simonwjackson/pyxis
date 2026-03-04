@@ -73,7 +73,16 @@ export function MobileNav() {
 	return (
 		<div className="md:hidden">
 			<div className="flex items-center justify-between p-4 border-b border-[var(--color-border)] safe-top">
-				<Link to="/" className="text-xl font-bold text-[var(--color-primary)]">
+				<Link
+					to="/"
+					search={{
+						pl_sort: undefined,
+						pl_page: undefined,
+						al_sort: undefined,
+						al_page: undefined,
+					}}
+					className="text-xl font-bold text-[var(--color-primary)]"
+				>
 					pyxis
 				</Link>
 				<button

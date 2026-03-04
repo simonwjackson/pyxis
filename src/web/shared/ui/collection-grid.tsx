@@ -108,22 +108,17 @@ export function CollectionGrid<T>({
 	headerActions,
 	pageSize = 20,
 }: CollectionGridProps<T>) {
-	const navigate = useNavigate();
-	const search = useSearch({ strict: false }) as Record<string, unknown>;
-
-	const sortKey = `${paramPrefix}_sort`;
-	const pageKey = `${paramPrefix}_page`;
+	const navigate = useNavigate({ from: "/" });
+	const search = useSearch({ from: "/" });
 
 	const currentSort =
-		typeof search[sortKey] === "string"
-			? (search[sortKey] as string)
-			: defaultSort;
-	const currentPage =
-		typeof search[pageKey] === "string"
-			? Math.max(1, Number.parseInt(search[pageKey] as string, 10) || 1)
-			: typeof search[pageKey] === "number"
-				? Math.max(1, search[pageKey] as number)
-				: 1;
+		paramPrefix === "pl"
+			? search.pl_sort ?? defaultSort
+			: search.al_sort ?? defaultSort;
+	const currentPage = Math.max(
+		1,
+		paramPrefix === "pl" ? (search.pl_page ?? 1) : (search.al_page ?? 1),
+	);
 
 	const [filterText, setFilterText] = useState("");
 
@@ -137,29 +132,50 @@ export function CollectionGrid<T>({
 
 	const setSort = useCallback(
 		(sort: string) => {
-			navigate({
-				search: (prev: Record<string, unknown>) => ({
-					...prev,
-					[sortKey]: sort,
-					[pageKey]: "1",
-				}),
-				replace: true,
-			});
+			if (paramPrefix === "pl") {
+				navigate({
+					search: (prev) => ({
+						...prev,
+						pl_sort: sort,
+						pl_page: 1,
+					}),
+					replace: true,
+				});
+			} else {
+				navigate({
+					search: (prev) => ({
+						...prev,
+						al_sort: sort,
+						al_page: 1,
+					}),
+					replace: true,
+				});
+			}
 		},
-		[navigate, sortKey, pageKey],
+		[navigate, paramPrefix],
 	);
 
 	const setPage = useCallback(
 		(page: number) => {
-			navigate({
-				search: (prev: Record<string, unknown>) => ({
-					...prev,
-					[pageKey]: String(page),
-				}),
-				replace: true,
-			});
+			if (paramPrefix === "pl") {
+				navigate({
+					search: (prev) => ({
+						...prev,
+						pl_page: page,
+					}),
+					replace: true,
+				});
+			} else {
+				navigate({
+					search: (prev) => ({
+						...prev,
+						al_page: page,
+					}),
+					replace: true,
+				});
+			}
 		},
-		[navigate, pageKey],
+		[navigate, paramPrefix],
 	);
 
 	const filtered = useMemo(() => {

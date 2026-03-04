@@ -29,6 +29,10 @@ import { ensureSourceManager, setAppConfig } from "./services/sourceManager.js";
 import { setCredentialsConfig } from "./services/credentials.js";
 import { tryAutoLogin } from "./services/autoLogin.js";
 import { resolveTrackForStream } from "./lib/ids.js";
+import {
+	handleSonosNotify,
+	initializeSonosPlayback,
+} from "./services/sonos-playback.js";
 import { join, resolve } from "node:path";
 import { existsSync } from "node:fs";
 import { createLogger } from "../src/logger.js";
@@ -68,7 +72,7 @@ function handleViteRequest(
 	method: string,
 	url: string,
 	headers: Record<string, string>,
-): Promise<{ status: number; headers: Record<string, string>; body: Buffer }> {
+): Promise<{ status: number; headers: Record<string, string>; body: ArrayBuffer }> {
 	return new Promise((resolve, reject) => {
 		const socket = new Socket();
 		const req = new IncomingMessage(socket);
@@ -99,7 +103,12 @@ function handleViteRequest(
 			resolve({
 				status: res.statusCode,
 				headers: responseHeaders,
-				body: Buffer.concat(chunks),
+				body: (() => {
+					const joined = Buffer.concat(chunks);
+					const copied = new Uint8Array(joined.length);
+					copied.set(joined);
+					return copied.buffer;
+				})(),
 			});
 			return res;
 		};
@@ -111,7 +120,7 @@ function handleViteRequest(
 				resolve({
 					status: 404,
 					headers: { "content-type": "text/plain" },
-					body: Buffer.from("Not Found"),
+					body: new TextEncoder().encode("Not Found").buffer,
 				});
 			}
 		});
@@ -140,6 +149,14 @@ const server = Bun.serve({
 	},
 	async fetch(req) {
 		const url = new URL(req.url);
+
+		if (url.pathname === "/sonos/events" && req.method === "NOTIFY") {
+			return handleSonosNotify(req).catch((err: unknown) => {
+				const message = err instanceof Error ? err.message : String(err);
+				serverLogger.error({ err: message }, "sonos notify handler error");
+				return new Response(null, { status: 500 });
+			});
+		}
 
 		// CORS preflight
 		if (req.method === "OPTIONS") {
@@ -255,6 +272,9 @@ const server = Bun.serve({
 });
 
 serverLogger.info({ port: config.server.port, staticFiles: hasDistWeb }, "server running");
+if (config.sonos.enabled) {
+	initializeSonosPlayback();
+}
 
 // Attempt auto-login from config credentials
 tryAutoLogin(serverLogger, config).catch(() => {

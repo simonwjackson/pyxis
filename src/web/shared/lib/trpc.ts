@@ -42,10 +42,17 @@ export function createTRPCClient() {
 				false: httpBatchLink({
 					url: "/trpc",
 					fetch(url, options) {
-						return fetch(url, {
-							...options,
+						const init: RequestInit = {
 							credentials: "include",
-						});
+						};
+						if (options) {
+							const { signal, ...rest } = options;
+							Object.assign(init, rest);
+							if (signal != null) {
+								init.signal = signal;
+							}
+						}
+						return fetch(url, init);
 					},
 				}),
 			}),

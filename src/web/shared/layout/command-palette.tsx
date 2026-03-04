@@ -169,7 +169,15 @@ export function CommandPalette({ onClose }: CommandPaletteProps) {
 					}
 					break;
 				case "goToStations":
-					navigate({ to: "/" });
+					navigate({
+						to: "/",
+						search: {
+							pl_sort: undefined,
+							pl_page: undefined,
+							al_sort: undefined,
+							al_page: undefined,
+						},
+					});
 					break;
 				case "goToSearch":
 					navigate({ to: "/search" });

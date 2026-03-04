@@ -142,7 +142,6 @@ export type SourceAlbumTrack = {
 	readonly trackIndex: number;
 	readonly title: string;
 	readonly artist: string;
-	readonly album: string;
 	readonly duration?: number;
 	readonly artworkUrl?: string;
 	readonly capabilities: TrackCapabilities;

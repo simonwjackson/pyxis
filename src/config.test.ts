@@ -12,14 +12,21 @@ describe("ConfigSchema", () => {
 
 			expect(config.server.port).toBe(8765);
 			expect(config.server.hostname).toBe("localhost");
+			expect(config.server.externalUrl).toBeUndefined();
 			expect(config.web.port).toBe(5678);
 			expect(config.web.allowedHosts).toEqual([]);
+			expect(config.sonos.enabled).toBe(true);
+			expect(config.sonos.discoveryInterval).toBe(30);
 			expect(config.log.level).toBe("info");
 		});
 
 		it("preserves custom values when provided", () => {
 			const config = ConfigSchema.parse({
-				server: { port: 9000, hostname: "myhost" },
+				server: {
+					port: 9000,
+					hostname: "myhost",
+					externalUrl: "http://192.168.1.50:8765",
+				},
 				web: { port: 3000, allowedHosts: ["example.com"] },
 				upgrade: {
 					enabled: true,
@@ -28,10 +35,12 @@ describe("ConfigSchema", () => {
 					storage: { maxCapacityMB: 2048, ttlDays: 60 },
 				},
 				log: { level: "debug" },
+				sonos: { enabled: false, discoveryInterval: 45 },
 			});
 
 			expect(config.server.port).toBe(9000);
 			expect(config.server.hostname).toBe("myhost");
+			expect(config.server.externalUrl).toBe("http://192.168.1.50:8765");
 			expect(config.web.port).toBe(3000);
 			expect(config.web.allowedHosts).toEqual(["example.com"]);
 			expect(config.upgrade.enabled).toBe(true);
@@ -39,6 +48,8 @@ describe("ConfigSchema", () => {
 			expect(config.upgrade.retrySchedule).toEqual([2, 4, 8]);
 			expect(config.upgrade.storage.maxCapacityMB).toBe(2048);
 			expect(config.upgrade.storage.ttlDays).toBe(60);
+			expect(config.sonos.enabled).toBe(false);
+			expect(config.sonos.discoveryInterval).toBe(45);
 			expect(config.log.level).toBe("debug");
 		});
 	});
@@ -103,9 +114,11 @@ describe("resolveConfig", () => {
 		// Clear relevant env vars
 		delete process.env["PYXIS_SERVER_PORT"];
 		delete process.env["PYXIS_SERVER_HOSTNAME"];
+		delete process.env["PYXIS_SERVER_EXTERNAL_URL"];
 		delete process.env["PYXIS_WEB_PORT"];
 		delete process.env["PYXIS_LOG_LEVEL"];
 		delete process.env["PYXIS_DISCOGS_TOKEN"];
+		delete process.env["PYXIS_SONOS_ENABLED"];
 	});
 
 	afterEach(() => {
@@ -118,7 +131,10 @@ describe("resolveConfig", () => {
 
 		expect(config.server.port).toBe(8765);
 		expect(config.server.hostname).toBe("localhost");
+		expect(config.server.externalUrl).toBeUndefined();
 		expect(config.web.port).toBe(5678);
+		expect(config.sonos.enabled).toBe(true);
+		expect(config.sonos.discoveryInterval).toBe(30);
 		expect(config.log.level).toBe("info");
 	});
 
@@ -136,6 +152,14 @@ describe("resolveConfig", () => {
 		const config = resolveConfig("/nonexistent/path/config.yaml");
 
 		expect(config.server.hostname).toBe("myserver");
+	});
+
+	it("applies environment variable overrides for server external url", () => {
+		process.env["PYXIS_SERVER_EXTERNAL_URL"] = "http://10.0.0.5:8765";
+
+		const config = resolveConfig("/nonexistent/path/config.yaml");
+
+		expect(config.server.externalUrl).toBe("http://10.0.0.5:8765");
 	});
 
 	it("applies environment variable overrides for web port", () => {
@@ -160,6 +184,14 @@ describe("resolveConfig", () => {
 		const config = resolveConfig("/nonexistent/path/config.yaml");
 
 		expect(config.sources.discogs.token).toBe("my-discogs-token");
+	});
+
+	it("applies environment variable overrides for sonos enabled", () => {
+		process.env["PYXIS_SONOS_ENABLED"] = "false";
+
+		const config = resolveConfig("/nonexistent/path/config.yaml");
+
+		expect(config.sonos.enabled).toBe(false);
 	});
 
 	it("applies multiple environment variable overrides", () => {

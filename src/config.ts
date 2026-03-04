@@ -10,20 +10,21 @@ import { readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import envPaths from "env-paths";
 
+const optionalString = z.preprocess(
+	(val) => (val === null ? undefined : val),
+	z.string().optional(),
+);
+
 const ServerSchema = z.object({
 	port: z.number().int().min(1).max(65535).default(8765),
 	hostname: z.string().default("localhost"),
+	externalUrl: optionalString,
 });
 
 const WebSchema = z.object({
 	port: z.number().int().min(1).max(65535).default(5678),
 	allowedHosts: z.array(z.string()).default([]),
 });
-
-const optionalString = z.preprocess(
-	(val) => (val === null ? undefined : val),
-	z.string().optional(),
-);
 
 const PandoraSourceSchema = z.object({
 	username: optionalString,
@@ -85,6 +86,11 @@ const LogSchema = z.object({
 		.default("info"),
 });
 
+const SonosSchema = z.object({
+	enabled: z.boolean().default(true),
+	discoveryInterval: z.number().int().min(5).max(600).default(30),
+});
+
 /**
  * Zod schema for the complete application configuration.
  * Validates and provides defaults for server, web, sources, and log settings.
@@ -94,6 +100,7 @@ export const ConfigSchema = z.object({
 	web: WebSchema.default(() => WebSchema.parse({})),
 	sources: SourcesSchema.default(() => SourcesSchema.parse({})),
 	upgrade: UpgradeSchema.default(() => UpgradeSchema.parse({})),
+	sonos: SonosSchema.default(() => SonosSchema.parse({})),
 	log: LogSchema.default(() => LogSchema.parse({})),
 });
 
@@ -132,6 +139,14 @@ function applyEnvOverrides(config: Record<string, unknown>): Record<string, unkn
 		(result["server"] as Record<string, unknown>)["hostname"] = serverHostname;
 	}
 
+	const serverExternalUrl = process.env["PYXIS_SERVER_EXTERNAL_URL"];
+	if (serverExternalUrl) {
+		if (!result["server"] || typeof result["server"] !== "object") {
+			result["server"] = {};
+		}
+		(result["server"] as Record<string, unknown>)["externalUrl"] = serverExternalUrl;
+	}
+
 	const webPort = process.env["PYXIS_WEB_PORT"];
 	if (webPort) {
 		if (!result["web"] || typeof result["web"] !== "object") {
@@ -158,6 +173,16 @@ function applyEnvOverrides(config: Record<string, unknown>): Record<string, unkn
 			sources["discogs"] = {};
 		}
 		(sources["discogs"] as Record<string, unknown>)["token"] = discogsToken;
+	}
+
+	const sonosEnabled = process.env["PYXIS_SONOS_ENABLED"];
+	if (sonosEnabled) {
+		if (!result["sonos"] || typeof result["sonos"] !== "object") {
+			result["sonos"] = {};
+		}
+		const normalized = sonosEnabled.trim().toLowerCase();
+		(result["sonos"] as Record<string, unknown>)["enabled"] =
+			normalized === "1" || normalized === "true" || normalized === "yes";
 	}
 
 	return result;
