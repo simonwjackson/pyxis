@@ -8,6 +8,7 @@
 import { mkdirSync, existsSync, readFileSync, writeFileSync, renameSync, unlinkSync } from "node:fs";
 import { join } from "node:path";
 import { spawn } from "node:child_process";
+import { once } from "node:events";
 import envPaths from "env-paths";
 import type { SourceManager } from "../../src/sources/index.js";
 import type { SourceType } from "../../src/sources/types.js";
@@ -110,6 +111,13 @@ export type StreamRequest = {
 	readonly trackId: string;
 };
 
+export type StreamFormat = "mp3";
+
+export type HandleStreamRequestOptions = {
+	readonly requestedFormat?: StreamFormat;
+	readonly abortSignal?: AbortSignal;
+};
+
 /**
  * Parses a composite track ID into source and track components.
  * Format: "source:trackId" (e.g., "ytmusic:dQw4w9WgXcQ")
@@ -152,6 +160,203 @@ export async function resolveStreamUrl(
 ): Promise<string> {
 	const { source, trackId } = parseTrackId(compositeId);
 	return sourceManager.getStreamUrl(source, trackId);
+}
+
+function normalizeContentType(contentType: string | null): string {
+	return contentType?.split(";")[0]?.trim().toLowerCase() ?? "";
+}
+
+function isMp3ContentType(contentType: string | null): boolean {
+	const normalized = normalizeContentType(contentType);
+	return normalized === "audio/mpeg" || normalized === "audio/mp3" || normalized === "audio/x-mp3";
+}
+
+function shouldTranscodeToMp3(requestedFormat: StreamFormat | undefined, contentType: string | null): boolean {
+	return requestedFormat === "mp3" && !isMp3ContentType(contentType);
+}
+
+function createRangeNotSupportedResponse(): Response {
+	const headers = new Headers();
+	headers.set("Content-Type", "text/plain");
+	headers.set("Accept-Ranges", "none");
+	headers.set("Access-Control-Allow-Origin", "*");
+	return new Response("Range requests are not supported for transcoded streams", {
+		status: 416,
+		headers,
+	});
+}
+
+function createMp3ResponseHeaders(): Headers {
+	const headers = new Headers();
+	headers.set("Content-Type", "audio/mpeg");
+	headers.set("Accept-Ranges", "none");
+	headers.set("Access-Control-Allow-Origin", "*");
+	headers.set("Access-Control-Expose-Headers", "Content-Type");
+	return headers;
+}
+
+function createMp3TranscodeOutputStream(
+	proc: ReturnType<typeof spawn>,
+	abortSignal: AbortSignal | undefined,
+	logContext: Record<string, string>,
+): ReadableStream<Uint8Array> {
+	const stdout = proc.stdout;
+	const stderrStream = proc.stderr;
+	if (!stdout || !stderrStream) {
+		throw new Error("ffmpeg stdio not available");
+	}
+
+	let stderr = "";
+	let aborted = false;
+	let cleanupDone = false;
+	let onAbort: (() => void) | undefined;
+	const removeAbortListener = (): void => {
+		if (onAbort && abortSignal) {
+			abortSignal.removeEventListener("abort", onAbort);
+		}
+	};
+
+	const cleanup = (reason: string): void => {
+		if (cleanupDone) return;
+		cleanupDone = true;
+		removeAbortListener();
+		if (!proc.killed) {
+			proc.kill("SIGTERM");
+			log.debug({ ...logContext, reason }, "terminated ffmpeg process");
+		}
+	};
+
+	stderrStream.on("data", (chunk: Buffer) => {
+		const next = `${stderr}${chunk.toString()}`;
+		stderr = next.length > 4096 ? next.slice(-4096) : next;
+	});
+
+	if (abortSignal) {
+		onAbort = () => {
+			aborted = true;
+			cleanup("abort");
+		};
+		abortSignal.addEventListener("abort", onAbort, { once: true });
+	}
+
+	return new ReadableStream<Uint8Array>({
+		start(controller) {
+			let settled = false;
+			const closeOnce = () => {
+				if (settled) return;
+				settled = true;
+				controller.close();
+			};
+			const errorOnce = (err: Error) => {
+				if (settled) return;
+				settled = true;
+				controller.error(err);
+			};
+
+			stdout.on("data", (chunk: Buffer) => {
+				controller.enqueue(new Uint8Array(chunk));
+			});
+			stdout.on("error", (err) => {
+				errorOnce(err instanceof Error ? err : new Error(String(err)));
+			});
+			proc.on("error", (err) => {
+				errorOnce(err instanceof Error ? err : new Error(String(err)));
+			});
+			proc.on("close", (code, signal) => {
+				removeAbortListener();
+				if (aborted) {
+					closeOnce();
+					return;
+				}
+				if (code === 0) {
+					closeOnce();
+					return;
+				}
+				const stderrMessage = stderr.trim();
+				const message = `ffmpeg exited with code ${String(code)}${signal ? ` signal ${signal}` : ""}`;
+				log.error({ ...logContext, code, signal, stderr: stderrMessage || "none" }, "mp3 transcode failed");
+				errorOnce(stderrMessage ? new Error(`${message}: ${stderrMessage}`) : new Error(message));
+			});
+		},
+		cancel() {
+			aborted = true;
+			cleanup("cancel");
+		},
+	});
+}
+
+async function pumpReadableStreamToFfmpegStdin(
+	input: ReadableStream<Uint8Array>,
+	proc: ReturnType<typeof spawn>,
+	logContext: Record<string, string>,
+): Promise<void> {
+	const stdin = proc.stdin;
+	if (!stdin) {
+		log.error(logContext, "ffmpeg stdin not available");
+		return;
+	}
+
+	const reader = input.getReader();
+	try {
+		for (;;) {
+			const { done, value } = await reader.read();
+			if (done) break;
+			if (!stdin.write(Buffer.from(value))) {
+				await once(stdin, "drain");
+			}
+		}
+		stdin.end();
+	} catch (err) {
+		const message = err instanceof Error ? err.message : String(err);
+		log.warn({ ...logContext, err: message }, "failed piping input to ffmpeg");
+		try { stdin.destroy(err instanceof Error ? err : new Error(message)); } catch { /* ignore */ }
+		if (!proc.killed) proc.kill("SIGTERM");
+	}
+}
+
+function transcodeReadableStreamToMp3Response(
+	input: ReadableStream<Uint8Array>,
+	abortSignal: AbortSignal | undefined,
+	logContext: Record<string, string>,
+): Response {
+	const proc = spawn("ffmpeg", [
+		"-i", "pipe:0",
+		"-vn",
+		"-codec:a", "libmp3lame",
+		"-ab", "192k",
+		"-ar", "44100",
+		"-ac", "2",
+		"-f", "mp3",
+		"pipe:1",
+	], { stdio: ["pipe", "pipe", "pipe"] });
+	void pumpReadableStreamToFfmpegStdin(input, proc, logContext);
+	const stream = createMp3TranscodeOutputStream(proc, abortSignal, logContext);
+	return new Response(stream, {
+		status: 200,
+		headers: createMp3ResponseHeaders(),
+	});
+}
+
+function transcodePathToMp3Response(
+	inputPath: string,
+	abortSignal: AbortSignal | undefined,
+	logContext: Record<string, string>,
+): Response {
+	const proc = spawn("ffmpeg", [
+		"-i", inputPath,
+		"-vn",
+		"-codec:a", "libmp3lame",
+		"-ab", "192k",
+		"-ar", "44100",
+		"-ac", "2",
+		"-f", "mp3",
+		"pipe:1",
+	], { stdio: ["ignore", "pipe", "pipe"] });
+	const stream = createMp3TranscodeOutputStream(proc, abortSignal, logContext);
+	return new Response(stream, {
+		status: 200,
+		headers: createMp3ResponseHeaders(),
+	});
 }
 
 // --- Cache hit: serve from disk ---
@@ -452,6 +657,7 @@ async function handleChapterStreamRequest(
 	source: SourceType,
 	trackId: string,
 	rangeHeader: string | null,
+	options?: HandleStreamRequestOptions,
 ): Promise<Response> {
 	const decoded = decodeChapterTrackId(trackId);
 	if (!decoded) {
@@ -460,6 +666,42 @@ async function handleChapterStreamRequest(
 
 	const { videoId, startTime, endTime } = decoded;
 	const duration = endTime - startTime;
+	const requestedFormat = options?.requestedFormat;
+
+	if (requestedFormat === "mp3") {
+		if (rangeHeader) {
+			return createRangeNotSupportedResponse();
+		}
+
+		let ffmpegInput: string;
+		const fullVideoCached = findCachedFile(source, videoId);
+		if (fullVideoCached) {
+			ffmpegInput = fullVideoCached.filePath;
+			log.info({ videoId, source }, "transcoding chapter from cached full video");
+		} else {
+			ffmpegInput = await sourceManager.getStreamUrl(source, trackId);
+			log.info({ videoId, source }, "transcoding chapter from remote URL");
+		}
+
+		log.info({ trackId, startTime, endTime, duration }, "streaming chapter transcoded to mp3");
+		const proc = spawn("ffmpeg", [
+			"-ss", String(startTime),
+			"-i", ffmpegInput,
+			"-t", String(duration),
+			"-vn",
+			"-codec:a", "libmp3lame",
+			"-ab", "192k",
+			"-ar", "44100",
+			"-ac", "2",
+			"-f", "mp3",
+			"pipe:1",
+		], { stdio: ["ignore", "pipe", "pipe"] });
+		const stream = createMp3TranscodeOutputStream(proc, options?.abortSignal, {
+			trackId,
+			mode: "chapter-mp3",
+		});
+		return new Response(stream, { status: 200, headers: createMp3ResponseHeaders() });
+	}
 
 	// 1. Check chapter-specific cache
 	const chapterCached = findCachedFile(source, trackId);
@@ -559,14 +801,16 @@ export async function handleStreamRequest(
 	sourceManager: SourceManager,
 	compositeId: string,
 	rangeHeader: string | null,
+	options?: HandleStreamRequestOptions,
 ): Promise<Response> {
 	const startTime = Date.now();
 	const { source, trackId } = parseTrackId(compositeId);
-	log.info({ compositeId, range: rangeHeader ?? "none" }, "request");
+	const requestedFormat = options?.requestedFormat;
+	log.info({ compositeId, range: rangeHeader ?? "none", format: requestedFormat ?? "none" }, "request");
 
 	// Delegate chapter-based YouTube tracks to specialized handler
 	if (source === "youtube" && trackId.includes("@")) {
-		return handleChapterStreamRequest(sourceManager, source, trackId, rangeHeader);
+		return handleChapterStreamRequest(sourceManager, source, trackId, rangeHeader, options);
 	}
 
 	// Only cache non-Pandora sources (Pandora URLs are short-lived)
@@ -575,7 +819,16 @@ export async function handleStreamRequest(
 		if (cached) {
 			const meta = readMeta(cached.metaPath);
 			const elapsedMs = Date.now() - startTime;
-			log.info({ compositeId, elapsedMs }, "cache hit");
+			log.info({ compositeId, elapsedMs, contentType: meta.contentType }, "cache hit");
+			if (shouldTranscodeToMp3(requestedFormat, meta.contentType)) {
+				if (rangeHeader) {
+					return createRangeNotSupportedResponse();
+				}
+				return transcodePathToMp3Response(cached.filePath, options?.abortSignal, {
+					compositeId,
+					source: "cache",
+				});
+			}
 			return serveCachedFile(cached.filePath, meta, rangeHeader);
 		}
 	}
@@ -611,7 +864,13 @@ export async function handleStreamRequest(
 	const elapsedMs = Date.now() - startTime;
 
 	log.info(
-		{ status: upstream.status, contentType: contentType ?? "unknown", contentLength: contentLength ?? "unknown", elapsedMs },
+		{
+			status: upstream.status,
+			contentType: contentType ?? "unknown",
+			contentLength: contentLength ?? "unknown",
+			elapsedMs,
+			format: requestedFormat ?? "none",
+		},
 		"upstream response",
 	);
 
@@ -621,6 +880,25 @@ export async function handleStreamRequest(
 		if (contentType) responseHeaders.set("Content-Type", contentType);
 		responseHeaders.set("Access-Control-Allow-Origin", "*");
 		return new Response(upstream.body, { status: upstream.status, headers: responseHeaders });
+	}
+
+	if (shouldTranscodeToMp3(requestedFormat, contentType)) {
+		if (rangeHeader) {
+			try { await upstream.body?.cancel(); } catch { /* ignore cleanup failure */ }
+			return createRangeNotSupportedResponse();
+		}
+
+		if (!upstream.body) {
+			return new Response("Upstream response has no body", {
+				status: 502,
+				headers: { "Access-Control-Allow-Origin": "*" },
+			});
+		}
+
+		return transcodeReadableStreamToMp3Response(upstream.body, options?.abortSignal, {
+			compositeId,
+			source: "upstream",
+		});
 	}
 
 	// For non-Pandora sources on full (non-range) requests, tee the stream to cache

@@ -157,8 +157,15 @@ export async function resolveTrackSource(opaqueId: string): Promise<SourceType> 
  * Build a stream URL from a track ID, with optional next-track prefetch hint.
  * Works with both nanoid and source:id formats (both are URL-safe).
  */
-export function buildStreamUrl(opaqueTrackId: string, nextOpaqueId?: string): string {
+export function buildStreamUrl(
+	opaqueTrackId: string,
+	nextOpaqueId?: string,
+	options?: { readonly format?: "mp3" },
+): string {
 	const base = `/stream/${encodeURIComponent(opaqueTrackId)}`;
-	if (!nextOpaqueId) return base;
-	return `${base}?next=${encodeURIComponent(nextOpaqueId)}`;
+	const params = new URLSearchParams();
+	if (nextOpaqueId) params.set("next", nextOpaqueId);
+	if (options?.format) params.set("format", options.format);
+	const query = params.toString();
+	return query ? `${base}?${query}` : base;
 }

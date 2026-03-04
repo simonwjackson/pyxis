@@ -324,6 +324,63 @@ describe("handleStreamRequest", () => {
 		}
 	});
 
+	it("passes through mp3 when format=mp3 is requested", async () => {
+		const audioData = new Uint8Array([0x01, 0x02, 0x03]);
+		const mockSourceManager = {
+			getStreamUrl: async () => "https://example.com/audio.mp3",
+		} as unknown as SourceManager;
+
+		const originalFetch = globalThis.fetch;
+		globalThis.fetch = async () => new Response(audioData, {
+			status: 200,
+			headers: { "Content-Type": "audio/mpeg", "Content-Length": "3" },
+		});
+
+		try {
+			const response = await handleStreamRequest(
+				mockSourceManager,
+				"pandora:track123",
+				null,
+				{ requestedFormat: "mp3" },
+			);
+			expect(response.status).toBe(200);
+			expect(response.headers.get("Content-Type")).toBe("audio/mpeg");
+			expect(response.headers.get("Accept-Ranges")).toBe("bytes");
+			const body = await response.arrayBuffer();
+			expect(new Uint8Array(body)).toEqual(audioData);
+		} finally {
+			globalThis.fetch = originalFetch;
+		}
+	});
+
+	it("returns 416 for range requests when format=mp3 requires transcoding", async () => {
+		const mockSourceManager = {
+			getStreamUrl: async () => "https://example.com/audio.webm",
+		} as unknown as SourceManager;
+
+		const originalFetch = globalThis.fetch;
+		globalThis.fetch = async () => new Response(new Uint8Array([0x01, 0x02]), {
+			status: 206,
+			headers: {
+				"Content-Type": "audio/webm",
+				"Content-Range": "bytes 0-1/999",
+			},
+		});
+
+		try {
+			const response = await handleStreamRequest(
+				mockSourceManager,
+				"ytmusic:track123",
+				"bytes=0-1",
+				{ requestedFormat: "mp3" },
+			);
+			expect(response.status).toBe(416);
+			expect(response.headers.get("Accept-Ranges")).toBe("none");
+		} finally {
+			globalThis.fetch = originalFetch;
+		}
+	});
+
 	it("exposes CORS headers on error responses", async () => {
 		const mockSourceManager = {
 			getStreamUrl: async () => "https://example.com/500",

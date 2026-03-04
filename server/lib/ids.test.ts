@@ -93,6 +93,16 @@ describe("buildStreamUrl", () => {
 		expect(url).toBe("/stream/pandora%3Aabc123?next=pandora%3Anext456");
 	});
 
+	it("builds stream url with requested format", () => {
+		const url = buildStreamUrl("pandora:abc123", undefined, { format: "mp3" });
+		expect(url).toBe("/stream/pandora%3Aabc123?format=mp3");
+	});
+
+	it("builds stream url with both next hint and format", () => {
+		const url = buildStreamUrl("pandora:abc123", "pandora:next456", { format: "mp3" });
+		expect(url).toBe("/stream/pandora%3Aabc123?next=pandora%3Anext456&format=mp3");
+	});
+
 	it("handles nanoid format", () => {
 		const url = buildStreamUrl("a3kF9x2abc");
 		expect(url).toBe("/stream/a3kF9x2abc");

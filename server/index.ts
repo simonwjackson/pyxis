@@ -169,11 +169,27 @@ const server = Bun.serve({
 			const rangeHeader = req.headers.get("range");
 			const nextHint = url.searchParams.get("next");
 			const decodedNextHint = nextHint ? decodeURIComponent(nextHint) : null;
-			streamLog.info({ opaqueId, range: rangeHeader ?? "none", next: decodedNextHint ?? "none" }, "incoming");
+			const requestedFormatRaw = url.searchParams.get("format");
+			const requestedFormat = requestedFormatRaw === "mp3" ? "mp3" : undefined;
+			if (requestedFormatRaw !== null && requestedFormat === undefined) {
+				return new Response(`Unsupported format: ${requestedFormatRaw}`, {
+					status: 400,
+					headers: { "Access-Control-Allow-Origin": "*" },
+				});
+			}
+			streamLog.info({
+				opaqueId,
+				range: rangeHeader ?? "none",
+				next: decodedNextHint ?? "none",
+				format: requestedFormat ?? "none",
+			}, "incoming");
 			return resolveTrackForStream(opaqueId)
 				.then((compositeId) =>
 					ensureSourceManager().then((sourceManager) => {
-						const responsePromise = handleStreamRequest(sourceManager, compositeId, rangeHeader);
+						const responsePromise = handleStreamRequest(sourceManager, compositeId, rangeHeader, {
+							abortSignal: req.signal,
+							...(requestedFormat ? { requestedFormat } : {}),
+						});
 						if (decodedNextHint) {
 							resolveTrackForStream(decodedNextHint)
 								.then((nextCompositeId) =>

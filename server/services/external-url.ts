@@ -51,6 +51,6 @@ export function buildExternalStreamUrl(
 	nextOpaqueTrackId?: string,
 ): string {
 	const baseUrl = resolveExternalBaseUrl();
-	const path = buildStreamUrl(opaqueTrackId, nextOpaqueTrackId);
+	const path = buildStreamUrl(opaqueTrackId, nextOpaqueTrackId, { format: "mp3" });
 	return new URL(path, `${baseUrl}/`).toString();
 }

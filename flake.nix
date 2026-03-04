@@ -64,7 +64,7 @@
           cp -r node_modules $out/lib/pyxis/
           cp package.json $out/lib/pyxis/
           makeWrapper ${pkgs.bun}/bin/bun $out/bin/pyxis \
-            --prefix PATH : ${pkgs.lib.makeBinPath [pkgs.yt-dlp pkgs.ffmpeg]} \
+            --prefix PATH : ${pkgs.lib.makeBinPath [pkgs.yt-dlp pkgs.ffmpeg-headless]} \
             --add-flags "$out/lib/pyxis/server/index.ts"
           runHook postInstall
         '';
@@ -85,7 +85,7 @@
       default = pkgs.mkShell {
         packages = [
           pkgs.bun
-          pkgs.ffmpeg
+          pkgs.ffmpeg-headless
           pkgs.just
           pkgs.mpv
           pkgs.yt-dlp
