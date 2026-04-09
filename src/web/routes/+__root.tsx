@@ -5,6 +5,7 @@ import { MobileNav } from "@/web/shared/layout/mobile-nav";
 import { NowPlayingBar } from "@/web/shared/layout/now-playing-bar";
 import { CommandPalette } from "@/web/shared/layout/command-palette";
 import { useKeyboardShortcuts } from "@/web/shared/keyboard-shortcuts";
+import { ErrorBoundary } from "@/web/shared/ui/error-boundary";
 
 function RootLayout() {
 	const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
@@ -27,8 +28,10 @@ function RootLayout() {
 			<Sidebar />
 			<div className="flex-1 flex flex-col min-w-0">
 				<MobileNav />
-				<main className="flex-1 overflow-y-auto pb-32">
-					<Outlet />
+				<main className="flex-1 overflow-y-auto pb-40">
+					<ErrorBoundary>
+						<Outlet />
+					</ErrorBoundary>
 				</main>
 				<NowPlayingBar />
 			</div>

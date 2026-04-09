@@ -1,7 +1,8 @@
 /**
  * @module NowPlayingBar
- * Global playback control bar fixed to the bottom of the viewport.
- * Shows current track info, progress, transport controls, and Pandora-specific actions.
+ * Zune-inspired playback bar — distilled controls with contextual action sheet.
+ * Mobile: only play/pause + skip visible; "more" opens a text-based action sheet.
+ * Desktop: transport + compact "more" menu replaces icon toolbar.
  */
 
 import { useState, useRef, useCallback } from "react";
@@ -11,11 +12,8 @@ import {
 	SkipForward,
 	SkipBack,
 	Music,
-	ThumbsUp,
-	ThumbsDown,
-	Bookmark,
-	Moon,
-	Info,
+	MoreHorizontal,
+	X,
 } from "lucide-react";
 import { useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
@@ -25,29 +23,16 @@ import { formatTime } from "../lib/now-playing-utils";
 import { TrackInfoModal } from "../track-info-modal";
 import { SonosSpeakerPicker } from "./sonos-speaker-picker";
 
-/**
- * Queue context describing the origin of the current playback.
- */
 type QueueContext =
 	| { readonly type: "radio"; readonly seedId: string }
 	| { readonly type: "album"; readonly albumId: string }
 	| { readonly type: "playlist"; readonly playlistId: string }
 	| { readonly type: "manual" };
 
-/**
- * Checks if a track token represents a Pandora track.
- * @param trackToken - Track token to check
- * @returns True if the track is from Pandora
- */
 function isPandoraTrack(trackToken: string): boolean {
 	return trackToken.startsWith("pandora:");
 }
 
-/**
- * Navigates to the appropriate page based on queue context.
- * @param navigate - Router navigate function
- * @param context - Current queue context
- */
 function navigateToContext(
 	navigate: ReturnType<typeof useNavigate>,
 	context: QueueContext,
@@ -84,16 +69,150 @@ function navigateToContext(
 }
 
 /**
- * Fixed bottom bar showing current playback state and controls.
- * Responsive: shows compact layout on mobile, full layout on desktop.
- * Includes seekable progress bar, transport controls, and Pandora-specific actions.
- *
- * Features:
- * - Seekable progress bar with keyboard navigation (Arrow keys)
- * - Play/pause, skip, previous controls
- * - Pandora-specific: like/dislike, bookmark, sleep, track info
- * - Click track info to navigate to context (album, playlist, station)
+ * Zune-style action sheet — slides up from bottom with text-labeled actions.
+ * Replaces the dense icon toolbar on both mobile and desktop.
  */
+function ActionSheet({
+	onClose,
+	onLike,
+	onDislike,
+	onBookmark,
+	onSleep,
+	onTrackInfo,
+	onGoToContext,
+	isRadioContext,
+	hasPandora,
+	currentTrack,
+	progress,
+	duration,
+}: {
+	readonly onClose: () => void;
+	readonly onLike: () => void;
+	readonly onDislike: () => void;
+	readonly onBookmark: () => void;
+	readonly onSleep: () => void;
+	readonly onTrackInfo: () => void;
+	readonly onGoToContext: () => void;
+	readonly isRadioContext: boolean;
+	readonly hasPandora: boolean;
+	readonly currentTrack: {
+		readonly songName: string;
+		readonly artistName: string;
+		readonly albumName: string;
+		readonly artUrl?: string;
+		readonly trackToken: string;
+	};
+	readonly progress: number;
+	readonly duration: number;
+}) {
+	return (
+		<div
+			className="fixed inset-0 z-50 flex items-end justify-center"
+			onClick={onClose}
+			onKeyDown={(e) => { if (e.key === "Escape") onClose(); }}
+			role="dialog"
+			aria-modal="true"
+			aria-label="Track actions"
+		>
+			<div className="fixed inset-0 bg-black/50 action-sheet-backdrop" aria-hidden="true" />
+			<div
+				className="relative w-full max-w-lg bg-[var(--color-bg-panel)] border-t border-[var(--color-border)] safe-bottom action-sheet-content"
+				onClick={(e) => e.stopPropagation()}
+			>
+				{/* Track hero */}
+				<div className="flex items-center gap-4 px-6 pt-6 pb-4">
+					{currentTrack.artUrl ? (
+						<img
+							src={currentTrack.artUrl}
+							alt=""
+							className="w-16 h-16 shrink-0 object-cover"
+						/>
+					) : (
+						<div className="w-16 h-16 shrink-0 bg-[var(--color-bg-highlight)] flex items-center justify-center">
+							<Music className="w-6 h-6 text-[var(--color-text-dim)]" />
+						</div>
+					)}
+					<div className="flex-1 min-w-0">
+						<p className="zune-title text-[var(--color-text)] truncate">
+							{currentTrack.songName}
+						</p>
+						<p className="text-sm font-light text-[var(--color-text-muted)] truncate">
+							{currentTrack.artistName} — {currentTrack.albumName}
+						</p>
+						<p className="zune-data text-xs text-[var(--color-text-dim)] mt-1">
+							{formatTime(progress)} / {formatTime(duration)}
+						</p>
+					</div>
+					<button
+						type="button"
+						onClick={onClose}
+						className="p-2 text-[var(--color-text-dim)] hover:text-[var(--color-text)] transition-colors"
+						aria-label="Close"
+					>
+						<X className="w-5 h-5" />
+					</button>
+				</div>
+
+				{/* Text-based action list — Zune style */}
+				<nav className="px-6 pb-6 space-y-0.5">
+					<button
+						type="button"
+						onClick={() => { onGoToContext(); onClose(); }}
+						className="w-full text-left py-3 text-[var(--color-text-muted)] hover:text-[var(--color-text)] transition-colors zune-heading text-lg border-b border-[var(--color-border)]"
+					>
+						go to source
+					</button>
+
+					{hasPandora && isRadioContext && (
+						<>
+							<button
+								type="button"
+								onClick={() => { onLike(); onClose(); }}
+								className="w-full text-left py-3 text-[var(--color-text-muted)] hover:text-[var(--color-liked)] transition-colors zune-heading text-lg border-b border-[var(--color-border)]"
+							>
+								like
+							</button>
+							<button
+								type="button"
+								onClick={() => { onDislike(); onClose(); }}
+								className="w-full text-left py-3 text-[var(--color-text-muted)] hover:text-[var(--color-disliked)] transition-colors zune-heading text-lg border-b border-[var(--color-border)]"
+							>
+								dislike
+							</button>
+						</>
+					)}
+
+					{hasPandora && (
+						<>
+							<button
+								type="button"
+								onClick={() => { onBookmark(); onClose(); }}
+								className="w-full text-left py-3 text-[var(--color-text-muted)] hover:text-[var(--color-text)] transition-colors zune-heading text-lg border-b border-[var(--color-border)]"
+							>
+								bookmark
+							</button>
+							<button
+								type="button"
+								onClick={() => { onSleep(); onClose(); }}
+								className="w-full text-left py-3 text-[var(--color-text-muted)] hover:text-[var(--color-text)] transition-colors zune-heading text-lg border-b border-[var(--color-border)]"
+							>
+								sleep 30 days
+							</button>
+							<button
+								type="button"
+								onClick={() => { onTrackInfo(); onClose(); }}
+								className="w-full text-left py-3 text-[var(--color-text-muted)] hover:text-[var(--color-text)] transition-colors zune-heading text-lg"
+							>
+								track info
+							</button>
+						</>
+					)}
+				</nav>
+			</div>
+		</div>
+	);
+}
+
 export function NowPlayingBar() {
 	const playback = usePlaybackContext();
 	const { currentTrack, isPlaying, progress, duration, togglePlayPause, triggerSkip, triggerPrevious, seek } = playback;
@@ -101,6 +220,7 @@ export function NowPlayingBar() {
 	const [queueContext, setQueueContext] = useState<QueueContext>({ type: "manual" });
 	const [queueIndex, setQueueIndex] = useState(0);
 	const [showTrackInfo, setShowTrackInfo] = useState(false);
+	const [showActionSheet, setShowActionSheet] = useState(false);
 	const progressBarRef = useRef<HTMLDivElement>(null);
 
 	trpc.queue.onChange.useSubscription(undefined, {
@@ -112,26 +232,26 @@ export function NowPlayingBar() {
 
 	const feedbackMutation = trpc.track.feedback.useMutation({
 		onSuccess(_, variables) {
-			toast.success(variables.positive ? "Thumbs up!" : "Thumbs down");
+			toast.success(variables.positive ? "liked" : "disliked");
 		},
 		onError(err) {
-			toast.error(`Feedback failed: ${err.message}`);
+			toast.error(`feedback failed: ${err.message}`);
 		},
 	});
 	const sleepMutation = trpc.track.sleep.useMutation({
 		onSuccess() {
-			toast.success("Track will be skipped for 30 days");
+			toast.success("track will be skipped for 30 days");
 		},
 		onError(err) {
-			toast.error(`Sleep failed: ${err.message}`);
+			toast.error(`sleep failed: ${err.message}`);
 		},
 	});
 	const bookmarkSongMutation = trpc.library.addBookmark.useMutation({
 		onSuccess() {
-			toast.success("Song bookmarked");
+			toast.success("song bookmarked");
 		},
 		onError(err) {
-			toast.error(`Bookmark failed: ${err.message}`);
+			toast.error(`bookmark failed: ${err.message}`);
 		},
 	});
 
@@ -178,6 +298,10 @@ export function NowPlayingBar() {
 		triggerSkip();
 	}, [currentTrack, sleepMutation, triggerSkip]);
 
+	const handleGoToContext = useCallback(() => {
+		navigateToContext(navigate, queueContext);
+	}, [navigate, queueContext]);
+
 	if (!currentTrack) return null;
 
 	const progressPercent = duration > 0 ? (progress / duration) * 100 : 0;
@@ -188,15 +312,15 @@ export function NowPlayingBar() {
 	return (
 		<>
 			<div
-				className="fixed bottom-0 left-0 right-0 border-t border-[var(--color-border)] backdrop-blur safe-bottom"
-				style={{ backgroundColor: "color-mix(in srgb, var(--color-bg-panel) 95%, transparent)", zIndex: 40 }}
+				className="fixed bottom-0 left-0 right-0 border-t border-[var(--color-border)] safe-bottom"
+				style={{ backgroundColor: "var(--color-bg-panel)", zIndex: 40 }}
 				role="region"
 				aria-label="Now playing"
 			>
-				{/* Seekable progress bar */}
+				{/* Progress bar */}
 				<div
 					ref={progressBarRef}
-					className="group relative h-1 bg-[var(--color-progress-track)] cursor-pointer"
+					className="group relative h-[3px] bg-[var(--color-progress-track)] cursor-pointer"
 					onClick={handleSeek}
 					role="slider"
 					aria-label="Playback progress"
@@ -215,19 +339,19 @@ export function NowPlayingBar() {
 						style={{ width: `${String(progressPercent)}%` }}
 					/>
 					<div
-						className="absolute top-1/2 -translate-y-1/2 w-3 h-3 rounded-full bg-white shadow opacity-0 group-hover:opacity-100 transition-opacity"
+						className="absolute top-1/2 -translate-y-1/2 w-3 h-3 bg-[var(--color-primary)] opacity-0 group-hover:opacity-100 transition-opacity"
 						style={{ left: `${String(progressPercent)}%` }}
 					/>
 				</div>
 
-				{/* Desktop layout (>=640px) */}
-				<div className="hidden sm:flex items-center gap-3 px-4 py-2">
+				{/* Desktop layout — distilled */}
+				<div className="hidden sm:flex items-center gap-5 px-6 py-3">
 					{/* Album art */}
 					{currentTrack.artUrl ? (
 						<img
 							src={currentTrack.artUrl}
 							alt=""
-							className="w-16 h-16 shrink-0 rounded-lg object-cover"
+							className="w-14 h-14 shrink-0 object-cover"
 							onError={(e) => {
 								e.currentTarget.style.display = "none";
 								e.currentTarget.nextElementSibling?.classList.remove("hidden");
@@ -235,34 +359,36 @@ export function NowPlayingBar() {
 						/>
 					) : null}
 					<div
-						className={`w-16 h-16 rounded-lg bg-[var(--color-bg-highlight)] flex items-center justify-center shrink-0 ${currentTrack.artUrl ? "hidden" : ""}`}
+						className={`w-14 h-14 bg-[var(--color-bg-highlight)] flex items-center justify-center shrink-0 ${currentTrack.artUrl ? "hidden" : ""}`}
 					>
-						<Music className="w-7 h-7 text-[var(--color-text-dim)]" />
+						<Music className="w-5 h-5 text-[var(--color-text-dim)]" />
 					</div>
 
-					{/* Track info (clickable) */}
+					{/* Track info — click to go to context */}
 					<button
 						type="button"
-						onClick={() => navigateToContext(navigate, queueContext)}
+						onClick={handleGoToContext}
 						className="flex-1 min-w-0 cursor-pointer text-left"
 					>
-						<p className="text-sm font-medium text-[var(--color-text)] truncate">
+						<p className="zune-title text-[0.95rem] text-[var(--color-text)] truncate">
 							{currentTrack.songName}
 						</p>
-						<p className="text-xs text-[var(--color-text-muted)] truncate">
+						<p className="text-[0.78rem] font-light tracking-[-0.01em] text-[var(--color-text-muted)] truncate">
 							{currentTrack.artistName} — {currentTrack.albumName}
-						</p>
-						<p className="text-xs text-[var(--color-text-dim)] mt-0.5">
-							{formatTime(progress)} / {formatTime(duration)}
 						</p>
 					</button>
 
-					{/* Transport controls */}
-					<div className="flex items-center gap-1">
+					{/* Time */}
+					<span className="zune-data text-xs text-[var(--color-text-dim)] shrink-0 tabular-nums">
+						{formatTime(progress)} / {formatTime(duration)}
+					</span>
+
+					{/* Transport — only essential controls */}
+					<div className="flex items-center gap-0.5">
 						<button
 							onClick={triggerPrevious}
 							disabled={isAtQueueStart}
-							className="h-8 w-8 flex items-center justify-center rounded-full hover:bg-[var(--color-bg-highlight)] transition-colors text-[var(--color-text-muted)] disabled:opacity-30 disabled:cursor-not-allowed"
+							className="h-8 w-8 flex items-center justify-center hover:bg-[var(--color-bg-highlight)] transition-colors text-[var(--color-text-muted)] disabled:opacity-30 disabled:cursor-not-allowed"
 							type="button"
 							aria-label="Previous track"
 						>
@@ -270,7 +396,7 @@ export function NowPlayingBar() {
 						</button>
 						<button
 							onClick={togglePlayPause}
-							className="h-11 w-11 flex items-center justify-center rounded-full bg-[var(--color-primary)] hover:brightness-110 transition-all text-white"
+							className="h-10 w-10 flex items-center justify-center bg-[var(--color-primary)] hover:brightness-110 transition-all text-white"
 							type="button"
 							aria-label={isPlaying ? "Pause" : "Play"}
 						>
@@ -282,7 +408,7 @@ export function NowPlayingBar() {
 						</button>
 						<button
 							onClick={triggerSkip}
-							className="h-8 w-8 flex items-center justify-center rounded-full hover:bg-[var(--color-bg-highlight)] transition-colors text-[var(--color-text-muted)]"
+							className="h-8 w-8 flex items-center justify-center hover:bg-[var(--color-bg-highlight)] transition-colors text-[var(--color-text-muted)]"
 							type="button"
 							aria-label="Skip track"
 						>
@@ -290,185 +416,99 @@ export function NowPlayingBar() {
 						</button>
 					</div>
 
-					<SonosSpeakerPicker currentTrackId={currentTrack.trackToken} />
-
-					{/* Pandora actions */}
-					{hasPandoraCapabilities && (
-						<>
-							<div className="w-px h-8 bg-[var(--color-border)]" />
-							<div className="flex items-center gap-0.5">
-								{isRadioContext && (
-									<>
-										<button
-											onClick={handleDislike}
-											className="h-8 w-8 flex items-center justify-center rounded hover:bg-[var(--color-bg-highlight)] transition-colors text-[var(--color-disliked)]"
-											type="button"
-											title="Dislike"
-											aria-label="Dislike"
-										>
-											<ThumbsDown className="w-4 h-4" />
-										</button>
-										<button
-											onClick={handleLike}
-											className="h-8 w-8 flex items-center justify-center rounded hover:bg-[var(--color-bg-highlight)] transition-colors text-[var(--color-liked)]"
-											type="button"
-											title="Like"
-											aria-label="Like"
-										>
-											<ThumbsUp className="w-4 h-4" />
-										</button>
-									</>
-								)}
-								<button
-									onClick={handleBookmark}
-									className="h-8 w-8 flex items-center justify-center rounded hover:bg-[var(--color-bg-highlight)] transition-colors text-[var(--color-text-muted)]"
-									type="button"
-									title="Bookmark"
-									aria-label="Bookmark"
-								>
-									<Bookmark className="w-4 h-4" />
-								</button>
-								<button
-									onClick={handleSleep}
-									className="h-8 w-8 flex items-center justify-center rounded hover:bg-[var(--color-bg-highlight)] transition-colors text-[var(--color-text-muted)]"
-									type="button"
-									title="Sleep (30 days)"
-									aria-label="Sleep track for 30 days"
-								>
-									<Moon className="w-4 h-4" />
-								</button>
-								<button
-									onClick={() => setShowTrackInfo(true)}
-									className="h-8 w-8 flex items-center justify-center rounded hover:bg-[var(--color-bg-highlight)] transition-colors text-[var(--color-text-muted)]"
-									type="button"
-									title="Track info"
-									aria-label="Track info"
-								>
-									<Info className="w-4 h-4" />
-								</button>
-							</div>
-						</>
-					)}
+					{/* Secondary actions: Sonos + More */}
+					<div className="flex items-center gap-0.5">
+						<SonosSpeakerPicker currentTrackId={currentTrack.trackToken} />
+						{hasPandoraCapabilities && (
+							<button
+								onClick={() => setShowActionSheet(true)}
+								className="h-8 w-8 flex items-center justify-center hover:bg-[var(--color-bg-highlight)] transition-colors text-[var(--color-text-muted)]"
+								type="button"
+								aria-label="More actions"
+								title="More actions"
+							>
+								<MoreHorizontal className="w-4 h-4" />
+							</button>
+						)}
+					</div>
 				</div>
 
-				{/* Mobile layout (<640px) */}
-				<div className="sm:hidden">
-					{/* Top row: art + info + play/skip */}
-					<div className="flex items-center gap-3 px-3 py-2">
-						{currentTrack.artUrl ? (
-							<img
-								src={currentTrack.artUrl}
-								alt=""
-								className="w-12 h-12 shrink-0 rounded-lg object-cover"
-								onError={(e) => {
-									e.currentTarget.style.display = "none";
-									e.currentTarget.nextElementSibling?.classList.remove("hidden");
-								}}
-							/>
-						) : null}
-						<div
-							className={`w-12 h-12 rounded-lg bg-[var(--color-bg-highlight)] flex items-center justify-center shrink-0 ${currentTrack.artUrl ? "hidden" : ""}`}
-						>
-							<Music className="w-5 h-5 text-[var(--color-text-dim)]" />
-						</div>
-						<button
-							type="button"
-							onClick={() => navigateToContext(navigate, queueContext)}
-							className="flex-1 min-w-0 cursor-pointer text-left"
-						>
-							<p className="text-sm font-medium text-[var(--color-text)] truncate">
-								{currentTrack.songName}
-							</p>
-							<p className="text-xs text-[var(--color-text-muted)] truncate">
-								{currentTrack.artistName} — {currentTrack.albumName}
-							</p>
-						</button>
-						<div className="flex items-center gap-1">
-							<button
-								onClick={togglePlayPause}
-								className="h-10 w-10 flex items-center justify-center rounded-full bg-[var(--color-primary)] hover:brightness-110 transition-all text-white"
-								type="button"
-								aria-label={isPlaying ? "Pause" : "Play"}
-							>
-								{isPlaying ? (
-									<Pause className="w-5 h-5" />
-								) : (
-									<Play className="w-5 h-5 ml-0.5" />
-								)}
-							</button>
-							<button
-								onClick={triggerSkip}
-								className="h-8 w-8 flex items-center justify-center rounded-full hover:bg-[var(--color-bg-highlight)] transition-colors text-[var(--color-text-muted)]"
-								type="button"
-								aria-label="Skip track"
-							>
-								<SkipForward className="w-4 h-4" />
-							</button>
-						</div>
+				{/* Mobile layout — maximally distilled */}
+				<div className="sm:hidden flex items-center gap-3 px-5 py-3">
+					{currentTrack.artUrl ? (
+						<img
+							src={currentTrack.artUrl}
+							alt=""
+							className="w-11 h-11 shrink-0 object-cover"
+							onError={(e) => {
+								e.currentTarget.style.display = "none";
+								e.currentTarget.nextElementSibling?.classList.remove("hidden");
+							}}
+						/>
+					) : null}
+					<div
+						className={`w-11 h-11 bg-[var(--color-bg-highlight)] flex items-center justify-center shrink-0 ${currentTrack.artUrl ? "hidden" : ""}`}
+					>
+						<Music className="w-5 h-5 text-[var(--color-text-dim)]" />
 					</div>
 
-					{/* Bottom row: time + actions */}
-					<div className="flex items-center justify-between px-3 pb-2 text-xs text-[var(--color-text-dim)]">
-						<span>{formatTime(progress)} / {formatTime(duration)}</span>
-						<div className="flex items-center gap-1">
-							<SonosSpeakerPicker currentTrackId={currentTrack.trackToken} />
-							{hasPandoraCapabilities && (
-								<>
-									{isRadioContext && (
-										<>
-											<button
-												onClick={handleDislike}
-												className="h-7 w-7 flex items-center justify-center rounded text-[var(--color-disliked)]"
-												type="button"
-												title="Dislike"
-												aria-label="Dislike"
-											>
-												<ThumbsDown className="w-3.5 h-3.5" />
-											</button>
-											<button
-												onClick={handleLike}
-												className="h-7 w-7 flex items-center justify-center rounded text-[var(--color-liked)]"
-												type="button"
-												title="Like"
-												aria-label="Like"
-											>
-												<ThumbsUp className="w-3.5 h-3.5" />
-											</button>
-										</>
-									)}
-									<button
-										onClick={handleBookmark}
-										className="h-7 w-7 flex items-center justify-center rounded text-[var(--color-text-muted)]"
-										type="button"
-										title="Bookmark"
-										aria-label="Bookmark"
-									>
-										<Bookmark className="w-3.5 h-3.5" />
-									</button>
-									<button
-										onClick={handleSleep}
-										className="h-7 w-7 flex items-center justify-center rounded text-[var(--color-text-muted)]"
-										type="button"
-										title="Sleep (30 days)"
-										aria-label="Sleep track for 30 days"
-									>
-										<Moon className="w-3.5 h-3.5" />
-									</button>
-									<button
-										onClick={() => setShowTrackInfo(true)}
-										className="h-7 w-7 flex items-center justify-center rounded text-[var(--color-text-muted)]"
-										type="button"
-										title="Track info"
-										aria-label="Track info"
-									>
-										<Info className="w-3.5 h-3.5" />
-									</button>
-								</>
+					{/* Tap track info to open action sheet */}
+					<button
+						type="button"
+						onClick={() => setShowActionSheet(true)}
+						className="flex-1 min-w-0 cursor-pointer text-left"
+					>
+						<p className="zune-title text-[0.95rem] text-[var(--color-text)] truncate">
+							{currentTrack.songName}
+						</p>
+						<p className="text-[0.75rem] font-light tracking-[-0.01em] text-[var(--color-text-muted)] truncate">
+							{currentTrack.artistName}
+						</p>
+					</button>
+
+					{/* Only play/pause + skip — nothing else */}
+					<div className="flex items-center gap-0.5 shrink-0">
+						<button
+							onClick={togglePlayPause}
+							className="h-10 w-10 flex items-center justify-center bg-[var(--color-primary)] hover:brightness-110 transition-all text-white"
+							type="button"
+							aria-label={isPlaying ? "Pause" : "Play"}
+						>
+							{isPlaying ? (
+								<Pause className="w-5 h-5" />
+							) : (
+								<Play className="w-5 h-5 ml-0.5" />
 							)}
-						</div>
+						</button>
+						<button
+							onClick={triggerSkip}
+							className="h-8 w-8 flex items-center justify-center hover:bg-[var(--color-bg-highlight)] transition-colors text-[var(--color-text-muted)]"
+							type="button"
+							aria-label="Skip track"
+						>
+							<SkipForward className="w-4 h-4" />
+						</button>
 					</div>
 				</div>
 			</div>
+
+			{/* Action sheet — shared between mobile and desktop */}
+			{showActionSheet && (
+				<ActionSheet
+					onClose={() => setShowActionSheet(false)}
+					onLike={handleLike}
+					onDislike={handleDislike}
+					onBookmark={handleBookmark}
+					onSleep={handleSleep}
+					onTrackInfo={() => { setShowActionSheet(false); setShowTrackInfo(true); }}
+					onGoToContext={handleGoToContext}
+					isRadioContext={isRadioContext}
+					hasPandora={hasPandoraCapabilities}
+					currentTrack={currentTrack}
+					progress={progress}
+					duration={duration}
+				/>
+			)}
 
 			{showTrackInfo && hasPandoraCapabilities && (
 				<TrackInfoModal
