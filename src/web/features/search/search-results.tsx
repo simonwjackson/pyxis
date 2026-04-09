@@ -5,35 +5,29 @@
 
 import { Link } from "@tanstack/react-router";
 import { User, Music, LayoutGrid, Disc3, Radio, Play, Loader2 } from "lucide-react";
+import {
+	formatPlacementLabel,
+	hotBadgeClassName,
+	placementBadgeClassName,
+	type AlbumPlacement,
+} from "@/web/shared/lib/library-placement";
 
-/**
- * Pandora artist search result.
- */
 export type SearchArtist = {
 	readonly musicToken: string;
 	readonly artistName: string;
 };
 
-/**
- * Pandora song search result.
- */
 export type SearchSong = {
 	readonly musicToken: string;
 	readonly songName: string;
 	readonly artistName: string;
 };
 
-/**
- * Pandora genre station search result.
- */
 export type SearchGenreStation = {
 	readonly musicToken: string;
 	readonly stationName: string;
 };
 
-/**
- * Unified track search result from any source.
- */
 export type SearchTrack = {
 	readonly id: string;
 	readonly title: string;
@@ -43,9 +37,12 @@ export type SearchTrack = {
 	readonly capabilities: { readonly radio: boolean };
 };
 
-/**
- * Unified album search result from any source.
- */
+export type SearchAlbumState = {
+	readonly albumId: string;
+	readonly placement: AlbumPlacement;
+	readonly isHot: boolean;
+};
+
 export type SearchAlbum = {
 	readonly id: string;
 	readonly title: string;
@@ -55,22 +52,31 @@ export type SearchAlbum = {
 	readonly sourceIds: readonly string[];
 	readonly genres?: readonly string[];
 	readonly releaseType?: string;
+	readonly state?: SearchAlbumState;
 };
 
 function SectionHeader({ children }: { readonly children: string }) {
+	return <h3 className="zune-label text-[var(--color-text-dim)] mb-3">{children}</h3>;
+}
+
+function StateBadge({ placement }: { readonly placement: AlbumPlacement }) {
 	return (
-		<h3 className="zune-label text-[var(--color-text-dim)] mb-3">
-			{children}
-		</h3>
+		<span className={`text-[10px] uppercase tracking-[0.18em] px-1.5 py-0.5 ${placementBadgeClassName(placement)}`}>
+			{formatPlacementLabel(placement)}
+		</span>
+	);
+}
+
+function HotBadge() {
+	return (
+		<span className={`text-[10px] uppercase tracking-[0.18em] px-1.5 py-0.5 ${hotBadgeClassName()}`}>
+			Hot
+		</span>
 	);
 }
 
 function Empty() {
-	return (
-		<p className="text-[var(--color-text-dim)] text-sm">
-			No results found.
-		</p>
-	);
+	return <p className="text-[var(--color-text-dim)] text-sm">No results found.</p>;
 }
 
 function Albums({
@@ -92,6 +98,9 @@ function Albums({
 			<div className="space-y-1">
 				{albums.map((album) => {
 					const isLoadingPlay = playingAlbumId === album.id;
+					const state = album.state;
+					const canAdd = !state || state.placement === "dismissed";
+					const actionLabel = state?.placement === "dismissed" ? "Re-add to Discovery" : "Add to Discovery";
 					return (
 						<div
 							key={album.id}
@@ -101,15 +110,11 @@ function Albums({
 								type="button"
 								onClick={() => onPlayAlbum?.(album.id)}
 								disabled={isLoadingPlay}
-								className="relative w-12 h-12bg-[var(--color-bg-highlight)] flex items-center justify-center shrink-0 overflow-hidden cursor-pointer"
+								className="relative w-12 h-12 bg-[var(--color-bg-highlight)] flex items-center justify-center shrink-0 overflow-hidden cursor-pointer"
 								aria-label={`Play ${album.title}`}
 							>
 								{album.artworkUrl ? (
-									<img
-										src={album.artworkUrl}
-										alt={album.title}
-										className="w-full h-full object-cover"
-									/>
+									<img src={album.artworkUrl} alt={album.title} className="w-full h-full object-cover" />
 								) : (
 									<Disc3 className="w-6 h-6 text-[var(--color-text-dim)]" />
 								)}
@@ -134,15 +139,11 @@ function Albums({
 									{album.title}
 								</Link>
 								<div className="flex items-center gap-1.5 flex-wrap">
-									<span className="zune-eyebrow text-[var(--color-text-dim)]">
-										{album.artist}
-									</span>
+									<span className="zune-eyebrow text-[var(--color-text-dim)]">{album.artist}</span>
 									{album.year && (
 										<>
 											<span className="text-xs text-[var(--color-text-muted)]">&middot;</span>
-											<span className="zune-eyebrow text-[var(--color-text-dim)]">
-												{String(album.year)}
-											</span>
+											<span className="zune-eyebrow text-[var(--color-text-dim)]">{String(album.year)}</span>
 										</>
 									)}
 									{album.releaseType && album.releaseType !== "album" && (
@@ -154,8 +155,12 @@ function Albums({
 										</>
 									)}
 								</div>
+								<div className="flex items-center gap-1 mt-1 flex-wrap">
+									{state ? <StateBadge placement={state.placement} /> : null}
+									{state?.isHot ? <HotBadge /> : null}
+								</div>
 								{album.genres && album.genres.length > 0 && (
-									<div className="flex gap-1 mt-1 flex-wrap">
+									<div className="flex gap-1 mt-2 flex-wrap">
 										{album.genres.slice(0, 5).map((genre) => (
 											<span
 												key={genre}
@@ -167,17 +172,21 @@ function Albums({
 									</div>
 								)}
 							</div>
-							{onSaveAlbum && (
-								<button
-									type="button"
-									onClick={() =>
-										onSaveAlbum(album.id)
-									}
-									className="text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text)] bg-[var(--color-bg-highlight)] hover:bg-[var(--color-border)] px-2.5 py-1.5transition-colors shrink-0"
-								>
-									Save
-								</button>
-							)}
+							{onSaveAlbum ? (
+								canAdd ? (
+									<button
+										type="button"
+										onClick={() => onSaveAlbum(album.id)}
+										className="text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text)] bg-[var(--color-bg-highlight)] hover:bg-[var(--color-border)] px-2.5 py-1.5 transition-colors shrink-0"
+									>
+										{actionLabel}
+									</button>
+								) : (
+									<span className="text-xs text-[var(--color-text-dim)] shrink-0">
+										In {formatPlacementLabel(state.placement)}
+									</span>
+								)
+							) : null}
 						</div>
 					);
 				})}
@@ -204,33 +213,23 @@ function Tracks({
 						key={track.id}
 						className="flex items-center gap-4 p-4 hover:bg-[var(--color-bg-highlight)]"
 					>
-						<div className="w-10 h-10bg-[var(--color-bg-highlight)] flex items-center justify-center shrink-0 overflow-hidden">
+						<div className="w-10 h-10 bg-[var(--color-bg-highlight)] flex items-center justify-center shrink-0 overflow-hidden">
 							{track.artworkUrl ? (
-								<img
-									src={track.artworkUrl}
-									alt={track.title}
-									className="w-full h-full object-cover"
-								/>
+								<img src={track.artworkUrl} alt={track.title} className="w-full h-full object-cover" />
 							) : (
 								<Music className="w-5 h-5 text-[var(--color-text-muted)]" />
 							)}
 						</div>
 						<div className="flex-1 min-w-0">
-							<p className="zune-list-title text-[var(--color-text)] truncate">
-								{track.title}
-							</p>
-							<p className="zune-eyebrow text-[var(--color-text-dim)]">
-								{track.artist}
-							</p>
+							<p className="zune-list-title text-[var(--color-text)] truncate">{track.title}</p>
+							<p className="zune-eyebrow text-[var(--color-text-dim)]">{track.artist}</p>
 						</div>
 						<div className="flex items-center gap-1.5 shrink-0">
 							{track.capabilities.radio && onStartRadio && (
 								<button
 									type="button"
-									onClick={() =>
-										onStartRadio(track)
-									}
-									className="text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text)] bg-[var(--color-bg-highlight)] hover:bg-[var(--color-border)] px-2.5 py-1.5transition-colors flex items-center gap-1"
+									onClick={() => onStartRadio(track)}
+									className="text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text)] bg-[var(--color-bg-highlight)] hover:bg-[var(--color-border)] px-2.5 py-1.5 transition-colors flex items-center gap-1"
 								>
 									<Radio className="w-3 h-3" />
 									Start Radio
@@ -260,9 +259,7 @@ function Artists({
 				{artists.map((artist) => (
 					<li key={artist.musicToken}>
 						<button
-							onClick={() =>
-								onCreateStation(artist.musicToken)
-							}
+							onClick={() => onCreateStation(artist.musicToken)}
 							className="w-full flex items-center gap-3 p-3 hover:bg-[var(--color-bg-highlight)] text-left"
 							type="button"
 						>
@@ -270,12 +267,8 @@ function Artists({
 								<User className="w-5 h-5 text-[var(--color-text-muted)]" />
 							</div>
 							<div className="flex-1">
-								<p className="zune-list-title text-[var(--color-text)]">
-									{artist.artistName}
-								</p>
-								<p className="zune-eyebrow text-[var(--color-text-dim)]">
-									pandora
-								</p>
+								<p className="zune-list-title text-[var(--color-text)]">{artist.artistName}</p>
+								<p className="zune-eyebrow text-[var(--color-text-dim)]">pandora</p>
 							</div>
 							<span className="text-xs text-[var(--color-text-dim)] hover:text-[var(--color-primary)] transition-colors">
 								+ station
@@ -304,22 +297,16 @@ function Songs({
 				{songs.map((song) => (
 					<li key={song.musicToken}>
 						<button
-							onClick={() =>
-								onCreateStation(song.musicToken)
-							}
+							onClick={() => onCreateStation(song.musicToken)}
 							className="w-full flex items-center gap-3 p-3 hover:bg-[var(--color-bg-highlight)] text-left"
 							type="button"
 						>
-							<div className="w-10 h-10bg-[var(--color-bg-highlight)] flex items-center justify-center shrink-0">
+							<div className="w-10 h-10 bg-[var(--color-bg-highlight)] flex items-center justify-center shrink-0">
 								<Music className="w-5 h-5 text-[var(--color-text-muted)]" />
 							</div>
 							<div className="flex-1">
-								<p className="zune-list-title text-[var(--color-text)]">
-									{song.songName}
-								</p>
-								<p className="text-sm text-[var(--color-text-muted)]">
-									{song.artistName} · pandora
-								</p>
+								<p className="zune-list-title text-[var(--color-text)]">{song.songName}</p>
+								<p className="text-sm text-[var(--color-text-muted)]">{song.artistName} · pandora</p>
 							</div>
 							<span className="text-xs text-[var(--color-text-dim)] hover:text-[var(--color-primary)] transition-colors">
 								+ station
@@ -348,19 +335,15 @@ function Genres({
 				{genres.map((genre) => (
 					<li key={genre.musicToken}>
 						<button
-							onClick={() =>
-								onCreateStation(genre.musicToken)
-							}
+							onClick={() => onCreateStation(genre.musicToken)}
 							className="w-full flex items-center gap-3 p-3 hover:bg-[var(--color-bg-highlight)] text-left"
 							type="button"
 						>
-							<div className="w-10 h-10bg-[var(--color-bg-elevated)] flex items-center justify-center shrink-0">
+							<div className="w-10 h-10 bg-[var(--color-bg-elevated)] flex items-center justify-center shrink-0">
 								<LayoutGrid className="w-5 h-5 text-[var(--color-primary)]" />
 							</div>
 							<div className="flex-1">
-								<p className="zune-list-title text-[var(--color-text)]">
-									{genre.stationName}
-								</p>
+								<p className="zune-list-title text-[var(--color-text)]">{genre.stationName}</p>
 							</div>
 							<span className="text-xs text-[var(--color-text-dim)] hover:text-[var(--color-primary)] transition-colors">
 								+ station

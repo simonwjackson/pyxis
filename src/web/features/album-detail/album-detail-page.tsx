@@ -1,12 +1,11 @@
 /**
  * @module AlbumDetailPage
- * Album detail view showing track listing with play and shuffle controls.
- * Supports both library albums (nanoid) and source-backed albums (source:id).
+ * Album detail view for both library albums and source-backed albums.
  */
 
-import { useEffect, useRef, useCallback, useState } from "react";
+import { useEffect, useRef, useCallback } from "react";
 import { useRouter } from "@tanstack/react-router";
-import { Play, Shuffle, Music, ArrowLeft, BookmarkPlus, Check } from "lucide-react";
+import { Play, Shuffle, Music, ArrowLeft, BookmarkPlus, Flame } from "lucide-react";
 import { toast } from "sonner";
 import { trpc } from "@/web/shared/lib/trpc";
 import { usePlaybackContext } from "@/web/shared/playback/playback-context";
@@ -21,41 +20,46 @@ import {
 	formatTime,
 } from "@/web/shared/lib/now-playing-utils";
 import type { SourceAlbumTrack } from "@/web/shared/lib/now-playing-utils";
+import {
+	formatPlacementLabel,
+	hotBadgeClassName,
+	placementBadgeClassName,
+	type AlbumPlacement,
+} from "@/web/shared/lib/library-placement";
 
-/**
- * Formats total duration as human-readable string.
- * @param totalSeconds - Duration in seconds
- * @returns Formatted string (e.g., "1 hr 23 min" or "45 min")
- */
 function formatTotalDuration(totalSeconds: number): string {
 	const hours = Math.floor(totalSeconds / 3600);
 	const mins = Math.floor((totalSeconds % 3600) / 60);
-	if (hours > 0) {
-		return `${String(hours)} hr ${String(mins)} min`;
-	}
+	if (hours > 0) return `${String(hours)} hr ${String(mins)} min`;
 	return `${String(mins)} min`;
 }
 
-/**
- * Props for the AlbumDetailPage component.
- */
 type AlbumDetailPageProps = {
-	/** Album ID to display (nanoid for library, source:id for browsing) */
 	readonly albumId: string;
-	/** Whether to auto-play on mount */
 	readonly autoPlay?: boolean;
-	/** Track index to start playback from */
 	readonly startIndex?: number;
-	/** Whether to shuffle tracks on play */
 	readonly shuffle?: boolean;
 };
 
-/**
- * Album detail page showing album art, metadata, and track listing.
- * Supports both library albums and source-backed albums.
- *
- * @param props - Album detail page props
- */
+const PLACEMENTS: readonly AlbumPlacement[] = ["discovery", "collection", "archive", "dismissed"];
+
+function PlacementBadge({ placement }: { readonly placement: AlbumPlacement }) {
+	return (
+		<span className={`text-[10px] uppercase tracking-[0.18em] px-1.5 py-0.5 ${placementBadgeClassName(placement)}`}>
+			{formatPlacementLabel(placement)}
+		</span>
+	);
+}
+
+function HotBadge() {
+	return (
+		<span className={`inline-flex items-center gap-1 text-[10px] uppercase tracking-[0.18em] px-1.5 py-0.5 ${hotBadgeClassName()}`}>
+			<Flame className="w-3 h-3" />
+			Hot
+		</span>
+	);
+}
+
 export function AlbumDetailPage({
 	albumId,
 	autoPlay,
@@ -66,63 +70,72 @@ export function AlbumDetailPage({
 	const playback = usePlaybackContext();
 	const playbackRef = useRef(playback);
 	playbackRef.current = playback;
+	const utils = trpc.useUtils();
 
 	const isSourceBacked = albumId.includes(":");
 
-	// Library data (disabled when source-backed)
-	const libraryAlbumsQuery = trpc.library.albums.useQuery(undefined, {
-		enabled: !isSourceBacked,
-	});
-	const libraryTracksQuery = trpc.library.albumTracks.useQuery(
-		{ albumId },
-		{ enabled: !isSourceBacked },
-	);
-
-	// Source data (disabled when library)
-	const sourceQuery = trpc.album.getWithTracks.useQuery(
-		{ id: albumId },
+	const libraryAlbumQuery = trpc.library.album.useQuery({ id: albumId }, { enabled: !isSourceBacked });
+	const libraryTracksQuery = trpc.library.albumTracks.useQuery({ albumId }, { enabled: !isSourceBacked });
+	const sourceQuery = trpc.album.getWithTracks.useQuery({ id: albumId }, { enabled: isSourceBacked });
+	const sourceStateQuery = trpc.library.resolveAlbumStates.useQuery(
+		{ sourceIds: isSourceBacked ? [albumId] : [] },
 		{ enabled: isSourceBacked },
 	);
 
-	// Normalize album data
-	const album = isSourceBacked
-		? sourceQuery.data?.album
-		: libraryAlbumsQuery.data?.find((a) => a.id === albumId);
+	const sourceState = sourceStateQuery.data?.[0];
+	const currentPlacement = isSourceBacked
+		? sourceState?.placement
+		: libraryAlbumQuery.data?.placement;
+	const isHot = isSourceBacked ? (sourceState?.isHot ?? false) : (libraryAlbumQuery.data?.isHot ?? false);
 
-	// Normalize tracks to a common shape for rendering
-	const libraryTracks = libraryTracksQuery.data;
-	const sourceTracks = sourceQuery.data?.tracks;
-
-	const tracks = isSourceBacked ? sourceTracks : libraryTracks;
+	const album = isSourceBacked ? sourceQuery.data?.album : libraryAlbumQuery.data;
+	const tracks = isSourceBacked ? sourceQuery.data?.tracks : libraryTracksQuery.data;
 
 	const isLoading = isSourceBacked
-		? sourceQuery.isLoading
-		: libraryAlbumsQuery.isLoading || libraryTracksQuery.isLoading;
+		? sourceQuery.isLoading || sourceStateQuery.isLoading
+		: libraryAlbumQuery.isLoading || libraryTracksQuery.isLoading;
+	const isError = isSourceBacked ? sourceQuery.isError : libraryAlbumQuery.isError;
 
-	const isError = isSourceBacked ? sourceQuery.isError : false;
-
-	// Save to library mutation
-	const utils = trpc.useUtils();
-	const [isSaved, setIsSaved] = useState(false);
 	const saveAlbum = trpc.library.saveAlbum.useMutation({
 		onSuccess(data) {
-			if (data.alreadyExists) {
-				toast.info("album already in your collection");
-			} else {
-				toast.success("album saved to collection");
+			switch (data.outcome) {
+				case "created":
+					toast.success("album added to discovery");
+					break;
+				case "restored":
+					toast.success("album restored to discovery");
+					break;
+				case "existing":
+					toast.info(`album already in ${formatPlacementLabel(data.placement).toLowerCase()}`);
+					break;
 			}
-			setIsSaved(true);
 			utils.library.albums.invalidate();
+			utils.library.hotAlbums.invalidate();
+			utils.library.resolveAlbumStates.invalidate();
+			utils.library.album.invalidate();
 		},
 		onError(err) {
-			toast.error(`Failed to save album: ${err.message}`);
+			toast.error(`Failed to add album: ${err.message}`);
+		},
+	});
+
+	const setPlacement = trpc.library.setPlacement.useMutation({
+		onSuccess(data) {
+			toast.success(`moved to ${formatPlacementLabel(data.placement).toLowerCase()}`);
+			utils.library.album.invalidate({ id: data.id });
+			utils.library.albums.invalidate();
+			utils.library.hotAlbums.invalidate();
+			utils.library.resolveAlbumStates.invalidate();
+		},
+		onError(err) {
+			toast.error(`Failed to move album: ${err.message}`);
 		},
 	});
 
 	const updateAlbum = trpc.library.updateAlbum.useMutation({
 		onSuccess: () => {
+			utils.library.album.invalidate({ id: albumId });
 			utils.library.albums.invalidate();
-			utils.library.albumTracks.invalidate({ albumId });
 		},
 		onError: (err) => toast.error(`Failed to rename: ${err.message}`),
 	});
@@ -136,68 +149,59 @@ export function AlbumDetailPage({
 
 	const handleSave = useCallback(() => {
 		saveAlbum.mutate({ id: albumId });
-	}, [saveAlbum, albumId]);
+	}, [albumId, saveAlbum]);
+
+	const handleSetPlacement = useCallback(
+		(nextPlacement: AlbumPlacement) => {
+			const targetAlbumId = isSourceBacked ? sourceState?.albumId : albumId;
+			if (!targetAlbumId) return;
+			setPlacement.mutate({ albumId: targetAlbumId, placement: nextPlacement });
+		},
+		[albumId, isSourceBacked, setPlacement, sourceState?.albumId],
+	);
 
 	const hasAutoPlayedRef = useRef(false);
-
 	const currentTrackId = playback.currentTrack?.trackToken;
 
 	const startPlayback = useCallback(
 		(idx: number, doShuffle: boolean) => {
 			if (!tracks || !album) return;
 			const ordered = isSourceBacked
-				? (tracks as readonly SourceAlbumTrack[]).map((t) =>
-						sourceAlbumTrackToNowPlaying(
-							t,
-							album.title,
-							album.artworkUrl ?? null,
-						),
-					)
-				: (
-						tracks as readonly {
-							readonly id: string;
-							readonly trackIndex: number;
-							readonly title: string;
-							readonly artist: string;
-							readonly duration: number | null;
-							readonly artworkUrl: string | null;
-							readonly capabilities: {
-								readonly feedback: boolean;
-								readonly sleep: boolean;
-								readonly bookmark: boolean;
-								readonly explain: boolean;
-								readonly radio: boolean;
-							};
-						}[]
-					).map((t) =>
-						albumTrackToNowPlaying(t, album.title, album.artworkUrl ?? null),
-					);
+				? (tracks as readonly SourceAlbumTrack[]).map((track) =>
+					sourceAlbumTrackToNowPlaying(track, album.title, album.artworkUrl ?? null),
+				)
+				: (tracks as readonly {
+					readonly id: string;
+					readonly trackIndex: number;
+					readonly title: string;
+					readonly artist: string;
+					readonly duration: number | null;
+					readonly artworkUrl: string | null;
+					readonly capabilities: {
+						readonly feedback: boolean;
+						readonly sleep: boolean;
+						readonly bookmark: boolean;
+						readonly explain: boolean;
+						readonly radio: boolean;
+					};
+				}[]).map((track) => albumTrackToNowPlaying(track, album.title, album.artworkUrl ?? null));
 			const newTracks = doShuffle ? shuffleArray(ordered) : ordered;
-			const startIdx = doShuffle ? 0 : idx;
+			const startAt = doShuffle ? 0 : idx;
 			playbackRef.current.setCurrentStationToken(albumId);
 			playbackRef.current.playMutation.mutate({
 				tracks: tracksToQueuePayload(newTracks),
 				context: { type: "album", albumId },
-				startIndex: startIdx,
+				startIndex: startAt,
 			});
 		},
-		[tracks, album, albumId, isSourceBacked],
+		[album, albumId, isSourceBacked, tracks],
 	);
 
-	// Auto-play on mount if search params request it
 	useEffect(() => {
 		if (!autoPlay || hasAutoPlayedRef.current || !tracks || !album) return;
 		hasAutoPlayedRef.current = true;
 		startPlayback(startIndex ?? 0, shuffle ?? false);
-	}, [autoPlay, tracks, album, startIndex, shuffle, startPlayback]);
-
-	const handlePlay = (idx = 0) => {
-		startPlayback(idx, false);
-	};
-
-	const handleShuffle = () => {
-		startPlayback(0, true);
-	};
+	}, [album, autoPlay, shuffle, startIndex, startPlayback, tracks]);
 
 	useEffect(() => {
 		if (playback.error) {
@@ -213,13 +217,8 @@ export function AlbumDetailPage({
 	if (isError) {
 		return (
 			<div className="flex-1 flex flex-col items-center justify-center p-4 gap-3">
-				<p className="text-[var(--color-text-dim)]">
-					couldn't load album
-				</p>
-				<Button
-					variant="outline"
-					onClick={() => sourceQuery.refetch()}
-				>
+				<p className="text-[var(--color-text-dim)]">couldn't load album</p>
+				<Button variant="outline" onClick={() => (isSourceBacked ? sourceQuery.refetch() : libraryAlbumQuery.refetch())}>
 					Retry
 				</Button>
 			</div>
@@ -234,9 +233,9 @@ export function AlbumDetailPage({
 		);
 	}
 
-	const totalDuration =
-		tracks?.reduce((sum, t) => sum + (t.duration ?? 0), 0) ?? 0;
+	const totalDuration = tracks?.reduce((sum, track) => sum + (track.duration ?? 0), 0) ?? 0;
 	const trackCount = tracks?.length ?? 0;
+	const canManagePlacement = !isSourceBacked || Boolean(sourceState?.albumId);
 
 	return (
 		<div className="flex-1 px-8 py-10 max-w-3xl mx-auto space-y-8">
@@ -253,11 +252,7 @@ export function AlbumDetailPage({
 			<div className="flex gap-8 items-end">
 				<div className="w-56 h-56 shrink-0 shadow-lg overflow-hidden bg-[var(--color-bg-highlight)]">
 					{album.artworkUrl ? (
-						<img
-							src={album.artworkUrl}
-							alt={album.title}
-							className="w-full h-full object-cover"
-						/>
+						<img src={album.artworkUrl} alt={album.title} className="w-full h-full object-cover" />
 					) : (
 						<div className="w-full h-full flex items-center justify-center">
 							<Music className="w-16 h-16 text-[var(--color-text-dim)]" />
@@ -270,67 +265,80 @@ export function AlbumDetailPage({
 						onSave={(title) => updateAlbum.mutate({ id: albumId, title })}
 						disabled={isSourceBacked}
 					>
-						<h1 className="zune-heading text-3xl md:text-4xl text-[var(--color-text)]">
-							{album.title}
-						</h1>
+						<h1 className="zune-heading text-3xl md:text-4xl text-[var(--color-text)]">{album.title}</h1>
 					</EditableText>
 					<EditableText
 						value={album.artist}
 						onSave={(artist) => updateAlbum.mutate({ id: albumId, artist })}
 						disabled={isSourceBacked}
 					>
-						<p className="text-lg font-light tracking-tight text-[var(--color-text-muted)]">
-							{album.artist}
-						</p>
+						<p className="text-lg font-light tracking-tight text-[var(--color-text-muted)]">{album.artist}</p>
 					</EditableText>
 					<p className="zune-meta text-[var(--color-text-dim)]">
-						{album.year ? `${String(album.year)} \u00B7 ` : ""}
+						{album.year ? `${String(album.year)} · ` : ""}
 						{String(trackCount)} track{trackCount !== 1 ? "s" : ""}
-						{totalDuration > 0
-							? ` \u00B7 ${formatTotalDuration(totalDuration)}`
-							: ""}
+						{totalDuration > 0 ? ` · ${formatTotalDuration(totalDuration)}` : ""}
 					</p>
-					<div className="flex gap-3 pt-4">
+					<div className="flex gap-1.5 pt-2 flex-wrap">
+						{currentPlacement ? <PlacementBadge placement={currentPlacement} /> : null}
+						{isHot ? <HotBadge /> : null}
+					</div>
+					<div className="flex gap-3 pt-4 flex-wrap">
 						<Button
-							onClick={() => handlePlay(0)}
+							onClick={() => startPlayback(0, false)}
 							className="gap-2 bg-[var(--color-primary)] hover:brightness-110 text-[var(--color-bg)]"
 						>
 							<Play className="w-4 h-4" fill="currentColor" />
 							Play
 						</Button>
-						<Button
-							variant="outline"
-							onClick={handleShuffle}
-							className="gap-2"
-						>
+						<Button variant="outline" onClick={() => startPlayback(0, true)} className="gap-2">
 							<Shuffle className="w-4 h-4" />
 							Shuffle
 						</Button>
-						{isSourceBacked && (
-							<Button
-								variant="outline"
-								onClick={handleSave}
-								disabled={isSaved || saveAlbum.isPending}
-								className="gap-2"
-							>
-								{isSaved ? (
-									<>
-										<Check className="w-4 h-4" />
-										Saved
-									</>
-								) : (
-									<>
-										<BookmarkPlus className="w-4 h-4" />
-										{saveAlbum.isPending ? "Saving..." : "Save"}
-									</>
-								)}
+						{!currentPlacement ? (
+							<Button variant="outline" onClick={handleSave} disabled={saveAlbum.isPending} className="gap-2">
+								<BookmarkPlus className="w-4 h-4" />
+								{saveAlbum.isPending ? "Adding..." : "Add to Discovery"}
 							</Button>
-						)}
+						) : currentPlacement === "dismissed" ? (
+							<Button variant="outline" onClick={handleSave} disabled={saveAlbum.isPending} className="gap-2">
+								<BookmarkPlus className="w-4 h-4" />
+								{saveAlbum.isPending ? "Restoring..." : "Move to Discovery"}
+							</Button>
+						) : null}
 					</div>
+					{canManagePlacement ? (
+						<div className="pt-2 space-y-2">
+							<p className="text-xs uppercase tracking-[0.2em] text-[var(--color-text-dim)]">placement</p>
+							<div className="flex gap-2 flex-wrap">
+								{PLACEMENTS.map((placement) => {
+									const active = currentPlacement === placement;
+									return (
+										<button
+											key={placement}
+											type="button"
+											onClick={() => handleSetPlacement(placement)}
+											disabled={active || setPlacement.isPending}
+											className={active
+												? `px-3 py-1.5 text-xs uppercase tracking-[0.18em] ${placementBadgeClassName(placement)}`
+												: "px-3 py-1.5 text-xs uppercase tracking-[0.18em] border border-[var(--color-border)] text-[var(--color-text-dim)] hover:text-[var(--color-text)] transition-colors"}
+										>
+											{formatPlacementLabel(placement)}
+										</button>
+									);
+								})}
+							</div>
+						</div>
+					) : null}
+					{currentPlacement === "dismissed" && isHot ? (
+						<p className="text-sm text-[var(--color-text-dim)]">
+							This album is dismissed but still hot from recent listening.
+						</p>
+					) : null}
 				</div>
 			</div>
 
-			{tracks && tracks.length > 0 && (
+			{tracks && tracks.length > 0 ? (
 				<div className="space-y-px">
 					{tracks.map((track, index) => {
 						const isActive = currentTrackId === track.id;
@@ -338,43 +346,32 @@ export function AlbumDetailPage({
 							<button
 								key={track.id}
 								type="button"
-								onClick={() => handlePlay(index)}
+								onClick={() => startPlayback(index, false)}
 								className={`w-full flex items-center gap-4 px-4 py-3 text-left transition-colors ${
 									isActive
 										? "bg-[var(--color-primary)]/10 text-[var(--color-primary)] font-medium"
 										: "text-[var(--color-text-dim)] hover:text-[var(--color-text)] hover:bg-[var(--color-bg-highlight)]"
 								}`}
 							>
-								<span className="w-6 text-right text-sm">
-									{String(index + 1)}
-								</span>
+								<span className="w-6 text-right text-sm">{String(index + 1)}</span>
 								<EditableText
 									value={track.title}
 									onSave={(title) => updateTrack.mutate({ id: track.id, title })}
 									disabled={isSourceBacked}
 									className="flex-1 min-w-0"
 								>
-									<span className="text-sm truncate block">
-										{track.title}
-									</span>
+									<span className="text-sm truncate block">{track.title}</span>
 								</EditableText>
-								{track.duration != null && (
-									<span className="text-xs">
-										{formatTime(track.duration)}
-									</span>
-								)}
+								{track.duration != null ? <span className="text-xs">{formatTime(track.duration)}</span> : null}
 							</button>
 						);
 					})}
 				</div>
-			)}
+			) : null}
 		</div>
 	);
 }
 
-/**
- * Loading skeleton for the album detail page.
- */
 function AlbumDetailSkeleton() {
 	return (
 		<div className="flex-1 px-8 py-10 max-w-3xl mx-auto space-y-8">
@@ -392,8 +389,8 @@ function AlbumDetailSkeleton() {
 				</div>
 			</div>
 			<div className="space-y-1">
-				{Array.from({ length: 8 }).map((_, i) => (
-					<div key={i} className="flex items-center gap-4 px-3 py-2.5">
+				{Array.from({ length: 8 }).map((_, index) => (
+					<div key={index} className="flex items-center gap-4 px-3 py-2.5">
 						<Skeleton className="w-6 h-4" />
 						<Skeleton className="h-4 flex-1" />
 						<Skeleton className="w-10 h-4" />

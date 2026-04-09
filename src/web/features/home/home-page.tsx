@@ -1,25 +1,27 @@
 /**
  * @module HomePage
- * Zune-inspired home page with panoramic headers and collection grids.
+ * Placement-aware home page with Hot, Discovery, and Collection shelves.
  */
 
 import { Link, useNavigate } from "@tanstack/react-router";
-import { useCallback, memo } from "react";
+import { useCallback, memo, useState } from "react";
 import {
 	Play,
 	Plus,
 	Disc3,
 	Shuffle,
 	ArrowDownAZ,
-	User,
-	ArrowDownWideNarrow,
 	Clock,
+	Flame,
 } from "lucide-react";
 import { trpc } from "@/web/shared/lib/trpc";
+import { CollectionGrid, type SortOption } from "@/web/shared/ui/collection-grid";
 import {
-	CollectionGrid,
-	type SortOption,
-} from "@/web/shared/ui/collection-grid";
+	formatPlacementLabel,
+	hotBadgeClassName,
+	placementBadgeClassName,
+	type AlbumPlacement,
+} from "@/web/shared/lib/library-placement";
 
 const PLAYLIST_COLORS = [
 	{ bg: "#2a1e22", fg: "#d4377b" },
@@ -66,21 +68,13 @@ const PlaylistCard = memo(function PlaylistCard({
 	const initial = getPlaylistInitial(playlist.name);
 
 	return (
-		<button
-			type="button"
-			onClick={onPlay}
-			className="group cursor-pointer text-left w-full"
-		>
+		<button type="button" onClick={onPlay} className="group cursor-pointer text-left w-full">
 			<div
 				className="aspect-square mb-2 relative overflow-hidden"
 				style={playlist.artworkUrl ? undefined : { background: color.bg }}
 			>
 				{playlist.artworkUrl ? (
-					<img
-						src={playlist.artworkUrl}
-						alt={playlist.name}
-						className="w-full h-full object-cover"
-					/>
+					<img src={playlist.artworkUrl} alt={playlist.name} className="w-full h-full object-cover" />
 				) : (
 					<>
 						<span
@@ -101,12 +95,8 @@ const PlaylistCard = memo(function PlaylistCard({
 					</div>
 				</div>
 			</div>
-			<p className="zune-title text-[0.95rem] text-[var(--color-text)] truncate">
-				{playlist.name}
-			</p>
-			<p className="zune-meta text-[var(--color-text-dim)]">
-				playlist
-			</p>
+			<p className="zune-title text-[0.95rem] text-[var(--color-text)] truncate">{playlist.name}</p>
+			<p className="zune-meta text-[var(--color-text-dim)]">playlist</p>
 		</button>
 	);
 });
@@ -117,6 +107,8 @@ type AlbumData = {
 	readonly artist: string;
 	readonly year: number | null;
 	readonly artworkUrl: string | null;
+	readonly placement: AlbumPlacement;
+	readonly isHot: boolean;
 };
 
 const AlbumCard = memo(function AlbumCard({
@@ -133,115 +125,154 @@ const AlbumCard = memo(function AlbumCard({
 		>
 			<div className="aspect-square bg-[var(--color-bg-highlight)] mb-2 relative overflow-hidden">
 				{album.artworkUrl ? (
-					<img
-						src={album.artworkUrl}
-						alt={album.title}
-						className="w-full h-full object-cover"
-					/>
+					<img src={album.artworkUrl} alt={album.title} className="w-full h-full object-cover" />
 				) : (
 					<div className="w-full h-full flex items-center justify-center">
 						<Disc3 className="w-12 h-12 text-[var(--color-text-dim)]" />
 					</div>
 				)}
+				<div className="absolute top-2 left-2 flex gap-1 flex-wrap">
+					<span className={`text-[10px] uppercase tracking-[0.18em] px-1.5 py-0.5 ${placementBadgeClassName(album.placement)}`}>
+						{formatPlacementLabel(album.placement)}
+					</span>
+					{album.isHot ? (
+						<span className={`text-[10px] uppercase tracking-[0.18em] px-1.5 py-0.5 ${hotBadgeClassName()}`}>
+							Hot
+						</span>
+					) : null}
+				</div>
 				<div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center">
 					<div className="opacity-0 group-hover:opacity-100 transition-opacity bg-[var(--color-primary)] p-2.5">
 						<Play className="w-5 h-5 text-white" fill="currentColor" />
 					</div>
 				</div>
 			</div>
-			<p className="zune-title text-[0.95rem] text-[var(--color-text)] truncate">
-				{album.title}
-			</p>
+			<p className="zune-title text-[0.95rem] text-[var(--color-text)] truncate">{album.title}</p>
 			<p className="zune-meta text-[var(--color-text-dim)]">
 				{album.artist}
-				{album.year ? ` \u00B7 ${String(album.year)}` : ""}
+				{album.year ? ` · ${String(album.year)}` : ""}
 			</p>
 		</Link>
 	);
 });
 
+function AlbumShelf({
+	title,
+	albums,
+	emptyMessage,
+	headerAction,
+	trailing,
+}: {
+	readonly title: string;
+	readonly albums: readonly AlbumData[];
+	readonly emptyMessage: string;
+	readonly headerAction?: React.ReactNode;
+	readonly trailing?: React.ReactNode;
+}) {
+	return (
+		<section>
+			<div className="flex items-end justify-between mb-5">
+				<div className="flex items-baseline gap-4">
+					<h2 className="zune-display zune-page-title text-[var(--color-text)]">{title}</h2>
+					<span className="zune-label zune-data text-[var(--color-text-dim)]">{String(albums.length)}</span>
+				</div>
+				<div>{headerAction}</div>
+			</div>
+			{albums.length === 0 ? (
+				<p className="text-sm text-[var(--color-text-dim)]">{emptyMessage}</p>
+			) : (
+				<div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 sm:gap-5">
+					{albums.map((album) => (
+						<div key={album.id}>
+							<AlbumCard album={album} />
+						</div>
+					))}
+					{trailing}
+				</div>
+			)}
+		</section>
+	);
+}
+
 const PLAYLIST_SORT_OPTIONS: readonly SortOption<PlaylistData>[] = [
 	{ key: "shuffle", label: "Shuffle", icon: Shuffle, comparator: "shuffle" },
-	{ key: "az", label: "A \u2192 Z", icon: ArrowDownAZ, comparator: (a, b) => a.name.localeCompare(b.name) },
+	{ key: "az", label: "A → Z", icon: ArrowDownAZ, comparator: (a, b) => a.name.localeCompare(b.name) },
 	{ key: "recent", label: "Recently Added", icon: Clock, comparator: (a, b) => b.id.localeCompare(a.id) },
 ] as const;
 
-const ALBUM_SORT_OPTIONS: readonly SortOption<AlbumData>[] = [
-	{ key: "shuffle", label: "Shuffle", icon: Shuffle, comparator: "shuffle" },
-	{ key: "az", label: "A \u2192 Z", icon: ArrowDownAZ, comparator: (a, b) => a.title.localeCompare(b.title) },
-	{
-		key: "artist",
-		label: "By Artist",
-		icon: User,
-		comparator: (a, b) => {
-			const c = a.artist.localeCompare(b.artist);
-			return c !== 0 ? c : a.title.localeCompare(b.title);
-		},
-	},
-	{
-		key: "newest",
-		label: "Newest",
-		icon: ArrowDownWideNarrow,
-		comparator: (a, b) => {
-			if (a.year === null && b.year === null) return 0;
-			if (a.year === null) return 1;
-			if (b.year === null) return -1;
-			return b.year - a.year;
-		},
-	},
-	{ key: "recent", label: "Recently Added", icon: Clock, comparator: (a, b) => b.id.localeCompare(a.id) },
-] as const;
-
-const filterPlaylist = (p: PlaylistData, q: string) => p.name.toLowerCase().includes(q);
-const filterAlbum = (a: AlbumData, q: string) => {
-	const lower = q.toLowerCase();
-	return a.title.toLowerCase().includes(lower) || a.artist.toLowerCase().includes(lower);
-};
+const filterPlaylist = (playlist: PlaylistData, query: string) => playlist.name.toLowerCase().includes(query);
 
 export function HomePage() {
 	const navigate = useNavigate();
+	const [showArchive, setShowArchive] = useState(false);
 	const playlistsQuery = trpc.playlist.list.useQuery();
-	const albumsQuery = trpc.library.albums.useQuery();
+	const hotQuery = trpc.library.hotAlbums.useQuery({ includeDismissed: true, limit: 10 });
+	const discoveryQuery = trpc.library.albums.useQuery({ placements: ["discovery"] });
+	const collectionQuery = trpc.library.albums.useQuery({ placements: ["collection"] });
+	const archiveQuery = trpc.library.albums.useQuery(
+		{ placements: ["archive"] },
+		{ enabled: showArchive },
+	);
 
 	const playlists = playlistsQuery.data ?? [];
-	const albums: readonly AlbumData[] = (albumsQuery.data ?? []).map((album) => ({
-		id: album.id,
-		title: album.title,
-		artist: album.artist,
-		year: album.year ?? null,
-		artworkUrl: album.artworkUrl ?? null,
-	}));
+	const toAlbumData = useCallback(
+		(albums: readonly {
+			id: string;
+			title: string;
+			artist: string;
+			year?: number | null;
+			artworkUrl?: string | null;
+			placement: AlbumPlacement;
+			isHot: boolean;
+		}[]) =>
+			albums.map((album) => ({
+				id: album.id,
+				title: album.title,
+				artist: album.artist,
+				year: album.year ?? null,
+				artworkUrl: album.artworkUrl ?? null,
+				placement: album.placement,
+				isHot: album.isHot,
+			})),
+		[],
+	);
 
-	const handleOpenPlaylist = useCallback((playlist: PlaylistData) => {
-		if (playlist.id.startsWith("pandora:")) {
-			navigate({ to: "/station/$token", params: { token: playlist.id }, search: { play: undefined } });
-		} else {
-			navigate({ to: "/playlist/$playlistId", params: { playlistId: playlist.id }, search: { play: undefined, startIndex: undefined, shuffle: undefined } });
-		}
-	}, [navigate]);
+	const hotAlbums = toAlbumData(hotQuery.data ?? []);
+	const discoveryAlbums = toAlbumData(discoveryQuery.data ?? []);
+	const collectionAlbums = toAlbumData(collectionQuery.data ?? []);
+	const archiveAlbums = toAlbumData(archiveQuery.data ?? []);
 
-	const renderPlaylistItem = useCallback((playlist: PlaylistData) => (
-		<PlaylistCard playlist={playlist} onPlay={() => handleOpenPlaylist(playlist)} />
-	), [handleOpenPlaylist]);
+	const handleOpenPlaylist = useCallback(
+		(playlist: PlaylistData) => {
+			if (playlist.id.startsWith("pandora:")) {
+				navigate({ to: "/station/$token", params: { token: playlist.id }, search: { play: undefined } });
+			} else {
+				navigate({
+					to: "/playlist/$playlistId",
+					params: { playlistId: playlist.id },
+					search: { play: undefined, startIndex: undefined, shuffle: undefined },
+				});
+			}
+		},
+		[navigate],
+	);
 
-	const renderAlbumItem = useCallback((album: AlbumData) => (
-		<AlbumCard album={album} />
-	), []);
+	const renderPlaylistItem = useCallback(
+		(playlist: PlaylistData) => <PlaylistCard playlist={playlist} onPlay={() => handleOpenPlaylist(playlist)} />,
+		[handleOpenPlaylist],
+	);
 
 	return (
 		<div className="flex-1 px-8 py-10 space-y-16">
 			{playlistsQuery.isLoading ? (
 				<CollectionGrid.Skeleton title="my playlists" />
 			) : playlists.length === 0 ? (
-				<CollectionGrid.Empty
-					title="my playlists"
-					message="No playlists found. Create a station to get started."
-				/>
+				<CollectionGrid.Empty title="my playlists" message="No playlists found. Create a station to get started." />
 			) : (
 				<CollectionGrid
 					title="my playlists"
 					items={playlists}
-					keyOf={(p) => p.id}
+					keyOf={(playlist) => playlist.id}
 					renderItem={renderPlaylistItem}
 					filterFn={filterPlaylist}
 					sortOptions={PLAYLIST_SORT_OPTIONS}
@@ -259,23 +290,23 @@ export function HomePage() {
 				/>
 			)}
 
-			{albumsQuery.isLoading ? (
-				<CollectionGrid.Skeleton title="my albums" />
-			) : albums.length === 0 ? (
-				<CollectionGrid.Empty
-					title="my albums"
-					message="No albums found."
-				/>
+			{hotQuery.isLoading ? (
+				<CollectionGrid.Skeleton title="Hot" />
 			) : (
-				<CollectionGrid
-					title="my albums"
-					items={albums}
-					keyOf={(a) => a.id}
-					renderItem={renderAlbumItem}
-					filterFn={filterAlbum}
-					sortOptions={ALBUM_SORT_OPTIONS}
-					defaultSort="shuffle"
-					paramPrefix="al"
+				<AlbumShelf
+					title="Hot"
+					albums={hotAlbums}
+					emptyMessage="Nothing hot yet. Listen to an album a few times and it will surface here."
+				/>
+			)}
+
+			{discoveryQuery.isLoading ? (
+				<CollectionGrid.Skeleton title="Discovery" />
+			) : (
+				<AlbumShelf
+					title="Discovery"
+					albums={discoveryAlbums}
+					emptyMessage="Nothing in discovery yet. Add an album to get started."
 					trailing={
 						<button
 							type="button"
@@ -289,6 +320,33 @@ export function HomePage() {
 					}
 				/>
 			)}
+
+			{collectionQuery.isLoading ? (
+				<CollectionGrid.Skeleton title="Collection" />
+			) : (
+				<AlbumShelf
+					title="Collection"
+					albums={collectionAlbums}
+					emptyMessage="Nothing in collection yet. Move albums here when they become keepers."
+					headerAction={
+						<button
+							type="button"
+							onClick={() => setShowArchive((value) => !value)}
+							className="zune-label text-[var(--color-text-dim)] hover:text-[var(--color-text)] transition-colors"
+						>
+							{showArchive ? "hide archive" : "show archive"}
+						</button>
+					}
+				/>
+			)}
+
+			{showArchive ? (
+				archiveQuery.isLoading ? (
+					<CollectionGrid.Skeleton title="Archive" />
+				) : (
+					<AlbumShelf title="Archive" albums={archiveAlbums} emptyMessage="Archive is empty." />
+				)
+			) : null}
 		</div>
 	);
 }
