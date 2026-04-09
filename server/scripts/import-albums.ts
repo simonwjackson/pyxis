@@ -153,6 +153,7 @@ async function main(): Promise<void> {
 					await sourceManager.getAlbumTracks(sourceType, albumId);
 
 				const newAlbumId = generateId();
+				const now = Date.now();
 
 				// Use Effect.gen for the transaction
 				await Effect.runPromise(
@@ -168,7 +169,10 @@ async function main(): Promise<void> {
 								...(fetchedAlbum.artworkUrl != null
 									? { artworkUrl: fetchedAlbum.artworkUrl }
 									: {}),
-							});
+								placement: "collection",
+								placementUpdatedAt: now,
+								createdAt: now,
+							} as never);
 
 							for (const sid of fetchedAlbum.sourceIds) {
 								yield* tx.albumSourceRefs.create({

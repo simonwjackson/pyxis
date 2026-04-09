@@ -196,14 +196,19 @@ export async function migrateFromSqlite(): Promise<{
 	try {
 		// --- Migrate albums ---
 		const sqliteAlbums = sqlite.query<SqliteAlbum, []>("SELECT * FROM albums").all();
-		const albums: Album[] = sqliteAlbums.map((row) => ({
-			id: row.id,
-			title: row.title,
-			artist: row.artist,
-			...(row.year != null ? { year: row.year } : {}),
-			...(row.artwork_url != null ? { artworkUrl: row.artwork_url } : {}),
-			createdAt: toMs(row.created_at),
-		}));
+		const albums: Album[] = sqliteAlbums.map((row) => {
+			const createdAt = toMs(row.created_at);
+			return {
+				id: row.id,
+				title: row.title,
+				artist: row.artist,
+				...(row.year != null ? { year: row.year } : {}),
+				...(row.artwork_url != null ? { artworkUrl: row.artwork_url } : {}),
+				placement: "collection",
+				placementUpdatedAt: createdAt,
+				createdAt,
+			};
+		});
 		counts.albums = albums.length;
 		writeYamlCollection(YAML_FILES.albums, albums);
 		console.log(`Migrated ${albums.length} albums`);

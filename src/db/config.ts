@@ -15,8 +15,16 @@ export const DB_DIR = join(paths.data, "db");
 
 // --- Effect Schema Definitions ---
 
+export const AlbumPlacementSchema = Schema.Literal(
+	"discovery",
+	"collection",
+	"archive",
+	"dismissed",
+);
+export type AlbumPlacement = Schema.Schema.Type<typeof AlbumPlacementSchema>;
+
 /**
- * Album schema - library albums with metadata.
+ * Album schema - library albums with metadata and placement state.
  */
 export const AlbumSchema = Schema.Struct({
 	id: Schema.String,
@@ -24,7 +32,9 @@ export const AlbumSchema = Schema.Struct({
 	artist: Schema.String,
 	year: Schema.optionalWith(Schema.Number, { exact: true }),
 	artworkUrl: Schema.optionalWith(Schema.String, { exact: true }),
-	createdAt: Schema.Number, // Unix timestamp ms
+	placement: AlbumPlacementSchema,
+	placementUpdatedAt: Schema.Number, // Unix timestamp ms
+	createdAt: Schema.Union(Schema.Number, Schema.String), // Legacy unix ms or ProseQL auto timestamp
 });
 export type Album = Schema.Schema.Type<typeof AlbumSchema>;
 
@@ -162,6 +172,7 @@ export const dbConfig = {
 	albums: {
 		schema: AlbumSchema,
 		file: join(DB_DIR, "albums.yaml"),
+		indexes: ["placement" as const],
 		relationships: {
 			sourceRefs: {
 				type: "inverse" as const,
@@ -191,7 +202,7 @@ export const dbConfig = {
 	albumTracks: {
 		schema: AlbumTrackSchema,
 		file: join(DB_DIR, "album-tracks.yaml"),
-		indexes: ["albumId" as const],
+		indexes: ["albumId" as const, ["source", "sourceTrackId"] as const],
 		relationships: {
 			album: {
 				type: "ref" as const,

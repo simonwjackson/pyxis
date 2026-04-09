@@ -2,10 +2,6 @@
  * @module Database
  * ProseQL database connection using Effect and YAML/JSONL persistence.
  * Database files are stored in XDG_DATA_HOME/pyxis/db/ (typically ~/.local/share/pyxis/db/).
- *
- * On first startup after migration from SQLite:
- * - If pyxis.db exists but YAML files don't, auto-migrates data
- * - Renames pyxis.db to pyxis.db.bak after successful migration
  */
 
 import { Effect, Exit, Scope } from "effect";
@@ -13,52 +9,50 @@ import {
 	createNodeDatabase,
 	type GenerateDatabaseWithPersistence,
 } from "@proseql/node";
-import { existsSync, mkdirSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import envPaths from "env-paths";
+import { parse as parseYaml, stringify as stringifyYaml } from "yaml";
 import { dbConfig, DB_DIR, type DbConfig } from "./config.js";
 
-const paths = envPaths("pyxis", { suffix: "" });
-const SQLITE_PATH = join(DB_DIR, "pyxis.db");
-const SQLITE_BAK_PATH = join(DB_DIR, "pyxis.db.bak");
-
-// YAML file paths to check for existing ProseQL data.
-// Excludes listen-log.jsonl since it gets created during normal operation.
-const YAML_FILES = [
-	join(DB_DIR, "albums.yaml"),
-	join(DB_DIR, "album-source-refs.yaml"),
-	join(DB_DIR, "album-tracks.yaml"),
-	join(DB_DIR, "playlists.yaml"),
-	join(DB_DIR, "player-state.yaml"),
-	join(DB_DIR, "queue-state.yaml"),
-];
+const ALBUMS_PATH = join(DB_DIR, "albums.yaml");
 
 /**
- * Check if any ProseQL data files already exist.
+ * Backfill first-slice album placement fields for existing YAML libraries.
  */
-function proseqlDataExists(): boolean {
-	return YAML_FILES.some((f) => existsSync(f));
-}
+export function backfillAlbumPlacementFile(filePath: string): boolean {
+	if (!existsSync(filePath)) return false;
 
-/**
- * Check if SQLite migration is needed and run it if so.
- * Migration runs if: pyxis.db exists AND no YAML files exist AND no .bak exists.
- */
-async function maybeRunMigration(): Promise<void> {
-	// Skip if .bak already exists (migration already ran)
-	if (existsSync(SQLITE_BAK_PATH)) return;
+	const content = readFileSync(filePath, "utf-8");
+	if (content.trim().length === 0) return false;
 
-	// Skip if no SQLite database
-	if (!existsSync(SQLITE_PATH)) return;
+	const parsed = parseYaml(content);
+	if (parsed == null || typeof parsed !== "object" || Array.isArray(parsed)) {
+		return false;
+	}
 
-	// Skip if ProseQL data already exists
-	if (proseqlDataExists()) return;
+	let changed = false;
+	for (const entity of Object.values(parsed as Record<string, unknown>)) {
+		if (entity == null || typeof entity !== "object" || Array.isArray(entity)) {
+			continue;
+		}
 
-	// Dynamic import to avoid loading bun:sqlite unless needed
-	const { migrateFromSqlite } = await import(
-		"../../server/scripts/migrate-sqlite.js"
-	);
-	await migrateFromSqlite();
+		const album = entity as Record<string, unknown>;
+		if (album.placement === undefined) {
+			album.placement = "collection";
+			changed = true;
+		}
+		if (album.placementUpdatedAt === undefined) {
+			album.placementUpdatedAt = typeof album.createdAt === "number" && Number.isFinite(album.createdAt)
+				? album.createdAt
+				: Date.now();
+			changed = true;
+		}
+	}
+
+	if (!changed) return false;
+
+	writeFileSync(filePath, stringifyYaml(parsed, { lineWidth: 0 }), "utf-8");
+	return true;
 }
 
 export type DbInstance = GenerateDatabaseWithPersistence<DbConfig>;
@@ -68,30 +62,17 @@ let dbScope: Scope.CloseableScope | undefined;
 
 /**
  * Gets the singleton database instance, creating it if needed.
- * Initializes ProseQL with NodeStorageLayer and yamlCodec.
- *
- * @returns Promise resolving to ProseQL database instance
- *
- * @example
- * ```ts
- * const db = await getDb();
- * const albums = await db.albums.query({}).runPromise;
- * ```
  */
 export async function getDb(): Promise<DbInstance> {
 	if (dbInstance) return dbInstance;
 
 	mkdirSync(DB_DIR, { recursive: true, mode: 0o700 });
 
-	// Auto-migrate from SQLite if needed (first startup after code update)
-	await maybeRunMigration();
+	// Backfill first-slice album placement fields for existing YAML libraries.
+	backfillAlbumPlacementFile(ALBUMS_PATH);
 
-	// Create a scope for the database lifecycle
 	dbScope = await Effect.runPromise(Scope.make());
-
 	const program = createNodeDatabase(dbConfig);
-
-	// Use Scope.extend to provide the scope without auto-closing
 	dbInstance = await Effect.runPromise(Scope.extend(program, dbScope));
 
 	return dbInstance;
@@ -99,7 +80,6 @@ export async function getDb(): Promise<DbInstance> {
 
 /**
  * Closes the database and releases resources.
- * Call this on server shutdown for clean exit.
  */
 export async function closeDb(): Promise<void> {
 	if (dbInstance) {

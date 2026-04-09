@@ -1,49 +1,83 @@
 /**
  * @module server/routers/library
- * User library management router for albums, tracks, and bookmarks.
- * Provides CRUD operations for the local album library stored via ProseQL,
- * and Pandora bookmark management for authenticated users.
+ * User library management router for albums, tracks, placements, and bookmarks.
  */
 
 import { z } from "zod";
 import { Effect } from "effect";
 import { router, pandoraProtectedProcedure, publicProcedure } from "../trpc.js";
-import { formatSourceId, generateId, parseId, trackCapabilities } from "../lib/ids.js";
+import { trackCapabilities, parseId } from "../lib/ids.js";
 import type { SourceType } from "../../src/sources/types.js";
 import { getDb } from "../../src/db/index.js";
 import { ensureSourceManager } from "../services/sourceManager.js";
 import * as Pandora from "../../src/sources/pandora/client.js";
+import {
+	getLibraryAlbum,
+	listLibraryAlbums,
+	resolveAlbumStatesForSourceIds,
+	saveAlbumToLibrary,
+	setAlbumPlacement,
+} from "../services/libraryAlbums.js";
+import { ALL_ALBUM_PLACEMENTS } from "../services/libraryPlacement.js";
+
+const AlbumPlacementSchema = z.enum(ALL_ALBUM_PLACEMENTS);
 
 /**
  * Library router providing local album management and Pandora bookmark operations.
- *
- * Endpoints:
- * - `albums` - List all saved albums in the library
- * - `albumTracks` - Get tracks for a library album
- * - `saveAlbum` - Save an album from any source to the library
- * - `removeAlbum` - Delete an album from the library
- * - `bookmarks` - Get Pandora bookmarks (requires auth)
- * - `addBookmark` - Bookmark an artist or song (requires auth)
- * - `removeBookmark` - Remove a bookmark (requires auth)
  */
 export const libraryRouter = router({
-	albums: publicProcedure.query(async () => {
-		const db = await getDb();
-		const allAlbums = await db.albums.query({}).runPromise;
-		const allRefs = await db.albumSourceRefs.query({}).runPromise;
+	albums: publicProcedure
+		.input(
+			z
+				.object({
+					placements: z.array(AlbumPlacementSchema).optional(),
+					includeArchive: z.boolean().optional(),
+					includeDismissed: z.boolean().optional(),
+					hotOnly: z.boolean().optional(),
+				})
+				.optional(),
+		)
+		.query(async ({ input }) => {
+			const db = await getDb();
+			return listLibraryAlbums(db, input);
+		}),
 
-		return allAlbums.map((album) => {
-			const refs = allRefs.filter((ref) => ref.albumId === album.id);
-			return {
-				id: album.id,
-				title: album.title,
-				artist: album.artist,
-				year: album.year,
-				artworkUrl: album.artworkUrl,
-				sourceIds: refs.map((ref) => formatSourceId(ref.source as SourceType, ref.sourceId)),
-			};
-		});
-	}),
+	album: publicProcedure
+		.input(z.object({ id: z.string() }))
+		.query(async ({ input }) => {
+			const db = await getDb();
+			return getLibraryAlbum(db, input.id);
+		}),
+
+	hotAlbums: publicProcedure
+		.input(
+			z
+				.object({
+					includeDismissed: z.boolean().optional(),
+					limit: z.number().int().min(1).max(100).optional(),
+				})
+				.optional(),
+		)
+		.query(async ({ input }) => {
+			const db = await getDb();
+			const albums = await listLibraryAlbums(db, {
+				hotOnly: true,
+				includeArchive: true,
+				includeDismissed: input?.includeDismissed ?? true,
+			});
+			return albums.slice(0, input?.limit ?? 20);
+		}),
+
+	resolveAlbumStates: publicProcedure
+		.input(
+			z.object({
+				sourceIds: z.array(z.string()),
+			}),
+		)
+		.query(async ({ input }) => {
+			const db = await getDb();
+			return resolveAlbumStatesForSourceIds(db, input.sourceIds);
+		}),
 
 	albumTracks: publicProcedure
 		.input(z.object({ albumId: z.string() }))
@@ -73,84 +107,36 @@ export const libraryRouter = router({
 		.mutation(async ({ input }) => {
 			const parsed = parseId(input.id);
 			if (!parsed.source) {
-				throw new Error(`Cannot save album: ID must be a source-prefixed ID (e.g. ytmusic:abc), got: ${input.id}`);
+				throw new Error(
+					`Cannot save album: ID must be a source-prefixed ID (e.g. ytmusic:abc), got: ${input.id}`,
+				);
 			}
-			const source = parsed.source;
-			const albumId = parsed.id;
-			const sourceManager = await ensureSourceManager();
 
 			const db = await getDb();
-			// Check if already exists using indexed [source, sourceId] query
-			const existing = await db.albumSourceRefs.query({
-				where: { source, sourceId: albumId },
-			}).runPromise;
-			const first = existing[0];
-			if (first) {
-				return { id: first.albumId, alreadyExists: true };
-			}
-
-			const { album, tracks } = await sourceManager.getAlbumTracks(
-				source,
-				albumId,
-			);
-
-			const newAlbumId = generateId();
-
-			// Use Effect.gen for the transaction
-			await Effect.runPromise(
-				db.$transaction((tx) =>
-					Effect.gen(function* () {
-						yield* tx.albums.create({
-							id: newAlbumId,
-							title: album.title,
-							artist: album.artist,
-							...(album.year != null ? { year: album.year } : {}),
-							...(album.artworkUrl != null
-								? { artworkUrl: album.artworkUrl }
-								: {}),
-						});
-
-						for (const sid of album.sourceIds) {
-							yield* tx.albumSourceRefs.create({
-								id: `${newAlbumId}-${sid.source}-${sid.id}`,
-								albumId: newAlbumId,
-								source: sid.source,
-								sourceId: sid.id,
-							});
-						}
-
-						for (const [index, track] of tracks.entries()) {
-							yield* tx.albumTracks.create({
-								id: generateId(),
-								albumId: newAlbumId,
-								trackIndex: index,
-								title: track.title,
-								artist: track.artist,
-								source: track.sourceId.source,
-								sourceTrackId: track.sourceId.id,
-								...(track.duration != null
-									? { duration: Math.round(track.duration) }
-									: {}),
-								...(track.artworkUrl != null
-									? { artworkUrl: track.artworkUrl }
-									: {}),
-							});
-						}
-					})
-				)
-			);
-
-			// Flush to disk for immediate persistence
+			const sourceManager = await ensureSourceManager();
+			const result = await saveAlbumToLibrary(db, sourceManager, input.id);
 			await db.flush();
+			return result;
+		}),
 
-			return { id: newAlbumId, alreadyExists: false };
+	setPlacement: publicProcedure
+		.input(
+			z.object({
+				albumId: z.string(),
+				placement: AlbumPlacementSchema,
+			}),
+		)
+		.mutation(async ({ input }) => {
+			const db = await getDb();
+			const album = await setAlbumPlacement(db, input.albumId, input.placement);
+			await db.flush();
+			return album;
 		}),
 
 	removeAlbum: publicProcedure
 		.input(z.object({ id: z.string() }))
 		.mutation(async ({ input }) => {
 			const db = await getDb();
-			// Manual cascade: delete tracks, then refs, then album
 			const tracks = await db.albumTracks.query({ where: { albumId: input.id } }).runPromise;
 			for (const track of tracks) {
 				await db.albumTracks.delete(track.id).runPromise;
@@ -196,9 +182,7 @@ export const libraryRouter = router({
 		}),
 
 	bookmarks: pandoraProtectedProcedure.query(async ({ ctx }) => {
-		return Effect.runPromise(
-			Pandora.getBookmarks(ctx.pandoraSession),
-		);
+		return Effect.runPromise(Pandora.getBookmarks(ctx.pandoraSession));
 	}),
 
 	addBookmark: pandoraProtectedProcedure
@@ -233,7 +217,6 @@ export const libraryRouter = router({
 			}),
 		)
 		.mutation(async ({ ctx, input }) => {
-			// bookmarkToken is a raw Pandora bookmark token (from getBookmarks response)
 			if (input.type === "artist") {
 				await Effect.runPromise(
 					Pandora.deleteArtistBookmark(ctx.pandoraSession, {

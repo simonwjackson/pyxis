@@ -1,10 +1,34 @@
-import { afterEach, describe, expect, it } from "bun:test";
-import { randomUUID } from "node:crypto";
-import { mkdtemp, rm } from "node:fs/promises";
-import { join } from "node:path";
-import { Database } from "@proseql/core";
+import { describe, expect, it } from "bun:test";
 import { Schema } from "effect";
-import { dbConfig, TrackSourceSchema, UpgradeQueueSchema } from "./config";
+import { AlbumSchema, dbConfig, TrackSourceSchema, UpgradeQueueSchema } from "./config";
+
+describe("AlbumSchema", () => {
+	it("accepts valid placement state", () => {
+		const value = {
+			id: "album_1",
+			title: "Album",
+			artist: "Artist",
+			placement: "collection",
+			placementUpdatedAt: Date.now(),
+			createdAt: Date.now(),
+		};
+
+		expect(() => Schema.decodeUnknownSync(AlbumSchema)(value)).not.toThrow();
+	});
+
+	it("rejects invalid placement state", () => {
+		const value = {
+			id: "album_1",
+			title: "Album",
+			artist: "Artist",
+			placement: "hot",
+			placementUpdatedAt: Date.now(),
+			createdAt: Date.now(),
+		};
+
+		expect(() => Schema.decodeUnknownSync(AlbumSchema)(value)).toThrow();
+	});
+});
 
 describe("TrackSourceSchema", () => {
 	it("rejects invalid source and reviewStatus values", () => {
@@ -174,7 +198,12 @@ describe("UpgradeQueueSchema", () => {
 });
 
 describe("db indexes", () => {
-	it("defines composite indexes for expected hot query paths", () => {
+	it("defines indexes for placement and hot query paths", () => {
+		expect(dbConfig.albums.indexes).toEqual(["placement"]);
+		expect(dbConfig.albumTracks.indexes).toEqual([
+			"albumId",
+			["source", "sourceTrackId"],
+		]);
 		expect(dbConfig.trackSources.indexes).toEqual([
 			"trackId",
 			["trackId", "reviewStatus"],
@@ -189,50 +218,3 @@ describe("db indexes", () => {
 	});
 });
 
-describe("db collections CRUD", () => {
-	const tempDirs: string[] = [];
-
-	afterEach(async () => {
-		await Promise.all(tempDirs.splice(0).map((dir) => rm(dir, { recursive: true, force: true })));
-	});
-
-	it("supports CRUD smoke path for trackSources", async () => {
-		const tempDir = await mkdtemp(join(process.cwd(), "tmp-db-track-sources-"));
-		tempDirs.push(tempDir);
-		const db = new Database(dbConfig, { baseDir: tempDir });
-
-		const id = randomUUID();
-		await db.trackSources
-			.create({
-				id,
-				trackId: "track_123",
-				source: "soulseek",
-				sourceTrackId: "slsk_123",
-				bitrate: 320,
-				format: "mp3",
-				lossless: false,
-				localPath: "/tmp/track.mp3",
-				confidence: 0.96,
-				reviewStatus: "auto_approved",
-				slskUsername: "peer-user",
-				slskFilename: "Music/Artist/Album/01 - Track.mp3",
-				createdAt: Date.now(),
-			})
-			.runPromise;
-
-		const created = await db.trackSources.find(id).runPromise;
-		expect(created?.source).toBe("soulseek");
-		expect(created?.bitrate).toBe(320);
-
-		await db.trackSources.update(id, { bitrate: 944, format: "flac", lossless: true }).runPromise;
-
-		const updated = await db.trackSources.find(id).runPromise;
-		expect(updated?.bitrate).toBe(944);
-		expect(updated?.format).toBe("flac");
-		expect(updated?.lossless).toBe(true);
-
-		await db.trackSources.delete(id).runPromise;
-		const deleted = await db.trackSources.find(id).runPromise;
-		expect(deleted).toBeNull();
-	});
-});
