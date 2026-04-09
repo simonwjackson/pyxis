@@ -20,82 +20,92 @@ Pyxis bridges this gap. It aggregates music from multiple streaming backends int
 
 5. **The system is the brain** -- Pyxis is an always-on daemon that proxies all audio, manages all state, and controls all playback targets. Whether you're listening in a browser or casting to a speaker, Pyxis is the single source of truth.
 
-## Relationship Tiers
+## Library Placement & Signals
 
-Every album in the system exists in one of four tiers that reflect your actual relationship with the music:
+Pyxis separates three ideas that are easy to conflate: where an album lives in the library, whether it has been explicitly rejected, and what your listening behavior says is currently salient.
 
-### New (Inbox)
+### Library Entry
 
-Albums captured from discovery sessions. When you thumbs-up a track on a Pandora station or a YouTube Music radio, the track is captured here and the album is queued for exploration.
+Albums enter the library only through explicit add. That action can happen from station capture, search, or any future add surface. On entry, an album starts in Discovery.
 
-- **Entry**: Automatic via thumbs-up/bookmark during station listening. Explicit search-and-add does NOT trigger inbox.
-- **Display**: Shows the captured track, not the full album. The track is the hook; tapping it leads to the album page.
+### Discovery
+
+The inbox. Albums that caught your attention and need a destination.
+
+- **Entry**: Explicit add.
+- **Display**: Shows the captured track or entry context as the hook, but always leads back to the album.
 - **Enrichment**: Background enrichment starts immediately -- editorial context, artist narrative, musical connections, reviews.
-- **Exit**: Listening to the album (behavioral signal), explicit triage action, or time decay. Decay never fully hides an item -- decayed entries move to a "stale inbox" accessible in an active triage mode.
-- **Caching**: Same TTL as the configured archive window.
+- **Exit**: Explicit triage into Collection, Archive, or Dismissed.
+- **Expectation**: Albums should not live here forever. Discovery is for unresolved interest.
+- **Caching**: TTL-based cache matching the configured archive window.
 - **Cross-source**: Capturing on Pandora also thumbs-up/bookmarks on YouTube Music (and vice versa) when cross-source identity can be resolved.
 
-### Hot
+### Collection
 
-Albums in heavy current rotation. The stuff you can't stop listening to.
+The core library. Durable keepers -- albums that feel meaningfully part of your life and listening identity.
 
-- **Entry**: System detects repeat listens and suggests promotion from New or Collection. User confirms.
-- **Behavior**: Separate bucket -- Hot items don't compete with or dilute Collection browsing.
-- **Exit**: Natural decay as listening frequency drops; system suggests demotion to Collection.
-- **Caching**: Permanently cached audio files.
-
-### Collection (Library)
-
-The core library. Albums you like and want to return to, some more than others. This is the largest tier and the one that benefits most from progressive disclosure and resurfacing.
-
-- **Entry**: Explicit promotion from New or Hot; direct add from search.
+- **Entry**: Explicit move from Discovery or Archive. Direct add still lands in Discovery first.
 - **Display**: Contextual shelves and filtered grid, not a flat list. Sorting by artist, newest, recently played, neglected.
 - **Resurfacing**: The system tracks which albums haven't been played in a long time and surfaces them. Neglect detection is a core feature.
 - **Caching**: Permanently cached audio files.
 
-### Archive (Vault)
+### Archive
 
-Albums that are part of your history. You rarely want to listen to them, but you never want to lose them. The Spice Girls tier.
+Still part of the library, but not part of the default surface. Albums tied to your history that you want to keep without keeping them in active rotation.
 
-- **Entry**: Explicit demotion from Collection.
-- **Display**: Separate section, never surfaced alongside Collection. Accessible but out of the way.
+- **Entry**: Explicit demotion from Discovery or Collection. In practice, any album can be moved here manually.
+- **Display**: Excluded from default library views unless intentionally included.
 - **Listening**: Fully playable. You can always go back.
 - **Caching**: No cached audio files. Streamed on demand.
 
-### Tier Configuration
+### Dismissed
 
-All tier behaviors (decay timelines, cache TTLs, promotion thresholds) are configurable in YAML and editable from the UI settings page.
+Albums you decided not to keep in the library.
+
+- **Meaning**: Out of the library, but remembered by the system.
+- **Display**: Suppressed from passive discovery and from the main library experience.
+- **Recovery**: Explicit search can still show dismissed albums, clearly marked. Re-adding them sends them back to Discovery.
+- **Caching**: No cached audio files; eligible for eviction.
+
+### Hot
+
+A computed signal, not a placement.
+
+- **Meaning**: Albums currently in heavy rotation.
+- **Source of truth**: Derived entirely from album-level listening history.
+- **Behavior**: Can surface albums regardless of placement, including contradictions like Dismissed + Hot.
+- **Interpretation**: Dismissed + Hot is a sign the album likely deserves another pass through Discovery.
+- **Control**: Fully algorithmic, not manually assigned.
+- **Caching**: Can influence prefetching and cache retention, but does not replace placement.
+
+### Placement & Signal Configuration
+
+All placement behaviors and listening-signal heuristics (cache TTLs, archive visibility defaults, hot detection thresholds, suppression rules) are configurable in YAML and editable from the UI settings page.
 
 ## Discovery & Capture Flow
 
 ```
-Station Playback (Pandora / YTMusic radio)
-            |
-      thumbs-up / bookmark
-            |
-            v
-    +-------+--------+
-    | Capture trigger |
-    +-------+--------+
-            |
-    +-------v--------+         +------------------+
-    | Inbox (New)    |-------->| Background       |
-    | Track displayed |         | Enrichment:      |
-    +-------+--------+         | - Album metadata  |
-            |                   | - Artist context  |
-            |                   | - Musical graph   |
-            |                   | - Reviews         |
-            |                   +------------------+
-            |
-    user listens / triages / decay
-            |
-     +------+------+------+
-     v      v      v      v
-    Hot  Collection  Stale   Dismiss
-              |       inbox
-              v
-           Archive
+Station Playback / Search / Any Add Surface
+                  |
+             explicit add
+                  |
+                  v
+         +--------+---------+         +------------------+
+         | Discovery        |-------->| Background       |
+         | unresolved album |         | Enrichment:      |
+         +--------+---------+         | - Album metadata |
+                  |                   | - Artist context |
+             explicit triage          | - Musical graph  |
+                  |                   | - Reviews        |
+        +---------+---------+         +------------------+
+        v                   v
+   Collection            Dismissed
+        |
+        v
+     Archive
 ```
+
+Hot is not a destination in this flow. It is a computed signal derived from listening history that can surface albums from any placement.
 
 ## Listening History
 
@@ -105,7 +115,7 @@ Pyxis maintains a complete listening journal -- every track, album, station sess
 
 - Every track play (source, timestamp, duration listened, context: station vs. album vs. queue)
 - Every station session (which station, how long, what was captured)
-- Every tier movement (when an album moved between tiers and why)
+- Every placement change (when an album moved between Discovery, Collection, Archive, or Dismissed and why)
 - Device and location metadata (when available, configurable)
 
 ### History Uses
@@ -124,7 +134,7 @@ Stats exist but serve insight, not vanity. The goal is to learn something about 
 
 ## Weekly Mix
 
-A curated playlist generated automatically every Monday from upstream recommendation algorithms (Pandora/YouTube Music), seeded by albums in Inbox, Hot, and Collection (not Archive).
+A curated playlist generated automatically every Monday from upstream recommendation algorithms (Pandora/YouTube Music), seeded by albums in Discovery and Collection, weighted by what the system currently sees as Hot, and excluding Dismissed by default.
 
 ### Key Rules
 
@@ -169,10 +179,11 @@ All audio streams through Pyxis, even when casting. Pyxis is the brain; playback
 
 ### Caching Strategy
 
-- **New (Inbox)**: TTL-based cache matching the configurable archive window
-- **Hot**: Permanently cached
+- **Discovery**: TTL-based cache matching the configurable archive window
 - **Collection**: Permanently cached
 - **Archive**: No cache; streamed on demand
+- **Dismissed**: No cache; eligible for eviction
+- **Hot**: A computed signal that can influence prefetching and retention across placements
 - All cache behaviors configurable in settings
 
 ### Lean-Back Mode
@@ -195,7 +206,7 @@ Always-on NixOS service on a home server. Single process with:
 
 Single source of truth per user. State follows the user across devices.
 - Current playback state, queue, and progress
-- Tier assignments and history
+- Placement assignments, dismissed memory, and history
 - Listening journal
 - Weekly mix archive
 - Multi-user support planned for the future (per-user state isolation)
@@ -203,8 +214,8 @@ Single source of truth per user. State follows the user across devices.
 ### Configuration
 
 YAML config file (`~/.config/pyxis/config.yaml`) with UI settings page. All behavioral parameters are configurable:
-- Tier decay timelines and promotion thresholds
-- Cache TTLs per tier
+- Placement behaviors, suppression rules, and hot detection thresholds
+- Cache TTLs per placement
 - Weekly mix familiarity dial default
 - Enrichment source priorities
 - Streaming source priority order
