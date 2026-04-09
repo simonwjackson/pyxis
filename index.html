@@ -3,11 +3,14 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover, interactive-widget=resizes-content" />
-    <meta name="theme-color" content="#18181b" />
+    <meta name="theme-color" content="#1a1714" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="Pyxis" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Urbanist:ital,wght@0,100..900;1,100..900&display=swap" rel="stylesheet" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="manifest" href="/manifest.json" />
     <link rel="apple-touch-icon" href="/icons/icon-192.png" />
@@ -17,15 +20,12 @@
       (function() {
         try {
           var t = localStorage.getItem('pyxis-theme');
-          if (!t || t === 'system') return;
+          if (!t || t === 'magenta') return;
           var themes = {
-            pyxis: { bg: '#1a1a2e', panel: '#16213e' },
-            tokyonight: { bg: '#1a1b26', panel: '#16161e' },
-            catppuccin: { bg: '#1e1e2e', panel: '#181825' },
-            nord: { bg: '#2e3440', panel: '#3b4252' },
-            gruvbox: { bg: '#282828', panel: '#1d2021' },
-            dracula: { bg: '#282a36', panel: '#21222c' },
-            'rose-pine': { bg: '#191724', panel: '#1f1d2e' },
+            olive: { bg: '#171a14', panel: '#121410' },
+            amber: { bg: '#1a1610', panel: '#14120e' },
+            ice: { bg: '#14171a', panel: '#101214' },
+            carbon: { bg: '#141414', panel: '#0e0e0e' },
           };
           var c = themes[t];
           if (c) {
@@ -37,7 +37,7 @@
       })();
     </script>
   </head>
-  <body class="bg-zinc-900 text-zinc-100">
+  <body>
     <div id="root"></div>
     <script type="module" src="/src/web/main.tsx"></script>
     <script>
