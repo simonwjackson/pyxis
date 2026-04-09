@@ -35,7 +35,7 @@ export function QuickMixDialog({ stations, onClose }: QuickMixDialogProps) {
 	const mutation = trpc.radio.quickMix.useMutation({
 		onSuccess() {
 			utils.radio.list.invalidate();
-			toast.success("Shuffle stations updated");
+			toast.success("shuffle stations updated");
 			onClose();
 		},
 		onError(err) {
@@ -81,17 +81,17 @@ export function QuickMixDialog({ stations, onClose }: QuickMixDialogProps) {
 			aria-labelledby="quickmix-dialog-title"
 		>
 			<div
-				className="bg-[var(--color-bg)] border border-[var(--color-border)] rounded-xl w-full max-w-md max-h-[70vh] flex flex-col shadow-2xl"
+				className="bg-[var(--color-bg)] border border-[var(--color-border)] w-full max-w-md max-h-[70vh] flex flex-col shadow-2xl"
 				onClick={(e) => e.stopPropagation()}
 				onKeyDown={() => {}}
 			>
 				<div className="p-4 border-b border-[var(--color-border)] flex items-center justify-between shrink-0">
 					<div className="flex items-center gap-3">
-						<div className="w-9 h-9 rounded-lg bg-[var(--color-bg-highlight)] flex items-center justify-center" aria-hidden="true">
+						<div className="w-9 h-9 bg-[var(--color-bg-highlight)] flex items-center justify-center" aria-hidden="true">
 							<Shuffle className="w-4 h-4 text-[var(--color-secondary)]" />
 						</div>
 						<div>
-							<h2 id="quickmix-dialog-title" className="text-lg font-semibold text-[var(--color-text)]">
+							<h2 id="quickmix-dialog-title" className="zune-heading text-2xl text-[var(--color-text)]">
 								Manage Shuffle
 							</h2>
 							<p className="text-sm text-[var(--color-text-dim)]">
@@ -104,14 +104,14 @@ export function QuickMixDialog({ stations, onClose }: QuickMixDialogProps) {
 						<button
 							type="button"
 							onClick={selectAll}
-							className="text-xs text-[var(--color-text-dim)] hover:text-[var(--color-text)] px-2 py-1 rounded hover:bg-[var(--color-bg-highlight)]"
+							className="text-xs text-[var(--color-text-dim)] hover:text-[var(--color-text)] px-2 py-1hover:bg-[var(--color-bg-highlight)]"
 						>
 							All
 						</button>
 						<button
 							type="button"
 							onClick={selectNone}
-							className="text-xs text-[var(--color-text-dim)] hover:text-[var(--color-text)] px-2 py-1 rounded hover:bg-[var(--color-bg-highlight)]"
+							className="text-xs text-[var(--color-text-dim)] hover:text-[var(--color-text)] px-2 py-1hover:bg-[var(--color-bg-highlight)]"
 						>
 							None
 						</button>
@@ -124,13 +124,13 @@ export function QuickMixDialog({ stations, onClose }: QuickMixDialogProps) {
 						return (
 							<label
 								key={station.stationId}
-								className="flex items-center gap-3 p-3 rounded-lg hover:bg-[var(--color-bg-highlight)] cursor-pointer"
+								className="flex items-center gap-3 p-3 hover:bg-[var(--color-bg-highlight)] cursor-pointer"
 							>
 								<input
 									type="checkbox"
 									checked={checked}
 									onChange={() => toggle(station.stationId)}
-									className="w-4 h-4 rounded border-[var(--color-border)] text-[var(--color-secondary)] focus:ring-[var(--color-border-active)] bg-[var(--color-bg-highlight)]"
+									className="w-4 h-4border-[var(--color-border)] text-[var(--color-secondary)] focus:ring-[var(--color-border-active)] bg-[var(--color-bg-highlight)]"
 								/>
 								<span
 									className={`text-sm ${checked ? "text-[var(--color-text)]" : "text-[var(--color-text-muted)]"}`}
@@ -147,7 +147,7 @@ export function QuickMixDialog({ stations, onClose }: QuickMixDialogProps) {
 						type="button"
 						onClick={onClose}
 						disabled={mutation.isPending}
-						className="px-4 py-2 text-sm text-[var(--color-text-muted)] hover:bg-[var(--color-bg-highlight)] rounded-lg"
+						className="px-4 py-2 text-sm text-[var(--color-text-muted)] hover:bg-[var(--color-bg-highlight)]"
 					>
 						Cancel
 					</button>
@@ -155,7 +155,7 @@ export function QuickMixDialog({ stations, onClose }: QuickMixDialogProps) {
 						type="button"
 						onClick={handleSave}
 						disabled={mutation.isPending}
-						className="px-4 py-2 text-sm text-[var(--color-bg)] bg-[var(--color-secondary)] hover:brightness-110 rounded-lg font-medium disabled:opacity-50"
+						className="px-4 py-2 text-sm text-[var(--color-bg)] bg-[var(--color-secondary)] hover:brightness-110 font-medium disabled:opacity-50"
 					>
 						{mutation.isPending ? "Saving..." : "Save"}
 					</button>

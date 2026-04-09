@@ -50,7 +50,7 @@ export function StationContextMenu({
 	return (
 		<div
 			ref={menuRef}
-			className="absolute right-0 top-full mt-1 w-48 bg-[var(--color-bg-highlight)] border border-[var(--color-border)] rounded-lg shadow-xl z-50 py-1"
+			className="absolute right-0 top-full mt-1 w-48 bg-[var(--color-bg-highlight)] border border-[var(--color-border)] shadow-xl z-50 py-1"
 		>
 			{children}
 		</div>

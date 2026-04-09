@@ -12,8 +12,8 @@ describe("commands", () => {
 		expect(playbackCmds.length).toBeGreaterThan(0);
 
 		const labels = playbackCmds.map((c) => c.label);
-		expect(labels).toContain("Play / Pause");
-		expect(labels).toContain("Skip Track");
+		expect(labels).toContain("play / pause");
+		expect(labels).toContain("skip track");
 	});
 
 	it("has navigation commands", () => {
@@ -21,8 +21,8 @@ describe("commands", () => {
 		expect(navCmds.length).toBeGreaterThan(0);
 
 		const labels = navCmds.map((c) => c.label);
-		expect(labels).toContain("Go to Stations");
-		expect(labels).toContain("Go to Search");
+		expect(labels).toContain("go to stations");
+		expect(labels).toContain("go to search");
 	});
 
 	it("has appearance commands", () => {

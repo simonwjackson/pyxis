@@ -42,15 +42,14 @@ export function HistoryPage() {
 	const entries = historyQuery.data ?? [];
 
 	return (
-		<div className="flex-1 p-4 space-y-4">
-			<h2 className="text-lg font-semibold">History</h2>
+		<div className="flex-1 px-8 py-10 space-y-6">
+			<h2 className="zune-display zune-page-title text-[var(--color-text)]">history</h2>
 
 			{entries.length === 0 && offset === 0 && (
-				<div className="text-center py-12 text-[var(--color-text-dim)]">
-					<History className="w-12 h-12 mx-auto mb-4 text-[var(--color-text-dim)]" />
-					<p>No listening history yet.</p>
-					<p className="text-sm mt-1">
-						Songs you listen to for 30+ seconds will appear here.
+				<div className="py-16 text-[var(--color-text-dim)]">
+					<p className="zune-display text-4xl text-[var(--color-text-dim)]/40 mb-4">no history</p>
+					<p className="text-sm">
+						songs you listen to for 30+ seconds will appear here.
 					</p>
 				</div>
 			)}
@@ -60,22 +59,22 @@ export function HistoryPage() {
 					{entries.map((entry) => (
 						<li
 							key={entry.id}
-							className="flex items-center gap-3 p-3 rounded-lg hover:bg-[var(--color-bg-highlight)]"
+							className="flex items-center gap-3 p-3 hover:bg-[var(--color-bg-highlight)]"
 						>
 							<div className="flex-1 min-w-0">
-								<p className="text-[var(--color-text)] truncate">
+								<p className="zune-list-title text-[var(--color-text)] truncate">
 									{entry.title}
 								</p>
-								<p className="text-xs text-[var(--color-text-dim)]">
+								<p className="zune-eyebrow text-[var(--color-text-dim)]">
 									{entry.artist}
 									{entry.album ? ` \u2014 ${entry.album}` : ""}
 								</p>
 							</div>
 							<div className="flex items-center gap-2 shrink-0">
-								<span className="text-xs px-1.5 py-0.5 rounded bg-[var(--color-bg-highlight)] text-[var(--color-text-muted)]">
+								<span className="zune-eyebrow px-1.5 py-0.5 bg-[var(--color-bg-highlight)] text-[var(--color-text-muted)]">
 									{entry.source}
 								</span>
-								<span className="text-xs text-[var(--color-text-dim)]">
+								<span className="zune-data text-xs text-[var(--color-text-dim)]">
 									{formatRelativeTime(new Date(entry.listenedAt))}
 								</span>
 							</div>

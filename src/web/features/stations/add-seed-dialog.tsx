@@ -73,12 +73,12 @@ export function AddSeedDialog({ radioId, onClose }: AddSeedDialogProps) {
 			aria-labelledby="add-seed-dialog-title"
 		>
 			<div
-				className="bg-[var(--color-bg)] border border-[var(--color-border)] rounded-xl w-full max-w-md max-h-[70vh] flex flex-col shadow-2xl"
+				className="bg-[var(--color-bg)] border border-[var(--color-border)] w-full max-w-md max-h-[70vh] flex flex-col shadow-2xl"
 				onClick={(e) => e.stopPropagation()}
 				onKeyDown={() => {}}
 			>
 				<div className="p-4 border-b border-[var(--color-border)] shrink-0">
-					<h2 id="add-seed-dialog-title" className="text-lg font-semibold text-[var(--color-text)] mb-3">
+					<h2 id="add-seed-dialog-title" className="zune-heading text-2xl text-[var(--color-text)] mb-3">
 						Add Seed
 					</h2>
 					<div className="relative">
@@ -88,10 +88,10 @@ export function AddSeedDialog({ radioId, onClose }: AddSeedDialogProps) {
 							ref={inputRef}
 							id="add-seed-search"
 							type="text"
-							placeholder="Search artists or songs..."
+							placeholder="search artists or songs..."
 							value={query}
 							onChange={(e) => setQuery(e.target.value)}
-							className="w-full pl-9 pr-4 py-2 bg-[var(--color-bg-highlight)] border border-[var(--color-border)] rounded-lg text-sm text-[var(--color-text)] placeholder:text-[var(--color-text-dim)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-border-active)]"
+							className="w-full pl-9 pr-4 py-2 bg-[var(--color-bg-highlight)] border border-[var(--color-border)] text-sm text-[var(--color-text)] placeholder:text-[var(--color-text-dim)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-border-active)]"
 						/>
 					</div>
 				</div>
@@ -117,7 +117,7 @@ export function AddSeedDialog({ radioId, onClose }: AddSeedDialogProps) {
 					<button
 						type="button"
 						onClick={onClose}
-						className="w-full px-4 py-2 text-sm text-[var(--color-text-muted)] hover:bg-[var(--color-bg-highlight)] rounded-lg"
+						className="w-full px-4 py-2 text-sm text-[var(--color-text-muted)] hover:bg-[var(--color-bg-highlight)]"
 					>
 						Done
 					</button>
@@ -166,15 +166,15 @@ function ResultsView({
 							type="button"
 							onClick={() => onAdd(artist.musicToken)}
 							disabled={isPending}
-							className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-[var(--color-bg-highlight)] text-left disabled:opacity-50"
+							className="w-full flex items-center gap-3 p-3 hover:bg-[var(--color-bg-highlight)] text-left disabled:opacity-50"
 						>
-							<div className="w-8 h-8 rounded-full bg-[var(--color-bg-highlight)] flex items-center justify-center shrink-0">
+							<div className="w-8 h-8 bg-[var(--color-bg-highlight)] flex items-center justify-center shrink-0">
 								<User className="w-4 h-4 text-[var(--color-text-muted)]" />
 							</div>
 							<span className="text-sm text-[var(--color-text)] truncate">
 								{artist.artistName}
 							</span>
-							<span className="ml-auto text-xs text-[var(--color-primary)] bg-[var(--color-bg-highlight)] px-2 py-0.5 rounded shrink-0">
+							<span className="ml-auto text-xs text-[var(--color-primary)] bg-[var(--color-bg-highlight)] px-2 py-0.5shrink-0">
 								Add
 							</span>
 						</button>
@@ -193,9 +193,9 @@ function ResultsView({
 							type="button"
 							onClick={() => onAdd(song.musicToken)}
 							disabled={isPending}
-							className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-[var(--color-bg-highlight)] text-left disabled:opacity-50"
+							className="w-full flex items-center gap-3 p-3 hover:bg-[var(--color-bg-highlight)] text-left disabled:opacity-50"
 						>
-							<div className="w-8 h-8 rounded-full bg-[var(--color-bg-highlight)] flex items-center justify-center shrink-0">
+							<div className="w-8 h-8 bg-[var(--color-bg-highlight)] flex items-center justify-center shrink-0">
 								<Music className="w-4 h-4 text-[var(--color-text-muted)]" />
 							</div>
 							<div className="flex-1 min-w-0">
@@ -206,7 +206,7 @@ function ResultsView({
 									{song.artistName}
 								</p>
 							</div>
-							<span className="ml-auto text-xs text-[var(--color-primary)] bg-[var(--color-bg-highlight)] px-2 py-0.5 rounded shrink-0">
+							<span className="ml-auto text-xs text-[var(--color-primary)] bg-[var(--color-bg-highlight)] px-2 py-0.5shrink-0">
 								Add
 							</span>
 						</button>

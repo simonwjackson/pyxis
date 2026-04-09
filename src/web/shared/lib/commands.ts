@@ -26,22 +26,22 @@ type Command = {
  */
 export const commands: readonly Command[] = [
 	// Playback
-	{ id: "playPause", label: "Play / Pause", category: "playback", shortcut: "Space", action: "playPause" },
-	{ id: "skipTrack", label: "Skip Track", category: "playback", shortcut: "N", action: "skipTrack" },
-	{ id: "likeTrack", label: "Like Track", category: "playback", shortcut: "+", action: "likeTrack" },
-	{ id: "dislikeTrack", label: "Dislike Track", category: "playback", shortcut: "-", action: "dislikeTrack" },
-	{ id: "sleepTrack", label: "Sleep Track", category: "playback", shortcut: "Z", action: "sleepTrack" },
-	{ id: "bookmarkSong", label: "Bookmark Song", category: "playback", shortcut: "B", action: "bookmarkSong" },
+	{ id: "playPause", label: "play / pause", category: "playback", shortcut: "Space", action: "playPause" },
+	{ id: "skipTrack", label: "skip track", category: "playback", shortcut: "N", action: "skipTrack" },
+	{ id: "likeTrack", label: "like track", category: "playback", shortcut: "+", action: "likeTrack" },
+	{ id: "dislikeTrack", label: "dislike track", category: "playback", shortcut: "-", action: "dislikeTrack" },
+	{ id: "sleepTrack", label: "sleep track", category: "playback", shortcut: "Z", action: "sleepTrack" },
+	{ id: "bookmarkSong", label: "bookmark song", category: "playback", shortcut: "B", action: "bookmarkSong" },
 
 	// Navigation
-	{ id: "goToStations", label: "Go to Stations", category: "navigation", shortcut: "1", action: "goToStations" },
-	{ id: "goToSearch", label: "Go to Search", category: "navigation", shortcut: "2", action: "goToSearch" },
-	{ id: "goToBookmarks", label: "Go to Bookmarks", category: "navigation", shortcut: "3", action: "goToBookmarks" },
-	{ id: "goToGenres", label: "Go to Genres", category: "navigation", shortcut: "4", action: "goToGenres" },
-	{ id: "goToSettings", label: "Go to Settings", category: "navigation", shortcut: "5", action: "goToSettings" },
+	{ id: "goToStations", label: "go to stations", category: "navigation", shortcut: "1", action: "goToStations" },
+	{ id: "goToSearch", label: "go to search", category: "navigation", shortcut: "2", action: "goToSearch" },
+	{ id: "goToBookmarks", label: "go to bookmarks", category: "navigation", shortcut: "3", action: "goToBookmarks" },
+	{ id: "goToGenres", label: "go to genres", category: "navigation", shortcut: "4", action: "goToGenres" },
+	{ id: "goToSettings", label: "go to settings", category: "navigation", shortcut: "5", action: "goToSettings" },
 
 	// Appearance
-	{ id: "changeTheme", label: "Change Theme", category: "appearance", action: "changeTheme" },
+	{ id: "changeTheme", label: "change theme", category: "appearance", action: "changeTheme" },
 ];
 
 /** Order in which categories are displayed in the command palette */

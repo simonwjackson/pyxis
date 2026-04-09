@@ -41,8 +41,8 @@ export function GenresPage() {
 	const categories = genresQuery.data ?? [];
 
 	return (
-		<div className="flex-1 p-4 space-y-4">
-			<h2 className="text-lg font-semibold">Genre Stations</h2>
+		<div className="flex-1 px-8 py-10 space-y-6">
+			<h2 className="zune-display zune-page-title text-[var(--color-text)]">genres</h2>
 			<div className="space-y-1">
 				{categories.map((cat) => (
 					<div key={cat.categoryName}>
@@ -54,7 +54,7 @@ export function GenresPage() {
 										: cat.categoryName,
 								)
 							}
-							className="w-full text-left px-3 py-2.5 rounded-lg hover:bg-[var(--color-bg-highlight)] text-[var(--color-text)] font-medium flex items-center justify-between transition-colors"
+							className="w-full text-left px-3 py-2.5 hover:bg-[var(--color-bg-highlight)] text-[var(--color-text)] font-medium flex items-center justify-between transition-colors"
 							type="button"
 						>
 							<span>{cat.categoryName}</span>
@@ -65,11 +65,11 @@ export function GenresPage() {
 							)}
 						</button>
 						{expanded === cat.categoryName && (
-							<ul className="ml-4 space-y-1 mt-1">
+							<ul className="ml-6 space-y-1 mt-2">
 								{cat.stations.map((station) => (
 									<li
 										key={station.stationToken}
-										className="flex items-center justify-between px-3 py-2 rounded-lg hover:bg-[var(--color-bg-highlight)]"
+										className="flex items-center justify-between px-3 py-2 hover:bg-[var(--color-bg-highlight)]"
 									>
 										<span className="text-sm text-[var(--color-text-muted)]">
 											{station.stationName}

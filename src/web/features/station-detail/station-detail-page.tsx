@@ -60,8 +60,8 @@ function SeedItem({
 	readonly isRemoving: boolean;
 }) {
 	return (
-		<div className="flex items-center gap-3 p-3 rounded-lg bg-[var(--color-bg-highlight)] group">
-			<div className="w-8 h-8 rounded-full bg-[var(--color-bg-highlight)] flex items-center justify-center shrink-0">
+		<div className="flex items-center gap-3 p-3 bg-[var(--color-bg-highlight)] group">
+			<div className="w-8 h-8 bg-[var(--color-bg-highlight)] flex items-center justify-center shrink-0">
 				{type === "artist" ? (
 					<User className="w-4 h-4 text-[var(--color-text-muted)]" />
 				) : (
@@ -82,7 +82,7 @@ function SeedItem({
 				type="button"
 				onClick={() => onRemove(seed.seedId)}
 				disabled={isRemoving}
-				className="opacity-0 group-hover:opacity-100 p-1.5 text-[var(--color-text-dim)] hover:text-[var(--color-error)] hover:bg-[var(--color-bg-highlight)] rounded transition-all disabled:opacity-50"
+				className="opacity-0 group-hover:opacity-100 p-1.5 text-[var(--color-text-dim)] hover:text-[var(--color-error)] hover:bg-[var(--color-bg-highlight)] transition-all disabled:opacity-50"
 				title="Remove seed"
 				aria-label={`Remove ${type === "song" ? seed.songName ?? "song" : seed.artistName ?? "artist"} seed`}
 			>
@@ -101,7 +101,7 @@ function FeedbackItem({
 	readonly feedback: StationFeedback;
 }) {
 	return (
-		<div className="flex items-center gap-3 p-2 rounded-lg bg-[var(--color-bg-highlight)]">
+		<div className="flex items-center gap-3 p-2 bg-[var(--color-bg-highlight)]">
 			<p className="text-sm text-[var(--color-text-muted)] flex-1 truncate">
 				{feedback.songName}
 			</p>
@@ -117,9 +117,9 @@ function FeedbackItem({
  */
 function DetailsSkeleton() {
 	return (
-		<div className="flex-1 p-4 space-y-6 max-w-2xl">
-			<div className="flex items-center gap-3">
-				<Skeleton className="w-9 h-9 rounded-lg" />
+		<div className="flex-1 px-8 py-10 space-y-8 max-w-3xl">
+			<div className="flex items-center gap-4">
+				<Skeleton className="w-9 h-9" />
 				<div>
 					<Skeleton className="h-6 w-48 mb-1" />
 					<Skeleton className="h-4 w-24" />
@@ -129,7 +129,7 @@ function DetailsSkeleton() {
 				<Skeleton className="h-4 w-16 mb-3" />
 				<div className="space-y-1">
 					{Array.from({ length: 3 }).map((_, i) => (
-						<Skeleton key={i} className="h-12 w-full rounded-lg" />
+						<Skeleton key={i} className="h-12 w-full" />
 					))}
 				</div>
 			</div>
@@ -137,7 +137,7 @@ function DetailsSkeleton() {
 				<Skeleton className="h-4 w-20 mb-3" />
 				<div className="space-y-1">
 					{Array.from({ length: 4 }).map((_, i) => (
-						<Skeleton key={i} className="h-9 w-full rounded-lg" />
+						<Skeleton key={i} className="h-9 w-full" />
 					))}
 				</div>
 			</div>
@@ -227,7 +227,7 @@ export function StationDetailPage({
 	const removeSeedMutation = trpc.radio.removeSeed.useMutation({
 		onSuccess() {
 			utils.radio.getStation.invalidate({ id: token });
-			toast.success("Seed removed");
+			toast.success("seed removed");
 		},
 		onError(err) {
 			toast.error(`Failed to remove seed: ${err.message}`);
@@ -244,7 +244,7 @@ export function StationDetailPage({
 
 	if (stationQuery.error) {
 		return (
-			<div className="flex-1 p-4">
+			<div className="flex-1 px-8 py-10">
 				<p className="text-[var(--color-error)]">
 					Failed to load station details:{" "}
 					{stationQuery.error.message}
@@ -256,8 +256,8 @@ export function StationDetailPage({
 	const station = stationQuery.data;
 	if (!station) {
 		return (
-			<div className="flex-1 p-4">
-				<p className="text-[var(--color-text-dim)]">Station not found.</p>
+			<div className="flex-1 px-8 py-10">
+				<p className="text-[var(--color-text-dim)]">station not found.</p>
 			</div>
 		);
 	}
@@ -270,28 +270,28 @@ export function StationDetailPage({
 	const hasFeedback = thumbsUp.length > 0 || thumbsDown.length > 0;
 
 	return (
-		<div className="flex-1 p-4 space-y-6 max-w-2xl">
-			<div className="flex items-center gap-3">
+		<div className="flex-1 px-8 py-10 space-y-8 max-w-3xl">
+			<div className="flex items-center gap-4">
 				<button
 					type="button"
 					onClick={() => navigate({ to: "/", search: { pl_sort: undefined, pl_page: undefined, al_sort: undefined, al_page: undefined } })}
-					className="p-2 hover:bg-[var(--color-bg-highlight)] rounded-lg transition-colors"
+					className="p-2 hover:bg-[var(--color-bg-highlight)] transition-colors"
 					aria-label="Back to stations"
 				>
 					<ChevronLeft className="w-5 h-5 text-[var(--color-text-muted)]" />
 				</button>
 				<div className="flex-1">
-					<h2 className="text-lg font-semibold text-[var(--color-text)]">
+					<h2 className="zune-display zune-page-title text-[var(--color-text)]">
 						{station.name}
 					</h2>
-					<p className="text-sm text-[var(--color-text-dim)]">
-						Station details
+					<p className="zune-meta mt-1">
+						station details
 					</p>
 				</div>
 				{!isThisStationPlaying && (
 					<Button
 						onClick={startRadioPlayback}
-						className="gap-2 rounded-full bg-[var(--color-primary)] hover:brightness-110 text-[var(--color-bg)]"
+						className="gap-2 bg-[var(--color-primary)] hover:brightness-110 text-[var(--color-bg)]"
 					>
 						<Play className="w-4 h-4" fill="currentColor" />
 						Play
@@ -301,13 +301,13 @@ export function StationDetailPage({
 
 			<div>
 				<div className="flex items-center justify-between mb-3">
-					<h3 className="text-sm font-medium text-[var(--color-text-muted)] uppercase tracking-wide">
-						Seeds
+					<h3 className="zune-label text-[var(--color-text-muted)]">
+						seeds
 					</h3>
 					<button
 						type="button"
 						onClick={() => setShowAddSeed(true)}
-						className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-[var(--color-primary)] hover:bg-[var(--color-bg-highlight)] rounded-lg transition-colors"
+						className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-[var(--color-primary)] hover:bg-[var(--color-bg-highlight)] transition-colors"
 					>
 						<Plus className="w-4 h-4" />
 						Add Seed
@@ -356,8 +356,8 @@ export function StationDetailPage({
 			</div>
 
 			<div>
-				<h3 className="text-sm font-medium text-[var(--color-text-muted)] uppercase tracking-wide mb-3">
-					Feedback
+				<h3 className="zune-label text-[var(--color-text-muted)] mb-4">
+					feedback
 				</h3>
 
 				{!hasFeedback && (
@@ -370,7 +370,7 @@ export function StationDetailPage({
 					<div className="mb-4">
 						<p className="text-xs text-[var(--color-text-dim)] mb-1 flex items-center gap-1">
 							<ThumbsUp className="w-3 h-3 text-[var(--color-liked)]" />
-							Liked
+							liked
 						</p>
 						<div className="space-y-1">
 							{thumbsUp.map((fb) => (
@@ -387,7 +387,7 @@ export function StationDetailPage({
 					<div>
 						<p className="text-xs text-[var(--color-text-dim)] mb-1 flex items-center gap-1">
 							<ThumbsDown className="w-3 h-3 text-[var(--color-error)]" />
-							Disliked
+							disliked
 						</p>
 						<div className="space-y-1">
 							{thumbsDown.map((fb) => (

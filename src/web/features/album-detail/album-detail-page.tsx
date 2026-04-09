@@ -107,9 +107,9 @@ export function AlbumDetailPage({
 	const saveAlbum = trpc.library.saveAlbum.useMutation({
 		onSuccess(data) {
 			if (data.alreadyExists) {
-				toast.info("Album already in your collection");
+				toast.info("album already in your collection");
 			} else {
-				toast.success("Album saved to collection");
+				toast.success("album saved to collection");
 			}
 			setIsSaved(true);
 			utils.library.albums.invalidate();
@@ -214,12 +214,11 @@ export function AlbumDetailPage({
 		return (
 			<div className="flex-1 flex flex-col items-center justify-center p-4 gap-3">
 				<p className="text-[var(--color-text-dim)]">
-					Couldn't load album
+					couldn't load album
 				</p>
 				<Button
 					variant="outline"
 					onClick={() => sourceQuery.refetch()}
-					className="rounded-full"
 				>
 					Retry
 				</Button>
@@ -230,7 +229,7 @@ export function AlbumDetailPage({
 	if (!album) {
 		return (
 			<div className="flex-1 flex items-center justify-center p-4">
-				<p className="text-[var(--color-text-dim)]">Album not found</p>
+				<p className="text-[var(--color-text-dim)]">album not found</p>
 			</div>
 		);
 	}
@@ -240,7 +239,7 @@ export function AlbumDetailPage({
 	const trackCount = tracks?.length ?? 0;
 
 	return (
-		<div className="flex-1 p-6 max-w-2xl mx-auto space-y-6">
+		<div className="flex-1 px-8 py-10 max-w-3xl mx-auto space-y-8">
 			<button
 				type="button"
 				onClick={() => router.history.back()}
@@ -251,8 +250,8 @@ export function AlbumDetailPage({
 				Back
 			</button>
 
-			<div className="flex gap-6 items-end">
-				<div className="w-48 h-48 shrink-0 rounded-xl shadow-lg overflow-hidden bg-[var(--color-bg-highlight)]">
+			<div className="flex gap-8 items-end">
+				<div className="w-56 h-56 shrink-0 shadow-lg overflow-hidden bg-[var(--color-bg-highlight)]">
 					{album.artworkUrl ? (
 						<img
 							src={album.artworkUrl}
@@ -271,7 +270,7 @@ export function AlbumDetailPage({
 						onSave={(title) => updateAlbum.mutate({ id: albumId, title })}
 						disabled={isSourceBacked}
 					>
-						<h1 className="text-2xl md:text-3xl font-bold text-[var(--color-text)] leading-tight">
+						<h1 className="zune-heading text-3xl md:text-4xl text-[var(--color-text)]">
 							{album.title}
 						</h1>
 					</EditableText>
@@ -280,21 +279,21 @@ export function AlbumDetailPage({
 						onSave={(artist) => updateAlbum.mutate({ id: albumId, artist })}
 						disabled={isSourceBacked}
 					>
-						<p className="text-lg text-[var(--color-text-muted)]">
+						<p className="text-lg font-light tracking-tight text-[var(--color-text-muted)]">
 							{album.artist}
 						</p>
 					</EditableText>
-					<p className="text-sm text-[var(--color-text-dim)]">
+					<p className="zune-meta text-[var(--color-text-dim)]">
 						{album.year ? `${String(album.year)} \u00B7 ` : ""}
 						{String(trackCount)} track{trackCount !== 1 ? "s" : ""}
 						{totalDuration > 0
 							? ` \u00B7 ${formatTotalDuration(totalDuration)}`
 							: ""}
 					</p>
-					<div className="flex gap-3 pt-3">
+					<div className="flex gap-3 pt-4">
 						<Button
 							onClick={() => handlePlay(0)}
-							className="gap-2 rounded-full bg-[var(--color-primary)] hover:brightness-110 text-[var(--color-bg)]"
+							className="gap-2 bg-[var(--color-primary)] hover:brightness-110 text-[var(--color-bg)]"
 						>
 							<Play className="w-4 h-4" fill="currentColor" />
 							Play
@@ -302,7 +301,7 @@ export function AlbumDetailPage({
 						<Button
 							variant="outline"
 							onClick={handleShuffle}
-							className="gap-2 rounded-full"
+							className="gap-2"
 						>
 							<Shuffle className="w-4 h-4" />
 							Shuffle
@@ -312,7 +311,7 @@ export function AlbumDetailPage({
 								variant="outline"
 								onClick={handleSave}
 								disabled={isSaved || saveAlbum.isPending}
-								className="gap-2 rounded-full"
+								className="gap-2"
 							>
 								{isSaved ? (
 									<>
@@ -332,7 +331,7 @@ export function AlbumDetailPage({
 			</div>
 
 			{tracks && tracks.length > 0 && (
-				<div className="space-y-0.5">
+				<div className="space-y-px">
 					{tracks.map((track, index) => {
 						const isActive = currentTrackId === track.id;
 						return (
@@ -340,7 +339,7 @@ export function AlbumDetailPage({
 								key={track.id}
 								type="button"
 								onClick={() => handlePlay(index)}
-								className={`w-full flex items-center gap-4 px-3 py-2.5 rounded text-left transition-colors ${
+								className={`w-full flex items-center gap-4 px-4 py-3 text-left transition-colors ${
 									isActive
 										? "bg-[var(--color-primary)]/10 text-[var(--color-primary)] font-medium"
 										: "text-[var(--color-text-dim)] hover:text-[var(--color-text)] hover:bg-[var(--color-bg-highlight)]"
@@ -378,17 +377,17 @@ export function AlbumDetailPage({
  */
 function AlbumDetailSkeleton() {
 	return (
-		<div className="flex-1 p-6 max-w-2xl mx-auto space-y-6">
+		<div className="flex-1 px-8 py-10 max-w-3xl mx-auto space-y-8">
 			<Skeleton className="h-5 w-16" />
-			<div className="flex gap-6 items-end">
-				<Skeleton className="w-48 h-48 rounded-xl shrink-0" />
+			<div className="flex gap-8 items-end">
+				<Skeleton className="w-56 h-56 shrink-0" />
 				<div className="space-y-2 flex-1">
 					<Skeleton className="h-8 w-64" />
 					<Skeleton className="h-6 w-40" />
 					<Skeleton className="h-4 w-48" />
-					<div className="flex gap-3 pt-3">
-						<Skeleton className="h-10 w-24 rounded-full" />
-						<Skeleton className="h-10 w-28 rounded-full" />
+					<div className="flex gap-3 pt-4">
+						<Skeleton className="h-10 w-24" />
+						<Skeleton className="h-10 w-28" />
 					</div>
 				</div>
 			</div>

@@ -30,7 +30,7 @@ export function SettingsPage() {
 	const setExplicit = trpc.auth.setExplicitFilter.useMutation({
 		onSuccess: () => {
 			utils.auth.settings.invalidate();
-			toast.success("Setting updated");
+			toast.success("setting updated");
 		},
 	})
 
@@ -46,35 +46,34 @@ export function SettingsPage() {
 	const usage = usageQuery.data;
 
 	return (
-		<div className="flex-1 p-4 space-y-6">
-			<h2 className="text-lg font-semibold">Settings</h2>
+		<div className="flex-1 px-8 py-10 space-y-8">
+			<h2 className="zune-display zune-page-title text-[var(--color-text)]">settings</h2>
 
 			{!hasPandora && (
-				<div className="text-center py-12 text-[var(--color-text-dim)]">
-					<Settings className="w-12 h-12 mx-auto mb-4 text-[var(--color-text-dim)]" />
-					<p>No Pandora account connected.</p>
-					<p className="text-sm mt-1">
-						Configure credentials in your config file to see account settings.
+				<div className="py-16 text-[var(--color-text-dim)]">
+					<p className="zune-display text-4xl text-[var(--color-text-dim)]/40 mb-4">no account</p>
+					<p className="text-sm">
+						configure credentials in your config file to see account settings.
 					</p>
 				</div>
 			)}
 
 			{settings && (
 				<section className="space-y-4">
-					<h3 className="text-sm font-medium text-[var(--color-text-muted)]">
-						Pandora Account
+					<h3 className="zune-label text-[var(--color-text-muted)]">
+						pandora account
 					</h3>
 					{settings.username && (
 						<div className="flex items-center justify-between py-2">
-							<span className="text-[var(--color-text-muted)] text-sm">Email</span>
-							<span className="text-[var(--color-text-muted)] text-sm">
+							<span className="zune-meta">email</span>
+							<span className="zune-copy text-sm text-[var(--color-text-muted)]">
 								{settings.username}
 							</span>
 						</div>
 					)}
 					<div className="flex items-center justify-between py-2">
-						<span className="text-[var(--color-text-muted)] text-sm">
-							Explicit content filter
+						<span className="zune-meta">
+							explicit content filter
 						</span>
 						<button
 							onClick={() =>
@@ -108,15 +107,15 @@ export function SettingsPage() {
 
 			{usage && (
 				<section className="space-y-2">
-					<h3 className="text-sm font-medium text-[var(--color-text-muted)]">
-						Pandora Usage
+					<h3 className="zune-label text-[var(--color-text-muted)]">
+						pandora usage
 					</h3>
 					{usage.accountMonthlyListening !== undefined && (
 						<div className="flex items-center justify-between py-2">
-							<span className="text-[var(--color-text-muted)] text-sm">
-								Listening this month
+							<span className="zune-copy text-sm text-[var(--color-text-muted)]">
+								listening this month
 							</span>
-							<span className="text-[var(--color-text-muted)] text-sm">
+							<span className="zune-data text-sm text-[var(--color-text-muted)]">
 								{Math.round(
 									usage.accountMonthlyListening / 3600,
 								)}
@@ -126,10 +125,10 @@ export function SettingsPage() {
 					)}
 					{usage.monthlyCapHours !== undefined && (
 						<div className="flex items-center justify-between py-2">
-							<span className="text-[var(--color-text-muted)] text-sm">
-								Monthly cap
+							<span className="zune-copy text-sm text-[var(--color-text-muted)]">
+								monthly cap
 							</span>
-							<span className="text-[var(--color-text-muted)] text-sm">
+							<span className="zune-data text-sm text-[var(--color-text-muted)]">
 								{usage.monthlyCapHours}h
 							</span>
 						</div>

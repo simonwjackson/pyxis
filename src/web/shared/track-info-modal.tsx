@@ -43,13 +43,13 @@ function Artwork({ albumArtUrl, albumName }: ArtworkProps) {
 			<img
 				src={albumArtUrl}
 				alt={`${albumName} album art`}
-				className="w-20 h-20 rounded-lg shrink-0 object-cover"
+				className="w-20 h-20 shrink-0 object-cover"
 			/>
 		);
 	}
 
 	return (
-		<div className="w-20 h-20 rounded-lg shrink-0 bg-[var(--color-bg-highlight)] flex items-center justify-center">
+		<div className="w-20 h-20 shrink-0 bg-[var(--color-bg-highlight)] flex items-center justify-center">
 			<Music className="w-8 h-8 text-[var(--color-text-dim)]" />
 		</div>
 	);
@@ -105,7 +105,7 @@ function TraitsLoading() {
 function TraitsError() {
 	return (
 		<p className="py-3 text-[var(--color-error)] text-sm">
-			Failed to load traits.
+			failed to load traits.
 		</p>
 	);
 }
@@ -198,7 +198,7 @@ export function TrackInfoModal({
 		>
 			<div className="fixed inset-0 bg-black/60" aria-hidden="true" />
 			<div
-				className="relative bg-[var(--color-bg)] border border-[var(--color-border)] rounded-xl max-w-md w-full shadow-2xl mx-4 max-h-[80vh] flex flex-col"
+				className="relative bg-[var(--color-bg)] border border-[var(--color-border)] max-w-md w-full shadow-2xl mx-4 max-h-[80vh] flex flex-col"
 				onClick={(e) => e.stopPropagation()}
 				onKeyDown={() => {}}
 			>
@@ -209,7 +209,7 @@ export function TrackInfoModal({
 					<button
 						type="button"
 						onClick={onClose}
-						className="p-1.5 hover:bg-[var(--color-bg-highlight)] rounded-lg transition-colors"
+						className="p-1.5 hover:bg-[var(--color-bg-highlight)] transition-colors"
 						aria-label="Close"
 					>
 						<X className="w-5 h-5 text-[var(--color-text-muted)]" />

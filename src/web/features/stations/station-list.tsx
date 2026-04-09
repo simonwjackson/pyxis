@@ -53,7 +53,7 @@ function StationItemActions({
 			<button
 				type="button"
 				onClick={() => setIsOpen((prev) => !prev)}
-				className="p-1.5 rounded hover:bg-[var(--color-bg-highlight)] opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity md:opacity-0 max-md:opacity-100"
+				className="p-1.5 hover:bg-[var(--color-bg-highlight)] opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity md:opacity-0 max-md:opacity-100"
 				aria-label={`Actions for ${stationName}`}
 			>
 				<MoreVertical className="w-4 h-4 text-[var(--color-text-muted)]" />
@@ -84,15 +84,15 @@ function StationItemRoot({
 	return (
 		<div
 			data-active={isActive || undefined}
-			className="flex items-center gap-3 p-3 rounded-lg transition-colors group hover:bg-[var(--color-bg-highlight)] data-[active]:bg-[var(--color-bg-highlight)] data-[active]:border data-[active]:border-[var(--color-border-active)]"
+			className="flex items-center gap-4 p-4 transition-colors group hover:bg-[var(--color-bg-highlight)] data-[active]:bg-[var(--color-bg-highlight)] data-[active]:border data-[active]:border-[var(--color-border-active)]"
 		>
 			<button
 				onClick={onSelect}
-				className="flex items-center gap-3 flex-1 min-w-0 text-left"
+				className="flex items-center gap-4 flex-1 min-w-0 text-left"
 				type="button"
 				aria-label="Play station"
 			>
-				<div className="w-10 h-10 rounded flex items-center justify-center shrink-0 bg-[var(--color-bg-highlight)]">
+				<div className="w-10 h-10 flex items-center justify-center shrink-0 bg-[var(--color-bg-highlight)]">
 					{icon}
 				</div>
 				<div className="flex-1 min-w-0">{info}</div>
@@ -112,7 +112,7 @@ function StationItemName({
 	return (
 		<p
 			data-active={isActive || undefined}
-			className="font-medium truncate text-[var(--color-text-muted)] data-[active]:text-[var(--color-text)]"
+			className="zune-list-title truncate text-[var(--color-text-muted)] data-[active]:text-[var(--color-text)]"
 		>
 			{children}
 		</p>

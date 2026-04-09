@@ -59,7 +59,7 @@ export type SearchAlbum = {
 
 function SectionHeader({ children }: { readonly children: string }) {
 	return (
-		<h3 className="text-xs font-medium text-[var(--color-text-dim)] uppercase tracking-wider mb-2">
+		<h3 className="zune-label text-[var(--color-text-dim)] mb-3">
 			{children}
 		</h3>
 	);
@@ -88,20 +88,20 @@ function Albums({
 
 	return (
 		<section>
-			<SectionHeader>Albums</SectionHeader>
+			<SectionHeader>albums</SectionHeader>
 			<div className="space-y-1">
 				{albums.map((album) => {
 					const isLoadingPlay = playingAlbumId === album.id;
 					return (
 						<div
 							key={album.id}
-							className="flex items-center gap-3 p-3 rounded-lg hover:bg-[var(--color-bg-highlight)] group"
+							className="flex items-center gap-4 p-4 hover:bg-[var(--color-bg-highlight)] group"
 						>
 							<button
 								type="button"
 								onClick={() => onPlayAlbum?.(album.id)}
 								disabled={isLoadingPlay}
-								className="relative w-12 h-12 rounded bg-[var(--color-bg-highlight)] flex items-center justify-center shrink-0 overflow-hidden cursor-pointer"
+								className="relative w-12 h-12bg-[var(--color-bg-highlight)] flex items-center justify-center shrink-0 overflow-hidden cursor-pointer"
 								aria-label={`Play ${album.title}`}
 							>
 								{album.artworkUrl ? (
@@ -115,10 +115,10 @@ function Albums({
 								)}
 								<div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors flex items-center justify-center">
 									{isLoadingPlay ? (
-										<Loader2 className="w-5 h-5 text-white animate-spin" />
+										<Loader2 className="w-5 h-5 text-[var(--color-primary)] animate-spin" />
 									) : (
 										<Play
-											className="w-5 h-5 text-white opacity-0 group-hover:opacity-100 transition-opacity"
+											className="w-5 h-5 text-[var(--color-primary)] opacity-0 group-hover:opacity-100 transition-opacity"
 											fill="currentColor"
 										/>
 									)}
@@ -129,18 +129,18 @@ function Albums({
 									to="/album/$albumId"
 									params={{ albumId: album.id }}
 									search={{ play: undefined, startIndex: undefined, shuffle: undefined }}
-									className="text-sm font-medium text-[var(--color-text)] truncate block hover:underline"
+									className="zune-list-title text-[var(--color-text)] truncate block hover:underline"
 								>
 									{album.title}
 								</Link>
 								<div className="flex items-center gap-1.5 flex-wrap">
-									<span className="text-xs text-[var(--color-text-dim)]">
+									<span className="zune-eyebrow text-[var(--color-text-dim)]">
 										{album.artist}
 									</span>
 									{album.year && (
 										<>
 											<span className="text-xs text-[var(--color-text-muted)]">&middot;</span>
-											<span className="text-xs text-[var(--color-text-dim)]">
+											<span className="zune-eyebrow text-[var(--color-text-dim)]">
 												{String(album.year)}
 											</span>
 										</>
@@ -148,7 +148,7 @@ function Albums({
 									{album.releaseType && album.releaseType !== "album" && (
 										<>
 											<span className="text-xs text-[var(--color-text-muted)]">&middot;</span>
-											<span className="text-[10px] uppercase tracking-wider text-[var(--color-text-muted)] bg-[var(--color-bg-highlight)] px-1.5 py-0.5 rounded">
+											<span className="text-[10px] uppercase tracking-wider text-[var(--color-text-muted)] bg-[var(--color-bg-highlight)] px-1.5 py-0.5">
 												{album.releaseType}
 											</span>
 										</>
@@ -159,7 +159,7 @@ function Albums({
 										{album.genres.slice(0, 5).map((genre) => (
 											<span
 												key={genre}
-												className="text-[10px] text-[var(--color-text-muted)] bg-[var(--color-bg-highlight)]/80 px-1.5 py-0.5 rounded"
+												className="text-[10px] text-[var(--color-text-muted)] bg-[var(--color-bg-highlight)]/80 px-1.5 py-0.5"
 											>
 												{genre}
 											</span>
@@ -173,7 +173,7 @@ function Albums({
 									onClick={() =>
 										onSaveAlbum(album.id)
 									}
-									className="text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text)] bg-[var(--color-bg-highlight)] hover:bg-[var(--color-border)] px-2.5 py-1.5 rounded transition-colors shrink-0"
+									className="text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text)] bg-[var(--color-bg-highlight)] hover:bg-[var(--color-border)] px-2.5 py-1.5transition-colors shrink-0"
 								>
 									Save
 								</button>
@@ -197,14 +197,14 @@ function Tracks({
 
 	return (
 		<section>
-			<SectionHeader>Songs</SectionHeader>
+			<SectionHeader>songs</SectionHeader>
 			<ul className="space-y-1">
 				{tracks.map((track) => (
 					<li
 						key={track.id}
-						className="flex items-center gap-3 p-3 rounded-lg hover:bg-[var(--color-bg-highlight)]"
+						className="flex items-center gap-4 p-4 hover:bg-[var(--color-bg-highlight)]"
 					>
-						<div className="w-10 h-10 rounded bg-[var(--color-bg-highlight)] flex items-center justify-center shrink-0 overflow-hidden">
+						<div className="w-10 h-10bg-[var(--color-bg-highlight)] flex items-center justify-center shrink-0 overflow-hidden">
 							{track.artworkUrl ? (
 								<img
 									src={track.artworkUrl}
@@ -216,10 +216,10 @@ function Tracks({
 							)}
 						</div>
 						<div className="flex-1 min-w-0">
-							<p className="text-sm font-medium text-[var(--color-text)] truncate">
+							<p className="zune-list-title text-[var(--color-text)] truncate">
 								{track.title}
 							</p>
-							<p className="text-xs text-[var(--color-text-dim)]">
+							<p className="zune-eyebrow text-[var(--color-text-dim)]">
 								{track.artist}
 							</p>
 						</div>
@@ -230,7 +230,7 @@ function Tracks({
 									onClick={() =>
 										onStartRadio(track)
 									}
-									className="text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text)] bg-[var(--color-bg-highlight)] hover:bg-[var(--color-border)] px-2.5 py-1.5 rounded transition-colors flex items-center gap-1"
+									className="text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text)] bg-[var(--color-bg-highlight)] hover:bg-[var(--color-border)] px-2.5 py-1.5transition-colors flex items-center gap-1"
 								>
 									<Radio className="w-3 h-3" />
 									Start Radio
@@ -255,7 +255,7 @@ function Artists({
 
 	return (
 		<section>
-			<SectionHeader>Artists</SectionHeader>
+			<SectionHeader>artists</SectionHeader>
 			<ul className="space-y-1">
 				{artists.map((artist) => (
 					<li key={artist.musicToken}>
@@ -263,22 +263,22 @@ function Artists({
 							onClick={() =>
 								onCreateStation(artist.musicToken)
 							}
-							className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-[var(--color-bg-highlight)] text-left"
+							className="w-full flex items-center gap-3 p-3 hover:bg-[var(--color-bg-highlight)] text-left"
 							type="button"
 						>
-							<div className="w-10 h-10 rounded-full bg-[var(--color-bg-highlight)] flex items-center justify-center shrink-0">
+							<div className="w-10 h-10 bg-[var(--color-bg-highlight)] flex items-center justify-center shrink-0">
 								<User className="w-5 h-5 text-[var(--color-text-muted)]" />
 							</div>
 							<div className="flex-1">
-								<p className="font-medium text-[var(--color-text)]">
+								<p className="zune-list-title text-[var(--color-text)]">
 									{artist.artistName}
 								</p>
-								<p className="text-xs text-[var(--color-text-dim)]">
-									Pandora
+								<p className="zune-eyebrow text-[var(--color-text-dim)]">
+									pandora
 								</p>
 							</div>
-							<span className="text-xs text-[var(--color-text-dim)] bg-[var(--color-bg-highlight)] px-2 py-1 rounded">
-								Create station
+							<span className="text-xs text-[var(--color-text-dim)] hover:text-[var(--color-primary)] transition-colors">
+								+ station
 							</span>
 						</button>
 					</li>
@@ -299,7 +299,7 @@ function Songs({
 
 	return (
 		<section>
-			<SectionHeader>Songs</SectionHeader>
+			<SectionHeader>songs</SectionHeader>
 			<ul className="space-y-1">
 				{songs.map((song) => (
 					<li key={song.musicToken}>
@@ -307,22 +307,22 @@ function Songs({
 							onClick={() =>
 								onCreateStation(song.musicToken)
 							}
-							className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-[var(--color-bg-highlight)] text-left"
+							className="w-full flex items-center gap-3 p-3 hover:bg-[var(--color-bg-highlight)] text-left"
 							type="button"
 						>
-							<div className="w-10 h-10 rounded bg-[var(--color-bg-highlight)] flex items-center justify-center shrink-0">
+							<div className="w-10 h-10bg-[var(--color-bg-highlight)] flex items-center justify-center shrink-0">
 								<Music className="w-5 h-5 text-[var(--color-text-muted)]" />
 							</div>
 							<div className="flex-1">
-								<p className="font-medium text-[var(--color-text)]">
+								<p className="zune-list-title text-[var(--color-text)]">
 									{song.songName}
 								</p>
 								<p className="text-sm text-[var(--color-text-muted)]">
-									{song.artistName} · Pandora
+									{song.artistName} · pandora
 								</p>
 							</div>
-							<span className="text-xs text-[var(--color-text-dim)] bg-[var(--color-bg-highlight)] px-2 py-1 rounded">
-								Create station
+							<span className="text-xs text-[var(--color-text-dim)] hover:text-[var(--color-primary)] transition-colors">
+								+ station
 							</span>
 						</button>
 					</li>
@@ -343,7 +343,7 @@ function Genres({
 
 	return (
 		<section>
-			<SectionHeader>Genres</SectionHeader>
+			<SectionHeader>genres</SectionHeader>
 			<ul className="space-y-1">
 				{genres.map((genre) => (
 					<li key={genre.musicToken}>
@@ -351,19 +351,19 @@ function Genres({
 							onClick={() =>
 								onCreateStation(genre.musicToken)
 							}
-							className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-[var(--color-bg-highlight)] text-left"
+							className="w-full flex items-center gap-3 p-3 hover:bg-[var(--color-bg-highlight)] text-left"
 							type="button"
 						>
-							<div className="w-10 h-10 rounded bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center shrink-0">
-								<LayoutGrid className="w-5 h-5 text-white" />
+							<div className="w-10 h-10bg-[var(--color-bg-elevated)] flex items-center justify-center shrink-0">
+								<LayoutGrid className="w-5 h-5 text-[var(--color-primary)]" />
 							</div>
 							<div className="flex-1">
-								<p className="font-medium text-[var(--color-text)]">
+								<p className="zune-list-title text-[var(--color-text)]">
 									{genre.stationName}
 								</p>
 							</div>
-							<span className="text-xs text-[var(--color-text-dim)] bg-[var(--color-bg-highlight)] px-2 py-1 rounded">
-								Create station
+							<span className="text-xs text-[var(--color-text-dim)] hover:text-[var(--color-primary)] transition-colors">
+								+ station
 							</span>
 						</button>
 					</li>
@@ -374,7 +374,7 @@ function Genres({
 }
 
 function Root({ children }: { readonly children: React.ReactNode }) {
-	return <div className="space-y-6">{children}</div>;
+	return <div className="space-y-10">{children}</div>;
 }
 
 export const SearchResults = {

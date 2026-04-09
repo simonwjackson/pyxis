@@ -96,10 +96,12 @@ function SearchContent({
 			)
 		case "idle":
 			return (
-				<div className="text-center py-12 text-[var(--color-text-dim)]">
-					<SearchIcon className="w-12 h-12 mx-auto mb-4 text-[var(--color-text-dim)]" />
-					<p>
-						Search for artists, songs, or albums across all sources
+				<div className="text-center py-20 text-[var(--color-text-dim)]">
+					<p className="zune-display text-5xl sm:text-6xl text-[var(--color-text-dim)]/40 mb-6">
+						discover
+					</p>
+					<p className="text-sm">
+						search for artists, songs, or albums across all sources
 					</p>
 				</div>
 			)
@@ -125,7 +127,7 @@ export function SearchPage() {
 
 	const createStation = trpc.radio.create.useMutation({
 		onSuccess() {
-			toast.success("Station created");
+			toast.success("station created");
 			utils.radio.list.invalidate();
 		},
 		onError(err) {
@@ -136,9 +138,9 @@ export function SearchPage() {
 	const saveAlbum = trpc.library.saveAlbum.useMutation({
 		onSuccess(data) {
 			if (data.alreadyExists) {
-				toast.info("Album already in your collection");
+				toast.info("album already in your collection");
 			} else {
-				toast.success("Album saved to collection");
+				toast.success("album saved to collection");
 			}
 			utils.library.albums.invalidate();
 		},
@@ -149,7 +151,7 @@ export function SearchPage() {
 
 	const createRadio = trpc.playlist.createRadio.useMutation({
 		onSuccess() {
-			toast.success("Radio created");
+			toast.success("radio created");
 			utils.playlist.list.invalidate();
 		},
 		onError(err) {
@@ -195,7 +197,7 @@ export function SearchPage() {
 					startIndex: 0,
 				});
 			} catch {
-				toast.error("Failed to load album");
+				toast.error("failed to load album");
 			} finally {
 				setPlayingAlbumId(null);
 			}
@@ -241,11 +243,11 @@ export function SearchPage() {
 	}, [unifiedQuery.isLoading, unifiedQuery.data, query.length]);
 
 	return (
-		<div className="flex-1 p-4 space-y-4">
-			<h2 className="text-lg font-semibold">Search</h2>
+		<div className="flex-1 px-8 py-10 space-y-6">
+			<h2 className="zune-display zune-page-title text-[var(--color-text)] mb-4">search</h2>
 			<SearchInput
 				onSearch={handleSearch}
-				placeholder="Search artists, songs, albums..."
+				placeholder="search artists, songs, albums..."
 			/>
 			<SearchContent
 				state={searchState}

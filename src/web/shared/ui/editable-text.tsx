@@ -110,7 +110,7 @@ export function EditableText({
 				onChange={(e) => setEditValue(e.target.value)}
 				onBlur={handleSave}
 				onKeyDown={handleKeyDown}
-				className={`${className ?? ""} ${inputClassName ?? ""} bg-transparent border border-[var(--color-primary)] rounded px-1 outline-none`}
+				className={`${className ?? ""} ${inputClassName ?? ""} bg-transparent border border-[var(--color-primary)] px-1 outline-none`}
 			/>
 		);
 	}

@@ -63,9 +63,9 @@ export function StationsPage() {
 
 	if (stationsQuery.error) {
 		return (
-			<div className="flex-1 p-4">
+			<div className="flex-1 px-8 py-10">
 				<p className="text-[var(--color-error)]">
-					Failed to load stations:{" "}
+					failed to load stations:{" "}
 					{stationsQuery.error.message}
 				</p>
 			</div>
@@ -73,17 +73,17 @@ export function StationsPage() {
 	}
 
 	return (
-		<div className="flex-1 p-4 space-y-4">
+		<div className="flex-1 px-8 py-10 space-y-6">
 			<div className="flex items-center justify-between">
-				<h2 className="text-lg font-semibold">Your Stations</h2>
+				<h2 className="zune-display zune-page-title text-[var(--color-text)]">your stations</h2>
 				{hasQuickMix && (
 					<button
 						type="button"
 						onClick={() => setDialog({ type: "quickmix" })}
-						className="flex items-center gap-2 px-3 py-1.5 text-sm text-[var(--color-secondary)] hover:bg-[var(--color-bg-highlight)] rounded-lg transition-colors"
+						className="flex items-center gap-2 px-3 py-1.5 text-sm text-[var(--color-secondary)] hover:bg-[var(--color-bg-highlight)] transition-colors"
 					>
 						<Shuffle className="w-4 h-4" />
-						Manage Shuffle
+						manage shuffle
 					</button>
 				)}
 			</div>
@@ -91,11 +91,11 @@ export function StationsPage() {
 				<Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-[var(--color-text-dim)]" />
 				<input
 					type="text"
-					placeholder="Filter stations..."
+					placeholder="filter stations..."
 					value={filter}
 					onChange={(e) => setFilter(e.target.value)}
 					aria-label="Filter stations"
-					className="w-full pl-10 pr-4 py-2 bg-[var(--color-bg-highlight)] border border-[var(--color-border)] rounded-lg text-sm text-[var(--color-text)] placeholder:text-[var(--color-text-dim)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-border-active)]"
+					className="w-full pl-10 pr-4 py-2 bg-[var(--color-bg-highlight)] border border-[var(--color-border)] text-sm text-[var(--color-text)] placeholder:text-[var(--color-text-dim)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-border-active)]"
 				/>
 			</div>
 			<StationList

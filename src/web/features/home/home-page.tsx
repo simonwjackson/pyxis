@@ -1,6 +1,6 @@
 /**
  * @module HomePage
- * Main home page displaying user's playlists and albums.
+ * Zune-inspired home page with panoramic headers and collection grids.
  */
 
 import { Link, useNavigate } from "@tanstack/react-router";
@@ -22,14 +22,14 @@ import {
 } from "@/web/shared/ui/collection-grid";
 
 const PLAYLIST_COLORS = [
-	{ bg: "#1a2e3a", fg: "#06b6d4" },
-	{ bg: "#2a1a33", fg: "#a855f7" },
-	{ bg: "#2a2510", fg: "#eab308" },
-	{ bg: "#0f2518", fg: "#22c55e" },
-	{ bg: "#2a1515", fg: "#ef4444" },
-	{ bg: "#1a2533", fg: "#3b82f6" },
-	{ bg: "#2a1a28", fg: "#ec4899" },
-	{ bg: "#1a2a2a", fg: "#14b8a6" },
+	{ bg: "#2a1e22", fg: "#d4377b" },
+	{ bg: "#1e2a1e", fg: "#8b9a3e" },
+	{ bg: "#2a2518", fg: "#e8a849" },
+	{ bg: "#1e2428", fg: "#6ba3be" },
+	{ bg: "#2a1e1e", fg: "#c94040" },
+	{ bg: "#22202a", fg: "#9a7bbf" },
+	{ bg: "#2a2520", fg: "#be8a6b" },
+	{ bg: "#1e2a28", fg: "#5caa8e" },
 ] as const;
 
 function hashString(str: string): number {
@@ -55,9 +55,6 @@ type PlaylistData = {
 	readonly artworkUrl?: string | null;
 };
 
-/**
- * Card component for displaying a playlist with play-on-click.
- */
 const PlaylistCard = memo(function PlaylistCard({
 	playlist,
 	onPlay,
@@ -75,7 +72,7 @@ const PlaylistCard = memo(function PlaylistCard({
 			className="group cursor-pointer text-left w-full"
 		>
 			<div
-				className="aspect-square rounded-lg mb-2 relative overflow-hidden"
+				className="aspect-square mb-2 relative overflow-hidden"
 				style={playlist.artworkUrl ? undefined : { background: color.bg }}
 			>
 				{playlist.artworkUrl ? (
@@ -93,22 +90,22 @@ const PlaylistCard = memo(function PlaylistCard({
 							{initial}
 						</span>
 						<div
-							className="absolute top-2.5 right-2.5 w-2 h-2 rounded-full"
+							className="absolute top-2.5 right-2.5 w-2 h-2"
 							style={{ background: color.fg, opacity: 0.5 }}
 						/>
 					</>
 				)}
 				<div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center">
-					<div className="opacity-0 group-hover:opacity-100 transition-opacity bg-[var(--color-primary)] rounded-full p-2.5 shadow-lg">
-						<Play className="w-5 h-5 text-[var(--color-bg)]" fill="currentColor" />
+					<div className="opacity-0 group-hover:opacity-100 transition-opacity bg-[var(--color-primary)] p-2.5">
+						<Play className="w-5 h-5 text-white" fill="currentColor" />
 					</div>
 				</div>
 			</div>
-			<p className="text-sm font-medium text-[var(--color-text)] truncate">
+			<p className="zune-title text-[0.95rem] text-[var(--color-text)] truncate">
 				{playlist.name}
 			</p>
-			<p className="text-xs text-[var(--color-text-dim)]">
-				Playlist
+			<p className="zune-meta text-[var(--color-text-dim)]">
+				playlist
 			</p>
 		</button>
 	);
@@ -122,9 +119,6 @@ type AlbumData = {
 	readonly artworkUrl: string | null;
 };
 
-/**
- * Card component for displaying an album with link to detail page.
- */
 const AlbumCard = memo(function AlbumCard({
 	album,
 }: {
@@ -137,7 +131,7 @@ const AlbumCard = memo(function AlbumCard({
 			search={{ play: undefined, startIndex: undefined, shuffle: undefined }}
 			className="group cursor-pointer text-left w-full block"
 		>
-			<div className="aspect-square bg-[var(--color-bg-highlight)] rounded-lg mb-2 relative overflow-hidden">
+			<div className="aspect-square bg-[var(--color-bg-highlight)] mb-2 relative overflow-hidden">
 				{album.artworkUrl ? (
 					<img
 						src={album.artworkUrl}
@@ -150,15 +144,15 @@ const AlbumCard = memo(function AlbumCard({
 					</div>
 				)}
 				<div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center">
-					<div className="opacity-0 group-hover:opacity-100 transition-opacity bg-[var(--color-primary)] rounded-full p-2.5 shadow-lg">
-						<Play className="w-5 h-5 text-[var(--color-bg)]" fill="currentColor" />
+					<div className="opacity-0 group-hover:opacity-100 transition-opacity bg-[var(--color-primary)] p-2.5">
+						<Play className="w-5 h-5 text-white" fill="currentColor" />
 					</div>
 				</div>
 			</div>
-			<p className="text-sm font-medium text-[var(--color-text)] truncate">
+			<p className="zune-title text-[0.95rem] text-[var(--color-text)] truncate">
 				{album.title}
 			</p>
-			<p className="text-xs text-[var(--color-text-dim)]">
+			<p className="zune-meta text-[var(--color-text-dim)]">
 				{album.artist}
 				{album.year ? ` \u00B7 ${String(album.year)}` : ""}
 			</p>
@@ -167,39 +161,14 @@ const AlbumCard = memo(function AlbumCard({
 });
 
 const PLAYLIST_SORT_OPTIONS: readonly SortOption<PlaylistData>[] = [
-	{
-		key: "shuffle",
-		label: "Shuffle",
-		icon: Shuffle,
-		comparator: "shuffle",
-	},
-	{
-		key: "az",
-		label: "A \u2192 Z",
-		icon: ArrowDownAZ,
-		comparator: (a, b) => a.name.localeCompare(b.name),
-	},
-	{
-		key: "recent",
-		label: "Recently Added",
-		icon: Clock,
-		comparator: (a, b) => b.id.localeCompare(a.id),
-	},
+	{ key: "shuffle", label: "Shuffle", icon: Shuffle, comparator: "shuffle" },
+	{ key: "az", label: "A \u2192 Z", icon: ArrowDownAZ, comparator: (a, b) => a.name.localeCompare(b.name) },
+	{ key: "recent", label: "Recently Added", icon: Clock, comparator: (a, b) => b.id.localeCompare(a.id) },
 ] as const;
 
 const ALBUM_SORT_OPTIONS: readonly SortOption<AlbumData>[] = [
-	{
-		key: "shuffle",
-		label: "Shuffle",
-		icon: Shuffle,
-		comparator: "shuffle",
-	},
-	{
-		key: "az",
-		label: "A \u2192 Z",
-		icon: ArrowDownAZ,
-		comparator: (a, b) => a.title.localeCompare(b.title),
-	},
+	{ key: "shuffle", label: "Shuffle", icon: Shuffle, comparator: "shuffle" },
+	{ key: "az", label: "A \u2192 Z", icon: ArrowDownAZ, comparator: (a, b) => a.title.localeCompare(b.title) },
 	{
 		key: "artist",
 		label: "By Artist",
@@ -214,31 +183,21 @@ const ALBUM_SORT_OPTIONS: readonly SortOption<AlbumData>[] = [
 		label: "Newest",
 		icon: ArrowDownWideNarrow,
 		comparator: (a, b) => {
-			// nulls last
 			if (a.year === null && b.year === null) return 0;
 			if (a.year === null) return 1;
 			if (b.year === null) return -1;
 			return b.year - a.year;
 		},
 	},
-	{
-		key: "recent",
-		label: "Recently Added",
-		icon: Clock,
-		comparator: (a, b) => b.id.localeCompare(a.id),
-	},
+	{ key: "recent", label: "Recently Added", icon: Clock, comparator: (a, b) => b.id.localeCompare(a.id) },
 ] as const;
 
-// Static filter functions - defined outside component to avoid recreation
 const filterPlaylist = (p: PlaylistData, q: string) => p.name.toLowerCase().includes(q);
 const filterAlbum = (a: AlbumData, q: string) => {
 	const lower = q.toLowerCase();
 	return a.title.toLowerCase().includes(lower) || a.artist.toLowerCase().includes(lower);
 };
 
-/**
- * Home page component displaying user's playlists and albums.
- */
 export function HomePage() {
 	const navigate = useNavigate();
 	const playlistsQuery = trpc.playlist.list.useQuery();
@@ -255,25 +214,14 @@ export function HomePage() {
 
 	const handleOpenPlaylist = useCallback((playlist: PlaylistData) => {
 		if (playlist.id.startsWith("pandora:")) {
-			navigate({
-				to: "/station/$token",
-				params: { token: playlist.id },
-				search: { play: undefined },
-			});
+			navigate({ to: "/station/$token", params: { token: playlist.id }, search: { play: undefined } });
 		} else {
-			navigate({
-				to: "/playlist/$playlistId",
-				params: { playlistId: playlist.id },
-				search: { play: undefined, startIndex: undefined, shuffle: undefined },
-			});
+			navigate({ to: "/playlist/$playlistId", params: { playlistId: playlist.id }, search: { play: undefined, startIndex: undefined, shuffle: undefined } });
 		}
 	}, [navigate]);
 
 	const renderPlaylistItem = useCallback((playlist: PlaylistData) => (
-		<PlaylistCard
-			playlist={playlist}
-			onPlay={() => handleOpenPlaylist(playlist)}
-		/>
+		<PlaylistCard playlist={playlist} onPlay={() => handleOpenPlaylist(playlist)} />
 	), [handleOpenPlaylist]);
 
 	const renderAlbumItem = useCallback((album: AlbumData) => (
@@ -281,17 +229,17 @@ export function HomePage() {
 	), []);
 
 	return (
-		<div className="flex-1 p-6 space-y-10">
+		<div className="flex-1 px-8 py-10 space-y-16">
 			{playlistsQuery.isLoading ? (
-				<CollectionGrid.Skeleton title="My Playlists" />
+				<CollectionGrid.Skeleton title="my playlists" />
 			) : playlists.length === 0 ? (
 				<CollectionGrid.Empty
-					title="My Playlists"
+					title="my playlists"
 					message="No playlists found. Create a station to get started."
 				/>
 			) : (
 				<CollectionGrid
-					title="My Playlists"
+					title="my playlists"
 					items={playlists}
 					keyOf={(p) => p.id}
 					renderItem={renderPlaylistItem}
@@ -303,24 +251,24 @@ export function HomePage() {
 						<button
 							type="button"
 							onClick={() => navigate({ to: "/stations" })}
-							className="text-sm text-[var(--color-text-dim)] hover:text-[var(--color-text)] transition-colors"
+							className="zune-label text-[var(--color-text-dim)] hover:text-[var(--color-text)] transition-colors"
 						>
-							See all
+							see all
 						</button>
 					}
 				/>
 			)}
 
 			{albumsQuery.isLoading ? (
-				<CollectionGrid.Skeleton title="My Albums" />
+				<CollectionGrid.Skeleton title="my albums" />
 			) : albums.length === 0 ? (
 				<CollectionGrid.Empty
-					title="My Albums"
+					title="my albums"
 					message="No albums found."
 				/>
 			) : (
 				<CollectionGrid
-					title="My Albums"
+					title="my albums"
 					items={albums}
 					keyOf={(a) => a.id}
 					renderItem={renderAlbumItem}
@@ -331,14 +279,12 @@ export function HomePage() {
 					trailing={
 						<button
 							type="button"
-							className="aspect-square border-2 border-dashed border-[var(--color-border)] rounded-lg flex flex-col items-center justify-center cursor-pointer hover:border-[var(--color-text-dim)] transition-colors"
+							className="aspect-square border border-dashed border-[var(--color-border)] flex flex-col items-center justify-center cursor-pointer hover:border-[var(--color-text-dim)] transition-colors"
 							onClick={() => navigate({ to: "/search" })}
 							aria-label="Add album"
 						>
 							<Plus className="w-8 h-8 text-[var(--color-text-dim)] mb-1" aria-hidden="true" />
-							<span className="text-xs text-[var(--color-text-dim)]">
-								Add album
-							</span>
+							<span className="zune-meta text-[var(--color-text-dim)]">add album</span>
 						</button>
 					}
 				/>

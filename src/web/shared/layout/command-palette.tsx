@@ -77,7 +77,7 @@ function SelectableItem({ selected, onClick, onMouseEnter, children }: Selectabl
 		<button
 			type="button"
 			data-selected={selected}
-			className={`w-full flex items-center gap-3 px-4 py-2 text-left transition-colors ${
+			className={`w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors ${
 				selected
 					? "bg-[var(--color-bg-highlight)]"
 					: "hover:bg-[var(--color-bg-highlight)]"
@@ -114,17 +114,17 @@ export function CommandPalette({ onClose }: CommandPaletteProps) {
 
 	const feedbackMutation = trpc.track.feedback.useMutation({
 		onSuccess(_data, variables) {
-			toast.success(variables.positive ? "Track liked" : "Track disliked");
+			toast.success(variables.positive ? "track liked" : "track disliked");
 		},
 	});
 	const sleepMutation = trpc.track.sleep.useMutation({
 		onSuccess() {
-			toast.success("Track will be skipped for 30 days");
+			toast.success("track will be skipped for 30 days");
 		},
 	});
 	const bookmarkMutation = trpc.library.addBookmark.useMutation({
 		onSuccess() {
-			toast.success("Song bookmarked");
+			toast.success("song bookmarked");
 		},
 	});
 
@@ -210,7 +210,7 @@ export function CommandPalette({ onClose }: CommandPaletteProps) {
 		>
 			<div className="fixed inset-0 bg-black/60" />
 			<div
-				className="relative w-full max-w-lg bg-[var(--color-bg)] border border-[var(--color-border)] rounded-xl shadow-2xl overflow-hidden"
+				className="relative w-full max-w-xl bg-[var(--color-bg)] border border-[var(--color-border)] shadow-2xl overflow-hidden"
 				onClick={(e) => e.stopPropagation()}
 			>
 				{/* Search input */}
@@ -219,13 +219,13 @@ export function CommandPalette({ onClose }: CommandPaletteProps) {
 					<input
 						ref={inputRef}
 						type="text"
-						placeholder="Type a command..."
+						placeholder="type a command..."
 						value={query}
 						onChange={(e) => setQuery(e.target.value)}
-						className="flex-1 bg-transparent text-[var(--color-text)] placeholder-[var(--color-text-dim)] outline-none text-sm"
+						className="flex-1 bg-transparent text-[var(--color-text)] placeholder-[var(--color-text-dim)] outline-none text-base font-light tracking-[-0.02em] lowercase"
 					/>
-					<kbd className="px-1.5 py-0.5 text-[10px] text-[var(--color-text-dim)] bg-[var(--color-bg-highlight)] rounded border border-[var(--color-border)]">
-						ESC
+					<kbd className="zune-label px-1.5 py-0.5 text-[var(--color-text-dim)] bg-[var(--color-bg-highlight)] border border-[var(--color-border)]">
+						esc
 					</kbd>
 				</div>
 
@@ -255,18 +255,18 @@ export function CommandPalette({ onClose }: CommandPaletteProps) {
 				</div>
 
 				{/* Footer */}
-				<div className="flex items-center justify-between px-4 py-2 border-t border-[var(--color-border)] text-[10px] text-[var(--color-text-dim)]">
+				<div className="zune-label flex items-center justify-between px-4 py-2 border-t border-[var(--color-border)] text-[var(--color-text-dim)]">
 					<div className="flex gap-3">
 						<span>
-							<kbd className="px-1 bg-[var(--color-bg-highlight)] rounded border border-[var(--color-border)]">&uarr;&darr;</kbd>{" "}
+							<kbd className="px-1 bg-[var(--color-bg-highlight)] border border-[var(--color-border)]">&uarr;&darr;</kbd>{" "}
 							navigate
 						</span>
 						<span>
-							<kbd className="px-1 bg-[var(--color-bg-highlight)] rounded border border-[var(--color-border)]">&crarr;</kbd>{" "}
+							<kbd className="px-1 bg-[var(--color-bg-highlight)] border border-[var(--color-border)]">&crarr;</kbd>{" "}
 							select
 						</span>
 						<span>
-							<kbd className="px-1 bg-[var(--color-bg-highlight)] rounded border border-[var(--color-border)]">esc</kbd>{" "}
+							<kbd className="px-1 bg-[var(--color-bg-highlight)] border border-[var(--color-border)]">esc</kbd>{" "}
 							close
 						</span>
 					</div>
@@ -356,7 +356,7 @@ function CommandList({
 				return (
 					<div key={group.category}>
 						<div className="px-3 py-1">
-							<p className="text-[10px] font-medium text-[var(--color-text-dim)] uppercase tracking-wider">
+							<p className="zune-label text-[var(--color-text-dim)]">
 								{group.category}
 							</p>
 						</div>
@@ -378,11 +378,11 @@ function CommandList({
 									onMouseEnter={() => setSelectedIndex(globalIdx)}
 								>
 									<Icon className={`w-4 h-4 ${isSelected ? "text-[var(--color-primary)]" : "text-[var(--color-text-muted)]"}`} />
-									<span className={`flex-1 text-sm ${isSelected ? "text-[var(--color-text)]" : "text-[var(--color-text-muted)]"}`}>
+									<span className={`flex-1 text-[0.98rem] font-light tracking-[-0.02em] lowercase ${isSelected ? "text-[var(--color-text)]" : "text-[var(--color-text-muted)]"}`}>
 										{cmd.label}
 									</span>
 									{cmd.shortcut && (
-										<kbd className="px-1.5 py-0.5 text-[10px] text-[var(--color-text-dim)] bg-[var(--color-bg-highlight)] rounded border border-[var(--color-border)]">
+										<kbd className="zune-label px-1.5 py-0.5 text-[var(--color-text-dim)] bg-[var(--color-bg-highlight)] border border-[var(--color-border)]">
 											{cmd.shortcut}
 										</kbd>
 									)}
@@ -396,8 +396,8 @@ function CommandList({
 				);
 			})}
 			{flatItems.length === 0 && (
-				<div className="px-4 py-8 text-center text-sm text-[var(--color-text-dim)]">
-					No commands found
+				<div className="px-4 py-8 text-center text-sm text-[var(--color-text-dim)] lowercase">
+					no commands found
 				</div>
 			)}
 		</div>
@@ -480,15 +480,15 @@ function ThemeList({
 			<button
 				type="button"
 				onClick={onBack}
-				className="w-full flex items-center gap-3 px-4 py-2 hover:bg-[var(--color-bg-highlight)] text-left text-[var(--color-text-dim)]"
+				className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-[var(--color-bg-highlight)] text-left text-[var(--color-text-dim)]"
 			>
 				<ArrowLeft className="w-4 h-4" />
-				<span className="text-sm">Back to commands</span>
+				<span className="text-[0.98rem] font-light tracking-[-0.02em] lowercase">back to commands</span>
 			</button>
 
 			<div className="px-3 py-1 mt-1">
-				<p className="text-[10px] font-medium text-[var(--color-text-dim)] uppercase tracking-wider">
-					Themes
+				<p className="zune-label text-[var(--color-text-dim)]">
+					themes
 				</p>
 			</div>
 
@@ -505,10 +505,10 @@ function ThemeList({
 						onMouseEnter={() => setSelectedIndex(idx)}
 					>
 						<div
-							className="w-4 h-4 rounded-full shrink-0"
+							className="w-4 h-4 shrink-0"
 							style={{ background: t.gradient }}
 						/>
-						<span className={`flex-1 text-sm ${isSelected ? "text-[var(--color-text)]" : "text-[var(--color-text-muted)]"}`}>
+						<span className={`flex-1 text-[0.98rem] font-light tracking-[-0.02em] lowercase ${isSelected ? "text-[var(--color-text)]" : "text-[var(--color-text-muted)]"}`}>
 							{t.label}
 						</span>
 						{isActive && (

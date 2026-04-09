@@ -32,7 +32,7 @@ export function DeleteStationDialog({
 	const deleteMutation = trpc.radio.delete.useMutation({
 		onSuccess() {
 			utils.radio.list.invalidate();
-			toast.success("Station deleted");
+			toast.success("station deleted");
 			onSuccess();
 		},
 		onError(err) {
@@ -56,27 +56,27 @@ export function DeleteStationDialog({
 			aria-describedby="delete-dialog-desc"
 		>
 			<div
-				className="bg-[var(--color-bg)] border border-[var(--color-border)] rounded-xl p-6 max-w-sm w-full shadow-2xl"
+				className="bg-[var(--color-bg)] border border-[var(--color-border)] p-6 max-w-sm w-full shadow-2xl"
 				onClick={(e) => e.stopPropagation()}
 				onKeyDown={() => {}}
 			>
 				<div className="flex items-center gap-3 mb-4">
-					<div className="w-10 h-10 rounded-full bg-[var(--color-bg-highlight)] flex items-center justify-center" aria-hidden="true">
+					<div className="w-10 h-10 bg-[var(--color-bg-highlight)] flex items-center justify-center" aria-hidden="true">
 						<Trash2 className="w-5 h-5 text-[var(--color-error)]" />
 					</div>
-					<h2 id="delete-dialog-title" className="text-lg font-semibold text-[var(--color-text)]">
+					<h2 id="delete-dialog-title" className="zune-heading text-2xl text-[var(--color-text)]">
 						Delete Station
 					</h2>
 				</div>
 
 				<p className="text-sm text-[var(--color-text-muted)] mb-1">
-					Are you sure you want to delete
+					are you sure you want to delete
 				</p>
 				<p className="text-sm font-medium text-[var(--color-text)] mb-4">
 					&ldquo;{stationName}&rdquo;?
 				</p>
 				<p id="delete-dialog-desc" className="text-xs text-[var(--color-text-dim)] mb-6">
-					This action cannot be undone.
+					this action cannot be undone.
 				</p>
 
 				<div className="flex gap-3 justify-end">
@@ -84,7 +84,7 @@ export function DeleteStationDialog({
 						type="button"
 						onClick={onCancel}
 						disabled={isDeleting}
-						className="px-4 py-2 text-sm text-[var(--color-text-muted)] hover:bg-[var(--color-bg-highlight)] rounded-lg transition-colors"
+						className="px-4 py-2 text-sm text-[var(--color-text-muted)] hover:bg-[var(--color-bg-highlight)] transition-colors"
 					>
 						Cancel
 					</button>
@@ -92,7 +92,7 @@ export function DeleteStationDialog({
 						type="button"
 						onClick={handleConfirm}
 						disabled={isDeleting}
-						className="px-4 py-2 text-sm text-white bg-[var(--color-error)] hover:brightness-110 rounded-lg transition-colors disabled:opacity-50"
+						className="px-4 py-2 text-sm text-white bg-[var(--color-error)] hover:brightness-110 transition-colors disabled:opacity-50"
 					>
 						{isDeleting ? "Deleting..." : "Delete"}
 					</button>

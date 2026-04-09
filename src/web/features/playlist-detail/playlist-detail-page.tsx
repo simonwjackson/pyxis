@@ -120,7 +120,7 @@ export function PlaylistDetailPage({
 	if (!playlist) {
 		return (
 			<div className="flex-1 flex items-center justify-center p-4">
-				<p className="text-[var(--color-text-dim)]">Playlist not found</p>
+				<p className="text-[var(--color-text-dim)]">playlist not found</p>
 			</div>
 		);
 	}
@@ -130,7 +130,7 @@ export function PlaylistDetailPage({
 	const trackCount = tracks?.length ?? 0;
 
 	return (
-		<div className="flex-1 p-6 max-w-2xl mx-auto space-y-6">
+		<div className="flex-1 px-8 py-10 max-w-3xl mx-auto space-y-8">
 			<button
 				type="button"
 				onClick={() =>
@@ -152,7 +152,7 @@ export function PlaylistDetailPage({
 			</button>
 
 			<div className="flex gap-6 items-end">
-				<div className="w-48 h-48 shrink-0 rounded-xl shadow-lg overflow-hidden bg-[var(--color-bg-highlight)]">
+				<div className="w-56 h-56 shrink-0shadow-lg overflow-hidden bg-[var(--color-bg-highlight)]">
 					{playlist.artworkUrl ? (
 						<img
 							src={playlist.artworkUrl}
@@ -166,7 +166,7 @@ export function PlaylistDetailPage({
 					)}
 				</div>
 				<div className="space-y-1 min-w-0">
-					<h1 className="text-2xl md:text-3xl font-bold text-[var(--color-text)] leading-tight">
+					<h1 className="zune-heading text-3xl md:text-4xl text-[var(--color-text)]">
 						{playlist.name}
 					</h1>
 					<p className="text-sm text-[var(--color-text-dim)]">
@@ -178,7 +178,7 @@ export function PlaylistDetailPage({
 					<div className="flex gap-3 pt-3">
 						<Button
 							onClick={() => handlePlay(0)}
-							className="gap-2 rounded-full bg-[var(--color-primary)] hover:brightness-110 text-[var(--color-bg)]"
+							className="gap-2bg-[var(--color-primary)] hover:brightness-110 text-[var(--color-bg)]"
 						>
 							<Play className="w-4 h-4" fill="currentColor" />
 							Play
@@ -186,7 +186,7 @@ export function PlaylistDetailPage({
 						<Button
 							variant="outline"
 							onClick={handleShuffle}
-							className="gap-2 rounded-full"
+							className="gap-2"
 						>
 							<Shuffle className="w-4 h-4" />
 							Shuffle
@@ -204,7 +204,7 @@ export function PlaylistDetailPage({
 								key={track.id}
 								type="button"
 								onClick={() => handlePlay(index)}
-								className={`w-full flex items-center gap-4 px-3 py-2.5 rounded text-left transition-colors ${
+								className={`w-full flex items-center gap-4 px-4 py-3 text-left transition-colors ${
 									isActive
 										? "bg-[var(--color-primary)]/10 text-[var(--color-primary)] font-medium"
 										: "text-[var(--color-text-dim)] hover:text-[var(--color-text)] hover:bg-[var(--color-bg-highlight)]"
@@ -240,22 +240,22 @@ export function PlaylistDetailPage({
  */
 function PlaylistDetailSkeleton() {
 	return (
-		<div className="flex-1 p-6 max-w-2xl mx-auto space-y-6">
+		<div className="flex-1 px-8 py-10 max-w-3xl mx-auto space-y-8">
 			<Skeleton className="h-5 w-16" />
 			<div className="flex gap-6 items-end">
-				<Skeleton className="w-48 h-48 rounded-xl shrink-0" />
+				<Skeleton className="w-56 h-56shrink-0" />
 				<div className="space-y-2 flex-1">
 					<Skeleton className="h-8 w-64" />
 					<Skeleton className="h-4 w-48" />
 					<div className="flex gap-3 pt-3">
-						<Skeleton className="h-10 w-24 rounded-full" />
-						<Skeleton className="h-10 w-28 rounded-full" />
+						<Skeleton className="h-10 w-24" />
+						<Skeleton className="h-10 w-28" />
 					</div>
 				</div>
 			</div>
 			<div className="space-y-1">
 				{Array.from({ length: 8 }).map((_, i) => (
-					<div key={i} className="flex items-center gap-4 px-3 py-2.5">
+					<div key={i} className="flex items-center gap-4 px-4 py-3">
 						<Skeleton className="w-6 h-4" />
 						<div className="flex-1 space-y-1">
 							<Skeleton className="h-4 w-full" />

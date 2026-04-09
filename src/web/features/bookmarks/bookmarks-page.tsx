@@ -22,8 +22,8 @@ export function BookmarksPage() {
 			utils.library.bookmarks.invalidate();
 			toast.success(
 				variables.type === "artist"
-					? "Artist bookmark removed"
-					: "Song bookmark removed",
+					? "artist bookmark removed"
+					: "song bookmark removed",
 			)
 		},
 	})
@@ -31,7 +31,7 @@ export function BookmarksPage() {
 	const createStation = trpc.radio.create.useMutation({
 		onSuccess: () => {
 			utils.radio.list.invalidate();
-			toast.success("Station created");
+			toast.success("station created");
 		},
 		onError: (err) => {
 			toast.error(`Failed to create station: ${err.message}`);
@@ -50,31 +50,31 @@ export function BookmarksPage() {
 	const songs = bookmarksQuery.data?.songs ?? [];
 
 	return (
-		<div className="flex-1 p-4 space-y-6">
-			<h2 className="text-lg font-semibold">Bookmarks</h2>
+		<div className="flex-1 px-8 py-10 space-y-8">
+			<h2 className="zune-display zune-page-title text-[var(--color-text)]">bookmarks</h2>
 
 			{artists.length > 0 && (
 				<section>
-					<h3 className="text-sm font-medium text-[var(--color-text-muted)] mb-2">
-						Artists
+					<h3 className="zune-label text-[var(--color-text-muted)] mb-2">
+						artists
 					</h3>
 					<ul className="space-y-1">
 						{artists.map((a) => (
 							<li
 								key={a.bookmarkToken}
-								className="flex items-center gap-3 p-3 rounded-lg hover:bg-[var(--color-bg-highlight)] group"
+								className="flex items-center gap-3 p-3 hover:bg-[var(--color-bg-highlight)] group"
 							>
-								<div className="w-10 h-10 rounded-full bg-[var(--color-bg-highlight)] flex items-center justify-center shrink-0">
+								<div className="w-10 h-10 bg-[var(--color-bg-highlight)] flex items-center justify-center shrink-0">
 									<User className="w-5 h-5 text-[var(--color-text-muted)]" />
 								</div>
-								<span className="flex-1 text-[var(--color-text)]">
+								<span className="flex-1 zune-list-title text-[var(--color-text)]">
 									{a.artistName}
 								</span>
 								<div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
 									<Button
 										variant="ghost"
 										size="icon"
-										className="text-[var(--color-text-muted)] hover:text-emerald-400"
+										className="text-[var(--color-text-muted)] hover:text-[var(--color-success)]"
 										onClick={() =>
 											createStation.mutate({
 												musicToken: a.musicToken,
@@ -110,23 +110,23 @@ export function BookmarksPage() {
 
 			{songs.length > 0 && (
 				<section>
-					<h3 className="text-sm font-medium text-[var(--color-text-muted)] mb-2">
-						Songs
+					<h3 className="zune-label text-[var(--color-text-muted)] mb-2">
+						songs
 					</h3>
 					<ul className="space-y-1">
 						{songs.map((s) => (
 							<li
 								key={s.bookmarkToken}
-								className="flex items-center gap-3 p-3 rounded-lg hover:bg-[var(--color-bg-highlight)] group"
+								className="flex items-center gap-3 p-3 hover:bg-[var(--color-bg-highlight)] group"
 							>
-								<div className="w-10 h-10 rounded bg-[var(--color-bg-highlight)] flex items-center justify-center shrink-0">
+								<div className="w-10 h-10 bg-[var(--color-bg-highlight)] flex items-center justify-center shrink-0">
 									<Music className="w-5 h-5 text-[var(--color-text-muted)]" />
 								</div>
 								<div className="flex-1 min-w-0">
-									<p className="text-[var(--color-text)] truncate">
+									<p className="zune-list-title text-[var(--color-text)] truncate">
 										{s.songName}
 									</p>
-									<p className="text-xs text-[var(--color-text-dim)]">
+									<p className="zune-eyebrow text-[var(--color-text-dim)]">
 										{s.artistName}
 									</p>
 								</div>
@@ -134,7 +134,7 @@ export function BookmarksPage() {
 									<Button
 										variant="ghost"
 										size="icon"
-										className="text-[var(--color-text-muted)] hover:text-emerald-400"
+										className="text-[var(--color-text-muted)] hover:text-[var(--color-success)]"
 										onClick={() =>
 											createStation.mutate({
 												musicToken: s.musicToken,
@@ -169,11 +169,10 @@ export function BookmarksPage() {
 			)}
 
 			{artists.length === 0 && songs.length === 0 && (
-				<div className="text-center py-12 text-[var(--color-text-dim)]">
-					<Bookmark className="w-12 h-12 mx-auto mb-4 text-[var(--color-text-dim)]" />
-					<p>No bookmarks yet.</p>
-					<p className="text-sm mt-1">
-						Bookmark artists and songs while playing.
+				<div className="py-16 text-[var(--color-text-dim)]">
+					<p className="zune-display text-4xl text-[var(--color-text-dim)]/40 mb-4">no bookmarks</p>
+					<p className="text-sm">
+						bookmark artists and songs while playing.
 					</p>
 				</div>
 			)}
