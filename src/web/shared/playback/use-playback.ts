@@ -75,7 +75,9 @@ export function usePlayback() {
 	const lastStreamUrlRef = useRef<string | null>(null);
 	const seekingRef = useRef(false);
 	const handleServerStateRef = useRef<(state: ServerState, source?: string) => void>(() => {});
-	// Track whether the first SSE state has been received (to suppress auto-play on connect)
+	// Track whether we've handled the first SSE state after page load.
+	// We only suppress autoplay for a newly loaded track during that first sync,
+	// not on later reconnects for the same session.
 	const hasReceivedInitialStateRef = useRef(false);
 	// Track the latest server progress for seek-on-resume
 	const serverProgressRef = useRef(0);
@@ -254,8 +256,8 @@ export function usePlayback() {
 					seekAudioTo(audio, serverState.progress);
 
 					if (isInitialState) {
-						// On initial SSE connect: always show paused regardless of server status
-						logToServer(`[${source}] → INITIAL: load track, show paused at ${String(serverState.progress)}s`);
+						// On the first SSE sync after page load, don't auto-play a newly loaded track.
+						logToServer(`[${source}] → FIRST SSE state: load track, show paused at ${String(serverState.progress)}s`);
 					} else if (serverState.status === "playing") {
 						logToServer(`[${source}] → LOAD new src + play() (status=playing)`);
 						safePlay(audio, "new track load");
@@ -265,9 +267,29 @@ export function usePlayback() {
 				} else {
 					// Same track — sync play/pause state
 					if (isInitialState) {
-						// On initial SSE connect with same track already loaded: seek and show paused
-						logToServer(`[${source}] → INITIAL: same track, seek to ${String(serverState.progress)}s, show paused`);
-						seekAudioTo(audio, serverState.progress);
+						if (serverState.status === "playing") {
+							if (audio.paused) {
+								const delta = Math.abs(audio.currentTime - serverState.progress);
+								if (delta > 2) {
+									logToServer(`[${source}] → FIRST SSE state: same track paused locally, seek ${String(audio.currentTime)}→${String(serverState.progress)} (delta=${String(delta)})`);
+									seekAudioTo(audio, serverState.progress);
+								}
+								logToServer(`[${source}] → FIRST SSE state: same track, resume because server=playing`);
+								safePlay(audio, "initial same track resume");
+							} else {
+								logToServer(`[${source}] → FIRST SSE state: same track already playing, keep playing`);
+							}
+						} else if (serverState.status === "paused") {
+							logToServer(`[${source}] → FIRST SSE state: same track, seek to ${String(serverState.progress)}s, show paused`);
+							seekAudioTo(audio, serverState.progress);
+							if (!audio.paused) {
+								audio.pause();
+							}
+						} else {
+							logToServer(`[${source}] → FIRST SSE state: same track, stop`);
+							audio.pause();
+							audio.currentTime = 0;
+						}
 					} else if (serverState.status === "playing" && audio.paused) {
 						// Another device started playing — apply progress threshold to avoid jitter
 						const delta = Math.abs(audio.currentTime - serverState.progress);
@@ -292,6 +314,8 @@ export function usePlayback() {
 				// Sync volume
 				audio.volume = serverState.volume / 100;
 
+				const suppressAutoplayOnInitialLoad = isInitialState && baseUrl !== lastBaseUrl;
+
 				setState((prev) => ({
 					...prev,
 					currentTrack: {
@@ -302,8 +326,9 @@ export function usePlayback() {
 						audioUrl: track.streamUrl,
 						...(track.artworkUrl ? { artUrl: track.artworkUrl } : {}),
 					},
-					// On initial connect, always show paused
-					isPlaying: isInitialState ? false : serverState.status === "playing",
+					// Suppress autoplay only for a newly loaded track on first connect.
+					// Reconnects for the same in-flight track should preserve playing state.
+					isPlaying: suppressAutoplayOnInitialLoad ? false : serverState.status === "playing",
 					progress: isInitialState ? serverState.progress : prev.progress,
 					volume: serverState.volume,
 				}));
@@ -329,11 +354,9 @@ export function usePlayback() {
 	// Keep ref in sync so audio event listeners always call the latest version
 	handleServerStateRef.current = handleServerState;
 
-	// Subscribe to server player state changes via manual EventSource with reconnect.
-	// tRPC's useSubscription + httpSubscriptionLink creates EventSource connections
-	// that silently die ~15-20s after React StrictMode mount/unmount cycles.
-	// Components at the app root (PlaybackProvider) never remount to recover.
-	// Manual EventSource gives us full lifecycle control with reconnect on drop.
+	// Subscribe to server player state changes via manual EventSource so we control
+	// reconnect behavior explicitly. The server also emits a heartbeat to keep the
+	// SSE connection warm during long stretches with no playback state changes.
 	useEffect(() => {
 		let eventSource: EventSource | null = null;
 		let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
@@ -343,9 +366,6 @@ export function usePlayback() {
 
 		function connect() {
 			if (cancelled) return;
-
-			// Reset initial state flag so reconnects also show paused
-			hasReceivedInitialStateRef.current = false;
 
 			// tRPC SSE URL: no input param when subscription input is undefined
 			eventSource = new EventSource("/trpc/player.onStateChange");

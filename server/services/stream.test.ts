@@ -3,7 +3,10 @@
  * Tests for audio streaming proxy and caching logic.
  */
 
+import { existsSync, readdirSync, rmSync } from "node:fs";
+import { join } from "node:path";
 import { describe, it, expect } from "bun:test";
+import envPaths from "env-paths";
 import {
 	parseTrackId,
 	encodeTrackId,
@@ -13,6 +16,16 @@ import {
 	type StreamRequest,
 } from "./stream.js";
 import type { SourceManager } from "../../src/sources/index.js";
+
+function removeCachedTestTrack(source: string, trackId: string): void {
+	const dir = join(envPaths("pyxis", { suffix: "" }).cache, "audio", source);
+	if (!existsSync(dir)) return;
+	for (const entry of readdirSync(dir)) {
+		if (entry.startsWith(trackId)) {
+			rmSync(join(dir, entry), { force: true });
+		}
+	}
+}
 
 describe("parseTrackId", () => {
 	it("parses a pandora composite ID", () => {
@@ -228,6 +241,46 @@ describe("handleStreamRequest", () => {
 			expect(response.status).toBe(404);
 		} finally {
 			globalThis.fetch = originalFetch;
+		}
+	});
+
+	it("caches initial bytes=0- responses so later ranges are served from disk", async () => {
+		const trackId = `range-zero-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+		removeCachedTestTrack("ytmusic", trackId);
+
+		const mockSourceManager = {
+			getStreamUrl: async () => "https://example.com/audio.webm",
+		} as unknown as SourceManager;
+
+		const originalFetch = globalThis.fetch;
+		let fetchCount = 0;
+		globalThis.fetch = async (_url: string | URL | Request, init?: RequestInit) => {
+			fetchCount += 1;
+			expect((init?.headers as Record<string, string> | undefined)?.Range).toBe("bytes=0-");
+			return new Response(new Uint8Array([0x01, 0x02, 0x03, 0x04]), {
+				status: 206,
+				headers: {
+					"Content-Type": "audio/webm",
+					"Content-Length": "4",
+					"Content-Range": "bytes 0-3/4",
+				},
+			});
+		};
+
+		try {
+			const firstResponse = await handleStreamRequest(mockSourceManager, `ytmusic:${trackId}`, "bytes=0-");
+			expect(firstResponse.status).toBe(206);
+			expect(firstResponse.headers.get("Content-Range")).toBe("bytes 0-3/4");
+			await firstResponse.arrayBuffer();
+
+			const secondResponse = await handleStreamRequest(mockSourceManager, `ytmusic:${trackId}`, "bytes=2-");
+			expect(fetchCount).toBe(1);
+			expect(secondResponse.status).toBe(206);
+			expect(secondResponse.headers.get("Content-Range")).toBe("bytes 2-3/4");
+			expect(new Uint8Array(await secondResponse.arrayBuffer())).toEqual(new Uint8Array([0x03, 0x04]));
+		} finally {
+			globalThis.fetch = originalFetch;
+			removeCachedTestTrack("ytmusic", trackId);
 		}
 	});
 

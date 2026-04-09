@@ -192,7 +192,16 @@ export const playerRouter = router({
 				emit.next(serialized);
 			});
 
-			return unsubscribe;
+			// Application-level keepalive: emit current state periodically so idle
+			// SSE connections are less likely to be torn down by the browser/runtime.
+			const heartbeat = setInterval(() => {
+				emit.next(serializePlayerState(PlayerService.getState()));
+			}, 5000);
+
+			return () => {
+				clearInterval(heartbeat);
+				unsubscribe();
+			};
 		});
 	}),
 });

@@ -166,6 +166,49 @@ function normalizeContentType(contentType: string | null): string {
 	return contentType?.split(";")[0]?.trim().toLowerCase() ?? "";
 }
 
+type ParsedByteRange = {
+	readonly start: number;
+	readonly end: number | null;
+};
+
+type ParsedContentRange = {
+	readonly start: number;
+	readonly end: number;
+	readonly size: number;
+};
+
+function parseByteRangeHeader(rangeHeader: string | null): ParsedByteRange | null {
+	if (!rangeHeader) return null;
+	const match = rangeHeader.match(/^bytes=(\d+)-(\d*)$/);
+	if (!match?.[1]) return null;
+	return {
+		start: Number.parseInt(match[1], 10),
+		end: match[2] ? Number.parseInt(match[2], 10) : null,
+	};
+}
+
+function parseContentRangeHeader(contentRange: string | null): ParsedContentRange | null {
+	if (!contentRange) return null;
+	const match = contentRange.match(/^bytes (\d+)-(\d+)\/(\d+)$/);
+	if (!match?.[1] || !match[2] || !match[3]) return null;
+	return {
+		start: Number.parseInt(match[1], 10),
+		end: Number.parseInt(match[2], 10),
+		size: Number.parseInt(match[3], 10),
+	};
+}
+
+function shouldCacheUpstreamResponse(rangeHeader: string | null, upstream: globalThis.Response): boolean {
+	const parsedRange = parseByteRangeHeader(rangeHeader);
+	if (!parsedRange) return true;
+	if (parsedRange.start !== 0 || parsedRange.end !== null) return false;
+	if (upstream.status === 200) return true;
+	if (upstream.status !== 206) return false;
+	const parsedContentRange = parseContentRangeHeader(upstream.headers.get("content-range"));
+	if (!parsedContentRange) return false;
+	return parsedContentRange.start === 0 && parsedContentRange.end + 1 === parsedContentRange.size;
+}
+
 function isMp3ContentType(contentType: string | null): boolean {
 	const normalized = normalizeContentType(contentType);
 	return normalized === "audio/mpeg" || normalized === "audio/mp3" || normalized === "audio/x-mp3";
@@ -383,20 +426,18 @@ function serveCachedFile(
 
 	const fileSize = meta.contentLength;
 
-	if (rangeHeader) {
-		const match = rangeHeader.match(/^bytes=(\d+)-(\d*)$/);
-		if (match?.[1]) {
-			const start = Number.parseInt(match[1], 10);
-			const end = match[2] ? Number.parseInt(match[2], 10) : fileSize - 1;
-			const chunkSize = end - start + 1;
+	const parsedRange = parseByteRangeHeader(rangeHeader);
+	if (parsedRange) {
+		const start = parsedRange.start;
+		const end = parsedRange.end ?? fileSize - 1;
+		const chunkSize = end - start + 1;
 
-			responseHeaders.set("Content-Length", String(chunkSize));
-			responseHeaders.set("Content-Range", `bytes ${String(start)}-${String(end)}/${String(fileSize)}`);
+		responseHeaders.set("Content-Length", String(chunkSize));
+		responseHeaders.set("Content-Range", `bytes ${String(start)}-${String(end)}/${String(fileSize)}`);
 
-			const file = Bun.file(filePath);
-			const slice = file.slice(start, end + 1);
-			return new Response(slice, { status: 206, headers: responseHeaders });
-		}
+		const file = Bun.file(filePath);
+		const slice = file.slice(start, end + 1);
+		return new Response(slice, { status: 206, headers: responseHeaders });
 	}
 
 	responseHeaders.set("Content-Length", String(fileSize));
@@ -901,8 +942,11 @@ export async function handleStreamRequest(
 		});
 	}
 
-	// For non-Pandora sources on full (non-range) requests, tee the stream to cache
-	if (source !== "pandora" && !rangeHeader && contentType) {
+	// For non-Pandora sources, cache full-body responses, including initial bytes=0-
+	// requests that upstream fulfills with the complete file. Browsers commonly start
+	// media playback with Range: bytes=0-, and skipping cache for those requests
+	// causes later mid-track range fetches to hit upstream again and stall playback.
+	if (source !== "pandora" && contentType && shouldCacheUpstreamResponse(rangeHeader, upstream)) {
 		return streamThroughAndCache(
 			upstream,
 			source,
@@ -912,7 +956,7 @@ export async function handleStreamRequest(
 		);
 	}
 
-	// Pandora or range requests on uncached files: pass through without caching
+	// Pandora or non-cacheable range requests on uncached files: pass through directly
 	const responseHeaders = new Headers();
 	if (contentType) responseHeaders.set("Content-Type", contentType);
 	if (contentLength) responseHeaders.set("Content-Length", contentLength);
