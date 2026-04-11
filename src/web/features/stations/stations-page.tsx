@@ -63,7 +63,7 @@ export function StationsPage() {
 
 	if (stationsQuery.error) {
 		return (
-			<div className="flex-1 px-8 py-10">
+			<div className="flex-1 px-4 sm:px-8 py-10">
 				<p className="text-[var(--color-error)]">
 					failed to load stations:{" "}
 					{stationsQuery.error.message}
@@ -73,7 +73,7 @@ export function StationsPage() {
 	}
 
 	return (
-		<div className="flex-1 px-8 py-10 space-y-6">
+		<div className="flex-1 px-4 sm:px-8 py-10 space-y-6">
 			<div className="flex items-center justify-between">
 				<h2 className="zune-display zune-page-title text-[var(--color-text)]">your stations</h2>
 				{hasQuickMix && (

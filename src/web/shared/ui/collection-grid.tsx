@@ -143,7 +143,7 @@ export function CollectionGrid<T>({
 	return (
 		<section>
 			{/* Zune panoramic header */}
-			<div className="flex items-end justify-between mb-5">
+			<div className="flex items-end justify-between mb-5 gap-3 flex-wrap">
 				<div className="flex items-baseline gap-4">
 					<h2 className="zune-display zune-page-title text-[var(--color-text)]">
 						{title}
@@ -154,9 +154,9 @@ export function CollectionGrid<T>({
 							: String(items.length)}
 					</span>
 				</div>
-				<div className="flex items-center gap-3">
+				<div className="flex items-center gap-3 flex-wrap">
 					{headerActions}
-					<div className="relative">
+					<div className="relative w-full sm:w-auto">
 						<label htmlFor={`${paramPrefix}-filter`} className="sr-only">
 							Filter {title}
 						</label>
@@ -169,7 +169,7 @@ export function CollectionGrid<T>({
 								setFilterText(e.target.value);
 								if (currentPage !== 1) setPage(1);
 							}}
-							className="bg-[var(--color-bg-highlight)] border border-[var(--color-border)] text-[var(--color-text)] py-1.5 pl-8 pr-3 text-[13px] w-[180px] outline-none focus:border-[var(--color-border-active)] transition-colors placeholder:text-[var(--color-text-dim)]"
+							className="bg-[var(--color-bg-highlight)] border border-[var(--color-border)] text-[var(--color-text)] py-1.5 pl-8 pr-3 text-[13px] w-full sm:w-[180px] outline-none focus:border-[var(--color-border-active)] transition-colors placeholder:text-[var(--color-text-dim)]"
 						/>
 						<Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--color-text-dim)] w-4 h-4" aria-hidden="true" />
 					</div>
@@ -233,7 +233,7 @@ export function CollectionGrid<T>({
 						</button>
 						{getPageNumbers(safePage, totalPages).map((p, idx) =>
 							p === "ellipsis" ? (
-								<span key={`ellipsis-${String(idx)}`} className="text-[var(--color-border)] text-xs px-0.5" aria-hidden="true">...</span>
+								<span key={`ellipsis-${String(idx)}`} className="hidden sm:inline text-[var(--color-border)] text-xs px-0.5" aria-hidden="true">...</span>
 							) : (
 								<button
 									key={p}
@@ -243,8 +243,8 @@ export function CollectionGrid<T>({
 									aria-current={p === safePage ? "page" : undefined}
 									className={
 										p === safePage
-											? "bg-[var(--color-bg-elevated)] text-[var(--color-text)] min-w-[28px] h-7 text-xs font-medium"
-											: "bg-[var(--color-bg-highlight)] text-[var(--color-text-dim)] min-w-[28px] h-7 text-xs cursor-pointer hover:text-[var(--color-text)] transition-colors"
+											? "hidden sm:inline-flex items-center justify-center bg-[var(--color-bg-elevated)] text-[var(--color-text)] min-w-[28px] h-7 text-xs font-medium"
+											: "hidden sm:inline-flex items-center justify-center bg-[var(--color-bg-highlight)] text-[var(--color-text-dim)] min-w-[28px] h-7 text-xs cursor-pointer hover:text-[var(--color-text)] transition-colors"
 									}
 								>
 									{String(p)}
@@ -261,15 +261,6 @@ export function CollectionGrid<T>({
 							<ChevronRight className="w-4 h-4" aria-hidden="true" />
 						</button>
 					</div>
-					<button
-						type="button"
-						disabled={safePage === totalPages}
-						onClick={() => setPage(safePage + 1)}
-						className="bg-[var(--color-bg-highlight)] border border-[var(--color-border)] text-[var(--color-text-dim)] py-1 px-3.5 text-xs cursor-pointer inline-flex items-center gap-1 disabled:opacity-30 disabled:cursor-not-allowed hover:text-[var(--color-text)] transition-colors"
-					>
-						next
-						<ChevronRight className="w-3.5 h-3.5" aria-hidden="true" />
-					</button>
 				</nav>
 			) : null}
 		</section>

@@ -104,7 +104,7 @@ function Albums({
 					return (
 						<div
 							key={album.id}
-							className="flex items-center gap-4 p-4 hover:bg-[var(--color-bg-highlight)] group"
+							className="flex flex-wrap sm:flex-nowrap items-center gap-4 p-4 hover:bg-[var(--color-bg-highlight)] group"
 						>
 							<button
 								type="button"
@@ -177,12 +177,12 @@ function Albums({
 									<button
 										type="button"
 										onClick={() => onSaveAlbum(album.id)}
-										className="text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text)] bg-[var(--color-bg-highlight)] hover:bg-[var(--color-border)] px-2.5 py-1.5 transition-colors shrink-0"
+										className="text-[10px] sm:text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text)] bg-[var(--color-bg-highlight)] hover:bg-[var(--color-border)] px-2 sm:px-2.5 py-1 sm:py-1.5 transition-colors shrink-0 w-full sm:w-auto mt-1 sm:mt-0 ml-0 sm:ml-auto"
 									>
 										{actionLabel}
 									</button>
 								) : (
-									<span className="text-xs text-[var(--color-text-dim)] shrink-0">
+									<span className="text-[10px] sm:text-xs text-[var(--color-text-dim)] shrink-0 w-full sm:w-auto mt-1 sm:mt-0 text-left sm:text-right">
 										In {formatPlacementLabel(state.placement)}
 									</span>
 								)
@@ -229,7 +229,7 @@ function Tracks({
 								<button
 									type="button"
 									onClick={() => onStartRadio(track)}
-									className="text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text)] bg-[var(--color-bg-highlight)] hover:bg-[var(--color-border)] px-2.5 py-1.5 transition-colors flex items-center gap-1"
+									className="text-[10px] sm:text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text)] bg-[var(--color-bg-highlight)] hover:bg-[var(--color-border)] px-2 sm:px-2.5 py-1 sm:py-1.5 transition-colors flex items-center gap-1"
 								>
 									<Radio className="w-3 h-3" />
 									Start Radio

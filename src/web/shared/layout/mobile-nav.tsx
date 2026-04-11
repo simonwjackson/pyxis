@@ -50,7 +50,7 @@ export function MobileNav() {
 				</button>
 			</div>
 			{isOpen && (
-				<div className="absolute inset-x-0 top-14 bottom-0 z-50 bg-[var(--color-bg-panel)]">
+				<div className="absolute inset-x-0 top-14 bottom-0 z-50 bg-[var(--color-bg-panel)] pb-40 overflow-y-auto">
 					<nav className="px-8 pt-12 space-y-1" aria-label="Mobile navigation">
 						{visibleItems.map((item) => {
 							const isActive = location.pathname === item.path;

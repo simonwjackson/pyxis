@@ -50,7 +50,7 @@ export function BookmarksPage() {
 	const songs = bookmarksQuery.data?.songs ?? [];
 
 	return (
-		<div className="flex-1 px-8 py-10 space-y-8">
+		<div className="flex-1 px-4 sm:px-8 py-10 space-y-8">
 			<h2 className="zune-display zune-page-title text-[var(--color-text)]">bookmarks</h2>
 
 			{artists.length > 0 && (
@@ -70,7 +70,7 @@ export function BookmarksPage() {
 								<span className="flex-1 zune-list-title text-[var(--color-text)]">
 									{a.artistName}
 								</span>
-								<div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+								<div className="flex items-center gap-1 max-md:opacity-100 opacity-0 group-hover:opacity-100 transition-opacity">
 									<Button
 										variant="ghost"
 										size="icon"
@@ -130,7 +130,7 @@ export function BookmarksPage() {
 										{s.artistName}
 									</p>
 								</div>
-								<div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+								<div className="flex items-center gap-1 max-md:opacity-100 opacity-0 group-hover:opacity-100 transition-opacity">
 									<Button
 										variant="ghost"
 										size="icon"

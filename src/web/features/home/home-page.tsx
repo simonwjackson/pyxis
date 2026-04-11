@@ -294,9 +294,9 @@ function AlbumShelf({
 						{filterText ? `${String(sortedAlbums.length)} of ${String(albums.length)}` : String(albums.length)}
 					</span>
 				</div>
-				<div className="flex items-center gap-3 flex-wrap">
+				<div className="flex items-center gap-3 flex-wrap w-full sm:w-auto">
 					{headerAction}
-					<div className="relative">
+					<div className="relative w-full sm:w-auto">
 						<label htmlFor={`${title}-filter`} className="sr-only">Filter {title}</label>
 						<input
 							id={`${title}-filter`}
@@ -307,7 +307,7 @@ function AlbumShelf({
 								setFilterText(event.target.value);
 								setCurrentPage(1);
 							}}
-							className="bg-[var(--color-bg-highlight)] border border-[var(--color-border)] text-[var(--color-text)] py-1.5 pl-8 pr-3 text-[13px] w-[180px] outline-none focus:border-[var(--color-border-active)] transition-colors placeholder:text-[var(--color-text-dim)]"
+							className="bg-[var(--color-bg-highlight)] border border-[var(--color-border)] text-[var(--color-text)] py-1.5 pl-8 pr-3 text-[13px] w-full sm:w-[180px] outline-none focus:border-[var(--color-border-active)] transition-colors placeholder:text-[var(--color-text-dim)]"
 						/>
 						<Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--color-text-dim)] w-4 h-4" aria-hidden="true" />
 					</div>
@@ -329,8 +329,8 @@ function AlbumShelf({
 							}}
 							className={
 								isActive
-									? "bg-[var(--color-bg-elevated)] text-[var(--color-text)] py-1 px-3.5 text-xs font-medium inline-flex items-center gap-1.5"
-									: "bg-transparent border border-[var(--color-border)] text-[var(--color-text-dim)] py-1 px-3.5 text-xs inline-flex items-center gap-1.5 hover:text-[var(--color-text)] hover:border-[var(--color-text-dim)] transition-colors"
+									? "bg-[var(--color-bg-elevated)] text-[var(--color-text)] py-1 px-3.5 text-xs font-medium inline-flex items-center gap-1.5 shrink-0 whitespace-nowrap"
+									: "bg-transparent border border-[var(--color-border)] text-[var(--color-text-dim)] py-1 px-3.5 text-xs inline-flex items-center gap-1.5 shrink-0 whitespace-nowrap hover:text-[var(--color-text)] hover:border-[var(--color-text-dim)] transition-colors"
 							}
 						>
 							<Icon className="w-[13px] h-[13px]" aria-hidden="true" />
@@ -370,7 +370,7 @@ function AlbumShelf({
 								</button>
 								{getPageNumbers(safePage, totalPages).map((page, index) =>
 									page === "ellipsis" ? (
-										<span key={`ellipsis-${String(index)}`} className="text-[var(--color-border)] text-xs px-0.5" aria-hidden="true">...</span>
+										<span key={`ellipsis-${String(index)}`} className="hidden sm:inline text-[var(--color-border)] text-xs px-0.5" aria-hidden="true">...</span>
 									) : (
 										<button
 											key={page}
@@ -378,8 +378,8 @@ function AlbumShelf({
 											onClick={() => setCurrentPage(page)}
 											className={
 												page === safePage
-													? "bg-[var(--color-bg-elevated)] text-[var(--color-text)] min-w-[28px] h-7 text-xs font-medium"
-													: "bg-[var(--color-bg-highlight)] text-[var(--color-text-dim)] min-w-[28px] h-7 text-xs hover:text-[var(--color-text)] transition-colors"
+													? "hidden sm:inline-flex items-center justify-center bg-[var(--color-bg-elevated)] text-[var(--color-text)] min-w-[28px] h-7 text-xs font-medium"
+													: "hidden sm:inline-flex items-center justify-center bg-[var(--color-bg-highlight)] text-[var(--color-text-dim)] min-w-[28px] h-7 text-xs hover:text-[var(--color-text)] transition-colors"
 											}
 											aria-current={page === safePage ? "page" : undefined}
 										>
@@ -478,7 +478,7 @@ export function HomePage() {
 	);
 
 	return (
-		<div className="flex-1 px-8 py-10 space-y-16">
+		<div className="flex-1 px-4 sm:px-8 py-10 space-y-16">
 			{playlistsQuery.isLoading ? (
 				<CollectionGrid.Skeleton title="my playlists" />
 			) : playlists.length === 0 ? (

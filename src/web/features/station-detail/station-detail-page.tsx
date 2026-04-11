@@ -117,7 +117,7 @@ function FeedbackItem({
  */
 function DetailsSkeleton() {
 	return (
-		<div className="flex-1 px-8 py-10 space-y-8 max-w-3xl">
+		<div className="flex-1 px-4 sm:px-8 py-10 space-y-8 max-w-3xl mx-auto">
 			<div className="flex items-center gap-4">
 				<Skeleton className="w-9 h-9" />
 				<div>
@@ -244,7 +244,7 @@ export function StationDetailPage({
 
 	if (stationQuery.error) {
 		return (
-			<div className="flex-1 px-8 py-10">
+			<div className="flex-1 px-4 sm:px-8 py-10">
 				<p className="text-[var(--color-error)]">
 					Failed to load station details:{" "}
 					{stationQuery.error.message}
@@ -256,7 +256,7 @@ export function StationDetailPage({
 	const station = stationQuery.data;
 	if (!station) {
 		return (
-			<div className="flex-1 px-8 py-10">
+			<div className="flex-1 px-4 sm:px-8 py-10">
 				<p className="text-[var(--color-text-dim)]">station not found.</p>
 			</div>
 		);
@@ -270,7 +270,7 @@ export function StationDetailPage({
 	const hasFeedback = thumbsUp.length > 0 || thumbsDown.length > 0;
 
 	return (
-		<div className="flex-1 px-8 py-10 space-y-8 max-w-3xl">
+		<div className="flex-1 px-4 sm:px-8 py-10 space-y-8 max-w-3xl mx-auto">
 			<div className="flex items-center gap-4">
 				<button
 					type="button"

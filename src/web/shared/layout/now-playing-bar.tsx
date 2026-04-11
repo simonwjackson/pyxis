@@ -317,10 +317,10 @@ export function NowPlayingBar() {
 				role="region"
 				aria-label="Now playing"
 			>
-				{/* Progress bar */}
+				{/* Progress bar — expanded touch target */}
 				<div
 					ref={progressBarRef}
-					className="group relative h-[3px] bg-[var(--color-progress-track)] cursor-pointer"
+					className="group relative py-2 -my-2 cursor-pointer"
 					onClick={handleSeek}
 					role="slider"
 					aria-label="Playback progress"
@@ -334,6 +334,7 @@ export function NowPlayingBar() {
 						if (e.key === "ArrowLeft") seek(Math.max(0, progress - 5));
 					}}
 				>
+				<div className="relative h-[3px] group-hover:h-[6px] group-active:h-[6px] bg-[var(--color-progress-track)] transition-all duration-150">
 					<div
 						className="h-full bg-[var(--color-progress)] transition-all duration-300"
 						style={{ width: `${String(progressPercent)}%` }}
@@ -342,6 +343,7 @@ export function NowPlayingBar() {
 						className="absolute top-1/2 -translate-y-1/2 w-3 h-3 bg-[var(--color-primary)] opacity-0 group-hover:opacity-100 transition-opacity"
 						style={{ left: `${String(progressPercent)}%` }}
 					/>
+				</div>
 				</div>
 
 				{/* Desktop layout — distilled */}

@@ -46,7 +46,7 @@ export function SettingsPage() {
 	const usage = usageQuery.data;
 
 	return (
-		<div className="flex-1 px-8 py-10 space-y-8">
+		<div className="flex-1 px-4 sm:px-8 py-10 space-y-8">
 			<h2 className="zune-display zune-page-title text-[var(--color-text)]">settings</h2>
 
 			{!hasPandora && (

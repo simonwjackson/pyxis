@@ -238,7 +238,7 @@ export function AlbumDetailPage({
 	const canManagePlacement = !isSourceBacked || Boolean(sourceState?.albumId);
 
 	return (
-		<div className="flex-1 px-8 py-10 max-w-3xl mx-auto space-y-8">
+		<div className="flex-1 px-4 sm:px-8 py-10 max-w-3xl mx-auto space-y-8">
 			<button
 				type="button"
 				onClick={() => router.history.back()}
@@ -249,8 +249,8 @@ export function AlbumDetailPage({
 				Back
 			</button>
 
-			<div className="flex gap-8 items-end">
-				<div className="w-56 h-56 shrink-0 shadow-lg overflow-hidden bg-[var(--color-bg-highlight)]">
+			<div className="flex flex-col sm:flex-row gap-6 sm:gap-8 items-center sm:items-end">
+				<div className="w-40 h-40 sm:w-56 sm:h-56 shrink-0 shadow-lg overflow-hidden bg-[var(--color-bg-highlight)]">
 					{album.artworkUrl ? (
 						<img src={album.artworkUrl} alt={album.title} className="w-full h-full object-cover" />
 					) : (
@@ -259,7 +259,7 @@ export function AlbumDetailPage({
 						</div>
 					)}
 				</div>
-				<div className="space-y-1 min-w-0">
+				<div className="space-y-1 min-w-0 text-center sm:text-left">
 					<EditableText
 						value={album.title}
 						onSave={(title) => updateAlbum.mutate({ id: albumId, title })}
@@ -279,11 +279,11 @@ export function AlbumDetailPage({
 						{String(trackCount)} track{trackCount !== 1 ? "s" : ""}
 						{totalDuration > 0 ? ` · ${formatTotalDuration(totalDuration)}` : ""}
 					</p>
-					<div className="flex gap-1.5 pt-2 flex-wrap">
+					<div className="flex gap-1.5 pt-2 flex-wrap justify-center sm:justify-start">
 						{currentPlacement ? <PlacementBadge placement={currentPlacement} /> : null}
 						{isHot ? <HotBadge /> : null}
 					</div>
-					<div className="flex gap-3 pt-4 flex-wrap">
+					<div className="flex gap-2 sm:gap-3 pt-4 flex-wrap justify-center sm:justify-start">
 						<Button
 							onClick={() => startPlayback(0, false)}
 							className="gap-2 bg-[var(--color-primary)] hover:brightness-110 text-[var(--color-bg)]"
@@ -310,7 +310,7 @@ export function AlbumDetailPage({
 					{canManagePlacement ? (
 						<div className="pt-2 space-y-2">
 							<p className="text-xs uppercase tracking-[0.2em] text-[var(--color-text-dim)]">placement</p>
-							<div className="flex gap-2 flex-wrap">
+							<div className="flex gap-1.5 sm:gap-2 flex-wrap justify-center sm:justify-start">
 								{PLACEMENTS.map((placement) => {
 									const active = currentPlacement === placement;
 									return (
@@ -374,15 +374,15 @@ export function AlbumDetailPage({
 
 function AlbumDetailSkeleton() {
 	return (
-		<div className="flex-1 px-8 py-10 max-w-3xl mx-auto space-y-8">
+		<div className="flex-1 px-4 sm:px-8 py-10 max-w-3xl mx-auto space-y-8">
 			<Skeleton className="h-5 w-16" />
-			<div className="flex gap-8 items-end">
-				<Skeleton className="w-56 h-56 shrink-0" />
-				<div className="space-y-2 flex-1">
+			<div className="flex flex-col sm:flex-row gap-6 sm:gap-8 items-center sm:items-end">
+				<Skeleton className="w-40 h-40 sm:w-56 sm:h-56 shrink-0" />
+				<div className="space-y-2 flex-1 items-center sm:items-start flex flex-col">
 					<Skeleton className="h-8 w-64" />
 					<Skeleton className="h-6 w-40" />
 					<Skeleton className="h-4 w-48" />
-					<div className="flex gap-3 pt-4">
+					<div className="flex gap-3 pt-4 justify-center sm:justify-start">
 						<Skeleton className="h-10 w-24" />
 						<Skeleton className="h-10 w-28" />
 					</div>

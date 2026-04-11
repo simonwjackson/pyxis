@@ -42,7 +42,7 @@ export function HistoryPage() {
 	const entries = historyQuery.data ?? [];
 
 	return (
-		<div className="flex-1 px-8 py-10 space-y-6">
+		<div className="flex-1 px-4 sm:px-8 py-10 space-y-6">
 			<h2 className="zune-display zune-page-title text-[var(--color-text)]">history</h2>
 
 			{entries.length === 0 && offset === 0 && (
@@ -59,7 +59,7 @@ export function HistoryPage() {
 					{entries.map((entry) => (
 						<li
 							key={entry.id}
-							className="flex items-center gap-3 p-3 hover:bg-[var(--color-bg-highlight)]"
+							className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3 p-3 hover:bg-[var(--color-bg-highlight)]"
 						>
 							<div className="flex-1 min-w-0">
 								<p className="zune-list-title text-[var(--color-text)] truncate">
@@ -70,7 +70,7 @@ export function HistoryPage() {
 									{entry.album ? ` \u2014 ${entry.album}` : ""}
 								</p>
 							</div>
-							<div className="flex items-center gap-2 shrink-0">
+							<div className="flex items-center gap-2 shrink-0 self-start sm:self-center">
 								<span className="zune-eyebrow px-1.5 py-0.5 bg-[var(--color-bg-highlight)] text-[var(--color-text-muted)]">
 									{entry.source}
 								</span>

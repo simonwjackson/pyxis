@@ -130,7 +130,7 @@ export function PlaylistDetailPage({
 	const trackCount = tracks?.length ?? 0;
 
 	return (
-		<div className="flex-1 px-8 py-10 max-w-3xl mx-auto space-y-8">
+		<div className="flex-1 px-4 sm:px-8 py-10 max-w-3xl mx-auto space-y-8">
 			<button
 				type="button"
 				onClick={() =>
@@ -151,8 +151,8 @@ export function PlaylistDetailPage({
 				Back
 			</button>
 
-			<div className="flex gap-6 items-end">
-				<div className="w-56 h-56 shrink-0shadow-lg overflow-hidden bg-[var(--color-bg-highlight)]">
+			<div className="flex flex-col sm:flex-row gap-4 sm:gap-6 items-center sm:items-end">
+				<div className="w-40 h-40 sm:w-56 sm:h-56 shrink-0 shadow-lg overflow-hidden bg-[var(--color-bg-highlight)]">
 					{playlist.artworkUrl ? (
 						<img
 							src={playlist.artworkUrl}
@@ -165,7 +165,7 @@ export function PlaylistDetailPage({
 						</div>
 					)}
 				</div>
-				<div className="space-y-1 min-w-0">
+				<div className="space-y-1 min-w-0 text-center sm:text-left">
 					<h1 className="zune-heading text-3xl md:text-4xl text-[var(--color-text)]">
 						{playlist.name}
 					</h1>
@@ -175,7 +175,7 @@ export function PlaylistDetailPage({
 							? ` \u00B7 ${formatTotalDuration(totalDuration)}`
 							: ""}
 					</p>
-					<div className="flex gap-3 pt-3">
+					<div className="flex gap-2 sm:gap-3 pt-3 flex-wrap justify-center sm:justify-start">
 						<Button
 							onClick={() => handlePlay(0)}
 							className="gap-2bg-[var(--color-primary)] hover:brightness-110 text-[var(--color-bg)]"
@@ -240,14 +240,14 @@ export function PlaylistDetailPage({
  */
 function PlaylistDetailSkeleton() {
 	return (
-		<div className="flex-1 px-8 py-10 max-w-3xl mx-auto space-y-8">
+		<div className="flex-1 px-4 sm:px-8 py-10 max-w-3xl mx-auto space-y-8">
 			<Skeleton className="h-5 w-16" />
-			<div className="flex gap-6 items-end">
-				<Skeleton className="w-56 h-56shrink-0" />
-				<div className="space-y-2 flex-1">
+			<div className="flex flex-col sm:flex-row gap-4 sm:gap-6 items-center sm:items-end">
+				<Skeleton className="w-40 h-40 sm:w-56 sm:h-56 shrink-0" />
+				<div className="space-y-2 flex-1 flex flex-col items-center sm:items-start">
 					<Skeleton className="h-8 w-64" />
 					<Skeleton className="h-4 w-48" />
-					<div className="flex gap-3 pt-3">
+					<div className="flex gap-2 sm:gap-3 pt-3 justify-center sm:justify-start">
 						<Skeleton className="h-10 w-24" />
 						<Skeleton className="h-10 w-28" />
 					</div>
