@@ -6,6 +6,8 @@
 
 import { useState, useRef, useCallback, useEffect } from "react";
 import { trpc } from "../lib/trpc";
+
+const SONOS_HANDOFF_EVENT = "pyxis:sonos-handoff";
 import type { SourceType } from "../../../sources/types.js";
 
 /**
@@ -81,6 +83,7 @@ export function usePlayback() {
 	const hasReceivedInitialStateRef = useRef(false);
 	// Track the latest server progress for seek-on-resume
 	const serverProgressRef = useRef(0);
+	const suppressLocalAudioRef = useRef(false);
 
 	type ServerTrack = {
 		readonly id: string;
@@ -223,6 +226,37 @@ export function usePlayback() {
 		[logToServer],
 	);
 
+	useEffect(() => {
+		const handleSonosHandoff = (event: Event) => {
+			const customEvent = event as CustomEvent<{ action?: "activate" | "deactivate" }>;
+			const action = customEvent.detail?.action;
+			const audio = audioRef.current;
+			if (!audio) return;
+
+			if (action === "activate") {
+				suppressLocalAudioRef.current = true;
+				if (!audio.paused) {
+					audio.pause();
+				}
+				logToServer("[sonos] handoff activated: suppress local audio");
+				return;
+			}
+
+			if (action === "deactivate") {
+				suppressLocalAudioRef.current = false;
+				logToServer("[sonos] handoff deactivated: allow local audio");
+				if (state.isPlaying && audio.paused) {
+					safePlay(audio, "sonos handoff deactivated");
+				}
+			}
+		};
+
+		window.addEventListener(SONOS_HANDOFF_EVENT, handleSonosHandoff as EventListener);
+		return () => {
+			window.removeEventListener(SONOS_HANDOFF_EVENT, handleSonosHandoff as EventListener);
+		};
+	}, [logToServer, safePlay, state.isPlaying]);
+
 	// Shared handler for server player state — called from both SSE and mutation responses
 	const handleServerState = useCallback(
 		(serverState: ServerState, source: string = "sse") => {
@@ -242,6 +276,7 @@ export function usePlayback() {
 			}
 
 			if (track) {
+				const suppressLocalAudio = suppressLocalAudioRef.current;
 				// Load new audio if the stream URL changed (ignore ?next= prefetch hint)
 				const baseUrl = track.streamUrl.split("?")[0];
 				const lastBaseUrl = lastStreamUrlRef.current?.split("?")[0] ?? null;
@@ -258,9 +293,11 @@ export function usePlayback() {
 					if (isInitialState) {
 						// On the first SSE sync after page load, don't auto-play a newly loaded track.
 						logToServer(`[${source}] → FIRST SSE state: load track, show paused at ${String(serverState.progress)}s`);
-					} else if (serverState.status === "playing") {
+					} else if (serverState.status === "playing" && !suppressLocalAudio) {
 						logToServer(`[${source}] → LOAD new src + play() (status=playing)`);
 						safePlay(audio, "new track load");
+					} else if (serverState.status === "playing") {
+						logToServer(`[${source}] → LOAD new src but local audio suppressed by Sonos handoff`);
 					} else {
 						logToServer(`[${source}] → LOAD new src (status=${serverState.status}, not playing)`);
 					}
@@ -274,8 +311,12 @@ export function usePlayback() {
 									logToServer(`[${source}] → FIRST SSE state: same track paused locally, seek ${String(audio.currentTime)}→${String(serverState.progress)} (delta=${String(delta)})`);
 									seekAudioTo(audio, serverState.progress);
 								}
-								logToServer(`[${source}] → FIRST SSE state: same track, resume because server=playing`);
-								safePlay(audio, "initial same track resume");
+								if (suppressLocalAudio) {
+									logToServer(`[${source}] → FIRST SSE state: same track, keep local audio suppressed during Sonos handoff`);
+								} else {
+									logToServer(`[${source}] → FIRST SSE state: same track, resume because server=playing`);
+									safePlay(audio, "initial same track resume");
+								}
 							} else {
 								logToServer(`[${source}] → FIRST SSE state: same track already playing, keep playing`);
 							}
@@ -297,8 +338,12 @@ export function usePlayback() {
 							logToServer(`[${source}] → SAME track: seek ${String(audio.currentTime)}→${String(serverState.progress)} (delta=${String(delta)})`);
 							audio.currentTime = serverState.progress;
 						}
-						logToServer(`[${source}] → SAME track: resume (paused→playing)`);
-						safePlay(audio, "same track resume");
+						if (suppressLocalAudio) {
+							logToServer(`[${source}] → SAME track: keep local audio suppressed during Sonos handoff`);
+						} else {
+							logToServer(`[${source}] → SAME track: resume (paused→playing)`);
+							safePlay(audio, "same track resume");
+						}
 					} else if (serverState.status === "paused" && !audio.paused) {
 						logToServer(`[${source}] → SAME track: pause (playing→paused)`);
 						audio.pause();
@@ -333,6 +378,7 @@ export function usePlayback() {
 					volume: serverState.volume,
 				}));
 			} else {
+				suppressLocalAudioRef.current = false;
 				// No track — stopped
 				logToServer(`[${source}] → NO track: stopped`);
 				if (!audio.paused) {
@@ -465,7 +511,11 @@ export function usePlayback() {
 					logToServer(`[action] seek before resume: ${String(audio.currentTime)}→${String(serverProgressRef.current)} (delta=${String(delta)})`);
 					audio.currentTime = serverProgressRef.current;
 				}
-				safePlay(audio, "togglePlayPause resume");
+				if (suppressLocalAudioRef.current) {
+					logToServer("[action] resume while Sonos handoff active: keep local audio suppressed");
+				} else {
+					safePlay(audio, "togglePlayPause resume");
+				}
 			}
 			setState((prev) => ({ ...prev, isPlaying: true }));
 			resumeMutation.mutate();

@@ -241,21 +241,6 @@ export function play(
 			].join("");
 
 			await sendSoapAction(speaker, "AVTransport", "SetAVTransportURI", setUriAction);
-			if (startAtSeconds != null && startAtSeconds > 1) {
-				const target = formatSeekTarget(startAtSeconds);
-				await sendSoapAction(
-					speaker,
-					"AVTransport",
-					"Seek",
-					[
-						'<u:Seek xmlns:u="urn:schemas-upnp-org:service:AVTransport:1">',
-						"<InstanceID>0</InstanceID>",
-						"<Unit>REL_TIME</Unit>",
-						`<Target>${target}</Target>`,
-						"</u:Seek>",
-					].join(""),
-				);
-			}
 			await sendSoapAction(
 				speaker,
 				"AVTransport",
@@ -267,6 +252,12 @@ export function play(
 					"</u:Play>",
 				].join(""),
 			);
+			if (startAtSeconds != null && startAtSeconds > 1) {
+				log.info(
+					{ speaker: speaker.uuid, startAtSeconds },
+					"Skipping Sonos transport seek for HTTP stream; letting playback start from stream head",
+				);
+			}
 		}),
 	);
 }

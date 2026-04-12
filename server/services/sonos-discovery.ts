@@ -1,4 +1,5 @@
 import { createSocket } from "node:dgram";
+import { networkInterfaces } from "node:os";
 import { Effect } from "effect";
 import { createLogger } from "../../src/logger.js";
 import { getAppConfig } from "./sourceManager.js";
@@ -9,8 +10,13 @@ const log = createLogger("sonos").child({ component: "discovery" });
 const SSDP_ADDRESS = "239.255.255.250";
 const SSDP_PORT = 1900;
 const SONOS_SEARCH_TARGET = "urn:schemas-upnp-org:device:ZonePlayer:1";
+const SONOS_DEVICE_DESCRIPTION_PATH = "/xml/device_description.xml";
 const DEFAULT_DISCOVERY_TIMEOUT_MS = 1500;
 const DEFAULT_DISCOVERY_INTERVAL_SECONDS = 30;
+const SUBNET_PROBE_TIMEOUT_MS = 400;
+const SUBNET_PROBE_MAX_HOSTS = 512;
+const SUBNET_PROBE_CONCURRENCY = 64;
+const EMPTY_DISCOVERY_GRACE_REFRESHES = 5;
 
 export type SonosSpeaker = {
 	readonly uuid: string;
@@ -31,10 +37,18 @@ type GroupStatus = {
 	readonly coordinatorUuid: string;
 };
 
+type SubnetProbeInterface = {
+	readonly family: string | number;
+	readonly internal: boolean;
+	readonly address: string;
+	readonly netmask: string;
+};
+
 let cachedSpeakers: readonly SonosSpeaker[] = [];
 let lastRefreshAt = 0;
 let refreshInFlight: Promise<void> | undefined;
 let refreshInterval: ReturnType<typeof setInterval> | undefined;
+let consecutiveEmptyRefreshes = 0;
 
 function normalizeUuid(uuid: string): string {
 	const trimmed = uuid.trim();
@@ -143,7 +157,65 @@ async function fetchWithTimeout(
 	}
 }
 
-async function discoverLocationUrls(): Promise<readonly string[]> {
+function toSpeakerDescriptionUrl(ip: string, port = 1400): string {
+	return `http://${ip}:${String(port)}${SONOS_DEVICE_DESCRIPTION_PATH}`;
+}
+
+function ipv4ToInt(address: string): number | undefined {
+	const parts = address.split(".").map((part) => Number.parseInt(part, 10));
+	if (parts.length !== 4 || parts.some((part) => !Number.isInteger(part) || part < 0 || part > 255)) {
+		return undefined;
+	}
+	const [a = 0, b = 0, c = 0, d = 0] = parts;
+	return (((a * 256 + b) * 256 + c) * 256 + d) >>> 0;
+}
+
+function intToIpv4(value: number): string {
+	return [
+		(value >>> 24) & 255,
+		(value >>> 16) & 255,
+		(value >>> 8) & 255,
+		value & 255,
+	].join(".");
+}
+
+function listSubnetProbeCandidates(): readonly string[] {
+	const candidates = new Set<string>();
+	const interfaces = networkInterfaces();
+	for (const name of Object.keys(interfaces)) {
+		const entries = (interfaces[name] ?? []) as SubnetProbeInterface[];
+		for (const entry of entries) {
+			const family = typeof entry.family === "string" ? entry.family : String(entry.family);
+			if (family !== "IPv4" || entry.internal) continue;
+			const addressInt = ipv4ToInt(entry.address);
+			const netmaskInt = ipv4ToInt(entry.netmask);
+			if (addressInt == null || netmaskInt == null) continue;
+
+			const hostMask = (~netmaskInt) >>> 0;
+			const hostCount = Math.max(0, hostMask - 1);
+			if (hostCount === 0 || hostCount > SUBNET_PROBE_MAX_HOSTS) continue;
+
+			const network = (addressInt & netmaskInt) >>> 0;
+			const broadcast = (network | hostMask) >>> 0;
+			for (let current = network + 1; current < broadcast; current += 1) {
+				if (current === addressInt) continue;
+				candidates.add(intToIpv4(current >>> 0));
+			}
+		}
+	}
+	return [...candidates];
+}
+
+async function probeSpeakerDescriptionUrl(locationUrl: string): Promise<string | undefined> {
+	try {
+		const speaker = await fetchSpeakerDescription(locationUrl, SUBNET_PROBE_TIMEOUT_MS);
+		return speaker ? locationUrl : undefined;
+	} catch {
+		return undefined;
+	}
+}
+
+async function discoverLocationUrlsViaSsdp(): Promise<readonly string[]> {
 	return new Promise((resolve, reject) => {
 		const socket = createSocket("udp4");
 		const locations = new Set<string>();
@@ -208,8 +280,45 @@ async function discoverLocationUrls(): Promise<readonly string[]> {
 	});
 }
 
-async function fetchSpeakerDescription(locationUrl: string): Promise<SonosSpeaker | undefined> {
-	const response = await fetchWithTimeout(locationUrl, 2000);
+async function discoverLocationUrlsViaSubnetProbe(): Promise<readonly string[]> {
+	const candidates = new Set<string>(
+		cachedSpeakers.map((speaker) => toSpeakerDescriptionUrl(speaker.ip, speaker.port)),
+	);
+	for (const ip of listSubnetProbeCandidates()) {
+		candidates.add(toSpeakerDescriptionUrl(ip));
+	}
+	if (candidates.size === 0) return [];
+
+	const found = new Set<string>();
+	const urls = [...candidates];
+	for (let offset = 0; offset < urls.length; offset += SUBNET_PROBE_CONCURRENCY) {
+		const batch = urls.slice(offset, offset + SUBNET_PROBE_CONCURRENCY);
+		const results = await Promise.all(batch.map((url) => probeSpeakerDescriptionUrl(url)));
+		for (const result of results) {
+			if (result) found.add(result);
+		}
+	}
+	return [...found];
+}
+
+async function discoverLocationUrls(): Promise<readonly string[]> {
+	const ssdpLocations = await discoverLocationUrlsViaSsdp();
+	if (ssdpLocations.length > 0) {
+		return ssdpLocations;
+	}
+
+	const fallbackLocations = await discoverLocationUrlsViaSubnetProbe();
+	if (fallbackLocations.length > 0) {
+		log.info({ count: fallbackLocations.length }, "SSDP discovery returned no speakers, subnet probe succeeded");
+	}
+	return fallbackLocations;
+}
+
+async function fetchSpeakerDescription(
+	locationUrl: string,
+	timeoutMs = 2000,
+): Promise<SonosSpeaker | undefined> {
+	const response = await fetchWithTimeout(locationUrl, timeoutMs);
 	if (!response.ok) {
 		throw new Error(`Device description request failed with status ${String(response.status)}`);
 	}
@@ -379,9 +488,35 @@ async function refreshCache(force: boolean): Promise<void> {
 
 	refreshInFlight = (async () => {
 		const discovered = await discoverSpeakersOnce();
-		cachedSpeakers = discovered;
+		if (discovered.length > 0) {
+			cachedSpeakers = discovered;
+			consecutiveEmptyRefreshes = 0;
+		} else {
+			consecutiveEmptyRefreshes += 1;
+			if (
+				cachedSpeakers.length === 0
+				|| consecutiveEmptyRefreshes >= EMPTY_DISCOVERY_GRACE_REFRESHES
+			) {
+				cachedSpeakers = [];
+			} else {
+				log.warn(
+					{
+						cachedCount: cachedSpeakers.length,
+						consecutiveEmptyRefreshes,
+					},
+					"Discovery returned zero speakers, keeping cached speakers",
+				);
+			}
+		}
 		lastRefreshAt = Date.now();
-		log.info({ count: discovered.length }, "Discovery completed");
+		log.info(
+			{
+				discoveredCount: discovered.length,
+				cachedCount: cachedSpeakers.length,
+				consecutiveEmptyRefreshes,
+			},
+			"Discovery completed",
+		);
 	})()
 		.catch((cause) => {
 			throw new SonosDiscoveryError({

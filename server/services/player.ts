@@ -57,6 +57,7 @@ let volume = 100;
 let updatedAt = Date.now();
 
 const listeners = new Set<PlayerListener>();
+let listenLogWriteQueue: Promise<void> = Promise.resolve();
 
 function notify(): void {
 	const state = getState();
@@ -126,28 +127,35 @@ function maybeLogListen(): void {
 	const currentProgress = getProgress();
 	if (currentProgress < LISTEN_THRESHOLD_SECONDS) return;
 
-	// Fire and forget — don't block on async DB write
-	void (async () => {
-		try {
-			const db = await getDb();
-			// ProseQL appendOnly collection: create appends a line to JSONL
-			await db.listenLog.create({
-				id: generateId(),
-				compositeId: currentTrack.id,
-				title: currentTrack.title,
-				artist: currentTrack.artist,
-				album: currentTrack.album,
-				source: currentTrack.source,
-				listenedAt: Date.now(),
-			}).runPromise;
-			log.info(
-				{ track: currentTrack.id, progress: currentProgress },
-				"listen logged",
-			);
-		} catch (err) {
-			log.error({ err, track: currentTrack.id }, "failed to log listen");
-		}
-	})();
+	const listenEntry = {
+		id: generateId(),
+		compositeId: currentTrack.id,
+		title: currentTrack.title,
+		artist: currentTrack.artist,
+		album: currentTrack.album,
+		source: currentTrack.source,
+		listenedAt: Date.now(),
+	};
+
+	listenLogWriteQueue = listenLogWriteQueue
+		.catch(() => {
+			// Previous write failure already logged; keep queue alive.
+		})
+		.then(async () => {
+			try {
+				const db = await getDb();
+				// ProseQL appendOnly collection: create appends a line to JSONL.
+				// Serialize writes because concurrent appends can corrupt the JSONL file.
+				await db.listenLog.create(listenEntry).runPromise;
+				log.info(
+					{ track: listenEntry.compositeId, progress: currentProgress },
+					"listen logged",
+				);
+			} catch (err) {
+				log.error({ err, track: listenEntry.compositeId }, "failed to log listen");
+				throw err;
+			}
+		});
 }
 
 /**

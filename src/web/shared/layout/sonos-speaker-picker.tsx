@@ -6,6 +6,8 @@
  */
 
 import { useEffect, useMemo, useRef, useState } from "react";
+
+const SONOS_HANDOFF_EVENT = "pyxis:sonos-handoff";
 import { Cast, Loader2, PauseCircle, PlayCircle, Volume2, Link2, Split, ChevronDown, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
 import { trpc } from "../lib/trpc";
@@ -32,6 +34,7 @@ export function SonosSpeakerPicker({ currentTrackId }: SonosSpeakerPickerProps) 
 	const [open, setOpen] = useState(false);
 	const [volumeDraft, setVolumeDraft] = useState<Record<string, number>>({});
 	const [expandedSpeaker, setExpandedSpeaker] = useState<string | null>(null);
+	const [optimisticStoppedSpeakers, setOptimisticStoppedSpeakers] = useState<Record<string, true>>({});
 	const containerRef = useRef<HTMLDivElement>(null);
 	const utils = trpc.useUtils();
 
@@ -41,7 +44,21 @@ export function SonosSpeakerPicker({ currentTrackId }: SonosSpeakerPickerProps) 
 	});
 
 	const speakers: Speaker[] = speakersQuery.data ?? [];
-	const activeCount = speakers.filter((s) => s.isPyxisStream).length;
+	const isSpeakerCasting = (speaker: Speaker) => {
+		if (optimisticStoppedSpeakers[speaker.uuid]) return false;
+		return speaker.isPyxisStream
+			&& (speaker.playbackState === "PLAYING"
+				|| speaker.playbackState === "PAUSED_PLAYBACK"
+				|| speaker.playbackState === "TRANSITIONING");
+	};
+	const activeCount = speakers.filter(isSpeakerCasting).length;
+
+	const refreshSpeakers = async () => {
+		await utils.sonos.speakers.list.refetch();
+		setTimeout(() => {
+			void utils.sonos.speakers.list.refetch();
+		}, 1200);
+	};
 
 	useEffect(() => {
 		if (!open) return;
@@ -67,13 +84,46 @@ export function SonosSpeakerPicker({ currentTrackId }: SonosSpeakerPickerProps) 
 	}, [speakers]);
 
 	const playToMutation = trpc.sonos.playTo.useMutation({
-		onSuccess: async () => { await utils.sonos.speakers.list.invalidate(); },
+		onSuccess: async () => {
+			window.dispatchEvent(new CustomEvent(SONOS_HANDOFF_EVENT, {
+				detail: { action: "activate" },
+			}));
+			await refreshSpeakers();
+		},
 		onError: (error) => { toast.error(`cast failed: ${error.message}`); },
 	});
 
 	const stopMutation = trpc.sonos.stop.useMutation({
-		onSuccess: async () => { await utils.sonos.speakers.list.invalidate(); },
-		onError: (error) => { toast.error(`stop failed: ${error.message}`); },
+		onMutate: ({ speakerUuids }) => {
+			setOptimisticStoppedSpeakers((prev) => ({
+				...prev,
+				...Object.fromEntries(speakerUuids.map((speakerUuid) => [speakerUuid, true] as const)),
+			}));
+		},
+		onSuccess: async ({ ok }, variables) => {
+			window.dispatchEvent(new CustomEvent(SONOS_HANDOFF_EVENT, {
+				detail: { action: "deactivate" },
+			}));
+			await refreshSpeakers();
+			setOptimisticStoppedSpeakers((prev) => {
+				const next = { ...prev };
+				for (const speakerUuid of variables.speakerUuids) {
+					delete next[speakerUuid];
+				}
+				return next;
+			});
+			return ok;
+		},
+		onError: (error, variables) => {
+			setOptimisticStoppedSpeakers((prev) => {
+				const next = { ...prev };
+				for (const speakerUuid of variables.speakerUuids) {
+					delete next[speakerUuid];
+				}
+				return next;
+			});
+			toast.error(`stop failed: ${error.message}`);
+		},
 	});
 
 	const setVolumeMutation = trpc.sonos.volume.set.useMutation({
@@ -90,7 +140,7 @@ export function SonosSpeakerPicker({ currentTrackId }: SonosSpeakerPickerProps) 
 	});
 
 	const handleTogglePlayback = (speaker: Speaker) => {
-		if (speaker.isPyxisStream) {
+		if (isSpeakerCasting(speaker)) {
 			stopMutation.mutate({ speakerUuids: [speaker.uuid] });
 			return;
 		}
@@ -166,13 +216,14 @@ export function SonosSpeakerPicker({ currentTrackId }: SonosSpeakerPickerProps) 
 						{speakers.map((speaker) => {
 							const isExpanded = expandedSpeaker === speaker.uuid;
 							const draftVolume = volumeDraft[speaker.uuid] ?? speaker.volume ?? 0;
+							const isCasting = isSpeakerCasting(speaker);
 
 							return (
 								<div
 									key={speaker.uuid}
 									className={cn(
 										"transition-colors",
-										speaker.isPyxisStream
+										isCasting
 											? "bg-[color-mix(in_srgb,var(--color-primary)_10%,transparent)]"
 											: "",
 									)}
@@ -200,13 +251,13 @@ export function SonosSpeakerPicker({ currentTrackId }: SonosSpeakerPickerProps) 
 											</p>
 										</div>
 										<Button
-											variant={speaker.isPyxisStream ? "outline" : "default"}
+											variant={isCasting ? "outline" : "default"}
 											size="sm"
 											className="shrink-0"
 											disabled={busy}
 											onClick={() => handleTogglePlayback(speaker)}
 										>
-											{speaker.isPyxisStream ? "stop" : "cast"}
+											{isCasting ? "stop" : "cast"}
 										</Button>
 									</div>
 

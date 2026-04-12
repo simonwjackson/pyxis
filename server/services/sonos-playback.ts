@@ -261,7 +261,7 @@ async function applyStateToSpeaker(uuid: string, state: PlayerState): Promise<vo
 	}
 
 	if (state.status === "paused") {
-		await Effect.runPromise(SonosControl.pause(uuid));
+		await Effect.runPromise(SonosControl.stop(uuid));
 		suppressStopTransitions(uuid, 1500);
 		return;
 	}
@@ -288,12 +288,9 @@ async function syncActiveSpeakersToPlayerState(
 	try {
 		const uuids = [...activeSpeakers];
 		if (seekChanged && state.currentTrack) {
-			await Promise.all(
-				uuids.map((uuid) =>
-					Effect.runPromise(SonosControl.seek(uuid, state.progress)).catch((err) => {
-						log.warn({ speaker: uuid, err: String(err) }, "Failed to seek Sonos speaker");
-					}),
-				),
+			log.info(
+				{ track: state.currentTrack.id, progress: state.progress, speakers: uuids },
+				"Skipping Sonos progress sync; HTTP stream seek is not reliable on Sonos",
 			);
 		} else {
 			await Promise.all(
@@ -363,7 +360,20 @@ export async function activateSpeakers(
 			log.warn({ speaker: uuid, err: String(err) }, "Failed to activate Sonos speaker");
 		});
 	}
-	await syncActiveSpeakersToPlayerState(PlayerService.getState(), true);
+
+	const playerState = PlayerService.getState();
+	await Promise.all(
+		speakerUuids.map((uuid) =>
+			applyStateToSpeaker(uuid, playerState).catch((err) => {
+				log.warn(
+					{ speaker: uuid, err: String(err), status: playerState.status },
+					"Failed to sync newly activated Sonos speaker",
+				);
+			}),
+		),
+	);
+
+	await syncActiveSpeakersToPlayerState(playerState, true);
 }
 
 export async function deactivateSpeakers(
