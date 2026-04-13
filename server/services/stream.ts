@@ -285,27 +285,24 @@ function createMp3TranscodeOutputStream(
 	return new ReadableStream<Uint8Array>({
 		start(controller) {
 			let settled = false;
-			const closeOnce = () => {
-				if (settled) return;
-				settled = true;
-				controller.close();
-			};
-			const errorOnce = (err: Error) => {
-				if (settled) return;
-				settled = true;
-				controller.error(err);
-			};
 
-			stdout.on("data", (chunk: Buffer) => {
-				controller.enqueue(new Uint8Array(chunk));
-			});
-			stdout.on("error", (err) => {
-				errorOnce(err instanceof Error ? err : new Error(String(err)));
-			});
-			proc.on("error", (err) => {
-				errorOnce(err instanceof Error ? err : new Error(String(err)));
-			});
-			proc.on("close", (code, signal) => {
+			const onStdoutData = (chunk: Buffer) => {
+				if (settled) return;
+				try {
+					controller.enqueue(new Uint8Array(chunk));
+				} catch (err) {
+					const error = err instanceof Error ? err : new Error(String(err));
+					log.warn({ ...logContext, err: error.message }, "mp3 transcode stream enqueue after close; terminating ffmpeg stream");
+					errorOnce(error, "enqueue-failed");
+				}
+			};
+			const onStdoutError = (err: unknown) => {
+				errorOnce(err instanceof Error ? err : new Error(String(err)), "stdout-error");
+			};
+			const onProcError = (err: unknown) => {
+				errorOnce(err instanceof Error ? err : new Error(String(err)), "proc-error");
+			};
+			const onProcClose = (code: number | null, signal: NodeJS.Signals | null) => {
 				removeAbortListener();
 				if (aborted) {
 					closeOnce();
@@ -318,8 +315,32 @@ function createMp3TranscodeOutputStream(
 				const stderrMessage = stderr.trim();
 				const message = `ffmpeg exited with code ${String(code)}${signal ? ` signal ${signal}` : ""}`;
 				log.error({ ...logContext, code, signal, stderr: stderrMessage || "none" }, "mp3 transcode failed");
-				errorOnce(stderrMessage ? new Error(`${message}: ${stderrMessage}`) : new Error(message));
-			});
+				errorOnce(stderrMessage ? new Error(`${message}: ${stderrMessage}`) : new Error(message), "proc-close");
+			};
+			const removeListeners = () => {
+				stdout.removeListener("data", onStdoutData);
+				stdout.removeListener("error", onStdoutError);
+				proc.removeListener("error", onProcError);
+				proc.removeListener("close", onProcClose);
+			};
+			const closeOnce = () => {
+				if (settled) return;
+				settled = true;
+				removeListeners();
+				controller.close();
+			};
+			const errorOnce = (err: Error, reason: string) => {
+				if (settled) return;
+				settled = true;
+				removeListeners();
+				cleanup(reason);
+				controller.error(err);
+			};
+
+			stdout.on("data", onStdoutData);
+			stdout.on("error", onStdoutError);
+			proc.on("error", onProcError);
+			proc.on("close", onProcClose);
 		},
 		cancel() {
 			aborted = true;
@@ -783,39 +804,105 @@ async function handleChapterStreamRequest(
 
 	const cacheWriter = Bun.file(chapterPartialPath).writer();
 	let totalWritten = 0;
+	let chapterStderr = "";
 
 	const stream = new ReadableStream({
 		start(controller) {
-			proc.stdout.on("data", (chunk: Buffer) => {
-				controller.enqueue(new Uint8Array(chunk));
-				cacheWriter.write(chunk);
-				totalWritten += chunk.byteLength;
-			});
-			proc.stdout.on("end", () => {
-				controller.close();
-				void Promise.resolve(cacheWriter.end()).then(() => {
-					if (totalWritten > 0) {
-						try {
-							renameSync(chapterPartialPath, chapterFinalPath);
-							const meta: CacheMeta = {
-								contentType: "audio/webm",
-								contentLength: totalWritten,
-								cachedAt: new Date().toISOString(),
-							};
-							writeFileSync(chapterMetaPath, JSON.stringify(meta));
-							log.info({ trackId, size: totalWritten }, "chapter cached");
-						} catch (err) {
-							log.error({ trackId, err: String(err) }, "chapter cache write failed");
-						}
-					}
-				}).catch(() => { /* ignore cache cleanup failure */ });
-			});
-			proc.on("error", (err) => {
-				controller.error(err);
-				void Promise.resolve(cacheWriter.end()).catch(() => {});
+			let settled = false;
+			let writerClosed = false;
+
+			const closeWriterOnce = async () => {
+				if (writerClosed) return;
+				writerClosed = true;
+				await cacheWriter.end();
+			};
+			const cleanupPartialFile = () => {
 				try { unlinkSync(chapterPartialPath); } catch { /* ignore */ }
-			});
-			proc.stderr.on("data", () => { /* discard ffmpeg status output */ });
+			};
+			const finalizeCacheWrite = async () => {
+				try {
+					await closeWriterOnce();
+					if (totalWritten <= 0) {
+						cleanupPartialFile();
+						return;
+					}
+					renameSync(chapterPartialPath, chapterFinalPath);
+					const meta: CacheMeta = {
+						contentType: "audio/webm",
+						contentLength: totalWritten,
+						cachedAt: new Date().toISOString(),
+					};
+					writeFileSync(chapterMetaPath, JSON.stringify(meta));
+					log.info({ trackId, size: totalWritten }, "chapter cached");
+				} catch (err) {
+					log.error({ trackId, err: String(err) }, "chapter cache write failed");
+					cleanupPartialFile();
+				}
+			};
+			const removeListeners = () => {
+				proc.stdout.removeListener("data", onStdoutData);
+				proc.stdout.removeListener("end", onStdoutEnd);
+				proc.removeListener("error", onProcError);
+				proc.removeListener("close", onProcClose);
+				proc.stderr.removeListener("data", onStderrData);
+			};
+			const closeOnce = () => {
+				if (settled) return;
+				settled = true;
+				removeListeners();
+				controller.close();
+				void finalizeCacheWrite();
+			};
+			const errorOnce = (err: Error, reason: string) => {
+				if (settled) return;
+				settled = true;
+				removeListeners();
+				if (!proc.killed) proc.kill("SIGTERM");
+				controller.error(err);
+				void closeWriterOnce().catch(() => {}).finally(() => {
+					cleanupPartialFile();
+					log.warn({ trackId, reason, err: err.message }, "chapter stream terminated before cache completion");
+				});
+			};
+			const onStdoutData = (chunk: Buffer) => {
+				if (settled) return;
+				try {
+					controller.enqueue(new Uint8Array(chunk));
+					cacheWriter.write(chunk);
+					totalWritten += chunk.byteLength;
+				} catch (err) {
+					errorOnce(err instanceof Error ? err : new Error(String(err)), "enqueue-failed");
+				}
+			};
+			const onStdoutEnd = () => {
+				closeOnce();
+			};
+			const onProcError = (err: unknown) => {
+				errorOnce(err instanceof Error ? err : new Error(String(err)), "proc-error");
+			};
+			const onProcClose = (code: number | null, signal: NodeJS.Signals | null) => {
+				if (settled) return;
+				if (code === 0) {
+					closeOnce();
+					return;
+				}
+				const stderrMessage = chapterStderr.trim();
+				const message = `ffmpeg exited with code ${String(code)}${signal ? ` signal ${signal}` : ""}`;
+				errorOnce(stderrMessage ? new Error(`${message}: ${stderrMessage}`) : new Error(message), "proc-close");
+			};
+			const onStderrData = (chunk: Buffer) => {
+				const next = `${chapterStderr}${chunk.toString()}`;
+				chapterStderr = next.length > 4096 ? next.slice(-4096) : next;
+			};
+
+			proc.stdout.on("data", onStdoutData);
+			proc.stdout.on("end", onStdoutEnd);
+			proc.on("error", onProcError);
+			proc.on("close", onProcClose);
+			proc.stderr.on("data", onStderrData);
+		},
+		cancel() {
+			if (!proc.killed) proc.kill("SIGTERM");
 		},
 	});
 
