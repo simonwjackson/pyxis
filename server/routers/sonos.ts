@@ -1,4 +1,5 @@
 import { TRPCError } from "@trpc/server";
+import { networkInterfaces } from "node:os";
 import { Effect } from "effect";
 import { z } from "zod";
 import { router, publicProcedure } from "../trpc.js";
@@ -57,7 +58,38 @@ function resolveTrackForCast(trackId?: string): QueueTrack | undefined {
 	return current ?? undefined;
 }
 
-async function enrichSpeakerState(speaker: SonosDiscovery.SonosSpeaker, streamPrefix: string) {
+function listPyxisStreamHosts(): ReadonlySet<string> {
+	const hosts = new Set<string>();
+	try {
+		hosts.add(new URL(resolveExternalBaseUrl()).hostname);
+	} catch {
+		// ignore invalid external URL parsing
+	}
+
+	const configuredHostname = getAppConfig()?.server.hostname;
+	if (configuredHostname) hosts.add(configuredHostname);
+
+	for (const entries of Object.values(networkInterfaces())) {
+		for (const entry of entries ?? []) {
+			if (entry.family !== "IPv4" || entry.internal) continue;
+			hosts.add(entry.address);
+		}
+	}
+
+	return hosts;
+}
+
+function isPyxisStreamUri(currentUri: string | null, streamHosts: ReadonlySet<string>): boolean {
+	if (!currentUri) return false;
+	try {
+		const parsed = new URL(currentUri);
+		return streamHosts.has(parsed.hostname) && parsed.pathname.startsWith("/stream/");
+	} catch {
+		return false;
+	}
+}
+
+async function enrichSpeakerState(speaker: SonosDiscovery.SonosSpeaker, streamHosts: ReadonlySet<string>) {
 	let playbackState: SonosControl.SonosPlaybackState | null = null;
 	let volume: number | null = null;
 	let currentUri: string | null = null;
@@ -82,7 +114,7 @@ async function enrichSpeakerState(speaker: SonosDiscovery.SonosSpeaker, streamPr
 		playbackState,
 		volume,
 		currentUri,
-		isPyxisStream: currentUri != null && currentUri.startsWith(streamPrefix),
+		isPyxisStream: isPyxisStreamUri(currentUri, streamHosts),
 		isActiveCastTarget: SonosPlayback.getActiveSpeakers().includes(speaker.uuid),
 	};
 }
@@ -93,9 +125,9 @@ export const sonosRouter = router({
 			if (!isSonosEnabled()) return [];
 			try {
 				const speakers = await Effect.runPromise(SonosDiscovery.discoverSpeakers());
-				const streamPrefix = `${resolveExternalBaseUrl()}/stream/`;
+				const streamHosts = listPyxisStreamHosts();
 				return Promise.all(
-					speakers.map((speaker) => enrichSpeakerState(speaker, streamPrefix)),
+					speakers.map((speaker) => enrichSpeakerState(speaker, streamHosts)),
 				);
 			} catch (err) {
 				throw asTrpcError(err);
@@ -108,8 +140,8 @@ export const sonosRouter = router({
 				requireSonosEnabled();
 				try {
 					const speaker = await Effect.runPromise(SonosDiscovery.getSpeaker(input.uuid));
-					const streamPrefix = `${resolveExternalBaseUrl()}/stream/`;
-					return enrichSpeakerState(speaker, streamPrefix);
+					const streamHosts = listPyxisStreamHosts();
+					return enrichSpeakerState(speaker, streamHosts);
 				} catch (err) {
 					throw asTrpcError(err);
 				}
