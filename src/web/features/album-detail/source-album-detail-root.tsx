@@ -139,7 +139,6 @@ export function SourceAlbumDetailRoot({
 			isSettingPlacement={setPlacement.isPending}
 			onBack={() => router.history.back()}
 			onPlay={() => startPlayback(0, false)}
-			onShuffle={() => startPlayback(0, true)}
 			onPlayTrack={(index) => startPlayback(index, false)}
 			onSaveAlbum={() => saveAlbum.mutate({ id: albumId })}
 			onSetPlacement={

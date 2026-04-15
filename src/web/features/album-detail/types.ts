@@ -34,7 +34,6 @@ export type AlbumDetailContentProps = {
 	readonly isSettingPlacement: boolean;
 	readonly onBack: () => void;
 	readonly onPlay: () => void;
-	readonly onShuffle: () => void;
 	readonly onPlayTrack: (index: number) => void;
 	readonly onSaveAlbum?: () => void;
 	readonly onSetPlacement?: (placement: AlbumPlacement) => void;

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { ArrowLeft, BookmarkPlus, ChevronDown, Flame, Music, Play, Shuffle } from "lucide-react";
+import { ArrowLeft, BookmarkPlus, ChevronDown, Flame, Music, Play } from "lucide-react";
 import { EditableText } from "@/web/shared/ui/editable-text";
 import { Button } from "@/web/shared/ui/button";
 import {
@@ -138,7 +138,6 @@ export function AlbumDetailContent({
 	isSettingPlacement,
 	onBack,
 	onPlay,
-	onShuffle,
 	onPlayTrack,
 	onSaveAlbum,
 	onSetPlacement,
