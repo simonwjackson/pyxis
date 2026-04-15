@@ -4,7 +4,6 @@ import { defineConfig, createLogger as createViteLogger } from "vite";
 import react from "@vitejs/plugin-react";
 import { TanStackRouterVite } from "@tanstack/router-plugin/vite";
 import tailwindcss from "@tailwindcss/vite";
-import orchestraSource from "./plugins/vite-plugin-orchestra-source/index";
 import { getLogFile } from "./src/logger";
 
 
@@ -77,7 +76,7 @@ const hmrNoReloadPlugin = {
 };
 
 export default defineConfig({
-	plugins: [hmrNoReloadPlugin, TanStackRouterVite(), orchestraSource({ serverUrl: "https://aka.hummingbird-lake.ts.net" }), react(), tailwindcss()],
+	plugins: [hmrNoReloadPlugin, TanStackRouterVite(), react(), tailwindcss()],
 	customLogger,
 	server: {
 		allowedHosts: true,
