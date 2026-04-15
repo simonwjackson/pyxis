@@ -80,6 +80,7 @@ export default defineConfig({
 	plugins: [hmrNoReloadPlugin, TanStackRouterVite(), orchestraSource({ serverUrl: "https://aka.hummingbird-lake.ts.net" }), react(), tailwindcss()],
 	customLogger,
 	server: {
+		allowedHosts: true,
 		watch: {
 			ignored: ["**/.direnv/**"],
 		},
