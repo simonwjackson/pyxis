@@ -1,4 +1,5 @@
-import { ArrowLeft, BookmarkPlus, Flame, Music, Play, Shuffle } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { ArrowLeft, BookmarkPlus, ChevronDown, Flame, Music, Play, Shuffle } from "lucide-react";
 import { EditableText } from "@/web/shared/ui/editable-text";
 import { Button } from "@/web/shared/ui/button";
 import {
@@ -42,6 +43,86 @@ function AlbumDetailHotBadge() {
 			<Flame className="w-3 h-3" />
 			Hot
 		</span>
+	);
+}
+
+type AlbumDetailPlacementMenuProps = {
+	readonly currentPlacement?: AlbumPlacement;
+	readonly isSettingPlacement: boolean;
+	readonly onSetPlacement: (placement: AlbumPlacement) => void;
+};
+
+function AlbumDetailPlacementMenu({
+	currentPlacement,
+	isSettingPlacement,
+	onSetPlacement,
+}: AlbumDetailPlacementMenuProps) {
+	const [isOpen, setIsOpen] = useState(false);
+	const menuRef = useRef<HTMLDivElement | null>(null);
+	const nextPlacements = currentPlacement
+		? PLACEMENTS.filter((placement) => placement !== currentPlacement)
+		: PLACEMENTS;
+
+	useEffect(() => {
+		if (!isOpen) return;
+
+		function handlePointerDown(event: PointerEvent) {
+			if (!menuRef.current?.contains(event.target as Node)) {
+				setIsOpen(false);
+			}
+		}
+
+		function handleKeyDown(event: KeyboardEvent) {
+			if (event.key === "Escape") {
+				setIsOpen(false);
+			}
+		}
+
+		document.addEventListener("pointerdown", handlePointerDown);
+		document.addEventListener("keydown", handleKeyDown);
+
+		return () => {
+			document.removeEventListener("pointerdown", handlePointerDown);
+			document.removeEventListener("keydown", handleKeyDown);
+		};
+	}, [isOpen]);
+
+	return (
+		<div ref={menuRef} className="relative inline-flex">
+			<button
+				type="button"
+				onClick={() => setIsOpen((open) => !open)}
+				disabled={isSettingPlacement}
+				aria-expanded={isOpen}
+				aria-haspopup="menu"
+				className={currentPlacement
+					? `inline-flex items-center gap-1.5 px-3 py-1.5 text-xs uppercase tracking-[0.18em] transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-border-active)] ${placementBadgeClassName(currentPlacement)}`
+					: "inline-flex items-center gap-1.5 border border-[var(--color-border)] px-3 py-1.5 text-xs uppercase tracking-[0.18em] text-[var(--color-text-dim)] transition-colors hover:text-[var(--color-text)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-border-active)]"}
+			>
+				<span>{currentPlacement ? formatPlacementLabel(currentPlacement) : "Set category"}</span>
+				<ChevronDown className={`h-3.5 w-3.5 transition-transform ${isOpen ? "rotate-180" : ""}`} />
+			</button>
+			{isOpen ? (
+				<div className="absolute left-0 top-full z-10 mt-2 min-w-44 overflow-hidden border border-[var(--color-border)] bg-[var(--color-bg)] shadow-lg">
+					<div className="py-1" role="menu" aria-label="Choose category">
+						{nextPlacements.map((placement) => (
+							<button
+								key={placement}
+								type="button"
+								role="menuitem"
+								onClick={() => {
+									onSetPlacement(placement);
+									setIsOpen(false);
+								}}
+								className="flex w-full items-center gap-3 px-3 py-2 text-left text-sm text-[var(--color-text-dim)] transition-colors hover:bg-[var(--color-bg-highlight)] hover:text-[var(--color-text)]"
+							>
+								<span>{formatPlacementLabel(placement)}</span>
+							</button>
+						))}
+					</div>
+				</div>
+			) : null}
+		</div>
 	);
 }
 
@@ -127,10 +208,6 @@ export function AlbumDetailContent({
 							<Play className="w-4 h-4" fill="currentColor" />
 							Play
 						</Button>
-						<Button variant="outline" onClick={onShuffle} className="gap-2">
-							<Shuffle className="w-4 h-4" />
-							Shuffle
-						</Button>
 						{!currentPlacement && onSaveAlbum ? (
 							<Button
 								variant="outline"
@@ -156,25 +233,14 @@ export function AlbumDetailContent({
 					{canManagePlacement && onSetPlacement ? (
 						<div className="pt-2 space-y-2">
 							<p className="text-xs uppercase tracking-[0.2em] text-[var(--color-text-dim)]">
-								placement
+								category
 							</p>
-							<div className="flex gap-1.5 sm:gap-2 flex-wrap justify-center sm:justify-start">
-								{PLACEMENTS.map((placement) => {
-									const active = currentPlacement === placement;
-									return (
-										<button
-											key={placement}
-											type="button"
-											onClick={() => onSetPlacement(placement)}
-											disabled={active || isSettingPlacement}
-											className={active
-												? `px-3 py-1.5 text-xs uppercase tracking-[0.18em] ${placementBadgeClassName(placement)}`
-												: "px-3 py-1.5 text-xs uppercase tracking-[0.18em] border border-[var(--color-border)] text-[var(--color-text-dim)] hover:text-[var(--color-text)] transition-colors"}
-										>
-											{formatPlacementLabel(placement)}
-										</button>
-									);
-								})}
+							<div className="flex justify-center sm:justify-start">
+								<AlbumDetailPlacementMenu
+									currentPlacement={currentPlacement}
+									isSettingPlacement={isSettingPlacement}
+									onSetPlacement={onSetPlacement}
+								/>
 							</div>
 						</div>
 					) : null}
