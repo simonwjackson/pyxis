@@ -3,163 +3,32 @@
  * Radio station detail view showing seeds, feedback, and playback controls.
  */
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
-import {
-	ChevronLeft,
-	User,
-	Music,
-	ThumbsUp,
-	ThumbsDown,
-	Plus,
-	X,
-	Play,
-} from "lucide-react";
 import { toast } from "sonner";
-import { trpc } from "@/web/shared/lib/trpc";
-import { Skeleton } from "@/web/shared/ui/skeleton";
-import { Button } from "@/web/shared/ui/button";
 import { AddSeedDialog } from "@/web/features/stations/add-seed-dialog";
-import { usePlaybackContext } from "@/web/shared/playback/playback-context";
+import { trpc } from "@/web/shared/lib/trpc";
 import {
 	radioTrackToNowPlaying,
 	tracksToQueuePayload,
 } from "@/web/shared/lib/now-playing-utils";
-
-/**
- * Station seed (artist or song that influences the station).
- */
-type StationSeed = {
-	readonly seedId: string;
-	readonly musicToken?: string;
-	readonly songName?: string;
-	readonly artistName?: string;
-};
-
-/**
- * Station feedback entry (liked or disliked track).
- */
-type StationFeedback = {
-	readonly feedbackId: string;
-	readonly songName: string;
-	readonly artistName: string;
-};
-
-/**
- * Displays a station seed (artist or song) with remove button.
- */
-function SeedItem({
-	seed,
-	type,
-	onRemove,
-	isRemoving,
-}: {
-	readonly seed: StationSeed;
-	readonly type: "artist" | "song";
-	readonly onRemove: (seedId: string) => void;
-	readonly isRemoving: boolean;
-}) {
-	return (
-		<div className="flex items-center gap-3 p-3 bg-[var(--color-bg-highlight)] group">
-			<div className="w-8 h-8 bg-[var(--color-bg-highlight)] flex items-center justify-center shrink-0">
-				{type === "artist" ? (
-					<User className="w-4 h-4 text-[var(--color-text-muted)]" />
-				) : (
-					<Music className="w-4 h-4 text-[var(--color-text-muted)]" />
-				)}
-			</div>
-			<div className="flex-1 min-w-0">
-				<p className="text-sm text-[var(--color-text-muted)] truncate">
-					{type === "song" ? seed.songName : seed.artistName}
-				</p>
-				{type === "song" && seed.artistName && (
-					<p className="text-xs text-[var(--color-text-dim)] truncate">
-						{seed.artistName}
-					</p>
-				)}
-			</div>
-			<button
-				type="button"
-				onClick={() => onRemove(seed.seedId)}
-				disabled={isRemoving}
-				className="opacity-0 group-hover:opacity-100 p-1.5 text-[var(--color-text-dim)] hover:text-[var(--color-error)] hover:bg-[var(--color-bg-highlight)] transition-all disabled:opacity-50"
-				title="Remove seed"
-				aria-label={`Remove ${type === "song" ? seed.songName ?? "song" : seed.artistName ?? "artist"} seed`}
-			>
-				<X className="w-4 h-4" aria-hidden="true" />
-			</button>
-		</div>
-	);
-}
-
-/**
- * Displays a feedback entry (liked or disliked track).
- */
-function FeedbackItem({
-	feedback,
-}: {
-	readonly feedback: StationFeedback;
-}) {
-	return (
-		<div className="flex items-center gap-3 p-2 bg-[var(--color-bg-highlight)]">
-			<p className="text-sm text-[var(--color-text-muted)] flex-1 truncate">
-				{feedback.songName}
-			</p>
-			<p className="text-xs text-[var(--color-text-dim)] shrink-0">
-				{feedback.artistName}
-			</p>
-		</div>
-	);
-}
-
-/**
- * Loading skeleton for station details.
- */
-function DetailsSkeleton() {
-	return (
-		<div className="flex-1 px-4 sm:px-8 py-10 space-y-8 max-w-3xl mx-auto">
-			<div className="flex items-center gap-4">
-				<Skeleton className="w-9 h-9" />
-				<div>
-					<Skeleton className="h-6 w-48 mb-1" />
-					<Skeleton className="h-4 w-24" />
-				</div>
-			</div>
-			<div>
-				<Skeleton className="h-4 w-16 mb-3" />
-				<div className="space-y-1">
-					{Array.from({ length: 3 }).map((_, i) => (
-						<Skeleton key={i} className="h-12 w-full" />
-					))}
-				</div>
-			</div>
-			<div>
-				<Skeleton className="h-4 w-20 mb-3" />
-				<div className="space-y-1">
-					{Array.from({ length: 4 }).map((_, i) => (
-						<Skeleton key={i} className="h-9 w-full" />
-					))}
-				</div>
-			</div>
-		</div>
-	);
-}
-
-/**
- * Props for the StationDetailPage component.
- */
-type StationDetailPageProps = {
-	/** Station token (pandora:stationToken format) */
-	readonly token: string;
-	/** Whether to auto-play on mount */
-	readonly autoPlay?: boolean;
-};
+import { usePlaybackContext } from "@/web/shared/playback/playback-context";
+import { StationDetailArtistSeedRow } from "./station-detail-artist-seed-row";
+import {
+	StationDetailDislikedFeedbackGroup,
+	StationDetailFeedbackSection,
+	StationDetailLikedFeedbackGroup,
+} from "./station-detail-feedback-section";
+import { StationDetailFeedbackRow } from "./station-detail-feedback-row";
+import { StationDetailHeader } from "./station-detail-header";
+import { StationDetailSeedsSection } from "./station-detail-seeds-section";
+import { StationDetailSkeleton } from "./station-detail-skeleton";
+import { StationDetailSongSeedRow } from "./station-detail-song-seed-row";
+import type { StationDetailPageProps } from "./types";
 
 /**
  * Radio station detail page showing seeds, feedback history, and playback controls.
  * Allows managing station seeds and viewing liked/disliked tracks.
- *
- * @param props - Station detail page props
  */
 export function StationDetailPage({
 	token,
@@ -172,10 +41,8 @@ export function StationDetailPage({
 	playbackRef.current = playback;
 	const stationQuery = trpc.radio.getStation.useQuery({ id: token });
 	const utils = trpc.useUtils();
-
 	const hasAutoPlayedRef = useRef(false);
 
-	// Determine if this station is playing via queue context (works even after navigation)
 	type QueueContext =
 		| { readonly type: "radio"; readonly seedId: string }
 		| { readonly type: "album"; readonly albumId: string }
@@ -201,8 +68,7 @@ export function StationDetailPage({
 		radioQuery.refetch().then((result) => {
 			if (!result.data) return;
 			const newTracks = result.data.map(radioTrackToNowPlaying);
-			playbackRef.current.setCurrentStationToken(token);
-			playbackRef.current.playMutation.mutate({
+			playbackRef.current.playQueue({
 				tracks: tracksToQueuePayload(newTracks),
 				context: { type: "radio", seedId: token },
 				startIndex: 0,
@@ -210,7 +76,6 @@ export function StationDetailPage({
 		});
 	}, [radioQuery, token]);
 
-	// Auto-play on mount
 	useEffect(() => {
 		if (!autoPlay || hasAutoPlayedRef.current) return;
 		hasAutoPlayedRef.current = true;
@@ -229,8 +94,8 @@ export function StationDetailPage({
 			utils.radio.getStation.invalidate({ id: token });
 			toast.success("seed removed");
 		},
-		onError(err) {
-			toast.error(`Failed to remove seed: ${err.message}`);
+		onError(error) {
+			toast.error(`Failed to remove seed: ${error.message}`);
 		},
 	});
 
@@ -239,15 +104,14 @@ export function StationDetailPage({
 	};
 
 	if (stationQuery.isLoading) {
-		return <DetailsSkeleton />;
+		return <StationDetailSkeleton />;
 	}
 
 	if (stationQuery.error) {
 		return (
 			<div className="flex-1 px-4 sm:px-8 py-10">
 				<p className="text-[var(--color-error)]">
-					Failed to load station details:{" "}
-					{stationQuery.error.message}
+					Failed to load station details: {stationQuery.error.message}
 				</p>
 			</div>
 		);
@@ -271,142 +135,89 @@ export function StationDetailPage({
 
 	return (
 		<div className="flex-1 px-4 sm:px-8 py-10 space-y-8 max-w-3xl mx-auto">
-			<div className="flex items-center gap-4">
-				<button
-					type="button"
-					onClick={() => navigate({ to: "/", search: { pl_sort: undefined, pl_page: undefined, al_sort: undefined, al_page: undefined } })}
-					className="p-2 hover:bg-[var(--color-bg-highlight)] transition-colors"
-					aria-label="Back to stations"
-				>
-					<ChevronLeft className="w-5 h-5 text-[var(--color-text-muted)]" />
-				</button>
-				<div className="flex-1">
-					<h2 className="zune-display zune-page-title text-[var(--color-text)]">
-						{station.name}
-					</h2>
-					<p className="zune-meta mt-1">
-						station details
-					</p>
-				</div>
-				{!isThisStationPlaying && (
-					<Button
-						onClick={startRadioPlayback}
-						className="gap-2 bg-[var(--color-primary)] hover:brightness-110 text-[var(--color-bg)]"
-					>
-						<Play className="w-4 h-4" fill="currentColor" />
-						Play
-					</Button>
-				)}
-			</div>
+			<StationDetailHeader
+				stationName={station.name}
+				isPlaying={isThisStationPlaying}
+				onBack={() =>
+					navigate({
+						to: "/",
+						search: {
+							pl_sort: undefined,
+							pl_page: undefined,
+							al_sort: undefined,
+							al_page: undefined,
+						},
+					})
+				}
+				onPlay={startRadioPlayback}
+				onAddSeed={() => setShowAddSeed(true)}
+			/>
 
-			<div>
-				<div className="flex items-center justify-between mb-3">
-					<h3 className="zune-label text-[var(--color-text-muted)]">
-						seeds
-					</h3>
-					<button
-						type="button"
-						onClick={() => setShowAddSeed(true)}
-						className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-[var(--color-primary)] hover:bg-[var(--color-bg-highlight)] transition-colors"
-					>
-						<Plus className="w-4 h-4" />
-						Add Seed
-					</button>
-				</div>
-
-				{!hasSeeds && (
-					<p className="py-6 text-center text-[var(--color-text-dim)] text-sm">
-						No seeds found for this station.
-					</p>
-				)}
-
-				{artistSeeds.length > 0 && (
-					<div className="space-y-1 mb-4">
-						<p className="text-xs text-[var(--color-text-dim)] mb-1">
-							Artists
-						</p>
-						{artistSeeds.map((seed) => (
-							<SeedItem
-								key={seed.seedId}
-								seed={seed}
-								type="artist"
-								onRemove={handleRemoveSeed}
-								isRemoving={removeSeedMutation.isPending}
-							/>
-						))}
-					</div>
-				)}
-
-				{songSeeds.length > 0 && (
-					<div className="space-y-1">
-						<p className="text-xs text-[var(--color-text-dim)] mb-1">
-							Songs
-						</p>
-						{songSeeds.map((seed) => (
-							<SeedItem
-								key={seed.seedId}
-								seed={seed}
-								type="song"
-								onRemove={handleRemoveSeed}
-								isRemoving={removeSeedMutation.isPending}
-							/>
-						))}
-					</div>
-				)}
-			</div>
-
-			<div>
-				<h3 className="zune-label text-[var(--color-text-muted)] mb-4">
-					feedback
-				</h3>
-
-				{!hasFeedback && (
-					<p className="py-6 text-center text-[var(--color-text-dim)] text-sm">
-						No feedback for this station yet.
-					</p>
-				)}
-
-				{thumbsUp.length > 0 && (
-					<div className="mb-4">
-						<p className="text-xs text-[var(--color-text-dim)] mb-1 flex items-center gap-1">
-							<ThumbsUp className="w-3 h-3 text-[var(--color-liked)]" />
-							liked
-						</p>
-						<div className="space-y-1">
-							{thumbsUp.map((fb) => (
-								<FeedbackItem
-									key={fb.feedbackId}
-									feedback={fb}
+			<StationDetailSeedsSection
+				hasSeeds={hasSeeds}
+				artistSeeds={
+					artistSeeds.length > 0 ? (
+						<div className="space-y-1 mb-4">
+							<p className="text-xs text-[var(--color-text-dim)] mb-1">Artists</p>
+							{artistSeeds.map((seed) => (
+								<StationDetailArtistSeedRow
+									key={seed.seedId}
+									seed={seed}
+									isRemoving={removeSeedMutation.isPending}
+									onRemove={handleRemoveSeed}
 								/>
 							))}
 						</div>
-					</div>
-				)}
-
-				{thumbsDown.length > 0 && (
-					<div>
-						<p className="text-xs text-[var(--color-text-dim)] mb-1 flex items-center gap-1">
-							<ThumbsDown className="w-3 h-3 text-[var(--color-error)]" />
-							disliked
-						</p>
+					) : null
+				}
+				songSeeds={
+					songSeeds.length > 0 ? (
 						<div className="space-y-1">
-							{thumbsDown.map((fb) => (
-								<FeedbackItem
-									key={fb.feedbackId}
-									feedback={fb}
+							<p className="text-xs text-[var(--color-text-dim)] mb-1">Songs</p>
+							{songSeeds.map((seed) => (
+								<StationDetailSongSeedRow
+									key={seed.seedId}
+									seed={seed}
+									isRemoving={removeSeedMutation.isPending}
+									onRemove={handleRemoveSeed}
 								/>
 							))}
 						</div>
-					</div>
-				)}
-			</div>
+					) : null
+				}
+			/>
 
-			{showAddSeed && (
-				<AddSeedDialog
-					radioId={token}
-					onClose={() => setShowAddSeed(false)}
-				/>
-			)}
+			<StationDetailFeedbackSection
+				hasFeedback={hasFeedback}
+				likedFeedback={
+					thumbsUp.length > 0 ? (
+						<StationDetailLikedFeedbackGroup>
+							{thumbsUp.map((feedback) => (
+								<StationDetailFeedbackRow
+									key={feedback.feedbackId}
+									feedback={feedback}
+								/>
+							))}
+						</StationDetailLikedFeedbackGroup>
+					) : null
+				}
+				dislikedFeedback={
+					thumbsDown.length > 0 ? (
+						<StationDetailDislikedFeedbackGroup>
+							{thumbsDown.map((feedback) => (
+								<StationDetailFeedbackRow
+									key={feedback.feedbackId}
+									feedback={feedback}
+								/>
+							))}
+						</StationDetailDislikedFeedbackGroup>
+					) : null
+				}
+			/>
+
+			{showAddSeed ? (
+				<AddSeedDialog radioId={token} onClose={() => setShowAddSeed(false)} />
+			) : null}
 		</div>
 	);
 }

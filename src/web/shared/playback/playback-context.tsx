@@ -5,12 +5,8 @@
  */
 
 import { createContext, useContext, type ReactNode } from "react";
+import type { PlaybackContextValue } from "./types";
 import { usePlayback } from "./use-playback";
-
-/**
- * Type of the playback context value, derived from usePlayback hook return type.
- */
-type PlaybackContextValue = ReturnType<typeof usePlayback>;
 
 const PlaybackContext = createContext<PlaybackContextValue | null>(null);
 
@@ -34,7 +30,7 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
  * Accesses the playback context for controlling audio playback.
  * Must be used within a PlaybackProvider.
  *
- * @returns Playback state and control functions
+ * @returns Playback state and UI-facing control functions
  * @throws Error if used outside of PlaybackProvider
  *
  * @example

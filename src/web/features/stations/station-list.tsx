@@ -3,29 +3,9 @@
  * List component for displaying and interacting with radio stations.
  */
 
-import { type ReactNode, useState } from "react";
-import { Radio, Shuffle, MoreVertical } from "lucide-react";
-import { StationContextMenu } from "./station-context-menu";
-
-/**
- * Radio station data for display in the list.
- */
-export type RadioStation = {
-	/** Opaque station identifier (pandora:stationToken) */
-	readonly id: string;
-	/** Station token */
-	readonly stationId: string;
-	/** Display name */
-	readonly name: string;
-	/** Whether this is the QuickMix/Shuffle station */
-	readonly isQuickMix: boolean;
-	/** Whether deletion is allowed */
-	readonly allowDelete?: boolean;
-	/** Whether renaming is allowed */
-	readonly allowRename?: boolean;
-	/** Station IDs included in QuickMix (if this is QuickMix) */
-	readonly quickMixStationIds?: readonly string[];
-};
+import { QuickMixStationRow } from "./station-list/QuickMixStationRow";
+import { RadioStationRow } from "./station-list/RadioStationRow";
+import type { RadioStation } from "./station-list/types";
 
 /**
  * Props for the StationList component.
@@ -37,103 +17,6 @@ type StationListProps = {
 	readonly onDetails: (station: RadioStation) => void;
 	readonly onRename: (station: RadioStation) => void;
 	readonly onDelete: (station: RadioStation) => void;
-};
-
-function StationItemActions({
-	stationName,
-	children,
-}: {
-	readonly stationName: string;
-	readonly children: ReactNode;
-}) {
-	const [isOpen, setIsOpen] = useState(false);
-
-	return (
-		<div className="relative">
-			<button
-				type="button"
-				onClick={() => setIsOpen((prev) => !prev)}
-				className="p-1.5 hover:bg-[var(--color-bg-highlight)] opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity md:opacity-0 max-md:opacity-100"
-				aria-label={`Actions for ${stationName}`}
-			>
-				<MoreVertical className="w-4 h-4 text-[var(--color-text-muted)]" />
-			</button>
-
-			{isOpen && (
-				<StationContextMenu onClose={() => setIsOpen(false)}>
-					{children}
-				</StationContextMenu>
-			)}
-		</div>
-	);
-}
-
-function StationItemRoot({
-	isActive,
-	onSelect,
-	icon,
-	info,
-	actions,
-}: {
-	readonly isActive: boolean;
-	readonly onSelect: () => void;
-	readonly icon: ReactNode;
-	readonly info: ReactNode;
-	readonly actions: ReactNode;
-}) {
-	return (
-		<div
-			data-active={isActive || undefined}
-			className="flex items-center gap-4 p-4 transition-colors group hover:bg-[var(--color-bg-highlight)] data-[active]:bg-[var(--color-bg-highlight)] data-[active]:border data-[active]:border-[var(--color-border-active)]"
-		>
-			<button
-				onClick={onSelect}
-				className="flex items-center gap-4 flex-1 min-w-0 text-left"
-				type="button"
-				aria-label="Play station"
-			>
-				<div className="w-10 h-10 flex items-center justify-center shrink-0 bg-[var(--color-bg-highlight)]">
-					{icon}
-				</div>
-				<div className="flex-1 min-w-0">{info}</div>
-			</button>
-			{actions}
-		</div>
-	);
-}
-
-function StationItemName({
-	isActive,
-	children,
-}: {
-	readonly isActive: boolean;
-	readonly children: ReactNode;
-}) {
-	return (
-		<p
-			data-active={isActive || undefined}
-			className="zune-list-title truncate text-[var(--color-text-muted)] data-[active]:text-[var(--color-text)]"
-		>
-			{children}
-		</p>
-	);
-}
-
-function StationItemSubtitle({
-	children,
-	className,
-}: {
-	readonly children: ReactNode;
-	readonly className?: string;
-}) {
-	return <p className={`text-sm ${className ?? ""}`}>{children}</p>;
-}
-
-const StationItem = {
-	Root: StationItemRoot,
-	Name: StationItemName,
-	Subtitle: StationItemSubtitle,
-	Actions: StationItemActions,
 };
 
 /**
@@ -162,58 +45,22 @@ export function StationList({
 		<ul className="space-y-1">
 			{stations.map((station) => {
 				const isActive = station.id === currentStationId;
+				const rowProps = {
+					station,
+					isActive,
+					onSelect,
+					onDetails,
+					onRename,
+					onDelete,
+				};
 
 				return (
 					<li key={station.stationId}>
-						<StationItem.Root
-							isActive={isActive}
-							onSelect={() => onSelect(station)}
-							icon={
-								station.isQuickMix ? (
-									<Shuffle className="w-5 h-5 text-[var(--color-secondary)]" />
-								) : (
-									<Radio
-										data-active={isActive || undefined}
-										className="w-5 h-5 text-[var(--color-text-dim)] data-[active]:text-[var(--color-primary)]"
-									/>
-								)
-							}
-							info={
-								<>
-									<StationItem.Name isActive={isActive}>
-										{station.name}
-									</StationItem.Name>
-									{station.isQuickMix ? (
-										<StationItem.Subtitle className="text-[var(--color-secondary)]">
-											QuickMix
-										</StationItem.Subtitle>
-									) : (
-										isActive && (
-											<StationItem.Subtitle className="text-[var(--color-primary)]">
-												Now playing
-											</StationItem.Subtitle>
-										)
-									)}
-								</>
-							}
-							actions={
-								<StationItem.Actions stationName={station.name}>
-									<StationContextMenu.Details
-										onClick={() => onDetails(station)}
-									/>
-									{station.allowRename && (
-										<StationContextMenu.Rename
-											onClick={() => onRename(station)}
-										/>
-									)}
-									{station.allowDelete && (
-										<StationContextMenu.Delete
-											onClick={() => onDelete(station)}
-										/>
-									)}
-								</StationItem.Actions>
-							}
-						/>
+						{station.isQuickMix ? (
+							<QuickMixStationRow {...rowProps} />
+						) : (
+							<RadioStationRow {...rowProps} />
+						)}
 					</li>
 				);
 			})}

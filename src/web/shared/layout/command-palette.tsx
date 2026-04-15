@@ -4,108 +4,25 @@
  * Supports command search, theme selection, and playback controls.
  */
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
-import {
-	Search,
-	Play,
-	SkipForward,
-	ThumbsUp,
-	ThumbsDown,
-	Moon,
-	Bookmark,
-	Radio,
-	LayoutGrid,
-	Settings,
-	Palette,
-	ArrowLeft,
-	Check,
-} from "lucide-react";
 import { toast } from "sonner";
-import { filterCommands, groupCommands } from "../lib/commands";
-import { themes, themeNames } from "../lib/themes";
-import { useTheme } from "../theme/theme-context";
-import { usePlaybackContext } from "../playback/playback-context";
 import { trpc } from "../lib/trpc";
-
-/**
- * Props for the CommandPalette component.
- */
-type CommandPaletteProps = {
-	/** Callback to close the command palette */
-	readonly onClose: () => void;
-};
-
-/** Active panel state within the command palette */
-type ActivePanel = "commands" | "themes";
-
-/** Icon mapping for command actions */
-const iconMap: Record<string, typeof Play> = {
-	playPause: Play,
-	skipTrack: SkipForward,
-	likeTrack: ThumbsUp,
-	dislikeTrack: ThumbsDown,
-	sleepTrack: Moon,
-	bookmarkSong: Bookmark,
-	goToStations: Radio,
-	goToSearch: Search,
-	goToBookmarks: Bookmark,
-	goToGenres: LayoutGrid,
-	goToSettings: Settings,
-	changeTheme: Palette,
-};
-
-/**
- * Props for selectable list items in the command palette.
- */
-type SelectableItemProps = {
-	/** Whether this item is currently selected */
-	readonly selected: boolean;
-	/** Click handler for selection */
-	readonly onClick: () => void;
-	/** Mouse enter handler for hover selection */
-	readonly onMouseEnter: () => void;
-	/** Item content */
-	readonly children: React.ReactNode;
-};
-
-/**
- * Selectable list item with keyboard and mouse interaction support.
- */
-function SelectableItem({ selected, onClick, onMouseEnter, children }: SelectableItemProps) {
-	return (
-		<button
-			type="button"
-			data-selected={selected}
-			className={`w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors ${
-				selected
-					? "bg-[var(--color-bg-highlight)]"
-					: "hover:bg-[var(--color-bg-highlight)]"
-			}`}
-			onClick={onClick}
-			onMouseEnter={onMouseEnter}
-		>
-			{children}
-		</button>
-	);
-}
+import { usePlaybackContext } from "../playback/playback-context";
+import { useTheme } from "../theme/theme-context";
+import { CommandPaletteCommandListPanel } from "./command-palette/components/CommandPaletteCommandListPanel";
+import { CommandPaletteFooter } from "./command-palette/components/CommandPaletteFooter";
+import { CommandPaletteHeader } from "./command-palette/components/CommandPaletteHeader";
+import { CommandPaletteThemeListPanel } from "./command-palette/components/CommandPaletteThemeListPanel";
+import type { CommandPaletteActivePanel, CommandPaletteProps } from "./command-palette/types";
 
 /**
  * Modal command palette with search, keyboard navigation, and theme selection.
  * Open with Cmd/Ctrl+K. Navigate with arrow keys, select with Enter, close with Escape.
- *
- * Features:
- * - Searchable command list
- * - Keyboard navigation (arrow keys)
- * - Theme picker sub-panel
- * - Playback control actions
- * - Navigation shortcuts
- *
- * @param props - Command palette props
  */
 export function CommandPalette({ onClose }: CommandPaletteProps) {
 	const [query, setQuery] = useState("");
-	const [activePanel, setActivePanel] = useState<ActivePanel>("commands");
+	const [activePanel, setActivePanel] = useState<CommandPaletteActivePanel>("commands");
 	const inputRef = useRef<HTMLInputElement>(null);
 	const listRef = useRef<HTMLDivElement>(null);
 	const { theme: currentTheme, setTheme } = useTheme();
@@ -211,28 +128,17 @@ export function CommandPalette({ onClose }: CommandPaletteProps) {
 			<div className="fixed inset-0 bg-black/60" />
 			<div
 				className="relative w-full max-w-xl bg-[var(--color-bg)] border border-[var(--color-border)] shadow-2xl overflow-hidden"
-				onClick={(e) => e.stopPropagation()}
+				onClick={(event) => event.stopPropagation()}
 			>
-				{/* Search input */}
-				<div className="flex items-center gap-3 px-4 py-3 border-b border-[var(--color-border)]">
-					<Search className="w-5 h-5 text-[var(--color-text-dim)] shrink-0" />
-					<input
-						ref={inputRef}
-						type="text"
-						placeholder="type a command..."
-						value={query}
-						onChange={(e) => setQuery(e.target.value)}
-						className="flex-1 bg-transparent text-[var(--color-text)] placeholder-[var(--color-text-dim)] outline-none text-base font-light tracking-[-0.02em] lowercase"
-					/>
-					<kbd className="zune-label px-1.5 py-0.5 text-[var(--color-text-dim)] bg-[var(--color-bg-highlight)] border border-[var(--color-border)]">
-						esc
-					</kbd>
-				</div>
+				<CommandPaletteHeader
+					inputRef={inputRef}
+					query={query}
+					onQueryChange={setQuery}
+				/>
 
-				{/* Swappable content panel */}
 				<div ref={listRef} className="max-h-80 overflow-y-auto py-2">
 					{activePanel === "commands" ? (
-						<CommandList
+						<CommandPaletteCommandListPanel
 							query={query}
 							listRef={listRef}
 							onExecute={executeAction}
@@ -240,7 +146,7 @@ export function CommandPalette({ onClose }: CommandPaletteProps) {
 							onClose={onClose}
 						/>
 					) : (
-						<ThemeList
+						<CommandPaletteThemeListPanel
 							listRef={listRef}
 							currentTheme={currentTheme}
 							onSelect={(name) => {
@@ -254,269 +160,8 @@ export function CommandPalette({ onClose }: CommandPaletteProps) {
 					)}
 				</div>
 
-				{/* Footer */}
-				<div className="zune-label flex items-center justify-between px-4 py-2 border-t border-[var(--color-border)] text-[var(--color-text-dim)]">
-					<div className="flex gap-3">
-						<span>
-							<kbd className="px-1 bg-[var(--color-bg-highlight)] border border-[var(--color-border)]">&uarr;&darr;</kbd>{" "}
-							navigate
-						</span>
-						<span>
-							<kbd className="px-1 bg-[var(--color-bg-highlight)] border border-[var(--color-border)]">&crarr;</kbd>{" "}
-							select
-						</span>
-						<span>
-							<kbd className="px-1 bg-[var(--color-bg-highlight)] border border-[var(--color-border)]">esc</kbd>{" "}
-							close
-						</span>
-					</div>
-				</div>
+				<CommandPaletteFooter />
 			</div>
-		</div>
-	);
-}
-
-/**
- * Props for the command list sub-component.
- */
-type CommandListProps = {
-	/** Current search query */
-	readonly query: string;
-	/** Ref to scrollable list container */
-	readonly listRef: React.RefObject<HTMLDivElement | null>;
-	/** Handler to execute a command action */
-	readonly onExecute: (action: string) => void;
-	/** Handler to switch to theme selection panel */
-	readonly onOpenThemes: () => void;
-	/** Handler to close the palette */
-	readonly onClose: () => void;
-};
-
-/**
- * Filtered and grouped command list with keyboard navigation.
- */
-function CommandList({
-	query,
-	listRef,
-	onExecute,
-	onOpenThemes,
-	onClose,
-}: CommandListProps) {
-	const [selectedIndex, setSelectedIndex] = useState(0);
-
-	const filteredCommands = filterCommands(query);
-	const grouped = groupCommands(filteredCommands);
-	const flatItems = grouped.flatMap((g) => g.commands);
-
-	useEffect(() => {
-		setSelectedIndex(0);
-	}, [query]);
-
-	useEffect(() => {
-		const list = listRef.current;
-		if (!list) return;
-		const selected = list.querySelector("[data-selected='true']");
-		if (selected) {
-			selected.scrollIntoView({ block: "nearest" });
-		}
-	}, [selectedIndex, listRef]);
-
-	const handleKeyDown = useCallback(
-		(e: React.KeyboardEvent) => {
-			if (e.key === "ArrowDown") {
-				e.preventDefault();
-				setSelectedIndex((i) => Math.min(i + 1, flatItems.length - 1));
-			} else if (e.key === "ArrowUp") {
-				e.preventDefault();
-				setSelectedIndex((i) => Math.max(i - 1, 0));
-			} else if (e.key === "Enter") {
-				e.preventDefault();
-				const item = flatItems[selectedIndex];
-				if (item) {
-					if (item.action === "changeTheme") {
-						onOpenThemes();
-					} else {
-						onExecute(item.action);
-					}
-				}
-			} else if (e.key === "Escape") {
-				e.preventDefault();
-				onClose();
-			}
-		},
-		[flatItems, selectedIndex, onExecute, onOpenThemes, onClose],
-	);
-
-	return (
-		<div onKeyDown={handleKeyDown}>
-			{grouped.map((group, groupIdx) => {
-				const prevCount = grouped
-					.slice(0, groupIdx)
-					.reduce((sum, g) => sum + g.commands.length, 0);
-				return (
-					<div key={group.category}>
-						<div className="px-3 py-1">
-							<p className="zune-label text-[var(--color-text-dim)]">
-								{group.category}
-							</p>
-						</div>
-						{group.commands.map((cmd, cmdIdx) => {
-							const globalIdx = prevCount + cmdIdx;
-							const isSelected = globalIdx === selectedIndex;
-							const Icon = iconMap[cmd.id] ?? Search;
-							return (
-								<SelectableItem
-									key={cmd.id}
-									selected={isSelected}
-									onClick={() => {
-										if (cmd.action === "changeTheme") {
-											onOpenThemes();
-										} else {
-											onExecute(cmd.action);
-										}
-									}}
-									onMouseEnter={() => setSelectedIndex(globalIdx)}
-								>
-									<Icon className={`w-4 h-4 ${isSelected ? "text-[var(--color-primary)]" : "text-[var(--color-text-muted)]"}`} />
-									<span className={`flex-1 text-[0.98rem] font-light tracking-[-0.02em] lowercase ${isSelected ? "text-[var(--color-text)]" : "text-[var(--color-text-muted)]"}`}>
-										{cmd.label}
-									</span>
-									{cmd.shortcut && (
-										<kbd className="zune-label px-1.5 py-0.5 text-[var(--color-text-dim)] bg-[var(--color-bg-highlight)] border border-[var(--color-border)]">
-											{cmd.shortcut}
-										</kbd>
-									)}
-									{cmd.action === "changeTheme" && (
-										<span className="text-[10px] text-[var(--color-text-dim)]">&rarr;</span>
-									)}
-								</SelectableItem>
-							);
-						})}
-					</div>
-				);
-			})}
-			{flatItems.length === 0 && (
-				<div className="px-4 py-8 text-center text-sm text-[var(--color-text-dim)] lowercase">
-					no commands found
-				</div>
-			)}
-		</div>
-	);
-}
-
-/**
- * Props for the theme list sub-component.
- */
-type ThemeListProps = {
-	/** Ref to scrollable list container */
-	readonly listRef: React.RefObject<HTMLDivElement | null>;
-	/** Currently active theme name */
-	readonly currentTheme: string;
-	/** Handler to select a theme */
-	readonly onSelect: (name: string) => void;
-	/** Handler to navigate back to commands */
-	readonly onBack: () => void;
-	/** Handler to close the palette */
-	readonly onClose: () => void;
-	/** Current search query */
-	readonly query: string;
-};
-
-/**
- * Theme selection list with keyboard navigation.
- */
-function ThemeList({
-	listRef,
-	currentTheme,
-	onSelect,
-	onBack,
-	onClose,
-	query,
-}: ThemeListProps) {
-	const [selectedIndex, setSelectedIndex] = useState(() =>
-		Math.max(themeNames.indexOf(currentTheme), 0),
-	);
-
-	useEffect(() => {
-		setSelectedIndex(Math.max(themeNames.indexOf(currentTheme), 0));
-	}, [currentTheme]);
-
-	useEffect(() => {
-		const list = listRef.current;
-		if (!list) return;
-		const selected = list.querySelector("[data-selected='true']");
-		if (selected) {
-			selected.scrollIntoView({ block: "nearest" });
-		}
-	}, [selectedIndex, listRef]);
-
-	const handleKeyDown = useCallback(
-		(e: React.KeyboardEvent) => {
-			if (e.key === "ArrowDown") {
-				e.preventDefault();
-				setSelectedIndex((i) => Math.min(i + 1, themeNames.length - 1));
-			} else if (e.key === "ArrowUp") {
-				e.preventDefault();
-				setSelectedIndex((i) => Math.max(i - 1, 0));
-			} else if (e.key === "Enter") {
-				e.preventDefault();
-				const name = themeNames[selectedIndex];
-				if (name) {
-					onSelect(name);
-				}
-			} else if (e.key === "Escape") {
-				e.preventDefault();
-				onClose();
-			} else if (e.key === "Backspace" && query.length === 0) {
-				e.preventDefault();
-				onBack();
-			}
-		},
-		[selectedIndex, onSelect, onBack, onClose, query.length],
-	);
-
-	return (
-		<div onKeyDown={handleKeyDown}>
-			<button
-				type="button"
-				onClick={onBack}
-				className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-[var(--color-bg-highlight)] text-left text-[var(--color-text-dim)]"
-			>
-				<ArrowLeft className="w-4 h-4" />
-				<span className="text-[0.98rem] font-light tracking-[-0.02em] lowercase">back to commands</span>
-			</button>
-
-			<div className="px-3 py-1 mt-1">
-				<p className="zune-label text-[var(--color-text-dim)]">
-					themes
-				</p>
-			</div>
-
-			{themeNames.map((name, idx) => {
-				const t = themes[name];
-				if (!t) return null;
-				const isSelected = idx === selectedIndex;
-				const isActive = name === currentTheme;
-				return (
-					<SelectableItem
-						key={name}
-						selected={isSelected}
-						onClick={() => onSelect(name)}
-						onMouseEnter={() => setSelectedIndex(idx)}
-					>
-						<div
-							className="w-4 h-4 shrink-0"
-							style={{ background: t.gradient }}
-						/>
-						<span className={`flex-1 text-[0.98rem] font-light tracking-[-0.02em] lowercase ${isSelected ? "text-[var(--color-text)]" : "text-[var(--color-text-muted)]"}`}>
-							{t.label}
-						</span>
-						{isActive && (
-							<Check className="w-4 h-4 text-[var(--color-primary)]" />
-						)}
-					</SelectableItem>
-				);
-			})}
 		</div>
 	);
 }

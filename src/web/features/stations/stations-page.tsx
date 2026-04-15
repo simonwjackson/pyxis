@@ -13,7 +13,7 @@ import { RenameStationDialog } from "./rename-station-dialog";
 import { QuickMixDialog } from "./quick-mix-dialog";
 import { StationListSkeleton } from "@/web/shared/ui/skeleton";
 import { usePlaybackContext } from "@/web/shared/playback/playback-context";
-import type { RadioStation } from "./station-list";
+import type { RadioStation } from "./station-list/types";
 
 /**
  * Dialog state for station management modals.

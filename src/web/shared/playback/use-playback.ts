@@ -6,29 +6,14 @@
 
 import { useState, useRef, useCallback, useEffect } from "react";
 import { trpc } from "../lib/trpc";
+import type {
+	PlaybackContextValue,
+	PlaybackQueueContext,
+	PlaybackQueueRequest,
+	PlaybackTrack,
+} from "./types";
 
 const SONOS_HANDOFF_EVENT = "pyxis:sonos-handoff";
-import type { SourceType } from "../../../sources/types.js";
-
-/**
- * Track information for playback.
- */
-export type PlaybackTrack = {
-	/** Opaque track token (source:trackId format) */
-	readonly trackToken: string;
-	/** Track title */
-	readonly songName: string;
-	/** Artist name */
-	readonly artistName: string;
-	/** Album name */
-	readonly albumName: string;
-	/** Direct audio stream URL */
-	readonly audioUrl: string;
-	/** Album artwork URL */
-	readonly artUrl?: string;
-	/** Source backend (pandora, ytmusic, etc.) */
-	readonly source?: SourceType;
-};
 
 /**
  * Internal playback state.
@@ -61,7 +46,20 @@ type PlaybackState = {
  * const { isPlaying, togglePlayPause, currentTrack, seek } = usePlayback();
  * ```
  */
-export function usePlayback() {
+function getCurrentStationToken(context: PlaybackQueueContext): string | null {
+	switch (context.type) {
+		case "radio":
+			return context.seedId;
+		case "album":
+			return context.albumId;
+		case "playlist":
+			return context.playlistId;
+		case "manual":
+			return null;
+	}
+}
+
+export function usePlayback(): PlaybackContextValue {
 	const audioRef = useRef<HTMLAudioElement | null>(null);
 	const [state, setState] = useState<PlaybackState>({
 		currentTrack: null,
@@ -624,21 +622,38 @@ export function usePlayback() {
 		}));
 	}, [logToServer]);
 
+	const playQueue = useCallback(
+		({ tracks, context, startIndex }: PlaybackQueueRequest) => {
+			setCurrentStationToken(getCurrentStationToken(context));
+			playMutation.mutate({ tracks: [...tracks], context, startIndex });
+		},
+		[playMutation, setCurrentStationToken],
+	);
+
 	const clearError = useCallback(() => {
 		setState((prev) => ({ ...prev, error: null }));
 	}, []);
 
+	const status = state.currentTrack
+		? (state.isPlaying ? "playing" : "paused")
+		: "stopped";
+
 	return {
-		...state,
+		status,
+		currentTrack: state.currentTrack,
+		currentStationToken: state.currentStationToken,
+		isPlaying: state.isPlaying,
+		progress: state.progress,
+		duration: state.duration,
+		error: state.error,
+		volume: state.volume,
 		playTrack,
+		playQueue,
 		togglePlayPause,
 		stop,
 		seek,
-		setCurrentStationToken,
 		triggerSkip,
 		triggerPrevious,
 		clearError,
-		playMutation,
-		triggerJumpTo,
 	};
 }

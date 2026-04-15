@@ -13,14 +13,19 @@ import {
 } from "@/web/shared/lib/now-playing-utils";
 import { formatPlacementLabel } from "@/web/shared/lib/library-placement";
 import { SearchInput } from "./search-input";
-import { SearchResults } from "./search-results";
+import { Spinner } from "@/web/shared/ui/spinner";
+import { SearchArtists } from "./components/SearchArtists";
+import { SearchGenres } from "./components/SearchGenres";
+import { SearchAlbums } from "./components/SearchAlbums";
+import { SearchResultsEmpty } from "./components/SearchResultsEmpty";
+import { SearchTracks } from "./components/SearchTracks";
+import { SearchResultsRoot } from "./search-results-root";
 import type {
 	SearchTrack,
 	SearchAlbum,
 	SearchArtist,
 	SearchGenreStation,
-} from "./search-results";
-import { Spinner } from "@/web/shared/ui/spinner";
+} from "./types";
 
 type SearchData = {
 	readonly tracks: readonly SearchTrack[];
@@ -58,37 +63,37 @@ function SearchContent({
 				</div>
 			);
 		case "empty":
-			return <SearchResults.Empty />;
+			return <SearchResultsEmpty />;
 		case "results":
 			return (
-				<SearchResults.Root>
-					{state.data.albums.length > 0 && (
-						<SearchResults.Albums
+				<SearchResultsRoot>
+					{state.data.albums.length > 0 ? (
+						<SearchAlbums
 							albums={state.data.albums}
 							onPlayAlbum={onPlayAlbum}
 							playingAlbumId={playingAlbumId}
 							onSaveAlbum={onSaveAlbum}
 						/>
-					)}
-					{state.data.tracks.length > 0 && (
-						<SearchResults.Tracks
+					) : null}
+					{state.data.tracks.length > 0 ? (
+						<SearchTracks
 							tracks={state.data.tracks}
 							onStartRadio={onStartRadio}
 						/>
-					)}
-					{state.data.pandoraArtists.length > 0 && (
-						<SearchResults.Artists
+					) : null}
+					{state.data.pandoraArtists.length > 0 ? (
+						<SearchArtists
 							artists={state.data.pandoraArtists}
 							onCreateStation={onCreateStation}
 						/>
-					)}
-					{state.data.pandoraGenres.length > 0 && (
-						<SearchResults.Genres
+					) : null}
+					{state.data.pandoraGenres.length > 0 ? (
+						<SearchGenres
 							genres={state.data.pandoraGenres}
 							onCreateStation={onCreateStation}
 						/>
-					)}
-				</SearchResults.Root>
+					) : null}
+				</SearchResultsRoot>
 			);
 		case "idle":
 			return (
@@ -190,8 +195,7 @@ export function SearchPage() {
 				const ordered = data.tracks.map((track) =>
 					sourceAlbumTrackToNowPlaying(track, data.album.title, data.album.artworkUrl ?? null),
 				);
-				playbackRef.current.setCurrentStationToken(albumId);
-				playbackRef.current.playMutation.mutate({
+				playbackRef.current.playQueue({
 					tracks: tracksToQueuePayload(ordered),
 					context: { type: "album", albumId },
 					startIndex: 0,

@@ -81,8 +81,7 @@ export function PlaylistDetailPage({
 			const ordered = tracks.map(playlistTrackToNowPlaying);
 			const newTracks = doShuffle ? shuffleArray(ordered) : ordered;
 			const startIdx = doShuffle ? 0 : idx;
-			playbackRef.current.setCurrentStationToken(playlistId);
-			playbackRef.current.playMutation.mutate({
+			playbackRef.current.playQueue({
 				tracks: tracksToQueuePayload(newTracks),
 				context: { type: "playlist", playlistId },
 				startIndex: startIdx,
