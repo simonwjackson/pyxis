@@ -17,7 +17,6 @@ import { playerRouter } from "./routers/player.js";
 import { queueRouter } from "./routers/queue.js";
 import { logRouter } from "./routers/log.js";
 import { listenLogRouter } from "./routers/listenLog.js";
-import { sonosRouter } from "./routers/sonos.js";
 
 /**
  * Combined tRPC application router containing all API endpoints.
@@ -37,7 +36,6 @@ export const appRouter = router({
 	queue: queueRouter,
 	log: logRouter,
 	listenLog: listenLogRouter,
-	sonos: sonosRouter,
 });
 
 /**

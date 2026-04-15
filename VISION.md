@@ -175,7 +175,7 @@ Layered approach:
 All audio streams through Pyxis, even when casting. Pyxis is the brain; playback targets are speakers.
 
 - Browser playback: Direct through Pyxis stream proxy
-- Casting (Sonos, Home Assistant): Pyxis proxies audio to the target
+- Casting / external playback targets: Pyxis proxies audio to the target
 
 ### Caching Strategy
 

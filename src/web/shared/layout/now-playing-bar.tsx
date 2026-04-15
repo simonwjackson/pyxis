@@ -242,7 +242,7 @@ export function NowPlayingBar() {
 						onTogglePlayPause={togglePlayPause}
 						onSkip={triggerSkip}
 					/>
-					<NowPlayingSecondaryActions currentTrackId={currentTrack.trackToken}>
+					<NowPlayingSecondaryActions>
 						{hasPandoraCapabilities ? (
 							<button
 								onClick={() => setShowActionSheet(true)}

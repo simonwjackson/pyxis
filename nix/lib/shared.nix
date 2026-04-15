@@ -23,12 +23,6 @@
         example = "aka";
       };
 
-      externalUrl = lib.mkOption {
-        type = lib.types.nullOr lib.types.str;
-        default = null;
-        description = "External URL for stream URLs sent to Sonos speakers (e.g. http://192.168.1.174:8765). Auto-detected from LAN IP if not set.";
-        example = "http://192.168.1.174:8765";
-      };
     };
 
     web = {
@@ -98,8 +92,6 @@
           server = {
             port = cfg.server.port;
             hostname = cfg.server.hostname;
-          } // lib.optionalAttrs (cfg.server.externalUrl != null) {
-            externalUrl = cfg.server.externalUrl;
           };
 
           web = {
