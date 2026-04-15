@@ -25,16 +25,6 @@ function formatTotalDuration(totalSeconds: number): string {
 	return `${String(mins)} min`;
 }
 
-function AlbumDetailPlacementBadge({ placement }: { readonly placement: AlbumPlacement }) {
-	return (
-		<span
-			className={`text-[10px] uppercase tracking-[0.18em] px-1.5 py-0.5 ${placementBadgeClassName(placement)}`}
-		>
-			{formatPlacementLabel(placement)}
-		</span>
-	);
-}
-
 function AlbumDetailHotBadge() {
 	return (
 		<span
@@ -193,12 +183,11 @@ export function AlbumDetailContent({
 						{String(trackCount)} track{trackCount !== 1 ? "s" : ""}
 						{totalDuration > 0 ? ` · ${formatTotalDuration(totalDuration)}` : ""}
 					</p>
-					<div className="flex gap-1.5 pt-2 flex-wrap justify-center sm:justify-start">
-						{currentPlacement ? (
-							<AlbumDetailPlacementBadge placement={currentPlacement} />
-						) : null}
-						{isHot ? <AlbumDetailHotBadge /> : null}
-					</div>
+					{isHot ? (
+						<div className="flex gap-1.5 pt-2 flex-wrap justify-center sm:justify-start">
+							<AlbumDetailHotBadge />
+						</div>
+					) : null}
 					<div className="flex gap-2 sm:gap-3 pt-4 flex-wrap justify-center sm:justify-start">
 						<Button
 							onClick={onPlay}
