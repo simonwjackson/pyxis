@@ -17,6 +17,7 @@ import { Route as GenresRouteImport } from './+genres'
 import { Route as BookmarksRouteImport } from './+bookmarks'
 import { Route as IndexRouteImport } from './+index'
 import { Route as StationTokenRouteImport } from './+station.$token'
+import { Route as SandboxQueueRouteImport } from './+sandbox.queue'
 import { Route as PlaylistPlaylistIdRouteImport } from './+playlist.$playlistId'
 import { Route as AlbumAlbumIdRouteImport } from './+album.$albumId'
 
@@ -60,6 +61,11 @@ const StationTokenRoute = StationTokenRouteImport.update({
   path: '/station/$token',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SandboxQueueRoute = SandboxQueueRouteImport.update({
+  id: '/sandbox/queue',
+  path: '/sandbox/queue',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const PlaylistPlaylistIdRoute = PlaylistPlaylistIdRouteImport.update({
   id: '/playlist/$playlistId',
   path: '/playlist/$playlistId',
@@ -81,6 +87,7 @@ export interface FileRoutesByFullPath {
   '/stations': typeof StationsRoute
   '/album/$albumId': typeof AlbumAlbumIdRoute
   '/playlist/$playlistId': typeof PlaylistPlaylistIdRoute
+  '/sandbox/queue': typeof SandboxQueueRoute
   '/station/$token': typeof StationTokenRoute
 }
 export interface FileRoutesByTo {
@@ -93,6 +100,7 @@ export interface FileRoutesByTo {
   '/stations': typeof StationsRoute
   '/album/$albumId': typeof AlbumAlbumIdRoute
   '/playlist/$playlistId': typeof PlaylistPlaylistIdRoute
+  '/sandbox/queue': typeof SandboxQueueRoute
   '/station/$token': typeof StationTokenRoute
 }
 export interface FileRoutesById {
@@ -106,6 +114,7 @@ export interface FileRoutesById {
   '/stations': typeof StationsRoute
   '/album/$albumId': typeof AlbumAlbumIdRoute
   '/playlist/$playlistId': typeof PlaylistPlaylistIdRoute
+  '/sandbox/queue': typeof SandboxQueueRoute
   '/station/$token': typeof StationTokenRoute
 }
 export interface FileRouteTypes {
@@ -120,6 +129,7 @@ export interface FileRouteTypes {
     | '/stations'
     | '/album/$albumId'
     | '/playlist/$playlistId'
+    | '/sandbox/queue'
     | '/station/$token'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -132,6 +142,7 @@ export interface FileRouteTypes {
     | '/stations'
     | '/album/$albumId'
     | '/playlist/$playlistId'
+    | '/sandbox/queue'
     | '/station/$token'
   id:
     | '__root__'
@@ -144,6 +155,7 @@ export interface FileRouteTypes {
     | '/stations'
     | '/album/$albumId'
     | '/playlist/$playlistId'
+    | '/sandbox/queue'
     | '/station/$token'
   fileRoutesById: FileRoutesById
 }
@@ -157,6 +169,7 @@ export interface RootRouteChildren {
   StationsRoute: typeof StationsRoute
   AlbumAlbumIdRoute: typeof AlbumAlbumIdRoute
   PlaylistPlaylistIdRoute: typeof PlaylistPlaylistIdRoute
+  SandboxQueueRoute: typeof SandboxQueueRoute
   StationTokenRoute: typeof StationTokenRoute
 }
 
@@ -218,6 +231,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof StationTokenRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/sandbox/queue': {
+      id: '/sandbox/queue'
+      path: '/sandbox/queue'
+      fullPath: '/sandbox/queue'
+      preLoaderRoute: typeof SandboxQueueRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/playlist/$playlistId': {
       id: '/playlist/$playlistId'
       path: '/playlist/$playlistId'
@@ -245,6 +265,7 @@ const rootRouteChildren: RootRouteChildren = {
   StationsRoute: StationsRoute,
   AlbumAlbumIdRoute: AlbumAlbumIdRoute,
   PlaylistPlaylistIdRoute: PlaylistPlaylistIdRoute,
+  SandboxQueueRoute: SandboxQueueRoute,
   StationTokenRoute: StationTokenRoute,
 }
 export const routeTree = rootRouteImport

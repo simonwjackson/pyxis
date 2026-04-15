@@ -1,5 +1,5 @@
 import { useState, useCallback } from "react";
-import { createRootRoute, Outlet } from "@tanstack/react-router";
+import { createRootRoute, Outlet, useRouterState } from "@tanstack/react-router";
 import { Sidebar } from "@/web/shared/layout/sidebar";
 import { MobileNav } from "@/web/shared/layout/mobile-nav";
 import { NowPlayingBar } from "@/web/shared/layout/now-playing-bar";
@@ -7,7 +7,7 @@ import { CommandPalette } from "@/web/shared/layout/command-palette";
 import { useKeyboardShortcuts } from "@/web/shared/keyboard-shortcuts";
 import { ErrorBoundary } from "@/web/shared/ui/error-boundary";
 
-function RootLayout() {
+function AppShell() {
 	const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
 
 	const handleCommandPalette = useCallback(() => {
@@ -42,6 +42,16 @@ function RootLayout() {
 			)}
 		</div>
 	);
+}
+
+function RootLayout() {
+	const pathname = useRouterState({ select: (s) => s.location.pathname });
+
+	if (pathname.startsWith("/sandbox")) {
+		return <Outlet />;
+	}
+
+	return <AppShell />;
 }
 
 export const Route = createRootRoute({
