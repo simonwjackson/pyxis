@@ -12,7 +12,7 @@ import {
 	ThumbsDown,
 	ThumbsUp,
 } from "lucide-react";
-import { filterCommands, groupCommands } from "../../lib/commands";
+import { filterCommands, groupCommands } from "@/web/shared/lib/commands";
 import { CommandPaletteSelectableItem } from "./CommandPaletteSelectableItem";
 
 type CommandPaletteCommandListPanelProps = {

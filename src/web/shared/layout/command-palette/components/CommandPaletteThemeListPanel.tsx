@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState, type RefObject } from "react";
 import { ArrowLeft, Check } from "lucide-react";
-import { themeNames, themes } from "../../lib/themes";
+import { themeNames, themes } from "@/web/shared/lib/themes";
 import { CommandPaletteSelectableItem } from "./CommandPaletteSelectableItem";
 
 type CommandPaletteThemeListPanelProps = {
