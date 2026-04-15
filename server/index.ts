@@ -48,14 +48,17 @@ const serverLogger = createLogger("server");
 const streamLog = serverLogger.child({ component: "stream" });
 const trpcLog = serverLogger.child({ component: "trpc" });
 
-// Static file serving: only active when dist-web/ exists (production build)
+// Static file serving is enabled when a production build exists and Vite dev mode
+// is not explicitly requested.
 const DIST_DIR = join(import.meta.dirname, "../dist-web");
 const hasDistWeb = existsSync(DIST_DIR);
+const forceViteDev = process.env.PYXIS_WEB_DEV === "1";
+const serveStaticFiles = hasDistWeb && !forceViteDev;
 
 // --- Vite dev server (middleware mode) ---
 
 let viteDevServer: any = null;
-if (!hasDistWeb) {
+if (!serveStaticFiles) {
 	const vite = await import("vite");
 	viteDevServer = await vite.createServer({
 		server: {
@@ -248,8 +251,8 @@ const server = Bun.serve({
 			});
 		}
 
-		// Static file serving (production: dist-web/ exists)
-		if (hasDistWeb) {
+		// Static file serving (production build)
+		if (serveStaticFiles) {
 			const filePath = resolve(DIST_DIR, `.${url.pathname}`);
 			if (filePath.startsWith(DIST_DIR)) {
 				const file = Bun.file(filePath);
@@ -287,7 +290,12 @@ const server = Bun.serve({
 	},
 });
 
-serverLogger.info({ port: config.server.port, staticFiles: hasDistWeb }, "server running");
+serverLogger.info({
+	port: config.server.port,
+	staticFiles: serveStaticFiles,
+	viteDev: !serveStaticFiles,
+	forceViteDev,
+}, "server running");
 if (config.sonos.enabled) {
 	initializeSonosPlayback();
 }

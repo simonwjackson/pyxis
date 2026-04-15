@@ -3,7 +3,7 @@
 	"version": "0.1.0",
 	"type": "module",
 	"scripts": {
-		"dev": "bun --watch server/index.ts",
+		"dev": "PYXIS_WEB_DEV=1 bun --watch server/index.ts",
 		"build:web": "vite build",
 		"typecheck": "tsc --noEmit",
 		"test": "bun test",
