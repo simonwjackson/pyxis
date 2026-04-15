@@ -15,6 +15,7 @@ import { parse as parseYaml, stringify as stringifyYaml } from "yaml";
 import { dbConfig, DB_DIR, type DbConfig } from "./config.js";
 
 const ALBUMS_PATH = join(DB_DIR, "albums.yaml");
+const LISTEN_LOG_PATH = join(DB_DIR, "listen-log.jsonl");
 
 /**
  * Backfill first-slice album placement fields for existing YAML libraries.
@@ -55,6 +56,79 @@ export function backfillAlbumPlacementFile(filePath: string): boolean {
 	return true;
 }
 
+function splitConcatenatedJsonObjects(line: string): string[] {
+	const parts: string[] = [];
+	let start = 0;
+	let depth = 0;
+	let inString = false;
+	let escaped = false;
+
+	for (let i = 0; i < line.length; i += 1) {
+		const ch = line[i];
+		if (escaped) {
+			escaped = false;
+			continue;
+		}
+		if (ch === "\\") {
+			escaped = true;
+			continue;
+		}
+		if (ch === '"') {
+			inString = !inString;
+			continue;
+		}
+		if (inString) continue;
+		if (ch === "{") depth += 1;
+		if (ch === "}") {
+			depth -= 1;
+			if (depth === 0) {
+				parts.push(line.slice(start, i + 1));
+				start = i + 1;
+			}
+		}
+	}
+
+	if (start < line.length) {
+		parts.push(line.slice(start));
+	}
+
+	return parts.map((part) => part.trim()).filter((part) => part.length > 0);
+}
+
+export function repairJsonlFile(filePath: string): boolean {
+	if (!existsSync(filePath)) return false;
+
+	const content = readFileSync(filePath, "utf-8");
+	if (content.trim().length === 0) return false;
+
+	const repairedLines: string[] = [];
+	let changed = false;
+
+	for (const line of content.split(/\r?\n/)) {
+		if (line.trim().length === 0) continue;
+		try {
+			JSON.parse(line);
+			repairedLines.push(line);
+			continue;
+		} catch {
+			const parts = splitConcatenatedJsonObjects(line);
+			if (parts.length <= 1) {
+				throw new Error(`Malformed JSONL line in ${filePath}`);
+			}
+			for (const part of parts) {
+				JSON.parse(part);
+				repairedLines.push(part);
+			}
+			changed = true;
+		}
+	}
+
+	if (!changed) return false;
+
+	writeFileSync(filePath, `${repairedLines.join("\n")}\n`, "utf-8");
+	return true;
+}
+
 export type DbInstance = GenerateDatabaseWithPersistence<DbConfig>;
 
 let dbInstance: DbInstance | undefined;
@@ -70,6 +144,9 @@ export async function getDb(): Promise<DbInstance> {
 
 	// Backfill first-slice album placement fields for existing YAML libraries.
 	backfillAlbumPlacementFile(ALBUMS_PATH);
+
+	// Repair append-only JSONL files if a partial write glued multiple objects together.
+	repairJsonlFile(LISTEN_LOG_PATH);
 
 	dbScope = await Effect.runPromise(Scope.make());
 	const program = createNodeDatabase(dbConfig);
