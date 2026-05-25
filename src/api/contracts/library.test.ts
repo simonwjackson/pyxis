@@ -18,7 +18,7 @@ import {
 } from "./library.js";
 
 describe("library API contracts", () => {
-	it("accepts current library album wire shape", () => {
+	it("accepts current library album wire shape including hot-shelf fields", () => {
 		const album = Schema.decodeUnknownSync(LibraryAlbumSchema)({
 			id: "album_1",
 			title: "Album",
@@ -26,10 +26,43 @@ describe("library API contracts", () => {
 			placement: "discovery",
 			placementUpdatedAt: 1,
 			sourceIds: ["ytmusic:remote_album_1"],
+			isHot: true,
+			hotRank: 3,
 		});
 
 		expect(album.placement).toBe("discovery");
 		expect(album.sourceIds).toEqual(["ytmusic:remote_album_1"]);
+		expect(album.isHot).toBe(true);
+		expect(album.hotRank).toBe(3);
+	});
+
+	it("accepts null hotRank when an album is not currently hot", () => {
+		const album = Schema.decodeUnknownSync(LibraryAlbumSchema)({
+			id: "album_2",
+			title: "Album",
+			artist: "Artist",
+			placement: "collection",
+			placementUpdatedAt: 1,
+			sourceIds: ["ytmusic:remote_album_2"],
+			isHot: false,
+			hotRank: null,
+		});
+
+		expect(album.isHot).toBe(false);
+		expect(album.hotRank).toBeNull();
+	});
+
+	it("rejects library album payloads missing the hot-shelf fields", () => {
+		expect(() =>
+			Schema.decodeUnknownSync(LibraryAlbumSchema)({
+				id: "album_3",
+				title: "Album",
+				artist: "Artist",
+				placement: "discovery",
+				placementUpdatedAt: 1,
+				sourceIds: ["ytmusic:remote_album_3"],
+			}),
+		).toThrow();
 	});
 
 	it("rejects invalid placements in command results", () => {

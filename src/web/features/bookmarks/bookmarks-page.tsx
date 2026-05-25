@@ -1,57 +1,118 @@
 /**
  * @module BookmarksPage
  * Page for viewing and managing bookmarked artists and songs.
+ *
+ * Reads `library.bookmarks.list` through the Effect RPC client and adapts
+ * the AsyncResult into the pure {@link BookmarksState} ADT before
+ * rendering. Bookmark removals publish {@link LIBRARY_BOOKMARKS_TAG}
+ * (mirroring the legacy `utils.library.bookmarks.invalidate()`), and
+ * station creation publishes {@link RADIO_STATIONS_TAG} (mirroring the
+ * legacy `utils.radio.list.invalidate()`).
  */
 
-import { User, Music, Bookmark, Trash2, Plus } from "lucide-react";
+import { useAtomSet, useAtomValue } from "@effect/atom-react";
+import { Music, Plus, Trash2, User } from "lucide-react";
 import { toast } from "sonner";
-import { trpc } from "@/web/shared/lib/trpc";
-import { Spinner } from "@/web/shared/ui/spinner";
+import { PyxisRpcClient } from "@/web/shared/api/rpcClient";
+import { projectQueryResult } from "@/web/shared/effect/projectQueryResult";
 import { Button } from "@/web/shared/ui/button";
+import { Spinner } from "@/web/shared/ui/spinner";
+import { RADIO_STATIONS_TAG } from "../stations/radioReactivityTags";
+import { BookmarksState } from "./BookmarksState";
+import { LIBRARY_BOOKMARKS_TAG } from "./bookmarksReactivityTags";
+
+const bookmarksReactivityKeys = [LIBRARY_BOOKMARKS_TAG] as const;
+
+const bookmarksQueryAtom = PyxisRpcClient.query(
+	"library.bookmarks.list",
+	undefined,
+	{
+		reactivityKeys: bookmarksReactivityKeys,
+	},
+);
+
+const removeBookmarkMutationAtom = PyxisRpcClient.mutation(
+	"library.bookmark.remove",
+);
+const removeBookmarkReactivityKeys = [LIBRARY_BOOKMARKS_TAG] as const;
+
+const createStationMutationAtom = PyxisRpcClient.mutation(
+	"radio.station.create",
+);
+const createStationReactivityKeys = [RADIO_STATIONS_TAG] as const;
 
 /**
  * Bookmarks page displaying user's saved artists and songs.
  * Allows removing bookmarks and creating stations from bookmarked items.
  */
 export function BookmarksPage() {
-	const bookmarksQuery = trpc.library.bookmarks.useQuery();
-	const utils = trpc.useUtils();
+	const result = projectQueryResult(useAtomValue(bookmarksQueryAtom));
+	const state = BookmarksState.fromResult(result);
 
-	const removeBookmark = trpc.library.removeBookmark.useMutation({
-		onSuccess: (_data, variables) => {
-			utils.library.bookmarks.invalidate();
-			toast.success(
-				variables.type === "artist"
-					? "artist bookmark removed"
-					: "song bookmark removed",
-			)
-		},
-	})
+	const removeBookmark = useAtomSet(removeBookmarkMutationAtom, {
+		mode: "promiseExit",
+	});
+	const createStation = useAtomSet(createStationMutationAtom, {
+		mode: "promiseExit",
+	});
 
-	const createStation = trpc.radio.create.useMutation({
-		onSuccess: () => {
-			utils.radio.list.invalidate();
-			toast.success("station created");
-		},
-		onError: (err) => {
-			toast.error(`Failed to create station: ${err.message}`);
-		},
-	})
+	const handleCreateStation = (musicToken: string, kind: "artist" | "song") => {
+		void createStation({
+			payload: { musicToken, musicType: kind },
+			reactivityKeys: createStationReactivityKeys,
+		}).then((exit) => {
+			if (exit._tag === "Success") {
+				toast.success("station created");
+			} else {
+				toast.error("Failed to create station");
+			}
+		});
+	};
 
-	if (bookmarksQuery.isLoading) {
+	const handleRemoveBookmark = (
+		bookmarkToken: string,
+		kind: "artist" | "song",
+	) => {
+		void removeBookmark({
+			payload: { bookmarkToken, type: kind },
+			reactivityKeys: removeBookmarkReactivityKeys,
+		}).then((exit) => {
+			if (exit._tag === "Success") {
+				toast.success(
+					kind === "artist"
+						? "artist bookmark removed"
+						: "song bookmark removed",
+				);
+			} else {
+				toast.error("Failed to remove bookmark");
+			}
+		});
+	};
+
+	if (state._tag === "Loading") {
 		return (
 			<div className="flex-1 flex items-center justify-center">
 				<Spinner />
 			</div>
-		)
+		);
 	}
 
-	const artists = bookmarksQuery.data?.artists ?? [];
-	const songs = bookmarksQuery.data?.songs ?? [];
+	if (state._tag === "LoadError" || state._tag === "Defect") {
+		return (
+			<div className="flex-1 px-4 sm:px-8 py-10">
+				<p className="text-[var(--color-error)]">failed to load bookmarks</p>
+			</div>
+		);
+	}
+
+	const artists = state._tag === "Ready" ? state.artists : [];
+	const songs = state._tag === "Ready" ? state.songs : [];
 
 	return (
 		<div className="flex-1 px-4 sm:px-8 py-10 space-y-8">
-			<h2 className="zune-display zune-page-title text-[var(--color-text)]">bookmarks</h2>
+			<h2 className="zune-display zune-page-title text-[var(--color-text)]">
+				bookmarks
+			</h2>
 
 			{artists.length > 0 && (
 				<section>
@@ -59,16 +120,16 @@ export function BookmarksPage() {
 						artists
 					</h3>
 					<ul className="space-y-1">
-						{artists.map((a) => (
+						{artists.map((artist) => (
 							<li
-								key={a.bookmarkToken}
+								key={artist.bookmarkToken}
 								className="flex items-center gap-3 p-3 hover:bg-[var(--color-bg-highlight)] group"
 							>
 								<div className="w-10 h-10 bg-[var(--color-bg-highlight)] flex items-center justify-center shrink-0">
 									<User className="w-5 h-5 text-[var(--color-text-muted)]" />
 								</div>
 								<span className="flex-1 zune-list-title text-[var(--color-text)]">
-									{a.artistName}
+									{artist.artistName}
 								</span>
 								<div className="flex items-center gap-1 max-md:opacity-100 opacity-0 group-hover:opacity-100 transition-opacity">
 									<Button
@@ -76,13 +137,10 @@ export function BookmarksPage() {
 										size="icon"
 										className="text-[var(--color-text-muted)] hover:text-[var(--color-success)]"
 										onClick={() =>
-											createStation.mutate({
-												musicToken: a.musicToken,
-												musicType: "artist",
-											})
+											handleCreateStation(artist.musicToken, "artist")
 										}
 										title="Create station"
-										aria-label={`Create station from ${a.artistName}`}
+										aria-label={`Create station from ${artist.artistName}`}
 									>
 										<Plus className="w-4 h-4" />
 									</Button>
@@ -91,13 +149,10 @@ export function BookmarksPage() {
 										size="icon"
 										className="text-[var(--color-text-muted)] hover:text-[var(--color-error)]"
 										onClick={() =>
-											removeBookmark.mutate({
-												bookmarkToken: a.bookmarkToken,
-												type: "artist",
-											})
+											handleRemoveBookmark(artist.bookmarkToken, "artist")
 										}
 										title="Remove bookmark"
-										aria-label={`Remove ${a.artistName} bookmark`}
+										aria-label={`Remove ${artist.artistName} bookmark`}
 									>
 										<Trash2 className="w-4 h-4" />
 									</Button>
@@ -114,9 +169,9 @@ export function BookmarksPage() {
 						songs
 					</h3>
 					<ul className="space-y-1">
-						{songs.map((s) => (
+						{songs.map((song) => (
 							<li
-								key={s.bookmarkToken}
+								key={song.bookmarkToken}
 								className="flex items-center gap-3 p-3 hover:bg-[var(--color-bg-highlight)] group"
 							>
 								<div className="w-10 h-10 bg-[var(--color-bg-highlight)] flex items-center justify-center shrink-0">
@@ -124,10 +179,10 @@ export function BookmarksPage() {
 								</div>
 								<div className="flex-1 min-w-0">
 									<p className="zune-list-title text-[var(--color-text)] truncate">
-										{s.songName}
+										{song.songName}
 									</p>
 									<p className="zune-eyebrow text-[var(--color-text-dim)]">
-										{s.artistName}
+										{song.artistName}
 									</p>
 								</div>
 								<div className="flex items-center gap-1 max-md:opacity-100 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -135,14 +190,9 @@ export function BookmarksPage() {
 										variant="ghost"
 										size="icon"
 										className="text-[var(--color-text-muted)] hover:text-[var(--color-success)]"
-										onClick={() =>
-											createStation.mutate({
-												musicToken: s.musicToken,
-												musicType: "song",
-											})
-										}
+										onClick={() => handleCreateStation(song.musicToken, "song")}
 										title="Create station"
-										aria-label={`Create station from ${s.songName}`}
+										aria-label={`Create station from ${song.songName}`}
 									>
 										<Plus className="w-4 h-4" />
 									</Button>
@@ -151,13 +201,10 @@ export function BookmarksPage() {
 										size="icon"
 										className="text-[var(--color-text-muted)] hover:text-[var(--color-error)]"
 										onClick={() =>
-											removeBookmark.mutate({
-												bookmarkToken: s.bookmarkToken,
-												type: "song",
-											})
+											handleRemoveBookmark(song.bookmarkToken, "song")
 										}
 										title="Remove bookmark"
-										aria-label={`Remove ${s.songName} bookmark`}
+										aria-label={`Remove ${song.songName} bookmark`}
 									>
 										<Trash2 className="w-4 h-4" />
 									</Button>
@@ -168,14 +215,14 @@ export function BookmarksPage() {
 				</section>
 			)}
 
-			{artists.length === 0 && songs.length === 0 && (
+			{state._tag === "Empty" && (
 				<div className="py-16 text-[var(--color-text-dim)]">
-					<p className="zune-display text-4xl text-[var(--color-text-dim)]/40 mb-4">no bookmarks</p>
-					<p className="text-sm">
-						bookmark artists and songs while playing.
+					<p className="zune-display text-4xl text-[var(--color-text-dim)]/40 mb-4">
+						no bookmarks
 					</p>
+					<p className="text-sm">bookmark artists and songs while playing.</p>
 				</div>
 			)}
 		</div>
-	)
+	);
 }

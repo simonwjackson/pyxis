@@ -14,6 +14,18 @@ export const LibraryAlbumSchema = Schema.Struct({
 	placement: AlbumPlacementSchema,
 	placementUpdatedAt: Schema.Number,
 	sourceIds: Schema.Array(Schema.String),
+	/**
+	 * Hot-shelf signal computed by the server from recent listen activity.
+	 * Always present on library album wire payloads so the home/hot shelves,
+	 * search badge, and album detail header render the same indicator the
+	 * legacy tRPC handlers emitted.
+	 */
+	isHot: Schema.Boolean,
+	/**
+	 * Hot-shelf rank, `null` when {@link isHot} is `false`. Smaller numbers
+	 * sort earlier on the hot shelf.
+	 */
+	hotRank: Schema.Union([Schema.Number, Schema.Null]),
 });
 export type ApiLibraryAlbum = Schema.Schema.Type<typeof LibraryAlbumSchema>;
 
@@ -214,6 +226,9 @@ export const PandoraBookmarkSchema = Schema.Struct({
 	artUrl: Schema.optionalKey(Schema.String),
 	dateCreated: Schema.optionalKey(Schema.Struct({ time: Schema.Number })),
 });
+export type ApiPandoraBookmark = Schema.Schema.Type<
+	typeof PandoraBookmarkSchema
+>;
 
 export const BookmarksResponseSchema = Schema.Struct({
 	artists: Schema.optionalKey(Schema.Array(PandoraBookmarkSchema)),

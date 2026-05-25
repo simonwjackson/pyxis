@@ -123,19 +123,17 @@ const webConsumerInventory: readonly WebConsumerInventoryEntry[] = [
 	// src/web/shared/layout/sidebar.tsx -> authStatusQueryAtom + AuthStatusState
 	// src/web/shared/layout/mobile-nav.tsx -> authStatusQueryAtom + AuthStatusState
 	// src/web/shared/track-info-modal/TrackInfoTraits.tsx -> TrackInfoState
-	consumer(
-		"src/web/features/home/home-page.tsx",
-		[
-			"trpc:import",
-			"trpc.playlist.list.useQuery",
-			"trpc.library.hotAlbums.useQuery",
-			"trpc.library.albums.useQuery",
-		],
-		[
-			"Home combines playlist, hot, discovery, collection, and archive album queries",
-		],
-		"HomeState atoms and ADT",
-	),
+	// Migrated to Effect atoms in U6 -- entry intentionally omitted.
+	// src/web/features/home/home-page.tsx -> playlist/hot/discovery/collection/
+	//   archive query atoms + HomeState (each shelf is its own sub-component;
+	//   the archive sub-component only mounts when the user expands it,
+	//   preserving the legacy `enabled: showArchive` semantics). Shelf atoms
+	//   subscribe to library.albums / library.hotAlbums / playlist.list
+	//   reactivity tags so save/place/remove/update/createRadio mutations on
+	//   other surfaces refresh the page the same way the legacy
+	//   utils.library.albums / utils.library.hotAlbums / utils.playlist.list
+	//   invalidations did.
+
 	consumer(
 		"src/web/features/search/search-page.tsx",
 		[
@@ -203,29 +201,17 @@ const webConsumerInventory: readonly WebConsumerInventoryEntry[] = [
 	//   search.pandora query atom + radio.seed.add mutation atom +
 	//   AddSeedDialogState (publishes radio.station:<radioId> reactivity tag
 	//   for the next U6 slice's station-detail atom).
-	consumer(
-		"src/web/features/genres/genres-page.tsx",
-		[
-			"trpc:import",
-			"trpc.radio.genres.useQuery",
-			"trpc.radio.create.useMutation",
-			"trpc.useUtils",
-		],
-		["radio.create -> radio.list"],
-		"GenresState atoms and command refresh tag",
-	),
-	consumer(
-		"src/web/features/bookmarks/bookmarks-page.tsx",
-		[
-			"trpc:import",
-			"trpc.library.bookmarks.useQuery",
-			"trpc.library.removeBookmark.useMutation",
-			"trpc.radio.create.useMutation",
-			"trpc.useUtils",
-		],
-		["library.removeBookmark -> library.bookmarks; radio.create -> radio.list"],
-		"BookmarksState atoms and command refresh tags",
-	),
+	// Migrated to Effect atoms in U6 -- entries intentionally omitted.
+	// src/web/features/genres/genres-page.tsx -> radio.genres.list query atom +
+	//   radio.station.create mutation atom + GenresState (publishes
+	//   RADIO_STATIONS_TAG so the stations surface refreshes after a station
+	//   is created, mirroring the legacy utils.radio.list invalidation).
+	// src/web/features/bookmarks/bookmarks-page.tsx ->
+	//   library.bookmarks.list query atom (subscribed to LIBRARY_BOOKMARKS_TAG)
+	//   + library.bookmark.remove mutation atom (publishes the same tag,
+	//   mirroring utils.library.bookmarks.invalidate) + radio.station.create
+	//   mutation atom (publishes RADIO_STATIONS_TAG, mirroring
+	//   utils.radio.list.invalidate) + BookmarksState ADT.
 	// Migrated to Effect atoms in U6 -- entries intentionally omitted.
 	// src/web/features/history/history-page.tsx -> HistoryState atom
 	// src/web/features/settings/settings-page.tsx -> SettingsState +
