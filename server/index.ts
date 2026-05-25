@@ -29,6 +29,7 @@ import { ensureSourceManager, setAppConfig } from "./services/sourceManager.js";
 import { setCredentialsConfig } from "./services/credentials.js";
 import { tryAutoLogin } from "./services/autoLogin.js";
 import { resolveTrackForStream } from "./lib/ids.js";
+import { createHealthResponse, isHealthRequest } from "./lib/health.js";
 import { join, resolve } from "node:path";
 import { existsSync } from "node:fs";
 import { createLogger } from "../src/logger.js";
@@ -152,6 +153,10 @@ const server = Bun.serve({
 		// CORS preflight
 		if (req.method === "OPTIONS") {
 			return new Response(null, { headers: CORS_HEADERS });
+		}
+
+		if (isHealthRequest(url, req.method)) {
+			return createHealthResponse();
 		}
 
 		// Stream endpoint: /stream/:opaqueId (accepts nanoid or source:id)
