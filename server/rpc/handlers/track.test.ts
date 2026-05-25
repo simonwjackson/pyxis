@@ -70,4 +70,29 @@ describe("track handlers", () => {
 		);
 		expect(result.url).toBe("/stream/ytmusic%3Aabc?next=ytmusic%3Adef");
 	});
+
+	it("track.explanation.get maps Pandora focus-trait fields to the public contract", async () => {
+		const handlers = trackHandlers({
+			auth: {
+				...auth,
+				withAuthRetry: () =>
+					Effect.succeed({
+						explanations: [
+							{
+								focusTraitId: "trait-1",
+								focusTraitName: "Acoustic texture",
+							},
+						],
+					}) as never,
+			},
+		});
+
+		const result = await Effect.runPromise(
+			handlers["track.explanation.get"]({ id: "pandora:track-token" }),
+		);
+
+		expect(result).toEqual({
+			explanations: [{ traitId: "trait-1", traitName: "Acoustic texture" }],
+		});
+	});
 });

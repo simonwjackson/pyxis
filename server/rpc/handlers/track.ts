@@ -95,9 +95,18 @@ export const trackHandlers = (deps: TrackHandlerDeps) => ({
 
 	"track.explanation.get": (payload: ApiTrackIdRequest) =>
 		publicHandler(
-			deps.auth.withAuthRetry((ctx) => {
-				const { id: trackToken } = parseId(payload.id);
-				return Pandora.explainTrack(ctx.pandoraSession, trackToken);
-			}),
+			deps.auth
+				.withAuthRetry((ctx) => {
+					const { id: trackToken } = parseId(payload.id);
+					return Pandora.explainTrack(ctx.pandoraSession, trackToken);
+				})
+				.pipe(
+					Effect.map((result) => ({
+						explanations: result.explanations.map((explanation) => ({
+							traitId: explanation.focusTraitId,
+							traitName: explanation.focusTraitName,
+						})),
+					})),
+				),
 		),
 });
