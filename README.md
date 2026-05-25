@@ -92,11 +92,21 @@ just nix-lock        # Regenerate bun.nix from bun.lock
 
 The Android kiosk APK is a debug-only native WebView shell for the Sony Walkman NW-A306. It targets the local Pyxis server at `http://192.168.1.243:8765/` for the MVP.
 
+The optional native MediaSession bridge is disabled unless a local token is supplied to both the daemon and Android build:
+
+```bash
+export PYXIS_ANDROID_BRIDGE_ENABLED=1
+export PYXIS_ANDROID_BRIDGE_TOKEN='<local-dev-token>'
+```
+
+The token is sent in the `X-Pyxis-Bridge-Token` header for `/android-media-bridge/*`; it is never placed in URLs.
+
 Read the provisioning/recovery runbook and validation checklist before attempting Device Owner setup:
 
 ```text
 docs/operations/sony-android-kiosk-provisioning.md
 docs/operations/sony-android-kiosk-validation.md
+docs/operations/sony-android-mediasession-validation.md
 ```
 
 ### Nix Home Manager

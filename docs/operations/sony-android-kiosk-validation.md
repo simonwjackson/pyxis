@@ -43,6 +43,7 @@ Run these before claiming full MediaSession support or relaxing kiosk policy:
 - [ ] Under Device Owner policy, record whether keyguard, notification shade, and lockscreen media controls are visible, hidden by policy, or require a policy change.
 - [ ] If visible system surfaces are enabled, attempt to escape via notification shade, settings, recents, home, back, notification taps, package replacement, and reboot/resume.
 - [ ] Treat failure of WebView screen-off playback or required media surfaces as a stop/go finding for the MediaSession bridge plan, not as a completed pass.
+- [ ] Run the full MediaSession bridge checklist in `docs/operations/sony-android-mediasession-validation.md` before claiming Bluetooth, lockscreen, notification, hardware-button, or screen-off success.
 
 ## Device Owner preflight
 
@@ -75,4 +76,5 @@ Run these before claiming full MediaSession support or relaxing kiosk policy:
 - The target URL is hardcoded to `http://192.168.1.243:8765/`.
 - LAN HTTP is trusted for this MVP and is not a secure transport posture.
 - iKKO support, server discovery, editable profiles, and offline sync are deferred.
-- Native media-button and lockscreen-control polish are deferred unless Sony validation proves they are required for basic MVP usability.
+- Native media controls now use the guarded Android MediaSession bridge; Sony pass/fail evidence lives in `docs/operations/sony-android-mediasession-validation.md`.
+- The MediaSession bridge token protects only the new bridge endpoints. Existing web/tRPC LAN controls remain part of the current trusted-LAN MVP posture.
