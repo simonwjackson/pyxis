@@ -30,3 +30,23 @@ export const PLAYLIST_LIST_TAG = "playlist.list" as const;
  * invalidation.
  */
 export const LIBRARY_ALBUM_STATES_TAG = "library.albumStates" as const;
+
+/**
+ * Refresh tag for a single `library.album.get` read. The `id` is the same
+ * library-album identifier passed to `library.album.get`. Album detail
+ * mutations (save/place/update) publish this tag so the detail query atom
+ * refreshes in step with the legacy `utils.library.album.invalidate({ id })`.
+ */
+export function libraryAlbumTag(id: string): string {
+	return `library.album:${id}`;
+}
+
+/**
+ * Refresh tag for a single `library.albumTracks.list` read. The `albumId`
+ * is the same library-album identifier passed to `library.albumTracks.list`.
+ * Track-edit mutations publish this tag so the track list refreshes in step
+ * with the legacy `utils.library.albumTracks.invalidate({ albumId })`.
+ */
+export function libraryAlbumTracksTag(albumId: string): string {
+	return `library.albumTracks:${albumId}`;
+}

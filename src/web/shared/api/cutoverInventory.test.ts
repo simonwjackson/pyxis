@@ -29,13 +29,6 @@ function consumer(
 	};
 }
 
-const albumInvalidations = [
-	"library.albums",
-	"library.hotAlbums",
-	"library.resolveAlbumStates",
-	"affected library.album and library.albumTracks queries",
-] as const;
-
 const webConsumerInventory: readonly WebConsumerInventoryEntry[] = [
 	consumer(
 		"src/web/main.tsx",
@@ -146,34 +139,29 @@ const webConsumerInventory: readonly WebConsumerInventoryEntry[] = [
 	//   utils.playlist.list.invalidate). The play-album action uses
 	//   album.withTracks.get as an imperative mutation-atom fetch, matching
 	//   the station-detail "fetch then play" pattern.
-	consumer(
-		"src/web/features/album-detail/library-album-detail-root.tsx",
-		[
-			"trpc:import",
-			"trpc.library.album.useQuery",
-			"trpc.library.albumTracks.useQuery",
-			"trpc.library.saveAlbum.useMutation",
-			"trpc.library.setPlacement.useMutation",
-			"trpc.library.updateAlbum.useMutation",
-			"trpc.library.updateTrack.useMutation",
-			"trpc.useUtils",
-		],
-		albumInvalidations,
-		"LibraryAlbumDetailState atoms and command refresh tags",
-	),
-	consumer(
-		"src/web/features/album-detail/source-album-detail-root.tsx",
-		[
-			"trpc:import",
-			"trpc.album.getWithTracks.useQuery",
-			"trpc.library.resolveAlbumStates.useQuery",
-			"trpc.library.saveAlbum.useMutation",
-			"trpc.library.setPlacement.useMutation",
-			"trpc.useUtils",
-		],
-		albumInvalidations,
-		"SourceAlbumDetailState atoms and command refresh tags",
-	),
+	// Migrated to Effect atoms in U6 -- entries intentionally omitted.
+	// src/web/features/album-detail/library-album-detail-root.tsx ->
+	//   library.album.get + library.albumTracks.list query atoms combined
+	//   through LibraryAlbumDetailState (album.get subscribes to
+	//   libraryAlbumTag(id); albumTracks.list subscribes to
+	//   libraryAlbumTracksTag(albumId)). Mutations:
+	//   library.album.save and library.albumPlacement.set publish
+	//   LIBRARY_ALBUMS_TAG + LIBRARY_HOT_ALBUMS_TAG +
+	//   LIBRARY_ALBUM_STATES_TAG + libraryAlbumTag(id) (mirrors the
+	//   utils.library.albums + hotAlbums + resolveAlbumStates + album
+	//   invalidation quadruple); library.album.update publishes
+	//   LIBRARY_ALBUMS_TAG + libraryAlbumTag(id); library.track.update
+	//   publishes libraryAlbumTracksTag(albumId).
+	// src/web/features/album-detail/source-album-detail-root.tsx ->
+	//   album.withTracks.get + library.albumStates.resolve query atoms
+	//   combined through SourceAlbumDetailState (states subscribes to
+	//   LIBRARY_ALBUM_STATES_TAG). Mutations:
+	//   library.album.save and library.albumPlacement.set publish
+	//   LIBRARY_ALBUMS_TAG + LIBRARY_HOT_ALBUMS_TAG +
+	//   LIBRARY_ALBUM_STATES_TAG + (when the source maps to a library album)
+	//   libraryAlbumTag(linkedId) so the parallel library detail surface
+	//   refreshes the same way the legacy
+	//   utils.library.album.invalidate() did.
 	// Migrated to Effect atoms in U6 -- entries intentionally omitted.
 	// src/web/features/station-detail/station-detail-page.tsx ->
 	//   stationQueryAtom (radio.station.get, subscribes to radio.station:<id>
