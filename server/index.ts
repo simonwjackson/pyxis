@@ -19,24 +19,26 @@
  * ```
  */
 
+import { existsSync } from "node:fs";
 import { IncomingMessage, ServerResponse } from "node:http";
 import { Socket } from "node:net";
-import { fetchRequestHandler } from "@trpc/server/adapters/fetch";
-import { appRouter } from "./router.js";
-import { createContext } from "./trpc.js";
-import { handleStreamRequest, prefetchToCache } from "./services/stream.js";
-import { ensureSourceManager, setAppConfig } from "./services/sourceManager.js";
-import { setCredentialsConfig } from "./services/credentials.js";
-import { tryAutoLogin } from "./services/autoLogin.js";
-import { resolveTrackForStream } from "./lib/ids.js";
-import { createHealthResponse, isHealthRequest } from "./lib/health.js";
 import { join, resolve } from "node:path";
-import { existsSync } from "node:fs";
-import { createLogger } from "../src/logger.js";
+import { fetchRequestHandler } from "@trpc/server/adapters/fetch";
+import type { ViteDevServer } from "vite";
 import { resolveConfig } from "../src/config.js";
+import { createLogger } from "../src/logger.js";
+import { createHealthResponse, isHealthRequest } from "./lib/health.js";
+import { resolveTrackForStream } from "./lib/ids.js";
+import { appRouter } from "./router.js";
+import { tryAutoLogin } from "./services/autoLogin.js";
+import { setCredentialsConfig } from "./services/credentials.js";
+import { ensureSourceManager, setAppConfig } from "./services/sourceManager.js";
+import { handleStreamRequest, prefetchToCache } from "./services/stream.js";
+import { createContext } from "./trpc.js";
 
 const configFlagIndex = process.argv.indexOf("--config");
-const configPath = configFlagIndex !== -1 ? process.argv[configFlagIndex + 1] : undefined;
+const configPath =
+	configFlagIndex !== -1 ? process.argv[configFlagIndex + 1] : undefined;
 const config = resolveConfig(configPath);
 setAppConfig(config);
 setCredentialsConfig(config);
@@ -54,7 +56,7 @@ const serveStaticFiles = hasDistWeb && !forceViteDev;
 
 // --- Vite dev server (middleware mode) ---
 
-let viteDevServer: any = null;
+let viteDevServer: ViteDevServer | null = null;
 if (!serveStaticFiles) {
 	const vite = await import("vite");
 	viteDevServer = await vite.createServer({
@@ -68,11 +70,15 @@ if (!serveStaticFiles) {
 
 /** Bridge a web request through Vite's Connect middleware stack */
 function handleViteRequest(
-	middleware: any,
+	middleware: ViteDevServer["middlewares"],
 	method: string,
 	url: string,
 	headers: Record<string, string>,
-): Promise<{ status: number; headers: Record<string, string>; body: ArrayBuffer }> {
+): Promise<{
+	status: number;
+	headers: Record<string, string>;
+	body: ArrayBuffer;
+}> {
 	return new Promise((resolve, reject) => {
 		const socket = new Socket();
 		const req = new IncomingMessage(socket);
@@ -87,12 +93,12 @@ function handleViteRequest(
 		const res = new ServerResponse(req);
 		const chunks: Buffer[] = [];
 
-		res.write = (chunk: any, ..._args: any[]) => {
+		res.write = ((chunk: string | Uint8Array) => {
 			chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
 			return true;
-		};
+		}) as typeof res.write;
 
-		res.end = (chunk?: any, ..._args: any[]) => {
+		res.end = ((chunk?: string | Uint8Array) => {
 			if (chunk) {
 				chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
 			}
@@ -111,9 +117,9 @@ function handleViteRequest(
 				})(),
 			});
 			return res;
-		};
+		}) as typeof res.end;
 
-		middleware.handle(req, res, (err?: any) => {
+		middleware.handle(req, res, (err?: unknown) => {
 			if (err) {
 				reject(err);
 			} else {
@@ -141,7 +147,7 @@ const CORS_HEADERS = {
 	"Access-Control-Allow-Credentials": "true",
 } as const;
 
-const server = Bun.serve({
+const _server = Bun.serve({
 	port: config.server.port,
 	error(err) {
 		serverLogger.error({ err: err.message }, "unhandled server error");
@@ -161,7 +167,9 @@ const server = Bun.serve({
 
 		// Stream endpoint: /stream/:opaqueId (accepts nanoid or source:id)
 		if (url.pathname.startsWith("/stream/")) {
-			const opaqueId = decodeURIComponent(url.pathname.slice("/stream/".length));
+			const opaqueId = decodeURIComponent(
+				url.pathname.slice("/stream/".length),
+			);
 			const rangeHeader = req.headers.get("range");
 			const nextHint = url.searchParams.get("next");
 			const decodedNextHint = nextHint ? decodeURIComponent(nextHint) : null;
@@ -173,19 +181,27 @@ const server = Bun.serve({
 					headers: { "Access-Control-Allow-Origin": "*" },
 				});
 			}
-			streamLog.info({
-				opaqueId,
-				range: rangeHeader ?? "none",
-				next: decodedNextHint ?? "none",
-				format: requestedFormat ?? "none",
-			}, "incoming");
+			streamLog.info(
+				{
+					opaqueId,
+					range: rangeHeader ?? "none",
+					next: decodedNextHint ?? "none",
+					format: requestedFormat ?? "none",
+				},
+				"incoming",
+			);
 			return resolveTrackForStream(opaqueId)
 				.then((compositeId) =>
 					ensureSourceManager().then((sourceManager) => {
-						const responsePromise = handleStreamRequest(sourceManager, compositeId, rangeHeader, {
-							abortSignal: req.signal,
-							...(requestedFormat ? { requestedFormat } : {}),
-						});
+						const responsePromise = handleStreamRequest(
+							sourceManager,
+							compositeId,
+							rangeHeader,
+							{
+								abortSignal: req.signal,
+								...(requestedFormat ? { requestedFormat } : {}),
+							},
+						);
 						if (decodedNextHint) {
 							resolveTrackForStream(decodedNextHint)
 								.then((nextCompositeId) =>
@@ -193,15 +209,17 @@ const server = Bun.serve({
 								)
 								.catch((err: unknown) => {
 									const msg = err instanceof Error ? err.message : String(err);
-									streamLog.error({ next: decodedNextHint, err: msg }, "prefetch error");
+									streamLog.error(
+										{ next: decodedNextHint, err: msg },
+										"prefetch error",
+									);
 								});
 						}
 						return responsePromise;
 					}),
 				)
 				.catch((err: unknown) => {
-					const message =
-						err instanceof Error ? err.message : "Stream error";
+					const message = err instanceof Error ? err.message : "Stream error";
 					streamLog.error({ opaqueId, err: message }, "stream error");
 					return new Response(message, {
 						status: 502,
@@ -213,7 +231,12 @@ const server = Bun.serve({
 		// tRPC handler (includes SSE subscriptions via GET)
 		if (url.pathname.startsWith("/trpc")) {
 			const trpcPath = url.pathname.replace("/trpc/", "").replace("/trpc", "");
-			if (trpcPath && !trpcPath.includes("player.") && !trpcPath.includes("queue.") && !trpcPath.includes("log.")) {
+			if (
+				trpcPath &&
+				!trpcPath.includes("player.") &&
+				!trpcPath.includes("queue.") &&
+				!trpcPath.includes("log.")
+			) {
 				trpcLog.info({ method: req.method, path: trpcPath }, "request");
 			}
 			return fetchRequestHandler({
@@ -222,26 +245,42 @@ const server = Bun.serve({
 				router: appRouter,
 				createContext: () => createContext(req),
 				onError({ error, path }) {
-					trpcLog.error({ path, code: error.code, err: error.message }, "tRPC error");
+					trpcLog.error(
+						{ path, code: error.code, err: error.message },
+						"tRPC error",
+					);
 				},
-			}).then((response) => {
-				// Set CORS headers directly on the original response to preserve
-				// SSE stream lifecycle (wrapping in new Response() disconnects
-				// the tRPC subscription cleanup signals, causing listener drops)
-				response.headers.set("Access-Control-Allow-Origin", corsOrigin);
-				response.headers.set("Access-Control-Allow-Credentials", "true");
-				if (trpcPath.includes("radio.getTracks")) {
-					trpcLog.info({ path: "radio.getTracks", status: response.status }, "response");
-				}
-				return response;
-			}).catch((err: unknown) => {
-				const message = err instanceof Error ? err.message : String(err);
-				trpcLog.error({ path: trpcPath, err: message }, "unhandled tRPC error");
-				return new Response(
-					JSON.stringify([{ error: { message: "Internal server error", code: -32603 } }]),
-					{ status: 500, headers: { "Content-Type": "application/json", ...CORS_HEADERS } },
-				);
-			});
+			})
+				.then((response) => {
+					// Set CORS headers directly on the original response to preserve
+					// SSE stream lifecycle (wrapping in new Response() disconnects
+					// the tRPC subscription cleanup signals, causing listener drops)
+					response.headers.set("Access-Control-Allow-Origin", corsOrigin);
+					response.headers.set("Access-Control-Allow-Credentials", "true");
+					if (trpcPath.includes("radio.getTracks")) {
+						trpcLog.info(
+							{ path: "radio.getTracks", status: response.status },
+							"response",
+						);
+					}
+					return response;
+				})
+				.catch((err: unknown) => {
+					const message = err instanceof Error ? err.message : String(err);
+					trpcLog.error(
+						{ path: trpcPath, err: message },
+						"unhandled tRPC error",
+					);
+					return new Response(
+						JSON.stringify([
+							{ error: { message: "Internal server error", code: -32603 } },
+						]),
+						{
+							status: 500,
+							headers: { "Content-Type": "application/json", ...CORS_HEADERS },
+						},
+					);
+				});
 		}
 
 		// Static file serving (production build)
@@ -283,12 +322,15 @@ const server = Bun.serve({
 	},
 });
 
-serverLogger.info({
-	port: config.server.port,
-	staticFiles: serveStaticFiles,
-	viteDev: !serveStaticFiles,
-	forceViteDev,
-}, "server running");
+serverLogger.info(
+	{
+		port: config.server.port,
+		staticFiles: serveStaticFiles,
+		viteDev: !serveStaticFiles,
+		forceViteDev,
+	},
+	"server running",
+);
 // Attempt auto-login from config credentials
 tryAutoLogin(serverLogger, config).catch(() => {
 	// Silently ignore — server starts normally without auth
