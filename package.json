@@ -5,7 +5,10 @@
 	"scripts": {
 		"dev": "PYXIS_WEB_DEV=1 bun --watch server/index.ts",
 		"build:web": "vite build",
+		"format": "sh -c 'files=$(git diff --name-only --diff-filter=ACMR HEAD -- \"*.ts\" \"*.tsx\" \"*.js\" \"*.jsx\" \"*.json\" \"*.jsonc\" \"*.html\" \"*.css\"); if [ -n \"$files\" ]; then biome check --write $files; fi'",
+		"lint": "sh -c 'files=$(git diff --name-only --diff-filter=ACMR HEAD -- \"*.ts\" \"*.tsx\" \"*.js\" \"*.jsx\" \"*.json\" \"*.jsonc\" \"*.html\" \"*.css\"); if [ -n \"$files\" ]; then biome check $files; fi'",
 		"typecheck": "tsc --noEmit",
+		"test-unit": "bun test",
 		"test": "bun test",
 		"test:watch": "bun test --watch",
 		"test:coverage": "bun test --coverage"

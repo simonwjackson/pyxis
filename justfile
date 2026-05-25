@@ -10,19 +10,19 @@ build:
 
 # Run tests
 test:
-    bun test
+    bun run test
 
 # Run unit tests
 test-unit:
-    bun test
+    bun run test-unit
 
 # Check formatting and lint rules for changed files
 lint:
-    sh -c 'files=$(git diff --name-only --diff-filter=ACMR HEAD -- "*.ts" "*.tsx" "*.js" "*.jsx" "*.json" "*.jsonc" "*.html" "*.css"); if [ -n "$files" ]; then bunx @biomejs/biome check $files; fi'
+    bun run lint
 
 # Format changed files
 format:
-    sh -c 'files=$(git diff --name-only --diff-filter=ACMR HEAD -- "*.ts" "*.tsx" "*.js" "*.jsx" "*.json" "*.jsonc" "*.html" "*.css"); if [ -n "$files" ]; then bunx @biomejs/biome check --write $files; fi'
+    bun run format
 
 # Typecheck
 typecheck:
