@@ -180,22 +180,14 @@ const webConsumerInventory: readonly WebConsumerInventoryEntry[] = [
 		albumInvalidations,
 		"SourceAlbumDetailState atoms and command refresh tags",
 	),
-	consumer(
-		"src/web/features/station-detail/station-detail-page.tsx",
-		[
-			"trpc:import",
-			"trpc.radio.getStation.useQuery",
-			"trpc.queue.onChange.useSubscription",
-			"trpc.radio.getTracks.useQuery",
-			"trpc.radio.removeSeed.useMutation",
-			"trpc.useUtils",
-		],
-		[
-			"radio.removeSeed -> radio.getStation({ id }); radio.getTracks is manually refetched to start playback",
-		],
-		"StationDetailState atoms plus queue stream atom",
-	),
 	// Migrated to Effect atoms in U6 -- entries intentionally omitted.
+	// src/web/features/station-detail/station-detail-page.tsx ->
+	//   stationQueryAtom (radio.station.get, subscribes to radio.station:<id>
+	//   reactivity tag) + StationDetailState; radio.seed.remove mutation atom
+	//   publishes the same tag so add/remove seed mutations refresh the page;
+	//   radio.stationTracks.get is an imperative mutation-atom fetch that
+	//   drives playback.playQueue; queue.state.stream feeds the queue context
+	//   atom that decides whether the header Play button is hidden.
 	// src/web/features/stations/stations-page.tsx ->
 	//   stationsQueryAtom + StationsState (refreshed via radio.stations tag)
 	// src/web/features/stations/delete-station-dialog.tsx ->

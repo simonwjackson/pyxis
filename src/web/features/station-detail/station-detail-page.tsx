@@ -1,25 +1,44 @@
 /**
  * @module StationDetailPage
  * Radio station detail view showing seeds, feedback, and playback controls.
+ *
+ * Reads `radio.station.get` through the Effect RPC client and adapts the
+ * AsyncResult into the pure {@link StationDetailState} ADT. The query atom
+ * is bound to the per-station {@link radioStationTag} reactivity tag so the
+ * add-seed mutation in {@link AddSeedDialog} and the local
+ * `radio.seed.remove` mutation refresh the detail in step with their
+ * legacy React Query invalidation.
+ *
+ * Realtime queue context comes from {@link queueStateStreamAtom} (a
+ * `queue.state.stream` subscription) — the page only needs the latest
+ * `context` to decide whether the header's Play button is hidden because
+ * this station is already playing.
  */
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useAtomSet, useAtomValue } from "@effect/atom-react";
 import { useNavigate } from "@tanstack/react-router";
+import { AsyncResult } from "effect/unstable/reactivity";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { AddSeedDialog } from "@/web/features/stations/add-seed-dialog";
-import { trpc } from "@/web/shared/lib/trpc";
+import { radioStationTag } from "@/web/features/stations/radioReactivityTags";
+import { StationCommandState } from "@/web/features/stations/StationCommandState";
+import { PyxisRpcClient } from "@/web/shared/api/rpcClient";
+import { projectQueryResult } from "@/web/shared/effect/projectQueryResult";
 import {
 	radioTrackToNowPlaying,
 	tracksToQueuePayload,
 } from "@/web/shared/lib/now-playing-utils";
 import { usePlaybackContext } from "@/web/shared/playback/playback-context";
+import { queueStateStreamAtom } from "./queueContextAtom";
+import { StationDetailState } from "./StationDetailState";
 import { StationDetailArtistSeedRow } from "./station-detail-artist-seed-row";
+import { StationDetailFeedbackRow } from "./station-detail-feedback-row";
 import {
 	StationDetailDislikedFeedbackGroup,
 	StationDetailFeedbackSection,
 	StationDetailLikedFeedbackGroup,
 } from "./station-detail-feedback-section";
-import { StationDetailFeedbackRow } from "./station-detail-feedback-row";
 import { StationDetailHeader } from "./station-detail-header";
 import { StationDetailSeedsSection } from "./station-detail-seeds-section";
 import { StationDetailSkeleton } from "./station-detail-skeleton";
@@ -27,54 +46,75 @@ import { StationDetailSongSeedRow } from "./station-detail-song-seed-row";
 import type { StationDetailPageProps } from "./types";
 
 /**
+ * Mutation atom for `radio.seed.remove`. Publishes the per-station
+ * reactivity tag in {@link handleRemoveSeed} so the detail query atom
+ * refetches (mirroring the legacy `utils.radio.getStation.invalidate({ id
+ * })`).
+ */
+const removeSeedMutationAtom = PyxisRpcClient.mutation("radio.seed.remove");
+
+/**
+ * `radio.stationTracks.get` is used as an imperative fetch ("start
+ * playback now") rather than a continuously rendered read. Modeling it as
+ * a mutation atom matches the legacy `useQuery({ enabled: false }) +
+ * refetch()` pattern: the page calls `useAtomSet(... { promiseExit })`
+ * once when the user (or auto-play) triggers playback, awaits the exit,
+ * and hands the tracks to the playback context.
+ */
+const stationTracksMutationAtom = PyxisRpcClient.mutation(
+	"radio.stationTracks.get",
+);
+
+/**
  * Radio station detail page showing seeds, feedback history, and playback controls.
  * Allows managing station seeds and viewing liked/disliked tracks.
  */
-export function StationDetailPage({
-	token,
-	autoPlay,
-}: StationDetailPageProps) {
+export function StationDetailPage({ token, autoPlay }: StationDetailPageProps) {
 	const [showAddSeed, setShowAddSeed] = useState(false);
 	const navigate = useNavigate();
 	const playback = usePlaybackContext();
 	const playbackRef = useRef(playback);
 	playbackRef.current = playback;
-	const stationQuery = trpc.radio.getStation.useQuery({ id: token });
-	const utils = trpc.useUtils();
 	const hasAutoPlayedRef = useRef(false);
 
-	type QueueContext =
-		| { readonly type: "radio"; readonly seedId: string }
-		| { readonly type: "album"; readonly albumId: string }
-		| { readonly type: "playlist"; readonly playlistId: string }
-		| { readonly type: "manual" };
-	const [queueContext, setQueueContext] = useState<QueueContext>({ type: "manual" });
-	trpc.queue.onChange.useSubscription(undefined, {
-		onData(queueState) {
-			setQueueContext(queueState.context as QueueContext);
-		},
-	});
+	const stationQueryAtom = useMemo(
+		() =>
+			PyxisRpcClient.query(
+				"radio.station.get",
+				{ id: token },
+				{ reactivityKeys: [radioStationTag(token)] },
+			),
+		[token],
+	);
+	const stationResult = projectQueryResult(useAtomValue(stationQueryAtom));
+	const state = StationDetailState.fromResult(stationResult);
+
+	const queueResult = useAtomValue(queueStateStreamAtom);
+	const queueContext = AsyncResult.isSuccess(queueResult)
+		? queueResult.value.context
+		: null;
 	const isThisStationPlaying =
 		playback.currentTrack != null &&
-		queueContext.type === "radio" &&
+		queueContext?.type === "radio" &&
 		queueContext.seedId === token;
 
-	const radioQuery = trpc.radio.getTracks.useQuery(
-		{ id: token, quality: "high" },
-		{ enabled: false },
-	);
+	const fetchTracks = useAtomSet(stationTracksMutationAtom, {
+		mode: "promiseExit",
+	});
 
 	const startRadioPlayback = useCallback(() => {
-		radioQuery.refetch().then((result) => {
-			if (!result.data) return;
-			const newTracks = result.data.map(radioTrackToNowPlaying);
-			playbackRef.current.playQueue({
-				tracks: tracksToQueuePayload(newTracks),
-				context: { type: "radio", seedId: token },
-				startIndex: 0,
-			});
-		});
-	}, [radioQuery, token]);
+		void fetchTracks({ payload: { id: token, quality: "high" } }).then(
+			(exit) => {
+				if (exit._tag !== "Success") return;
+				const newTracks = exit.value.map(radioTrackToNowPlaying);
+				playbackRef.current.playQueue({
+					tracks: tracksToQueuePayload(newTracks),
+					context: { type: "radio", seedId: token },
+					startIndex: 0,
+				});
+			},
+		);
+	}, [fetchTracks, token]);
 
 	useEffect(() => {
 		if (!autoPlay || hasAutoPlayedRef.current) return;
@@ -89,36 +129,43 @@ export function StationDetailPage({
 		}
 	}, [playback.error]);
 
-	const removeSeedMutation = trpc.radio.removeSeed.useMutation({
-		onSuccess() {
-			utils.radio.getStation.invalidate({ id: token });
-			toast.success("seed removed");
-		},
-		onError(error) {
-			toast.error(`Failed to remove seed: ${error.message}`);
-		},
+	const removeSeedResult = projectQueryResult(
+		useAtomValue(removeSeedMutationAtom),
+	);
+	const removeSeedState = StationCommandState.fromResult(removeSeedResult);
+	const isRemovingSeed = StationCommandState.isSubmitting(removeSeedState);
+	const removeSeed = useAtomSet(removeSeedMutationAtom, {
+		mode: "promiseExit",
 	});
 
 	const handleRemoveSeed = (seedId: string) => {
-		removeSeedMutation.mutate({ radioId: token, seedId });
+		void removeSeed({
+			payload: { radioId: token, seedId },
+			reactivityKeys: [radioStationTag(token)],
+		}).then((exit) => {
+			if (exit._tag === "Success") {
+				toast.success("seed removed");
+			} else {
+				toast.error("Failed to remove seed");
+			}
+		});
 	};
 
-	if (stationQuery.isLoading) {
+	if (state._tag === "Loading") {
 		return <StationDetailSkeleton />;
 	}
 
-	if (stationQuery.error) {
+	if (state._tag === "LoadError" || state._tag === "Defect") {
 		return (
 			<div className="flex-1 px-4 sm:px-8 py-10">
 				<p className="text-[var(--color-error)]">
-					Failed to load station details: {stationQuery.error.message}
+					Failed to load station details
 				</p>
 			</div>
 		);
 	}
 
-	const station = stationQuery.data;
-	if (!station) {
+	if (state._tag === "NotFound") {
 		return (
 			<div className="flex-1 px-4 sm:px-8 py-10">
 				<p className="text-[var(--color-text-dim)]">station not found.</p>
@@ -126,6 +173,7 @@ export function StationDetailPage({
 		);
 	}
 
+	const station = state.station;
 	const artistSeeds = station.music?.artists ?? [];
 	const songSeeds = station.music?.songs ?? [];
 	const thumbsUp = station.feedback?.thumbsUp ?? [];
@@ -158,12 +206,14 @@ export function StationDetailPage({
 				artistSeeds={
 					artistSeeds.length > 0 ? (
 						<div className="space-y-1 mb-4">
-							<p className="text-xs text-[var(--color-text-dim)] mb-1">Artists</p>
+							<p className="text-xs text-[var(--color-text-dim)] mb-1">
+								Artists
+							</p>
 							{artistSeeds.map((seed) => (
 								<StationDetailArtistSeedRow
 									key={seed.seedId}
 									seed={seed}
-									isRemoving={removeSeedMutation.isPending}
+									isRemoving={isRemovingSeed}
 									onRemove={handleRemoveSeed}
 								/>
 							))}
@@ -178,7 +228,7 @@ export function StationDetailPage({
 								<StationDetailSongSeedRow
 									key={seed.seedId}
 									seed={seed}
-									isRemoving={removeSeedMutation.isPending}
+									isRemoving={isRemovingSeed}
 									onRemove={handleRemoveSeed}
 								/>
 							))}
