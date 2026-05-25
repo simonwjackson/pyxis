@@ -3,26 +3,28 @@
  * Tests for playback state management.
  */
 
-import { describe, it, expect, beforeEach } from "bun:test";
+import { beforeEach, describe, expect, it } from "bun:test";
 import {
+	getAudioRealization,
 	getState,
-	play,
-	pause,
-	resume,
-	stop,
-	skip,
-	previousTrack,
 	jumpToIndex,
-	seek,
-	setVolume,
-	setDuration,
-	reportProgress,
-	trackEnded,
-	subscribe,
 	type PlayerState,
 	type PlayerStatus,
+	pause,
+	play,
+	previousTrack,
+	reportAudioError,
+	reportProgress,
+	resume,
+	seek,
+	setDuration,
+	setVolume,
+	skip,
+	stop,
+	subscribe,
+	trackEnded,
 } from "./player.js";
-import * as Queue from "./queue.js";
+import type * as Queue from "./queue.js";
 
 function createTrack(id: string, title = "Test Track"): Queue.QueueTrack {
 	return {
@@ -228,7 +230,9 @@ describe("jumpToIndex", () => {
 	});
 
 	it("jumps to valid index", () => {
-		play([createTrack("1"), createTrack("2"), createTrack("3")], { type: "manual" });
+		play([createTrack("1"), createTrack("2"), createTrack("3")], {
+			type: "manual",
+		});
 		const track = jumpToIndex(2);
 
 		expect(track?.id).toBe("3");
@@ -376,6 +380,69 @@ describe("subscribe", () => {
 
 		pause();
 		expect(states.length).toBe(countAfterPlay);
+	});
+});
+
+describe("cutover characterization", () => {
+	beforeEach(() => {
+		stop();
+	});
+
+	it("keeps invalid jump commands as no-op transitions without subscriber updates", () => {
+		play([createTrack("1")], { type: "manual" });
+		const before = getState();
+		const states: PlayerState[] = [];
+		const unsubscribe = subscribe((state) => states.push(state));
+
+		try {
+			const result = jumpToIndex(99);
+
+			expect(result).toBeUndefined();
+			expect(states).toEqual([]);
+			expect(getState().status).toBe(before.status);
+			expect(getState().currentTrack?.id).toBe(before.currentTrack?.id);
+		} finally {
+			unsubscribe();
+		}
+	});
+
+	it("captures local audio errors without clearing the current server track", () => {
+		play([createTrack("1")], { type: "manual" });
+		const states: PlayerState[] = [];
+		const unsubscribe = subscribe((state) => states.push(state));
+
+		try {
+			reportAudioError("x".repeat(600));
+
+			const realization = getAudioRealization();
+			expect(realization.failed).toBe(true);
+			expect(realization.observedAt).toBeNull();
+			expect(realization.error?.length).toBe(500);
+			expect(getState().status).toBe("playing");
+			expect(getState().currentTrack?.id).toBe("1");
+			expect(states.at(-1)?.currentTrack?.id).toBe("1");
+		} finally {
+			unsubscribe();
+		}
+	});
+
+	it("keeps listen-log eligibility tied to a server-owned track-boundary transition", () => {
+		play([createTrack("1"), createTrack("2")], { type: "manual" });
+		const states: PlayerState[] = [];
+		const unsubscribe = subscribe((state) => states.push(state));
+
+		try {
+			reportProgress(31);
+			expect(states).toEqual([]);
+
+			const next = trackEnded();
+
+			expect(next?.id).toBe("2");
+			expect(states.length).toBeGreaterThan(0);
+			expect(states.at(-1)?.currentTrack?.id).toBe("2");
+		} finally {
+			unsubscribe();
+		}
 	});
 });
 

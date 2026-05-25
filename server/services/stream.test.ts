@@ -3,19 +3,19 @@
  * Tests for audio streaming proxy and caching logic.
  */
 
+import { describe, expect, it } from "bun:test";
 import { existsSync, readdirSync, rmSync } from "node:fs";
 import { join } from "node:path";
-import { describe, it, expect } from "bun:test";
 import envPaths from "env-paths";
+import type { SourceManager } from "../../src/sources/index.js";
 import {
-	parseTrackId,
 	encodeTrackId,
-	resolveStreamUrl,
 	handleStreamRequest,
+	parseTrackId,
 	prefetchToCache,
+	resolveStreamUrl,
 	type StreamRequest,
 } from "./stream.js";
-import type { SourceManager } from "../../src/sources/index.js";
 
 function removeCachedTestTrack(source: string, trackId: string): void {
 	const dir = join(envPaths("pyxis", { suffix: "" }).cache, "audio", source);
@@ -211,7 +211,10 @@ describe("resolveStreamUrl", () => {
 			},
 		} as unknown as SourceManager;
 
-		const url = await resolveStreamUrl(mockSourceManager, "bandcamp:artist:track:123");
+		const url = await resolveStreamUrl(
+			mockSourceManager,
+			"bandcamp:artist:track:123",
+		);
 		expect(url).toBe("https://example.com/bandcamp/artist:track:123");
 	});
 
@@ -222,7 +225,9 @@ describe("resolveStreamUrl", () => {
 			},
 		} as unknown as SourceManager;
 
-		await expect(resolveStreamUrl(mockSourceManager, "ytmusic:fail")).rejects.toThrow("Source unavailable");
+		await expect(
+			resolveStreamUrl(mockSourceManager, "ytmusic:fail"),
+		).rejects.toThrow("Source unavailable");
 	});
 });
 
@@ -237,7 +242,11 @@ describe("handleStreamRequest", () => {
 		globalThis.fetch = async () => new Response("Not found", { status: 404 });
 
 		try {
-			const response = await handleStreamRequest(mockSourceManager, "ytmusic:notfound", null);
+			const response = await handleStreamRequest(
+				mockSourceManager,
+				"ytmusic:notfound",
+				null,
+			);
 			expect(response.status).toBe(404);
 		} finally {
 			globalThis.fetch = originalFetch;
@@ -254,9 +263,14 @@ describe("handleStreamRequest", () => {
 
 		const originalFetch = globalThis.fetch;
 		let fetchCount = 0;
-		globalThis.fetch = async (_url: string | URL | Request, init?: RequestInit) => {
+		globalThis.fetch = async (
+			_url: string | URL | Request,
+			init?: RequestInit,
+		) => {
 			fetchCount += 1;
-			expect((init?.headers as Record<string, string> | undefined)?.Range).toBe("bytes=0-");
+			expect((init?.headers as Record<string, string> | undefined)?.Range).toBe(
+				"bytes=0-",
+			);
 			return new Response(new Uint8Array([0x01, 0x02, 0x03, 0x04]), {
 				status: 206,
 				headers: {
@@ -268,16 +282,111 @@ describe("handleStreamRequest", () => {
 		};
 
 		try {
-			const firstResponse = await handleStreamRequest(mockSourceManager, `ytmusic:${trackId}`, "bytes=0-");
+			const firstResponse = await handleStreamRequest(
+				mockSourceManager,
+				`ytmusic:${trackId}`,
+				"bytes=0-",
+			);
 			expect(firstResponse.status).toBe(206);
 			expect(firstResponse.headers.get("Content-Range")).toBe("bytes 0-3/4");
 			await firstResponse.arrayBuffer();
 
-			const secondResponse = await handleStreamRequest(mockSourceManager, `ytmusic:${trackId}`, "bytes=2-");
+			const secondResponse = await handleStreamRequest(
+				mockSourceManager,
+				`ytmusic:${trackId}`,
+				"bytes=2-",
+			);
 			expect(fetchCount).toBe(1);
 			expect(secondResponse.status).toBe(206);
 			expect(secondResponse.headers.get("Content-Range")).toBe("bytes 2-3/4");
-			expect(new Uint8Array(await secondResponse.arrayBuffer())).toEqual(new Uint8Array([0x03, 0x04]));
+			expect(new Uint8Array(await secondResponse.arrayBuffer())).toEqual(
+				new Uint8Array([0x03, 0x04]),
+			);
+		} finally {
+			globalThis.fetch = originalFetch;
+			removeCachedTestTrack("ytmusic", trackId);
+		}
+	});
+
+	it("serves malformed cached ranges as full responses", async () => {
+		const trackId = `malformed-range-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+		removeCachedTestTrack("ytmusic", trackId);
+
+		const mockSourceManager = {
+			getStreamUrl: async () => "https://example.com/audio.webm",
+		} as unknown as SourceManager;
+
+		const originalFetch = globalThis.fetch;
+		let fetchCount = 0;
+		globalThis.fetch = async () => {
+			fetchCount += 1;
+			return new Response(new Uint8Array([0x05, 0x06, 0x07]), {
+				status: 200,
+				headers: {
+					"Content-Type": "audio/webm",
+					"Content-Length": "3",
+				},
+			});
+		};
+
+		try {
+			const firstResponse = await handleStreamRequest(
+				mockSourceManager,
+				`ytmusic:${trackId}`,
+				null,
+			);
+			expect(firstResponse.status).toBe(200);
+			await firstResponse.arrayBuffer();
+
+			const malformedRangeResponse = await handleStreamRequest(
+				mockSourceManager,
+				`ytmusic:${trackId}`,
+				"items=0-1",
+			);
+			expect(fetchCount).toBe(1);
+			expect(malformedRangeResponse.status).toBe(200);
+			expect(malformedRangeResponse.headers.get("Content-Length")).toBe("3");
+			expect(
+				new Uint8Array(await malformedRangeResponse.arrayBuffer()),
+			).toEqual(new Uint8Array([0x05, 0x06, 0x07]));
+		} finally {
+			globalThis.fetch = originalFetch;
+			removeCachedTestTrack("ytmusic", trackId);
+		}
+	});
+
+	it("prefetches non-Pandora audio into the cache used by later range requests", async () => {
+		const trackId = `prefetch-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+		removeCachedTestTrack("ytmusic", trackId);
+
+		const mockSourceManager = {
+			getStreamUrl: async () => "https://example.com/audio.webm",
+		} as unknown as SourceManager;
+
+		const originalFetch = globalThis.fetch;
+		let fetchCount = 0;
+		globalThis.fetch = async () => {
+			fetchCount += 1;
+			return new Response(new Uint8Array([0x09, 0x08, 0x07, 0x06]), {
+				status: 200,
+				headers: { "Content-Type": "audio/webm" },
+			});
+		};
+
+		try {
+			await prefetchToCache(mockSourceManager, `ytmusic:${trackId}`);
+
+			const response = await handleStreamRequest(
+				mockSourceManager,
+				`ytmusic:${trackId}`,
+				"bytes=1-2",
+			);
+			expect(fetchCount).toBe(1);
+			expect(response.status).toBe(206);
+			expect(response.headers.get("Content-Range")).toBe("bytes 1-2/4");
+			expect(new Uint8Array(await response.arrayBuffer())).toEqual(
+				new Uint8Array([0x08, 0x07]),
+			);
 		} finally {
 			globalThis.fetch = originalFetch;
 			removeCachedTestTrack("ytmusic", trackId);
@@ -291,13 +400,18 @@ describe("handleStreamRequest", () => {
 		} as unknown as SourceManager;
 
 		const originalFetch = globalThis.fetch;
-		globalThis.fetch = async () => new Response(audioData, {
-			status: 200,
-			headers: { "Content-Type": "audio/mpeg", "Content-Length": "5" },
-		});
+		globalThis.fetch = async () =>
+			new Response(audioData, {
+				status: 200,
+				headers: { "Content-Type": "audio/mpeg", "Content-Length": "5" },
+			});
 
 		try {
-			const response = await handleStreamRequest(mockSourceManager, "pandora:track123", null);
+			const response = await handleStreamRequest(
+				mockSourceManager,
+				"pandora:track123",
+				null,
+			);
 			expect(response.status).toBe(200);
 			expect(response.headers.get("Content-Type")).toBe("audio/mpeg");
 			expect(response.headers.get("Access-Control-Allow-Origin")).toBe("*");
@@ -315,7 +429,10 @@ describe("handleStreamRequest", () => {
 
 		const originalFetch = globalThis.fetch;
 		let capturedHeaders: Record<string, string> = {};
-		globalThis.fetch = async (_url: string | URL | Request, init?: RequestInit) => {
+		globalThis.fetch = async (
+			_url: string | URL | Request,
+			init?: RequestInit,
+		) => {
 			capturedHeaders = (init?.headers as Record<string, string>) ?? {};
 			return new Response(new Uint8Array([0x01, 0x02]), {
 				status: 206,
@@ -327,8 +444,12 @@ describe("handleStreamRequest", () => {
 		};
 
 		try {
-			const response = await handleStreamRequest(mockSourceManager, "pandora:track123", "bytes=100-101");
-			expect(capturedHeaders["Range"]).toBe("bytes=100-101");
+			const response = await handleStreamRequest(
+				mockSourceManager,
+				"pandora:track123",
+				"bytes=100-101",
+			);
+			expect(capturedHeaders.Range).toBe("bytes=100-101");
 			expect(response.status).toBe(206);
 			expect(response.headers.get("Content-Range")).toBe("bytes 100-101/1000");
 		} finally {
@@ -342,16 +463,21 @@ describe("handleStreamRequest", () => {
 		} as unknown as SourceManager;
 
 		const originalFetch = globalThis.fetch;
-		globalThis.fetch = async () => new Response(new Uint8Array([0x01]), {
-			status: 200,
-			headers: {
-				"Content-Type": "audio/mpeg",
-				"Accept-Ranges": "bytes",
-			},
-		});
+		globalThis.fetch = async () =>
+			new Response(new Uint8Array([0x01]), {
+				status: 200,
+				headers: {
+					"Content-Type": "audio/mpeg",
+					"Accept-Ranges": "bytes",
+				},
+			});
 
 		try {
-			const response = await handleStreamRequest(mockSourceManager, "pandora:track123", null);
+			const response = await handleStreamRequest(
+				mockSourceManager,
+				"pandora:track123",
+				null,
+			);
 			expect(response.headers.get("Accept-Ranges")).toBe("bytes");
 		} finally {
 			globalThis.fetch = originalFetch;
@@ -364,13 +490,18 @@ describe("handleStreamRequest", () => {
 		} as unknown as SourceManager;
 
 		const originalFetch = globalThis.fetch;
-		globalThis.fetch = async () => new Response(new Uint8Array([0x01]), {
-			status: 200,
-			headers: { "Content-Type": "audio/mpeg" },
-		});
+		globalThis.fetch = async () =>
+			new Response(new Uint8Array([0x01]), {
+				status: 200,
+				headers: { "Content-Type": "audio/mpeg" },
+			});
 
 		try {
-			const response = await handleStreamRequest(mockSourceManager, "pandora:track123", null);
+			const response = await handleStreamRequest(
+				mockSourceManager,
+				"pandora:track123",
+				null,
+			);
 			expect(response.headers.get("Accept-Ranges")).toBe("bytes");
 		} finally {
 			globalThis.fetch = originalFetch;
@@ -384,10 +515,11 @@ describe("handleStreamRequest", () => {
 		} as unknown as SourceManager;
 
 		const originalFetch = globalThis.fetch;
-		globalThis.fetch = async () => new Response(audioData, {
-			status: 200,
-			headers: { "Content-Type": "audio/mpeg", "Content-Length": "3" },
-		});
+		globalThis.fetch = async () =>
+			new Response(audioData, {
+				status: 200,
+				headers: { "Content-Type": "audio/mpeg", "Content-Length": "3" },
+			});
 
 		try {
 			const response = await handleStreamRequest(
@@ -412,13 +544,14 @@ describe("handleStreamRequest", () => {
 		} as unknown as SourceManager;
 
 		const originalFetch = globalThis.fetch;
-		globalThis.fetch = async () => new Response(new Uint8Array([0x01, 0x02]), {
-			status: 206,
-			headers: {
-				"Content-Type": "audio/webm",
-				"Content-Range": "bytes 0-1/999",
-			},
-		});
+		globalThis.fetch = async () =>
+			new Response(new Uint8Array([0x01, 0x02]), {
+				status: 206,
+				headers: {
+					"Content-Type": "audio/webm",
+					"Content-Range": "bytes 0-1/999",
+				},
+			});
 
 		try {
 			const response = await handleStreamRequest(
@@ -440,13 +573,18 @@ describe("handleStreamRequest", () => {
 		} as unknown as SourceManager;
 
 		const originalFetch = globalThis.fetch;
-		globalThis.fetch = async () => new Response("Server error", {
-			status: 500,
-			headers: { "Content-Type": "text/plain" },
-		});
+		globalThis.fetch = async () =>
+			new Response("Server error", {
+				status: 500,
+				headers: { "Content-Type": "text/plain" },
+			});
 
 		try {
-			const response = await handleStreamRequest(mockSourceManager, "ytmusic:broken", null);
+			const response = await handleStreamRequest(
+				mockSourceManager,
+				"ytmusic:broken",
+				null,
+			);
 			expect(response.status).toBe(500);
 			expect(response.headers.get("Access-Control-Allow-Origin")).toBe("*");
 			expect(response.headers.get("Content-Type")).toBe("text/plain");
@@ -463,7 +601,7 @@ describe("handleStreamRequest", () => {
 		} as unknown as SourceManager;
 
 		await expect(
-			handleStreamRequest(mockSourceManager, "ytmusic:broken", null)
+			handleStreamRequest(mockSourceManager, "ytmusic:broken", null),
 		).rejects.toThrow("Failed to resolve URL");
 	});
 });

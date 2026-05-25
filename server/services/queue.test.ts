@@ -3,25 +3,25 @@
  * Tests for playback queue management.
  */
 
-import { describe, it, expect, beforeEach } from "bun:test";
+import { beforeEach, describe, expect, it } from "bun:test";
 import {
-	getState,
-	setQueue,
 	addTracks,
-	removeTrack,
+	appendTracks,
+	clear,
+	currentTrack,
+	getState,
 	jumpTo,
 	next,
-	previous,
-	currentTrack,
 	nextTrack,
-	clear,
-	shuffle,
-	appendTracks,
-	subscribe,
-	setAutoFetchHandler,
-	type QueueTrack,
+	previous,
 	type QueueContext,
 	type QueueState,
+	type QueueTrack,
+	removeTrack,
+	setAutoFetchHandler,
+	setQueue,
+	shuffle,
+	subscribe,
 } from "./queue.js";
 
 function createTrack(id: string, title = "Test Track"): QueueTrack {
@@ -102,7 +102,11 @@ describe("addTracks", () => {
 	});
 
 	it("inserts after current when insertNext is true", () => {
-		setQueue([createTrack("1"), createTrack("2"), createTrack("3")], { type: "manual" }, 0);
+		setQueue(
+			[createTrack("1"), createTrack("2"), createTrack("3")],
+			{ type: "manual" },
+			0,
+		);
 		addTracks([createTrack("new1"), createTrack("new2")], true);
 
 		const state = getState();
@@ -120,7 +124,9 @@ describe("removeTrack", () => {
 	});
 
 	it("removes track at index", () => {
-		setQueue([createTrack("1"), createTrack("2"), createTrack("3")], { type: "manual" });
+		setQueue([createTrack("1"), createTrack("2"), createTrack("3")], {
+			type: "manual",
+		});
 		removeTrack(1);
 
 		const state = getState();
@@ -130,7 +136,11 @@ describe("removeTrack", () => {
 	});
 
 	it("adjusts currentIndex when removing before current", () => {
-		setQueue([createTrack("1"), createTrack("2"), createTrack("3")], { type: "manual" }, 2);
+		setQueue(
+			[createTrack("1"), createTrack("2"), createTrack("3")],
+			{ type: "manual" },
+			2,
+		);
 		removeTrack(0);
 
 		const state = getState();
@@ -161,7 +171,9 @@ describe("jumpTo", () => {
 	});
 
 	it("jumps to valid index and returns track", () => {
-		setQueue([createTrack("1"), createTrack("2"), createTrack("3")], { type: "manual" });
+		setQueue([createTrack("1"), createTrack("2"), createTrack("3")], {
+			type: "manual",
+		});
 		const track = jumpTo(2);
 
 		expect(track?.id).toBe("3");
@@ -318,6 +330,52 @@ describe("appendTracks", () => {
 		const state = getState();
 		expect(state.items.length).toBe(3);
 		expect(state.items[2]?.id).toBe("3");
+	});
+});
+
+describe("cutover characterization", () => {
+	beforeEach(() => {
+		clear();
+	});
+
+	it("keeps invalid remove and jump commands as no-op transitions without subscriber updates", () => {
+		setQueue([createTrack("1")], { type: "manual" });
+		const states: QueueState[] = [];
+		const unsubscribe = subscribe((state) => states.push(state));
+
+		try {
+			removeTrack(99);
+			expect(jumpTo(-1)).toBeUndefined();
+
+			expect(states).toEqual([]);
+			expect(getState().items.map((track) => track.id)).toEqual(["1"]);
+			expect(getState().currentIndex).toBe(0);
+		} finally {
+			unsubscribe();
+		}
+	});
+
+	it("auto-fetches and appends radio tracks when the queue is near the end", async () => {
+		let calls = 0;
+		setAutoFetchHandler(async (ctx) => {
+			calls += 1;
+			expect(ctx).toEqual({ type: "radio", seedId: "station1" });
+			return [createTrack("2")];
+		});
+
+		setQueue([createTrack("1")], { type: "radio", seedId: "station1" });
+
+		for (
+			let attempt = 0;
+			attempt < 10 && getState().items.length === 1;
+			attempt += 1
+		) {
+			await new Promise((resolve) => setTimeout(resolve, 0));
+		}
+
+		expect(calls).toBe(1);
+		expect(getState().items.map((track) => track.id)).toEqual(["1", "2"]);
+		expect(getState().context).toEqual({ type: "radio", seedId: "station1" });
 	});
 });
 
