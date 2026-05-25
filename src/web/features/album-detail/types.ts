@@ -25,8 +25,8 @@ export type AlbumDetailTrack = {
 export type AlbumDetailContentProps = {
 	readonly album: AlbumDetailAlbum;
 	readonly tracks: readonly AlbumDetailTrack[];
-	readonly currentTrackId?: string;
-	readonly currentPlacement?: AlbumPlacement;
+	readonly currentTrackId?: string | undefined;
+	readonly currentPlacement?: AlbumPlacement | undefined;
 	readonly isHot: boolean;
 	readonly canManagePlacement: boolean;
 	readonly canEditMetadata: boolean;
@@ -35,8 +35,12 @@ export type AlbumDetailContentProps = {
 	readonly onBack: () => void;
 	readonly onPlay: () => void;
 	readonly onPlayTrack: (index: number) => void;
-	readonly onSaveAlbum?: () => void;
-	readonly onSetPlacement?: (placement: AlbumPlacement) => void;
-	readonly onUpdateAlbum?: (patch: { readonly title?: string; readonly artist?: string }) => void;
-	readonly onUpdateTrack?: (trackId: string, title: string) => void;
+	readonly onSaveAlbum?: (() => void) | undefined;
+	readonly onSetPlacement?: ((placement: AlbumPlacement) => void) | undefined;
+	readonly onUpdateAlbum?:
+		| ((patch: { readonly title?: string; readonly artist?: string }) => void)
+		| undefined;
+	readonly onUpdateTrack?:
+		| ((trackId: string, title: string) => void)
+		| undefined;
 };

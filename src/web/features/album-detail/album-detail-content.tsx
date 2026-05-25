@@ -1,14 +1,21 @@
-import { useEffect, useRef, useState } from "react";
-import { ArrowLeft, BookmarkPlus, ChevronDown, Flame, Music, Play } from "lucide-react";
-import { EditableText } from "@/web/shared/ui/editable-text";
-import { Button } from "@/web/shared/ui/button";
 import {
+	ArrowLeft,
+	BookmarkPlus,
+	ChevronDown,
+	Flame,
+	Music,
+	Play,
+} from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import {
+	type AlbumPlacement,
 	formatPlacementLabel,
 	hotBadgeClassName,
 	placementBadgeClassName,
-	type AlbumPlacement,
 } from "@/web/shared/lib/library-placement";
 import { formatTime } from "@/web/shared/lib/now-playing-utils";
+import { Button } from "@/web/shared/ui/button";
+import { EditableText } from "@/web/shared/ui/editable-text";
 import type { AlbumDetailContentProps } from "./types";
 
 const PLACEMENTS: readonly AlbumPlacement[] = [
@@ -37,7 +44,7 @@ function AlbumDetailHotBadge() {
 }
 
 type AlbumDetailPlacementMenuProps = {
-	readonly currentPlacement?: AlbumPlacement;
+	readonly currentPlacement?: AlbumPlacement | undefined;
 	readonly isSettingPlacement: boolean;
 	readonly onSetPlacement: (placement: AlbumPlacement) => void;
 };
@@ -85,12 +92,20 @@ function AlbumDetailPlacementMenu({
 				disabled={isSettingPlacement}
 				aria-expanded={isOpen}
 				aria-haspopup="menu"
-				className={currentPlacement
-					? `inline-flex items-center gap-1.5 px-3 py-1.5 text-xs uppercase tracking-[0.18em] transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-border-active)] ${placementBadgeClassName(currentPlacement)}`
-					: "inline-flex items-center gap-1.5 border border-[var(--color-border)] px-3 py-1.5 text-xs uppercase tracking-[0.18em] text-[var(--color-text-dim)] transition-colors hover:text-[var(--color-text)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-border-active)]"}
+				className={
+					currentPlacement
+						? `inline-flex items-center gap-1.5 px-3 py-1.5 text-xs uppercase tracking-[0.18em] transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-border-active)] ${placementBadgeClassName(currentPlacement)}`
+						: "inline-flex items-center gap-1.5 border border-[var(--color-border)] px-3 py-1.5 text-xs uppercase tracking-[0.18em] text-[var(--color-text-dim)] transition-colors hover:text-[var(--color-text)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-border-active)]"
+				}
 			>
-				<span>{currentPlacement ? formatPlacementLabel(currentPlacement) : "Set category"}</span>
-				<ChevronDown className={`h-3.5 w-3.5 transition-transform ${isOpen ? "rotate-180" : ""}`} />
+				<span>
+					{currentPlacement
+						? formatPlacementLabel(currentPlacement)
+						: "Set category"}
+				</span>
+				<ChevronDown
+					className={`h-3.5 w-3.5 transition-transform ${isOpen ? "rotate-180" : ""}`}
+				/>
 			</button>
 			{isOpen ? (
 				<div className="absolute left-0 top-full z-10 mt-2 min-w-44 overflow-hidden border border-[var(--color-border)] bg-[var(--color-bg)] shadow-lg">
@@ -134,7 +149,10 @@ export function AlbumDetailContent({
 	onUpdateAlbum,
 	onUpdateTrack,
 }: AlbumDetailContentProps) {
-	const totalDuration = tracks.reduce((sum, track) => sum + (track.duration ?? 0), 0);
+	const totalDuration = tracks.reduce(
+		(sum, track) => sum + (track.duration ?? 0),
+		0,
+	);
 	const trackCount = tracks.length;
 
 	return (
@@ -152,7 +170,11 @@ export function AlbumDetailContent({
 			<div className="flex flex-col sm:flex-row gap-6 sm:gap-8 items-center sm:items-end">
 				<div className="w-40 h-40 sm:w-56 sm:h-56 shrink-0 shadow-lg overflow-hidden bg-[var(--color-bg-highlight)]">
 					{album.artworkUrl ? (
-						<img src={album.artworkUrl} alt={album.title} className="w-full h-full object-cover" />
+						<img
+							src={album.artworkUrl}
+							alt={album.title}
+							className="w-full h-full object-cover"
+						/>
 					) : (
 						<div className="w-full h-full flex items-center justify-center">
 							<Music className="w-16 h-16 text-[var(--color-text-dim)]" />
@@ -181,7 +203,9 @@ export function AlbumDetailContent({
 					<p className="zune-meta text-[var(--color-text-dim)]">
 						{album.year ? `${String(album.year)} · ` : ""}
 						{String(trackCount)} track{trackCount !== 1 ? "s" : ""}
-						{totalDuration > 0 ? ` · ${formatTotalDuration(totalDuration)}` : ""}
+						{totalDuration > 0
+							? ` · ${formatTotalDuration(totalDuration)}`
+							: ""}
 					</p>
 					{isHot ? (
 						<div className="flex gap-1.5 pt-2 flex-wrap justify-center sm:justify-start">
@@ -255,7 +279,9 @@ export function AlbumDetailContent({
 										: "text-[var(--color-text-dim)] hover:text-[var(--color-text)] hover:bg-[var(--color-bg-highlight)]"
 								}`}
 							>
-								<span className="w-6 text-right text-sm">{String(index + 1)}</span>
+								<span className="w-6 text-right text-sm">
+									{String(index + 1)}
+								</span>
 								<EditableText
 									value={track.title}
 									onSave={(title) => onUpdateTrack?.(track.id, title)}

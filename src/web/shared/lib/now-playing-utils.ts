@@ -103,8 +103,8 @@ export type AlbumTrackRow = {
 	readonly trackIndex: number;
 	readonly title: string;
 	readonly artist: string;
-	readonly duration: number | null;
-	readonly artworkUrl: string | null;
+	readonly duration?: number | null;
+	readonly artworkUrl?: string | null;
 	readonly capabilities: TrackCapabilities;
 };
 
@@ -200,7 +200,9 @@ export function shuffleArray<T>(arr: readonly T[]): T[] {
 	const shuffled = [...arr];
 	for (let i = shuffled.length - 1; i > 0; i--) {
 		const j = Math.floor(Math.random() * (i + 1));
-		[shuffled[i], shuffled[j]] = [shuffled[j]!, shuffled[i]!];
+		const current = shuffled[i] as T;
+		shuffled[i] = shuffled[j] as T;
+		shuffled[j] = current;
 	}
 	return shuffled;
 }
