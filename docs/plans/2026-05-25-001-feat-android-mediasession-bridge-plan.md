@@ -1,7 +1,7 @@
 ---
 title: feat: Add Android MediaSession bridge
 type: feat
-status: active
+status: implemented
 date: 2026-05-25
 origin: docs/brainstorms/android-mediasession-bridge-requirements.md
 deepened: 2026-05-25
@@ -12,6 +12,8 @@ deepened: 2026-05-25
 ## Summary
 
 Add a service-owned Android media-session bridge beside the existing Sony kiosk WebView, backed by a bounded daemon-facing playback/control surface that native Kotlin can consume without becoming a second player. The implementation keeps Pyxis daemon/WebView playback authoritative while making Bluetooth, hardware/media buttons, lockscreen/notification controls, and screen-off behavior first-class validation targets.
+
+**Implementation status:** code and operational docs are implemented through U1–U8. Sony hardware smoke confirmed that `PyxisMediaSessionService` starts and appears in `dumpsys media_session`; full Bluetooth/lockscreen/screen-off pass/fail evidence remains documented in `docs/operations/sony-android-mediasession-validation.md` for manual acceptance on the provisioned device.
 
 ---
 
