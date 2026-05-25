@@ -52,12 +52,7 @@ export const expectEffectFailure = async <E>(
     throw new Error(`Expected Effect to fail, but it succeeded with: ${JSON.stringify(exit.value)}`)
   }
   // Extract the actual failure from the Cause
-  const failures = Cause.failures(exit.cause)
-  const firstFailure = Array.from(failures)[0]
-  if (firstFailure === undefined) {
-    throw new Error(`Expected Effect to fail with an error, but got: ${JSON.stringify(exit.cause)}`)
-  }
-  return firstFailure
+  return Cause.squash(exit.cause) as E
 }
 
 /**

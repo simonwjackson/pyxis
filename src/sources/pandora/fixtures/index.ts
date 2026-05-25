@@ -6,7 +6,7 @@
  * - "record": Make real requests and save responses as fixtures
  * - "replay": Load responses from previously recorded fixtures
  */
-import { Effect, Config } from "effect"
+import { Effect } from "effect"
 import * as fs from "node:fs/promises"
 import * as path from "node:path"
 
@@ -28,14 +28,11 @@ const FIXTURES_DIR = "./fixtures"
  * @returns Effect resolving to the current fixture mode
  */
 export const getFixtureMode = (): Effect.Effect<FixtureMode, never> =>
-  Config.string("PYXIS_FIXTURE_MODE").pipe(
-    Config.withDefault("live"),
-    Effect.map((mode) => {
-      if (mode === "record" || mode === "replay") return mode
-      return "live"
-    }),
-    Effect.orElseSucceed(() => "live" as const)
-  )
+  Effect.sync(() => {
+    const mode = process.env.PYXIS_FIXTURE_MODE
+    if (mode === "record" || mode === "replay") return mode
+    return "live"
+  })
 
 /**
  * Saves API response data as a fixture file.

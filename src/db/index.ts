@@ -132,7 +132,7 @@ export function repairJsonlFile(filePath: string): boolean {
 export type DbInstance = GenerateDatabaseWithPersistence<DbConfig>;
 
 let dbInstance: DbInstance | undefined;
-let dbScope: Scope.CloseableScope | undefined;
+let dbScope: Scope.Closeable | undefined;
 
 /**
  * Gets the singleton database instance, creating it if needed.
@@ -150,7 +150,7 @@ export async function getDb(): Promise<DbInstance> {
 
 	dbScope = await Effect.runPromise(Scope.make());
 	const program = createNodeDatabase(dbConfig);
-	dbInstance = await Effect.runPromise(Scope.extend(program, dbScope));
+	dbInstance = await Effect.runPromise(Scope.provide(dbScope)(program));
 
 	return dbInstance;
 }

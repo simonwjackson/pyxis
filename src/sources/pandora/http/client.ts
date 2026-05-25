@@ -88,9 +88,7 @@ export const httpRequest = <T>(
 
     // Record mode: save fixture
     if (mode === "record") {
-      yield* saveFixture(request.apiMethod, json).pipe(
-        Effect.catchAll(() => Effect.void)  // Don't fail on save errors
-      )
+      yield* Effect.ignore(saveFixture(request.apiMethod, json))  // Don't fail on save errors
     }
 
     return json

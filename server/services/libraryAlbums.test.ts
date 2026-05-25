@@ -41,7 +41,7 @@ async function createTestDb(): Promise<TestDb> {
 	tempDirs.push(tempDir);
 	const scope = await Effect.runPromise(Scope.make());
 	const db = await Effect.runPromise(
-		Scope.extend(createNodeDatabase(withTempFiles(tempDir)), scope),
+		Scope.provide(scope)(createNodeDatabase(withTempFiles(tempDir))),
 	);
 	return {
 		db: db as DbInstance,

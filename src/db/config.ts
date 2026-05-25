@@ -5,7 +5,7 @@
  * playerState, queueState (with embedded items), and listenLog.
  */
 
-import { Array as Arr, Schema } from "effect";
+import { Schema } from "effect";
 import type { DatabaseConfig } from "@proseql/core";
 import envPaths from "env-paths";
 import { join } from "node:path";
@@ -15,12 +15,12 @@ export const DB_DIR = join(paths.data, "db");
 
 // --- Effect Schema Definitions ---
 
-export const AlbumPlacementSchema = Schema.Literal(
+export const AlbumPlacementSchema = Schema.Literals([
 	"discovery",
 	"collection",
 	"archive",
 	"dismissed",
-);
+]);
 export type AlbumPlacement = Schema.Schema.Type<typeof AlbumPlacementSchema>;
 
 /**
@@ -30,11 +30,11 @@ export const AlbumSchema = Schema.Struct({
 	id: Schema.String,
 	title: Schema.String,
 	artist: Schema.String,
-	year: Schema.optionalWith(Schema.Number, { exact: true }),
-	artworkUrl: Schema.optionalWith(Schema.String, { exact: true }),
+	year: Schema.optionalKey(Schema.Number),
+	artworkUrl: Schema.optionalKey(Schema.String),
 	placement: AlbumPlacementSchema,
 	placementUpdatedAt: Schema.Number, // Unix timestamp ms
-	createdAt: Schema.Union(Schema.Number, Schema.String), // Legacy unix ms or ProseQL auto timestamp
+	createdAt: Schema.Union([Schema.Number, Schema.String]), // Legacy unix ms or ProseQL auto timestamp
 });
 export type Album = Schema.Schema.Type<typeof AlbumSchema>;
 
@@ -58,10 +58,10 @@ export const AlbumTrackSchema = Schema.Struct({
 	trackIndex: Schema.Number,
 	title: Schema.String,
 	artist: Schema.String,
-	duration: Schema.optionalWith(Schema.Number, { exact: true }),
+	duration: Schema.optionalKey(Schema.Number),
 	source: Schema.String,
 	sourceTrackId: Schema.String,
-	artworkUrl: Schema.optionalWith(Schema.String, { exact: true }),
+	artworkUrl: Schema.optionalKey(Schema.String),
 });
 export type AlbumTrack = Schema.Schema.Type<typeof AlbumTrackSchema>;
 
@@ -74,8 +74,8 @@ export const PlaylistSchema = Schema.Struct({
 	source: Schema.String,
 	url: Schema.String,
 	isRadio: Schema.Boolean,
-	seedTrackId: Schema.optionalWith(Schema.String, { exact: true }),
-	artworkUrl: Schema.optionalWith(Schema.String, { exact: true }),
+	seedTrackId: Schema.optionalKey(Schema.String),
+	artworkUrl: Schema.optionalKey(Schema.String),
 	createdAt: Schema.Number, // Unix timestamp ms
 });
 export type Playlist = Schema.Schema.Type<typeof PlaylistSchema>;
@@ -102,8 +102,8 @@ export const QueueItemSchema = Schema.Struct({
 	title: Schema.String,
 	artist: Schema.String,
 	album: Schema.String,
-	duration: Schema.optionalWith(Schema.Number, { exact: true }),
-	artworkUrl: Schema.optionalWith(Schema.String, { exact: true }),
+	duration: Schema.optionalKey(Schema.Number),
+	artworkUrl: Schema.optionalKey(Schema.String),
 });
 export type QueueItem = Schema.Schema.Type<typeof QueueItemSchema>;
 
@@ -115,7 +115,7 @@ export const QueueStateSchema = Schema.Struct({
 	id: Schema.String,
 	currentIndex: Schema.Number,
 	contextType: Schema.String,
-	contextId: Schema.optionalWith(Schema.String, { exact: true }),
+	contextId: Schema.optionalKey(Schema.String),
 	items: Schema.Array(QueueItemSchema),
 });
 export type QueueState = Schema.Schema.Type<typeof QueueStateSchema>;
@@ -128,7 +128,7 @@ export const ListenLogSchema = Schema.Struct({
 	compositeId: Schema.String,
 	title: Schema.String,
 	artist: Schema.String,
-	album: Schema.optionalWith(Schema.String, { exact: true }),
+	album: Schema.optionalKey(Schema.String),
 	source: Schema.String,
 	listenedAt: Schema.Number, // Unix timestamp ms
 });
@@ -139,14 +139,14 @@ export const TrackSourceSchema = Schema.Struct({
 	trackId: Schema.String,
 	source: Schema.Literal("soulseek"),
 	sourceTrackId: Schema.String,
-	bitrate: Schema.optionalWith(Schema.Number, { exact: true }),
-	format: Schema.optionalWith(Schema.String, { exact: true }),
+	bitrate: Schema.optionalKey(Schema.Number),
+	format: Schema.optionalKey(Schema.String),
 	lossless: Schema.Boolean,
-	localPath: Schema.optionalWith(Schema.String, { exact: true }),
-	confidence: Schema.optionalWith(Schema.Number.pipe(Schema.between(0, 1)), { exact: true }),
-	reviewStatus: Schema.optionalWith(Schema.Literal("pending", "auto_approved", "manual_approved", "rejected"), { exact: true }),
-	slskUsername: Schema.optionalWith(Schema.String, { exact: true }),
-	slskFilename: Schema.optionalWith(Schema.String, { exact: true }),
+	localPath: Schema.optionalKey(Schema.String),
+	confidence: Schema.optionalKey(Schema.Number.check(Schema.isBetween({ minimum: 0, maximum: 1 }))),
+	reviewStatus: Schema.optionalKey(Schema.Literals(["pending", "auto_approved", "manual_approved", "rejected"])),
+	slskUsername: Schema.optionalKey(Schema.String),
+	slskFilename: Schema.optionalKey(Schema.String),
 	createdAt: Schema.Number,
 });
 export type TrackSource = Schema.Schema.Type<typeof TrackSourceSchema>;
@@ -155,15 +155,19 @@ export const UpgradeQueueSchema = Schema.Struct({
 	id: Schema.String,
 	trackId: Schema.String,
 	targetFormat: Schema.String,
-	currentBestFormat: Schema.optionalWith(Schema.String, { exact: true }),
-	currentBestBitrate: Schema.optionalWith(Schema.Number, { exact: true }),
-	retryCount: Schema.Number.pipe(Schema.nonNegative()),
-	nextRetryAt: Schema.Number.pipe(Schema.finite()),
-	status: Schema.Literal("pending", "searching", "completed", "failed"),
+	currentBestFormat: Schema.optionalKey(Schema.String),
+	currentBestBitrate: Schema.optionalKey(Schema.Number),
+	retryCount: Schema.Number.check(Schema.isGreaterThanOrEqualTo(0)),
+	nextRetryAt: Schema.Finite,
+	status: Schema.Literals(["pending", "searching", "completed", "failed"]),
 	createdAt: Schema.Number,
-}).pipe(Schema.filter((value) => value.nextRetryAt >= value.createdAt || value.status === "completed", {
-	message: () => "nextRetryAt must be on or after createdAt unless status is completed",
-}));
+}).check(
+	Schema.makeFilter((value) =>
+		value.nextRetryAt >= value.createdAt || value.status === "completed"
+			? undefined
+			: { path: [], issue: "nextRetryAt must be on or after createdAt unless status is completed" },
+	),
+);
 export type UpgradeQueue = Schema.Schema.Type<typeof UpgradeQueueSchema>;
 
 // --- ProseQL Database Configuration ---
