@@ -12,44 +12,12 @@ type WebConsumerInventoryEntry = {
 	};
 };
 
-function consumer(
-	file: string,
-	runtimeUsages: readonly string[],
-	invalidationBehavior: readonly string[],
-	target: string,
-): WebConsumerInventoryEntry {
-	return {
-		file,
-		runtimeUsages,
-		invalidationBehavior,
-		replacement: {
-			target,
-			note: "Replace this legacy tRPC/React Query consumer with Effect RPC client layer, Effect atoms, and a feature ADT during U6.",
-		},
-	};
-}
-
 const webConsumerInventory: readonly WebConsumerInventoryEntry[] = [
-	consumer(
-		"src/web/main.tsx",
-		[
-			"trpc:import",
-			"react-query:import",
-			"react-query:provider",
-			"trpc:provider",
-			"trpc:create-client",
-		],
-		["Owns global React Query client defaults and tRPC provider state"],
-		"src/web/shared/effect/runtime.ts + src/web/shared/api/rpcClient.ts",
-	),
-	consumer(
-		"src/web/shared/lib/trpc.ts",
-		["manual:/trpc", "trpc:provider", "trpc:create-client"],
-		[
-			"Defines /trpc batch and subscription transports; delete after Effect RPC client cutover",
-		],
-		"src/web/shared/api/rpcClient.ts",
-	),
+	// Migrated to Effect atoms in U6 -- entries intentionally omitted.
+	// src/web/main.tsx -> RegistryProvider + PlaybackProvider only; React
+	//   Query/tRPC providers were deleted after all web consumers moved to
+	//   PyxisRpcClient atoms.
+	// src/web/shared/lib/trpc.ts -> deleted after the web runtime cutover.
 	// Migrated to Effect atoms in U6 -- entries intentionally omitted.
 	// src/web/shared/playback/use-playback.ts -> playerStateStreamAtom over
 	//   player.state.stream plus player command/report mutation atoms from
@@ -89,7 +57,6 @@ const webConsumerInventory: readonly WebConsumerInventoryEntry[] = [
 	//   other surfaces refresh the page the same way the legacy
 	//   utils.library.albums / utils.library.hotAlbums / utils.playlist.list
 	//   invalidations did.
-
 	// Migrated to Effect atoms in U6 -- entry intentionally omitted.
 	// src/web/features/search/search-page.tsx -> search.unified query atom +
 	//   library.albumStates.resolve query atom (subscribed to

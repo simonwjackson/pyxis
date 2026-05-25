@@ -5,13 +5,11 @@
  */
 
 import { RegistryProvider } from "@effect/atom-react";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createRouter, RouterProvider } from "@tanstack/react-router";
-import { StrictMode, useState } from "react";
+import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { Toaster } from "sonner";
 import { routeTree } from "./routes/routeTree.gen";
-import { createTRPCClient, trpc } from "./shared/lib/trpc";
 import { PlaybackProvider } from "./shared/playback/playback-context";
 import { ThemeProvider } from "./shared/theme/theme-context";
 import { ErrorBoundary } from "./shared/ui/error-boundary";
@@ -32,49 +30,29 @@ declare module "@tanstack/react-router" {
 }
 
 /**
- * React Query client with default caching and retry configuration.
- * - 30 second stale time for queries
- * - Single retry on failure
- */
-const queryClient = new QueryClient({
-	defaultOptions: {
-		queries: {
-			staleTime: 30_000,
-			retry: 1,
-		},
-	},
-});
-
-/**
  * Root application component with all required providers.
- * Sets up the provider hierarchy: ErrorBoundary > Theme > tRPC > Query > Playback > Router.
+ * Sets up the provider hierarchy: ErrorBoundary > Theme > Effect Registry > Playback > Router.
  * Includes toast notifications styled to match the theme.
  */
 function App() {
-	const [trpcClient] = useState(() => createTRPCClient());
-
 	return (
 		<ErrorBoundary>
 			<ThemeProvider>
 				<RegistryProvider>
-					<trpc.Provider client={trpcClient} queryClient={queryClient}>
-						<QueryClientProvider client={queryClient}>
-							<PlaybackProvider>
-								<RouterProvider router={router} />
-								<Toaster
-									theme="dark"
-									position="bottom-right"
-									toastOptions={{
-										style: {
-											background: "var(--color-bg)",
-											border: "1px solid var(--color-border)",
-											color: "var(--color-text)",
-										},
-									}}
-								/>
-							</PlaybackProvider>
-						</QueryClientProvider>
-					</trpc.Provider>
+					<PlaybackProvider>
+						<RouterProvider router={router} />
+						<Toaster
+							theme="dark"
+							position="bottom-right"
+							toastOptions={{
+								style: {
+									background: "var(--color-bg)",
+									border: "1px solid var(--color-border)",
+									color: "var(--color-text)",
+								},
+							}}
+						/>
+					</PlaybackProvider>
 				</RegistryProvider>
 			</ThemeProvider>
 		</ErrorBoundary>
