@@ -2,6 +2,7 @@ package com.simonwjackson.pyxis.kiosk
 
 import android.annotation.SuppressLint
 import android.app.Activity
+import android.content.Intent
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -31,6 +32,7 @@ class MainActivity : Activity() {
         requestWindowFeature(Window.FEATURE_NO_TITLE)
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         WebView.setWebContentsDebuggingEnabled(BuildConfig.DEBUG)
+        startMediaSessionService()
         applyKioskPolicy()
         if (shellState is PyxisShellState.Defect) {
             renderShellState(shellState)
@@ -52,6 +54,10 @@ class MainActivity : Activity() {
         mainHandler.removeCallbacksAndMessages(null)
         disposeWebView()
         super.onDestroy()
+    }
+
+    private fun startMediaSessionService() {
+        runCatching { startService(Intent(this, PyxisMediaSessionService::class.java)) }
     }
 
     private fun applyKioskPolicy() {

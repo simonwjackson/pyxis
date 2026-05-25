@@ -46,5 +46,6 @@ android {
 }
 
 dependencies {
+    implementation("androidx.media3:media3-session:1.3.1")
     testImplementation("org.jetbrains.kotlin:kotlin-test:1.9.21")
 }
