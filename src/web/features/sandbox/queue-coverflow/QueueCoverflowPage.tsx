@@ -1,20 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { trpc } from "@/web/shared/lib/trpc";
-
-type Track = {
-	id: string;
-	title: string;
-	artist: string;
-	artwork: string;
-	dominantColor: string;
-};
-
-type LibraryAlbum = {
-	id: string;
-	title: string;
-	artist: string;
-	artworkUrl?: string | null;
-};
+import {
+	queueCoverflowTracksFromAlbums,
+	type QueueCoverflowTrack as Track,
+} from "./QueueCoverflowState";
 
 const MOCK_TRACKS: Track[] = [
 	{
@@ -78,26 +66,6 @@ const MOCK_TRACKS: Track[] = [
 function seededRotation(index: number): number {
 	const seed = Math.sin(index * 137.508 + 42) * 10000;
 	return (seed - Math.floor(seed) - 0.5) * 14;
-}
-
-function colorFromId(id: string): string {
-	let hash = 0;
-	for (let i = 0; i < id.length; i += 1) {
-		hash = (hash * 31 + id.charCodeAt(i)) | 0;
-	}
-	const hue = Math.abs(hash) % 360;
-	return `hsl(${hue} 45% 48%)`;
-}
-
-function toSandboxTrack(album: LibraryAlbum): Track | null {
-	if (!album.artworkUrl) return null;
-	return {
-		id: album.id,
-		title: album.title,
-		artist: album.artist,
-		artwork: album.artworkUrl,
-		dominantColor: colorFromId(album.id),
-	};
 }
 
 function computeViewportCardSize() {
@@ -352,22 +320,16 @@ function Tonearm({ size, engaged }: { size: number; engaged: boolean }) {
 /* ── Main Page ─────────────────────────────────────────────────── */
 
 export function QueueCoverflowPage() {
-	const albumsQuery = trpc.library.albums.useQuery({
-		includeArchive: true,
-		includeDismissed: true,
-	});
 	const [activeIndex, setActiveIndex] = useState(2);
 	const [view, setView] = useState<"queue" | "detail">("queue");
 	const containerRef = useRef<HTMLDivElement>(null);
 	const cardSize = useViewportCardSize();
 	const detailSize = useDetailSize();
 
-	const tracks = useMemo(() => {
-		const realTracks = (albumsQuery.data ?? [])
-			.map((album) => toSandboxTrack(album))
-			.filter((track): track is Track => track !== null);
-		return realTracks.length > 0 ? realTracks : MOCK_TRACKS;
-	}, [albumsQuery.data]);
+	const tracks = useMemo(
+		() => queueCoverflowTracksFromAlbums([], MOCK_TRACKS),
+		[],
+	);
 
 	useEffect(() => {
 		setActiveIndex((current) =>
@@ -496,20 +458,6 @@ export function QueueCoverflowPage() {
 				>
 					Queue
 				</span>
-				{albumsQuery.isLoading ? (
-					<div
-						style={{
-							marginTop: 6,
-							color: "rgba(255,255,255,0.42)",
-							fontSize: 11,
-							fontWeight: 500,
-							letterSpacing: "0.08em",
-							textTransform: "uppercase",
-						}}
-					>
-						loading albums…
-					</div>
-				) : null}
 			</div>
 
 			{/* ── Queue View ──────────────────────────────────────────── */}

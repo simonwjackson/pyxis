@@ -219,14 +219,8 @@ const webConsumerInventory: readonly WebConsumerInventoryEntry[] = [
 	// src/web/features/playlist-detail/playlist-detail-page.tsx ->
 	//   playlist.list + playlist.tracks.list query atoms combined through
 	//   PlaylistDetailState; playlist list subscribes to PLAYLIST_LIST_TAG.
-	consumer(
-		"src/web/features/sandbox/queue-coverflow/QueueCoverflowPage.tsx",
-		["trpc:import", "trpc.library.albums.useQuery"],
-		[
-			"Sandbox currently reads live library albums; migrate to Effect or fixture-only harness before deletion",
-		],
-		"QueueCoverflowState atom or fixture composition root",
-	),
+	// src/web/features/sandbox/queue-coverflow/QueueCoverflowPage.tsx ->
+	//   fixture-only QueueCoverflowState harness; live library query removed.
 ];
 
 function files(dir: string): readonly string[] {
