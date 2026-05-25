@@ -11,8 +11,14 @@ data class PyxisConfig(
     val serverUrl: String,
     val cleartextHost: String,
     val isTemporaryMvp: Boolean,
+    val androidBridgeToken: String,
 ) {
     val healthUrl: String = "${serverUrl}healthz"
+    val androidBridgeStateUrl: String = "${serverUrl}android-media-bridge/state"
+    val androidBridgeEventsUrl: String = "${serverUrl}android-media-bridge/events"
+    val androidBridgeCommandsUrl: String = "${serverUrl}android-media-bridge/commands"
+    val androidBridgeLogsUrl: String = "${serverUrl}android-media-bridge/logs"
+    val isAndroidBridgeEnabled: Boolean = androidBridgeToken.isNotBlank()
 
     init {
         val uri = URI(serverUrl)
@@ -28,5 +34,6 @@ object PyxisConfigs {
         serverUrl = BuildConfig.PYXIS_SERVER_URL,
         cleartextHost = "192.168.1.243",
         isTemporaryMvp = true,
+        androidBridgeToken = BuildConfig.PYXIS_ANDROID_BRIDGE_TOKEN,
     )
 }

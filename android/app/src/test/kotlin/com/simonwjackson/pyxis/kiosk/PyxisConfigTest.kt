@@ -14,6 +14,7 @@ class PyxisConfigTest {
         assertEquals("http://192.168.1.243:8765/", config.serverUrl)
         assertEquals("192.168.1.243", config.cleartextHost)
         assertTrue(config.isTemporaryMvp)
+        assertEquals("http://192.168.1.243:8765/android-media-bridge/state", config.androidBridgeStateUrl)
     }
 
     @Test
@@ -24,6 +25,7 @@ class PyxisConfigTest {
                 serverUrl = "https://192.168.1.243:8765/",
                 cleartextHost = "192.168.1.243",
                 isTemporaryMvp = true,
+                androidBridgeToken = "",
             )
         }
     }
@@ -36,6 +38,7 @@ class PyxisConfigTest {
                 serverUrl = "http://192.168.1.243:8765/",
                 cleartextHost = "192.168.1.244",
                 isTemporaryMvp = true,
+                androidBridgeToken = "",
             )
         }
     }

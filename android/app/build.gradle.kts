@@ -16,6 +16,7 @@ android {
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("String", "PYXIS_SERVER_URL", "\"http://192.168.1.243:8765/\"")
+        buildConfigField("String", "PYXIS_ANDROID_BRIDGE_TOKEN", "\"${System.getenv("PYXIS_ANDROID_BRIDGE_TOKEN") ?: ""}\"")
     }
 
     buildFeatures {
@@ -48,4 +49,5 @@ android {
 dependencies {
     implementation("androidx.media3:media3-session:1.3.1")
     testImplementation("org.jetbrains.kotlin:kotlin-test:1.9.21")
+    testImplementation("org.json:json:20240303")
 }
