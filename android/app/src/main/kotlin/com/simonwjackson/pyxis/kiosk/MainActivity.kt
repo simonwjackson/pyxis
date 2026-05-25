@@ -11,6 +11,7 @@ import android.view.WindowManager
 import android.webkit.WebChromeClient
 import android.webkit.WebSettings
 import android.webkit.WebView
+import android.webkit.WebViewClient
 import android.widget.FrameLayout
 
 class MainActivity : Activity() {
@@ -21,34 +22,58 @@ class MainActivity : Activity() {
     private val kioskPolicy by lazy { KioskPolicy(this) }
     private var shellState: PyxisShellState = PyxisShellState.initial(config)
     private var webView: WebView? = null
+    private var isActivityDestroyed = false
+    private var reachabilityGeneration = 0
+    private var webViewGeneration = 0
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         requestWindowFeature(Window.FEATURE_NO_TITLE)
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         WebView.setWebContentsDebuggingEnabled(BuildConfig.DEBUG)
-        kioskPolicy.applyIfDeviceOwner()
-        renderShellState(shellState)
-        checkReachability()
+        applyKioskPolicy()
+        if (shellState is PyxisShellState.Defect) {
+            renderShellState(shellState)
+        } else {
+            renderShellState(shellState)
+            checkReachability()
+        }
     }
 
     override fun onResume() {
         super.onResume()
-        kioskPolicy.applyIfDeviceOwner()
+        applyKioskPolicy()
     }
 
     override fun onDestroy() {
-        webView?.destroy()
-        webView = null
+        isActivityDestroyed = true
+        reachabilityGeneration += 1
+        webViewGeneration += 1
+        mainHandler.removeCallbacksAndMessages(null)
+        disposeWebView()
         super.onDestroy()
     }
 
+    private fun applyKioskPolicy() {
+        val result = kioskPolicy.applyIfDeviceOwner()
+        if (result.hasCriticalSetupFailures) {
+            shellState = PyxisShellState.Defect(
+                targetUrl = config.serverUrl,
+                kind = DefectKind.KioskPolicy,
+                detail = result.failures.joinToString("; ") { "${it.step}: ${it.message}" },
+            )
+            renderShellState(shellState)
+        }
+    }
+
     private fun checkReachability() {
+        val generation = ++reachabilityGeneration
         shellState = PyxisShellState.Checking(config.serverUrl)
         renderShellState(shellState)
         Thread {
             val outcome = reachabilityClient.check(config.healthUrl)
             mainHandler.post {
+                if (!isCurrentReachability(generation)) return@post
                 shellState = shellState.afterReachability(outcome)
                 when (val state = shellState) {
                     is PyxisShellState.LoadingWebView -> loadWebView(state.targetUrl)
@@ -60,6 +85,7 @@ class MainActivity : Activity() {
 
     @SuppressLint("SetJavaScriptEnabled")
     private fun loadWebView(targetUrl: String) {
+        val generation = ++webViewGeneration
         val created = WebView(this).apply {
             layoutParams = FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.MATCH_PARENT,
@@ -73,23 +99,29 @@ class MainActivity : Activity() {
                 navigationPolicy = navigationPolicy,
                 targetUrl = targetUrl,
                 onReady = {
-                    shellState = PyxisShellState.Ready(targetUrl)
+                    if (isCurrentWebLoad(generation)) {
+                        shellState = PyxisShellState.Ready(targetUrl)
+                    }
                 },
                 onMainFrameFailure = { reason ->
-                    shellState = PyxisShellState.Reconnect(
-                        targetUrl = targetUrl,
-                        reason = reason,
-                        isRetrying = false,
-                    )
-                    renderShellState(shellState)
+                    if (isCurrentWebLoad(generation)) {
+                        shellState = PyxisShellState.Reconnect(
+                            targetUrl = targetUrl,
+                            reason = reason,
+                            isRetrying = false,
+                        )
+                        renderShellState(shellState)
+                    }
                 },
                 onRendererDefect = { detail ->
-                    shellState = PyxisShellState.Defect(
-                        targetUrl = targetUrl,
-                        kind = DefectKind.Renderer,
-                        detail = detail,
-                    )
-                    renderShellState(shellState)
+                    if (isCurrentWebLoad(generation)) {
+                        shellState = PyxisShellState.Defect(
+                            targetUrl = targetUrl,
+                            kind = DefectKind.Renderer,
+                            detail = detail,
+                        )
+                        renderShellState(shellState)
+                    }
                 },
             )
             settings.javaScriptEnabled = true
@@ -101,7 +133,7 @@ class MainActivity : Activity() {
             settings.allowContentAccess = false
             settings.setGeolocationEnabled(false)
         }
-        webView?.destroy()
+        disposeWebView()
         webView = created
         setContentView(created)
         created.loadUrl(targetUrl)
@@ -116,5 +148,23 @@ class MainActivity : Activity() {
                 checkReachability()
             }.render(state),
         )
+    }
+
+    private fun isCurrentReachability(generation: Int): Boolean =
+        !isActivityDestroyed && generation == reachabilityGeneration
+
+    private fun isCurrentWebLoad(generation: Int): Boolean =
+        !isActivityDestroyed && generation == webViewGeneration
+
+    private fun disposeWebView() {
+        webView?.apply {
+            stopLoading()
+            webChromeClient = null
+            webViewClient = WebViewClient()
+            loadUrl("about:blank")
+            removeAllViews()
+            destroy()
+        }
+        webView = null
     }
 }

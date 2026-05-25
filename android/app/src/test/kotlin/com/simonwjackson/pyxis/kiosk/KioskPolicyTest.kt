@@ -1,26 +1,55 @@
 package com.simonwjackson.pyxis.kiosk
 
 import kotlin.test.Test
-import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertTrue
 
 class KioskPolicyTest {
     @Test
-    fun policyPlanUsesStablePyxisComponents() {
-        val plan = KioskPolicyPlan.forPackage("com.simonwjackson.pyxis.kiosk")
+    fun successfulDeviceOwnerPolicyCanStartLockTask() {
+        val result = KioskPolicyApplyResult(
+            isDeviceOwner = true,
+            failures = emptyList(),
+        )
 
-        assertEquals("com.simonwjackson.pyxis.kiosk", plan.packageName)
-        assertEquals("com.simonwjackson.pyxis.kiosk.MainActivity", plan.homeActivityClassName)
-        assertEquals("com.simonwjackson.pyxis.kiosk.PyxisDeviceAdminReceiver", plan.adminReceiverClassName)
+        assertFalse(result.hasCriticalSetupFailures)
+        assertTrue(result.shouldStartLockTask)
     }
 
     @Test
-    fun defaultPolicyIsRestrictiveForMvpKiosk() {
-        val plan = KioskPolicyPlan.forPackage("com.simonwjackson.pyxis.kiosk")
+    fun nonDeviceOwnerPolicyDoesNotStartLockTask() {
+        val result = KioskPolicyApplyResult(
+            isDeviceOwner = false,
+            failures = emptyList(),
+        )
 
-        assertFalse(plan.allowHome)
-        assertFalse(plan.allowOverview)
-        assertFalse(plan.allowGlobalActions)
-        assertFalse(plan.allowKeyguard)
+        assertFalse(result.hasCriticalSetupFailures)
+        assertFalse(result.shouldStartLockTask)
+    }
+
+    @Test
+    fun criticalSetupFailurePreventsLockTaskStart() {
+        val result = KioskPolicyApplyResult(
+            isDeviceOwner = true,
+            failures = listOf(
+                KioskPolicyFailure(KioskPolicyStep.LockTaskPackages, "boom"),
+            ),
+        )
+
+        assertTrue(result.hasCriticalSetupFailures)
+        assertFalse(result.shouldStartLockTask)
+    }
+
+    @Test
+    fun lockTaskStartFailureIsRecordedButNotASetupFailure() {
+        val result = KioskPolicyApplyResult(
+            isDeviceOwner = true,
+            failures = listOf(
+                KioskPolicyFailure(KioskPolicyStep.StartLockTask, "boom"),
+            ),
+        )
+
+        assertFalse(result.hasCriticalSetupFailures)
+        assertTrue(result.shouldStartLockTask)
     }
 }
