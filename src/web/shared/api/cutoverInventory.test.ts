@@ -216,16 +216,9 @@ const webConsumerInventory: readonly WebConsumerInventoryEntry[] = [
 	// src/web/features/history/history-page.tsx -> HistoryState atom
 	// src/web/features/settings/settings-page.tsx -> SettingsState +
 	//   auth.settings reactivity tag (replaces React Query invalidation).
-	consumer(
-		"src/web/features/playlist-detail/playlist-detail-page.tsx",
-		[
-			"trpc:import",
-			"trpc.playlist.list.useQuery",
-			"trpc.playlist.getTracks.useQuery",
-		],
-		["Read-only playlist list/detail state"],
-		"PlaylistDetailState atoms",
-	),
+	// src/web/features/playlist-detail/playlist-detail-page.tsx ->
+	//   playlist.list + playlist.tracks.list query atoms combined through
+	//   PlaylistDetailState; playlist list subscribes to PLAYLIST_LIST_TAG.
 	consumer(
 		"src/web/features/sandbox/queue-coverflow/QueueCoverflowPage.tsx",
 		["trpc:import", "trpc.library.albums.useQuery"],

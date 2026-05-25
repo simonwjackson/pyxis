@@ -3,26 +3,35 @@
  * Playlist detail view showing track listing with play and shuffle controls.
  */
 
-import { useEffect, useRef, useCallback } from "react";
+import { useAtomValue } from "@effect/atom-react";
 import { useNavigate } from "@tanstack/react-router";
-import { Play, Shuffle, Music, ArrowLeft } from "lucide-react";
+import { ArrowLeft, Music, Play, Shuffle } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import { toast } from "sonner";
-import { trpc } from "@/web/shared/lib/trpc";
-import { usePlaybackContext } from "@/web/shared/playback/playback-context";
-import { Skeleton } from "@/web/shared/ui/skeleton";
-import { Button } from "@/web/shared/ui/button";
+import { PLAYLIST_LIST_TAG } from "@/web/features/home/libraryReactivityTags";
+import { PyxisRpcClient } from "@/web/shared/api/rpcClient";
+import { projectQueryResult } from "@/web/shared/effect/projectQueryResult";
 import {
+	formatTime,
 	playlistTrackToNowPlaying,
 	shuffleArray,
 	tracksToQueuePayload,
-	formatTime,
 } from "@/web/shared/lib/now-playing-utils";
+import { usePlaybackContext } from "@/web/shared/playback/playback-context";
+import { Button } from "@/web/shared/ui/button";
+import { Skeleton } from "@/web/shared/ui/skeleton";
+import { PlaylistDetailState } from "./PlaylistDetailState";
 
 /**
  * Formats total duration as human-readable string.
  * @param totalSeconds - Duration in seconds
  * @returns Formatted string (e.g., "1 hr 23 min" or "45 min")
  */
+const PLAYLIST_DETAIL_SKELETON_ROWS = Array.from(
+	{ length: 8 },
+	(_, index) => `playlist-detail-skeleton-${index}`,
+);
+
 function formatTotalDuration(totalSeconds: number): string {
 	const hours = Math.floor(totalSeconds / 3600);
 	const mins = Math.floor((totalSeconds % 3600) / 60);
@@ -63,13 +72,27 @@ export function PlaylistDetailPage({
 	const playbackRef = useRef(playback);
 	playbackRef.current = playback;
 
-	const playlistsQuery = trpc.playlist.list.useQuery();
-	const tracksQuery = trpc.playlist.getTracks.useQuery({ id: playlistId });
+	const playlistsQueryAtom = useMemo(
+		() =>
+			PyxisRpcClient.query("playlist.list", undefined, {
+				reactivityKeys: [PLAYLIST_LIST_TAG] as const,
+			}),
+		[],
+	);
+	const tracksQueryAtom = useMemo(
+		() => PyxisRpcClient.query("playlist.tracks.list", { id: playlistId }),
+		[playlistId],
+	);
 
-	const playlist = playlistsQuery.data?.find((p) => p.id === playlistId);
-	const tracks = tracksQuery.data;
-
-	const isLoading = playlistsQuery.isLoading || tracksQuery.isLoading;
+	const playlistsResult = projectQueryResult(useAtomValue(playlistsQueryAtom));
+	const tracksResult = projectQueryResult(useAtomValue(tracksQueryAtom));
+	const state = PlaylistDetailState.fromResults(
+		playlistId,
+		playlistsResult,
+		tracksResult,
+	);
+	const playlist = state._tag === "Ready" ? state.playlist : null;
+	const tracks = state._tag === "Ready" ? state.tracks : null;
 
 	const hasAutoPlayedRef = useRef(false);
 
@@ -112,11 +135,19 @@ export function PlaylistDetailPage({
 		}
 	}, [playback.error]);
 
-	if (isLoading) {
+	if (state._tag === "Loading") {
 		return <PlaylistDetailSkeleton />;
 	}
 
-	if (!playlist) {
+	if (state._tag === "LoadError" || state._tag === "Defect") {
+		return (
+			<div className="flex-1 flex items-center justify-center p-4">
+				<p className="text-[var(--color-error)]">Failed to load playlist</p>
+			</div>
+		);
+	}
+
+	if (state._tag === "NotFound" || !playlist) {
 		return (
 			<div className="flex-1 flex items-center justify-center p-4">
 				<p className="text-[var(--color-text-dim)]">playlist not found</p>
@@ -182,11 +213,7 @@ export function PlaylistDetailPage({
 							<Play className="w-4 h-4" fill="currentColor" />
 							Play
 						</Button>
-						<Button
-							variant="outline"
-							onClick={handleShuffle}
-							className="gap-2"
-						>
+						<Button variant="outline" onClick={handleShuffle} className="gap-2">
 							<Shuffle className="w-4 h-4" />
 							Shuffle
 						</Button>
@@ -213,17 +240,13 @@ export function PlaylistDetailPage({
 									{String(index + 1)}
 								</span>
 								<div className="flex-1 min-w-0">
-									<span className="text-sm truncate block">
-										{track.title}
-									</span>
+									<span className="text-sm truncate block">{track.title}</span>
 									<span className="text-xs text-[var(--color-text-dim)] truncate block">
 										{track.artist}
 									</span>
 								</div>
 								{track.duration != null && (
-									<span className="text-xs">
-										{formatTime(track.duration)}
-									</span>
+									<span className="text-xs">{formatTime(track.duration)}</span>
 								)}
 							</button>
 						);
@@ -253,8 +276,8 @@ function PlaylistDetailSkeleton() {
 				</div>
 			</div>
 			<div className="space-y-1">
-				{Array.from({ length: 8 }).map((_, i) => (
-					<div key={i} className="flex items-center gap-4 px-4 py-3">
+				{PLAYLIST_DETAIL_SKELETON_ROWS.map((rowKey) => (
+					<div key={rowKey} className="flex items-center gap-4 px-4 py-3">
 						<Skeleton className="w-6 h-4" />
 						<div className="flex-1 space-y-1">
 							<Skeleton className="h-4 w-full" />
