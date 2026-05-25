@@ -16,6 +16,6 @@ export type TrackInfoModalProps = {
 };
 
 export type TrackInfoExplanation = {
-	readonly focusTraitId: string;
-	readonly focusTraitName: string;
+	readonly traitId: string;
+	readonly traitName: string;
 };

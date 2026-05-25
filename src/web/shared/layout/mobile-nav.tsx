@@ -4,13 +4,15 @@
  * Visible only on mobile viewports (< md breakpoint).
  */
 
-import { useState } from "react";
+import { useAtomValue } from "@effect/atom-react";
 import { Link, useRouterState } from "@tanstack/react-router";
 import { Menu, X } from "lucide-react";
-import { cn } from "../lib/utils";
-import { trpc } from "../lib/trpc";
-
+import { useState } from "react";
+import { projectQueryResult } from "../effect/projectQueryResult";
 import { navItems } from "../lib/nav-items";
+import { cn } from "../lib/utils";
+import { AuthStatusState } from "./AuthStatusState";
+import { authStatusQueryAtom } from "./authStatusAtom";
 
 /**
  * Mobile navigation with Zune-style full-screen text menu.
@@ -18,8 +20,10 @@ import { navItems } from "../lib/nav-items";
 export function MobileNav() {
 	const [isOpen, setIsOpen] = useState(false);
 	const { location } = useRouterState();
-	const statusQuery = trpc.auth.status.useQuery();
-	const hasPandora = statusQuery.data?.hasPandora ?? false;
+	const status = AuthStatusState.fromResult(
+		projectQueryResult(useAtomValue(authStatusQueryAtom)),
+	);
+	const hasPandora = status._tag === "Ready" ? status.hasPandora : false;
 	const visibleItems = navItems.filter(
 		(item) => !item.requiresPandora || hasPandora,
 	);

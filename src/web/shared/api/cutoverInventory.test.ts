@@ -119,24 +119,10 @@ const webConsumerInventory: readonly WebConsumerInventoryEntry[] = [
 		],
 		"Playback command atoms shared by keyboard shortcuts",
 	),
-	consumer(
-		"src/web/shared/layout/sidebar.tsx",
-		["trpc:import", "trpc.auth.status.useQuery"],
-		["Auth status controls Pandora navigation visibility"],
-		"AppShell auth status atom",
-	),
-	consumer(
-		"src/web/shared/layout/mobile-nav.tsx",
-		["trpc:import", "trpc.auth.status.useQuery"],
-		["Auth status controls Pandora navigation visibility"],
-		"AppShell auth status atom",
-	),
-	consumer(
-		"src/web/shared/track-info-modal/TrackInfoTraits.tsx",
-		["trpc:import", "trpc.track.explain.useQuery"],
-		["Read-only track explanation with retry=1"],
-		"TrackInfoState atom",
-	),
+	// Migrated to Effect atoms in U6 -- entries intentionally omitted.
+	// src/web/shared/layout/sidebar.tsx -> authStatusQueryAtom + AuthStatusState
+	// src/web/shared/layout/mobile-nav.tsx -> authStatusQueryAtom + AuthStatusState
+	// src/web/shared/track-info-modal/TrackInfoTraits.tsx -> TrackInfoState
 	consumer(
 		"src/web/features/home/home-page.tsx",
 		[
@@ -267,27 +253,10 @@ const webConsumerInventory: readonly WebConsumerInventoryEntry[] = [
 		["library.removeBookmark -> library.bookmarks; radio.create -> radio.list"],
 		"BookmarksState atoms and command refresh tags",
 	),
-	consumer(
-		"src/web/features/history/history-page.tsx",
-		["trpc:import", "trpc.listenLog.list.useQuery"],
-		[
-			"Listen-log list is refreshed by server-side player transition side effects",
-		],
-		"HistoryState atom",
-	),
-	consumer(
-		"src/web/features/settings/settings-page.tsx",
-		[
-			"trpc:import",
-			"trpc.auth.status.useQuery",
-			"trpc.auth.settings.useQuery",
-			"trpc.auth.usage.useQuery",
-			"trpc.auth.setExplicitFilter.useMutation",
-			"trpc.useUtils",
-		],
-		["auth.setExplicitFilter -> auth.settings"],
-		"SettingsState atoms and command refresh tag",
-	),
+	// Migrated to Effect atoms in U6 -- entries intentionally omitted.
+	// src/web/features/history/history-page.tsx -> HistoryState atom
+	// src/web/features/settings/settings-page.tsx -> SettingsState +
+	//   auth.settings reactivity tag (replaces React Query invalidation).
 	consumer(
 		"src/web/features/playlist-detail/playlist-detail-page.tsx",
 		[

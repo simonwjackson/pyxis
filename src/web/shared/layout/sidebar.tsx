@@ -4,14 +4,16 @@
  * Large lowercase text links replace icon-heavy navigation.
  */
 
+import { useAtomValue } from "@effect/atom-react";
 import { Link, useRouterState } from "@tanstack/react-router";
-import { cn } from "../lib/utils";
-import { trpc } from "../lib/trpc";
-
+import { projectQueryResult } from "../effect/projectQueryResult";
 /**
  * Navigation item configuration.
  */
 import { navItems } from "../lib/nav-items";
+import { cn } from "../lib/utils";
+import { AuthStatusState } from "./AuthStatusState";
+import { authStatusQueryAtom } from "./authStatusAtom";
 
 /**
  * Desktop sidebar with Zune panoramic text navigation.
@@ -19,8 +21,10 @@ import { navItems } from "../lib/nav-items";
  */
 export function Sidebar() {
 	const { location } = useRouterState();
-	const statusQuery = trpc.auth.status.useQuery();
-	const hasPandora = statusQuery.data?.hasPandora ?? false;
+	const status = AuthStatusState.fromResult(
+		projectQueryResult(useAtomValue(authStatusQueryAtom)),
+	);
+	const hasPandora = status._tag === "Ready" ? status.hasPandora : false;
 	const visibleItems = navItems.filter(
 		(item) => !item.requiresPandora || hasPandora,
 	);

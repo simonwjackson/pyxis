@@ -1,4 +1,8 @@
-import { trpc } from "@/web/shared/lib/trpc";
+import { useAtomValue } from "@effect/atom-react";
+import { useMemo } from "react";
+import { PyxisRpcClient } from "@/web/shared/api/rpcClient";
+import { projectQueryResult } from "@/web/shared/effect/projectQueryResult";
+import { TrackInfoState } from "./TrackInfoState";
 import { TrackInfoTraitsEmpty } from "./TrackInfoTraitsEmpty";
 import { TrackInfoTraitsError } from "./TrackInfoTraitsError";
 import { TrackInfoTraitsList } from "./TrackInfoTraitsList";
@@ -9,7 +13,13 @@ type TrackInfoTraitsProps = {
 };
 
 export function TrackInfoTraits({ trackId }: TrackInfoTraitsProps) {
-	const explainQuery = trpc.track.explain.useQuery({ id: trackId }, { retry: 1 });
+	const queryAtom = useMemo(
+		() => PyxisRpcClient.query("track.explanation.get", { id: trackId }),
+		[trackId],
+	);
+	const state = TrackInfoState.fromResult(
+		projectQueryResult(useAtomValue(queryAtom)),
+	);
 
 	return (
 		<div>
@@ -17,13 +27,14 @@ export function TrackInfoTraits({ trackId }: TrackInfoTraitsProps) {
 				Music Genome Traits
 			</h3>
 
-			{explainQuery.isLoading ? <TrackInfoTraitsLoading /> : null}
-			{explainQuery.error ? <TrackInfoTraitsError /> : null}
-			{explainQuery.data
-				? explainQuery.data.explanations.length === 0
-					? <TrackInfoTraitsEmpty />
-					: <TrackInfoTraitsList explanations={explainQuery.data.explanations} />
-				: null}
+			{state._tag === "Loading" ? <TrackInfoTraitsLoading /> : null}
+			{state._tag === "LoadError" || state._tag === "Defect" ? (
+				<TrackInfoTraitsError />
+			) : null}
+			{state._tag === "Empty" ? <TrackInfoTraitsEmpty /> : null}
+			{state._tag === "Ready" ? (
+				<TrackInfoTraitsList explanations={state.traits} />
+			) : null}
 		</div>
 	);
 }
