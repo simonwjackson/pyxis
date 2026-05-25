@@ -11,6 +11,7 @@ import { router, publicProcedure } from "../trpc.js";
 import { buildStreamUrl, resolveTrackSource } from "../lib/ids.js";
 import * as PlayerService from "../services/player.js";
 import { createLogger } from "../../src/logger.js";
+import { toPlayerStateView } from "../lib/playerStateView.js";
 
 const log = createLogger("playback").child({ component: "sse:player" });
 
@@ -22,25 +23,20 @@ const log = createLogger("playback").child({ component: "sse:player" });
  * @returns Serialized player state for API response
  */
 function serializePlayerState(state: PlayerService.PlayerState) {
-	const track = state.currentTrack;
+	const view = toPlayerStateView(state);
 	const nextTrack = state.nextTrack;
 	return {
-		status: state.status,
-		currentTrack: track
+		status: view.status,
+		currentTrack: view.currentTrack
 			? {
-					id: track.id,
-					title: track.title,
-					artist: track.artist,
-					album: track.album,
-					duration: track.duration,
-					artworkUrl: track.artworkUrl,
-					streamUrl: buildStreamUrl(track.id, nextTrack?.id),
+					...view.currentTrack,
+					streamUrl: buildStreamUrl(view.currentTrack.id, nextTrack?.id),
 				}
 			: null,
-		progress: state.progress,
-		duration: state.duration,
+		progress: view.progress,
+		duration: view.duration,
 		volume: state.volume,
-		updatedAt: state.updatedAt,
+		updatedAt: view.updatedAt,
 	};
 }
 
