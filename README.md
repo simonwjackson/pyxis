@@ -90,10 +90,11 @@ just nix-lock        # Regenerate bun.nix from bun.lock
 
 The Android kiosk APK is a debug-only native WebView shell for the Sony Walkman NW-A306. It targets the local Pyxis server at `http://192.168.1.243:8765/` for the MVP.
 
-Read the provisioning and recovery runbook before attempting Device Owner setup:
+Read the provisioning/recovery runbook and validation checklist before attempting Device Owner setup:
 
 ```text
 docs/operations/sony-android-kiosk-provisioning.md
+docs/operations/sony-android-kiosk-validation.md
 ```
 
 ### Nix Home Manager

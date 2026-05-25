@@ -21,6 +21,8 @@ Before Device Owner validation:
 
 If any check fails, do not proceed to Device Owner provisioning.
 
+Use `docs/operations/sony-android-kiosk-validation.md` to record pass/fail notes during device bring-up.
+
 ## Build and install
 
 Build the debug APK:
