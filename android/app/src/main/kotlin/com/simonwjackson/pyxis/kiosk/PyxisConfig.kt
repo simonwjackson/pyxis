@@ -32,7 +32,7 @@ object PyxisConfigs {
     val debug = PyxisConfig(
         deviceProfile = DeviceProfile.SonyNwA306,
         serverUrl = BuildConfig.PYXIS_SERVER_URL,
-        cleartextHost = "192.168.1.243",
+        cleartextHost = URI(BuildConfig.PYXIS_SERVER_URL).host,
         isTemporaryMvp = true,
         androidBridgeToken = BuildConfig.PYXIS_ANDROID_BRIDGE_TOKEN,
     )

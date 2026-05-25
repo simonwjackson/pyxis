@@ -15,7 +15,8 @@ android {
         versionName = "0.1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-        buildConfigField("String", "PYXIS_SERVER_URL", "\"http://192.168.1.243:8765/\"")
+        val pyxisServerUrl = System.getenv("PYXIS_SERVER_URL") ?: "http://192.168.1.243:8765/"
+        buildConfigField("String", "PYXIS_SERVER_URL", "\"$pyxisServerUrl\"")
         buildConfigField("String", "PYXIS_ANDROID_BRIDGE_TOKEN", "\"${System.getenv("PYXIS_ANDROID_BRIDGE_TOKEN") ?: ""}\"")
     }
 

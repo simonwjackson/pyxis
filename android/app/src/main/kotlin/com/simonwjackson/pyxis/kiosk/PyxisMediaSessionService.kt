@@ -3,6 +3,7 @@ package com.simonwjackson.pyxis.kiosk
 import android.app.PendingIntent
 import android.content.Intent
 import android.os.Bundle
+import android.util.Log
 import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSessionService
 
@@ -14,6 +15,7 @@ class PyxisMediaSessionService : MediaSessionService() {
     override fun onCreate() {
         super.onCreate()
         val config = PyxisConfigs.debug
+        Log.i("PyxisMediaSession", "service create bridgeEnabled=${config.isAndroidBridgeEnabled} server=${config.serverUrl}")
         val player = PyxisProxyPlayer(mainLooper) { command -> controller?.handleCommand(command) }
         proxyPlayer = player
         controller = PyxisMediaSessionController(
@@ -33,6 +35,7 @@ class PyxisMediaSessionService : MediaSessionService() {
     override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession? = mediaSession
 
     override fun onDestroy() {
+        controller?.close()
         mediaSession?.release()
         mediaSession = null
         proxyPlayer?.release()
