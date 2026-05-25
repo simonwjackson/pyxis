@@ -1,13 +1,25 @@
 /**
  * @module QuickMixDialog
  * Dialog for managing which stations are included in QuickMix/Shuffle.
+ *
+ * Replaces the legacy tRPC `radio.quickMix` mutation hook with an Effect
+ * RPC mutation atom (`radio.quickMix.set`). The mutation publishes
+ * the {@link RADIO_STATIONS_TAG} reactivity tag so the stations page
+ * refreshes after a successful update.
  */
 
-import { useState, useMemo } from "react";
+import { useAtomSet, useAtomValue } from "@effect/atom-react";
 import { Shuffle } from "lucide-react";
+import { useMemo, useState } from "react";
 import { toast } from "sonner";
-import { trpc } from "@/web/shared/lib/trpc";
+import { PyxisRpcClient } from "@/web/shared/api/rpcClient";
+import { projectQueryResult } from "@/web/shared/effect/projectQueryResult";
+import { RADIO_STATIONS_TAG } from "./radioReactivityTags";
+import { StationCommandState } from "./StationCommandState";
 import type { RadioStation } from "./station-list/types";
+
+const quickMixMutationAtom = PyxisRpcClient.mutation("radio.quickMix.set");
+const quickMixReactivityKeys = [RADIO_STATIONS_TAG] as const;
 
 /**
  * Props for the QuickMixDialog component.
@@ -30,19 +42,11 @@ export function QuickMixDialog({ stations, onClose }: QuickMixDialogProps) {
 	const [selectedIds, setSelectedIds] = useState<Set<string>>(
 		() => new Set(initialIds),
 	);
-	const utils = trpc.useUtils();
+	const result = projectQueryResult(useAtomValue(quickMixMutationAtom));
+	const state = StationCommandState.fromResult(result);
+	const submit = useAtomSet(quickMixMutationAtom, { mode: "promiseExit" });
 
-	const mutation = trpc.radio.quickMix.useMutation({
-		onSuccess() {
-			utils.radio.list.invalidate();
-			toast.success("shuffle stations updated");
-			onClose();
-		},
-		onError(err) {
-			toast.error(`Failed to update shuffle: ${err.message}`);
-		},
-	});
-
+	const isSaving = StationCommandState.isSubmitting(state);
 	const nonQuickMixStations = stations.filter((s) => !s.isQuickMix);
 
 	const toggle = (stationId: string) => {
@@ -66,7 +70,17 @@ export function QuickMixDialog({ stations, onClose }: QuickMixDialogProps) {
 	};
 
 	const handleSave = () => {
-		mutation.mutate({ radioIds: [...selectedIds] });
+		void submit({
+			payload: { radioIds: [...selectedIds] },
+			reactivityKeys: quickMixReactivityKeys,
+		}).then((exit) => {
+			if (exit._tag === "Success") {
+				toast.success("shuffle stations updated");
+				onClose();
+			} else {
+				toast.error("Failed to update shuffle");
+			}
+		});
 	};
 
 	return (
@@ -80,6 +94,7 @@ export function QuickMixDialog({ stations, onClose }: QuickMixDialogProps) {
 			aria-modal="true"
 			aria-labelledby="quickmix-dialog-title"
 		>
+			{/* biome-ignore lint/a11y/noStaticElementInteractions: dialog content stops backdrop click/keydown propagation; outer div carries the dialog role. */}
 			<div
 				className="bg-[var(--color-bg)] border border-[var(--color-border)] w-full max-w-md max-h-[70vh] flex flex-col shadow-2xl"
 				onClick={(e) => e.stopPropagation()}
@@ -87,16 +102,22 @@ export function QuickMixDialog({ stations, onClose }: QuickMixDialogProps) {
 			>
 				<div className="p-4 border-b border-[var(--color-border)] flex items-center justify-between shrink-0">
 					<div className="flex items-center gap-3">
-						<div className="w-9 h-9 bg-[var(--color-bg-highlight)] flex items-center justify-center" aria-hidden="true">
+						<div
+							className="w-9 h-9 bg-[var(--color-bg-highlight)] flex items-center justify-center"
+							aria-hidden="true"
+						>
 							<Shuffle className="w-4 h-4 text-[var(--color-secondary)]" />
 						</div>
 						<div>
-							<h2 id="quickmix-dialog-title" className="zune-heading text-2xl text-[var(--color-text)]">
+							<h2
+								id="quickmix-dialog-title"
+								className="zune-heading text-2xl text-[var(--color-text)]"
+							>
 								Manage Shuffle
 							</h2>
 							<p className="text-sm text-[var(--color-text-dim)]">
-								{selectedIds.size} of{" "}
-								{nonQuickMixStations.length} stations selected
+								{selectedIds.size} of {nonQuickMixStations.length} stations
+								selected
 							</p>
 						</div>
 					</div>
@@ -133,7 +154,11 @@ export function QuickMixDialog({ stations, onClose }: QuickMixDialogProps) {
 									className="w-4 h-4border-[var(--color-border)] text-[var(--color-secondary)] focus:ring-[var(--color-border-active)] bg-[var(--color-bg-highlight)]"
 								/>
 								<span
-									className={`text-sm ${checked ? "text-[var(--color-text)]" : "text-[var(--color-text-muted)]"}`}
+									className={`text-sm ${
+										checked
+											? "text-[var(--color-text)]"
+											: "text-[var(--color-text-muted)]"
+									}`}
 								>
 									{station.name}
 								</span>
@@ -146,7 +171,7 @@ export function QuickMixDialog({ stations, onClose }: QuickMixDialogProps) {
 					<button
 						type="button"
 						onClick={onClose}
-						disabled={mutation.isPending}
+						disabled={isSaving}
 						className="px-4 py-2 text-sm text-[var(--color-text-muted)] hover:bg-[var(--color-bg-highlight)]"
 					>
 						Cancel
@@ -154,10 +179,10 @@ export function QuickMixDialog({ stations, onClose }: QuickMixDialogProps) {
 					<button
 						type="button"
 						onClick={handleSave}
-						disabled={mutation.isPending}
+						disabled={isSaving}
 						className="px-4 py-2 text-sm text-[var(--color-bg)] bg-[var(--color-secondary)] hover:brightness-110 font-medium disabled:opacity-50"
 					>
-						{mutation.isPending ? "Saving..." : "Save"}
+						{isSaving ? "Saving..." : "Save"}
 					</button>
 				</div>
 			</div>

@@ -181,12 +181,6 @@ const webConsumerInventory: readonly WebConsumerInventoryEntry[] = [
 		"SourceAlbumDetailState atoms and command refresh tags",
 	),
 	consumer(
-		"src/web/features/stations/stations-page.tsx",
-		["trpc:import", "trpc.radio.list.useQuery"],
-		["Station list refreshed by station mutation dialogs"],
-		"StationsState atom",
-	),
-	consumer(
 		"src/web/features/station-detail/station-detail-page.tsx",
 		[
 			"trpc:import",
@@ -201,35 +195,22 @@ const webConsumerInventory: readonly WebConsumerInventoryEntry[] = [
 		],
 		"StationDetailState atoms plus queue stream atom",
 	),
-	consumer(
-		"src/web/features/stations/add-seed-dialog.tsx",
-		[
-			"trpc:import",
-			"trpc.search.search.useQuery",
-			"trpc.radio.addSeed.useMutation",
-			"trpc.useUtils",
-		],
-		["radio.addSeed -> radio.getStation({ id: radioId })"],
-		"AddSeedDialogState atoms and command refresh tag",
-	),
-	consumer(
-		"src/web/features/stations/delete-station-dialog.tsx",
-		["trpc:import", "trpc.radio.delete.useMutation", "trpc.useUtils"],
-		["radio.delete -> radio.list"],
-		"DeleteStation command atom",
-	),
-	consumer(
-		"src/web/features/stations/rename-station-dialog.tsx",
-		["trpc:import", "trpc.radio.rename.useMutation", "trpc.useUtils"],
-		["radio.rename -> radio.list"],
-		"RenameStation command atom",
-	),
-	consumer(
-		"src/web/features/stations/quick-mix-dialog.tsx",
-		["trpc:import", "trpc.radio.quickMix.useMutation", "trpc.useUtils"],
-		["radio.quickMix -> radio.list"],
-		"QuickMix command atom",
-	),
+	// Migrated to Effect atoms in U6 -- entries intentionally omitted.
+	// src/web/features/stations/stations-page.tsx ->
+	//   stationsQueryAtom + StationsState (refreshed via radio.stations tag)
+	// src/web/features/stations/delete-station-dialog.tsx ->
+	//   radio.station.delete mutation atom + StationCommandState
+	//   (publishes radio.stations reactivity tag)
+	// src/web/features/stations/rename-station-dialog.tsx ->
+	//   radio.station.rename mutation atom + StationCommandState
+	//   (publishes radio.stations reactivity tag)
+	// src/web/features/stations/quick-mix-dialog.tsx ->
+	//   radio.quickMix.set mutation atom + StationCommandState
+	//   (publishes radio.stations reactivity tag)
+	// src/web/features/stations/add-seed-dialog.tsx ->
+	//   search.pandora query atom + radio.seed.add mutation atom +
+	//   AddSeedDialogState (publishes radio.station:<radioId> reactivity tag
+	//   for the next U6 slice's station-detail atom).
 	consumer(
 		"src/web/features/genres/genres-page.tsx",
 		[

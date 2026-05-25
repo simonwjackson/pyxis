@@ -1,11 +1,26 @@
 /**
  * @module DeleteStationDialog
  * Confirmation dialog for deleting a radio station.
+ *
+ * Replaces the legacy tRPC `radio.delete` mutation hook with an Effect
+ * RPC mutation atom (`radio.station.delete`). The mutation publishes the
+ * {@link RADIO_STATIONS_TAG} reactivity tag so the stations page query
+ * atom refreshes after a successful delete (mirroring the previous
+ * `radio.list` invalidation).
  */
 
+import { useAtomSet, useAtomValue } from "@effect/atom-react";
 import { Trash2 } from "lucide-react";
 import { toast } from "sonner";
-import { trpc } from "@/web/shared/lib/trpc";
+import { PyxisRpcClient } from "@/web/shared/api/rpcClient";
+import { projectQueryResult } from "@/web/shared/effect/projectQueryResult";
+import { RADIO_STATIONS_TAG } from "./radioReactivityTags";
+import { StationCommandState } from "./StationCommandState";
+
+const deleteStationMutationAtom = PyxisRpcClient.mutation(
+	"radio.station.delete",
+);
+const deleteReactivityKeys = [RADIO_STATIONS_TAG] as const;
 
 /**
  * Props for the DeleteStationDialog component.
@@ -28,20 +43,25 @@ export function DeleteStationDialog({
 	onSuccess,
 	onCancel,
 }: DeleteStationDialogProps) {
-	const utils = trpc.useUtils();
-	const deleteMutation = trpc.radio.delete.useMutation({
-		onSuccess() {
-			utils.radio.list.invalidate();
-			toast.success("station deleted");
-			onSuccess();
-		},
-		onError(err) {
-			toast.error(`Failed to delete station: ${err.message}`);
-		},
-	});
+	const result = projectQueryResult(useAtomValue(deleteStationMutationAtom));
+	const state = StationCommandState.fromResult(result);
+	const submit = useAtomSet(deleteStationMutationAtom, { mode: "promiseExit" });
 
-	const isDeleting = deleteMutation.isPending;
-	const handleConfirm = () => deleteMutation.mutate({ id: stationId });
+	const isDeleting = StationCommandState.isSubmitting(state);
+
+	const handleConfirm = () => {
+		void submit({
+			payload: { id: stationId },
+			reactivityKeys: deleteReactivityKeys,
+		}).then((exit) => {
+			if (exit._tag === "Success") {
+				toast.success("station deleted");
+				onSuccess();
+			} else {
+				toast.error("Failed to delete station");
+			}
+		});
+	};
 
 	return (
 		<div
@@ -55,16 +75,23 @@ export function DeleteStationDialog({
 			aria-labelledby="delete-dialog-title"
 			aria-describedby="delete-dialog-desc"
 		>
+			{/* biome-ignore lint/a11y/noStaticElementInteractions: dialog content stops backdrop click/keydown propagation; outer div carries the dialog role. */}
 			<div
 				className="bg-[var(--color-bg)] border border-[var(--color-border)] p-6 max-w-sm w-full shadow-2xl"
 				onClick={(e) => e.stopPropagation()}
 				onKeyDown={() => {}}
 			>
 				<div className="flex items-center gap-3 mb-4">
-					<div className="w-10 h-10 bg-[var(--color-bg-highlight)] flex items-center justify-center" aria-hidden="true">
+					<div
+						className="w-10 h-10 bg-[var(--color-bg-highlight)] flex items-center justify-center"
+						aria-hidden="true"
+					>
 						<Trash2 className="w-5 h-5 text-[var(--color-error)]" />
 					</div>
-					<h2 id="delete-dialog-title" className="zune-heading text-2xl text-[var(--color-text)]">
+					<h2
+						id="delete-dialog-title"
+						className="zune-heading text-2xl text-[var(--color-text)]"
+					>
 						Delete Station
 					</h2>
 				</div>
@@ -75,7 +102,10 @@ export function DeleteStationDialog({
 				<p className="text-sm font-medium text-[var(--color-text)] mb-4">
 					&ldquo;{stationName}&rdquo;?
 				</p>
-				<p id="delete-dialog-desc" className="text-xs text-[var(--color-text-dim)] mb-6">
+				<p
+					id="delete-dialog-desc"
+					className="text-xs text-[var(--color-text-dim)] mb-6"
+				>
 					this action cannot be undone.
 				</p>
 

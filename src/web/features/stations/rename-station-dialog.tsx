@@ -1,11 +1,25 @@
 /**
  * @module RenameStationDialog
  * Dialog for renaming a radio station.
+ *
+ * Replaces the legacy tRPC `radio.rename` mutation hook with an Effect
+ * RPC mutation atom (`radio.station.rename`). The mutation publishes the
+ * {@link RADIO_STATIONS_TAG} reactivity tag so the stations page refreshes
+ * after a successful rename.
  */
 
-import { useState, useEffect, useRef } from "react";
+import { useAtomSet, useAtomValue } from "@effect/atom-react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { trpc } from "@/web/shared/lib/trpc";
+import { PyxisRpcClient } from "@/web/shared/api/rpcClient";
+import { projectQueryResult } from "@/web/shared/effect/projectQueryResult";
+import { RADIO_STATIONS_TAG } from "./radioReactivityTags";
+import { StationCommandState } from "./StationCommandState";
+
+const renameStationMutationAtom = PyxisRpcClient.mutation(
+	"radio.station.rename",
+);
+const renameReactivityKeys = [RADIO_STATIONS_TAG] as const;
 
 /**
  * Props for the RenameStationDialog component.
@@ -30,19 +44,11 @@ export function RenameStationDialog({
 }: RenameStationDialogProps) {
 	const [name, setName] = useState(stationName);
 	const inputRef = useRef<HTMLInputElement>(null);
-	const utils = trpc.useUtils();
-	const renameMutation = trpc.radio.rename.useMutation({
-		onSuccess() {
-			utils.radio.list.invalidate();
-			toast.success("station renamed");
-			onSuccess();
-		},
-		onError(err) {
-			toast.error(`Failed to rename station: ${err.message}`);
-		},
-	});
+	const result = projectQueryResult(useAtomValue(renameStationMutationAtom));
+	const state = StationCommandState.fromResult(result);
+	const submit = useAtomSet(renameStationMutationAtom, { mode: "promiseExit" });
 
-	const isRenaming = renameMutation.isPending;
+	const isRenaming = StationCommandState.isSubmitting(state);
 
 	useEffect(() => {
 		inputRef.current?.select();
@@ -51,9 +57,18 @@ export function RenameStationDialog({
 	const handleSubmit = (e: React.FormEvent) => {
 		e.preventDefault();
 		const trimmed = name.trim();
-		if (trimmed && trimmed !== stationName) {
-			renameMutation.mutate({ id: stationId, name: trimmed });
-		}
+		if (!trimmed || trimmed === stationName) return;
+		void submit({
+			payload: { id: stationId, name: trimmed },
+			reactivityKeys: renameReactivityKeys,
+		}).then((exit) => {
+			if (exit._tag === "Success") {
+				toast.success("station renamed");
+				onSuccess();
+			} else {
+				toast.error("Failed to rename station");
+			}
+		});
 	};
 
 	return (
@@ -67,12 +82,16 @@ export function RenameStationDialog({
 			aria-modal="true"
 			aria-labelledby="rename-dialog-title"
 		>
+			{/* biome-ignore lint/a11y/noStaticElementInteractions: dialog content stops backdrop click/keydown propagation; outer div carries the dialog role. */}
 			<div
 				className="bg-[var(--color-bg)] border border-[var(--color-border)] p-6 max-w-sm w-full shadow-2xl"
 				onClick={(e) => e.stopPropagation()}
 				onKeyDown={() => {}}
 			>
-				<h2 id="rename-dialog-title" className="zune-heading text-2xl text-[var(--color-text)] mb-4">
+				<h2
+					id="rename-dialog-title"
+					className="zune-heading text-2xl text-[var(--color-text)] mb-4"
+				>
 					Rename Station
 				</h2>
 
@@ -91,7 +110,6 @@ export function RenameStationDialog({
 						onChange={(e) => setName(e.target.value)}
 						disabled={isRenaming}
 						className="w-full px-3 py-2 bg-[var(--color-bg-highlight)] border border-[var(--color-border)] text-sm text-[var(--color-text)] focus:outline-none focus:ring-2 focus:ring-[var(--color-border-active)] mb-6"
-						autoFocus
 					/>
 
 					<div className="flex gap-3 justify-end">
@@ -106,9 +124,7 @@ export function RenameStationDialog({
 						<button
 							type="submit"
 							disabled={
-								isRenaming ||
-								!name.trim() ||
-								name.trim() === stationName
+								isRenaming || !name.trim() || name.trim() === stationName
 							}
 							className="px-4 py-2 text-sm text-[var(--color-bg)] bg-[var(--color-primary)] hover:brightness-110 transition-colors disabled:opacity-50"
 						>
