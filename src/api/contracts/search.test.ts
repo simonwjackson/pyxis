@@ -1,6 +1,11 @@
 import { describe, expect, it } from "bun:test";
 import { Schema } from "effect";
-import { SearchResponseSchema } from "./search.js";
+import {
+	PandoraSearchInputSchema,
+	PandoraSearchResponseSchema,
+	SearchInputSchema,
+	SearchResponseSchema,
+} from "./search.js";
 
 describe("search API contracts", () => {
 	it("decodes the current unified search router response shape", () => {
@@ -34,12 +39,15 @@ describe("search API contracts", () => {
 					releaseType: "album",
 				},
 			],
-			pandoraArtists: [{ artistName: "Artist" }],
-			pandoraGenres: [{ stationName: "Genre Radio" }],
+			pandoraArtists: [{ artistName: "Artist", musicToken: "music_token_1" }],
+			pandoraGenres: [
+				{ stationName: "Genre Radio", musicToken: "music_token_2" },
+			],
 		});
 
 		expect(response.tracks[0]?.capabilities.radio).toBe(true);
 		expect(response.albums[0]?.sourceIds).toEqual(["ytmusic:album_1"]);
+		expect(response.pandoraArtists[0]?.musicToken).toBe("music_token_1");
 	});
 
 	it("rejects pre-router canonical shapes so contract drift is visible", () => {
@@ -57,6 +65,58 @@ describe("search API contracts", () => {
 				albums: [],
 				pandoraArtists: [],
 				pandoraGenres: [],
+			}),
+		).toThrow();
+	});
+
+	it("bounds search input length", () => {
+		expect(
+			Schema.decodeUnknownSync(SearchInputSchema)({ query: "abc" }),
+		).toEqual({
+			query: "abc",
+		});
+		expect(() =>
+			Schema.decodeUnknownSync(SearchInputSchema)({ query: "" }),
+		).toThrow();
+		expect(() =>
+			Schema.decodeUnknownSync(SearchInputSchema)({
+				query: "x".repeat(257),
+			}),
+		).toThrow();
+	});
+
+	it("bounds Pandora search input length and key name", () => {
+		expect(
+			Schema.decodeUnknownSync(PandoraSearchInputSchema)({
+				searchText: "abba",
+			}),
+		).toEqual({ searchText: "abba" });
+		expect(() =>
+			Schema.decodeUnknownSync(PandoraSearchInputSchema)({ searchText: "" }),
+		).toThrow();
+	});
+
+	it("decodes Pandora-only search results with optional artist/song/genre arrays", () => {
+		const decoded = Schema.decodeUnknownSync(PandoraSearchResponseSchema)({
+			artists: [{ artistName: "Artist", musicToken: "tok" }],
+			songs: [
+				{
+					songName: "Song",
+					artistName: "Artist",
+					musicToken: "tok2",
+				},
+			],
+			genreStations: [{ stationName: "Genre", musicToken: "tok3" }],
+		});
+		expect(decoded.artists?.[0]?.artistName).toBe("Artist");
+		expect(decoded.songs?.[0]?.songName).toBe("Song");
+		expect(decoded.genreStations?.[0]?.stationName).toBe("Genre");
+	});
+
+	it("rejects Pandora search entries missing the music token", () => {
+		expect(() =>
+			Schema.decodeUnknownSync(PandoraSearchResponseSchema)({
+				artists: [{ artistName: "Artist" }],
 			}),
 		).toThrow();
 	});

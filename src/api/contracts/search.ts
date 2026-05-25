@@ -1,8 +1,19 @@
 import { Schema } from "effect";
 
 export const SearchInputSchema = Schema.Struct({
-	query: Schema.String.check(Schema.isMinLength(1)),
+	query: Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(256)),
 });
+export type ApiSearchInput = Schema.Schema.Type<typeof SearchInputSchema>;
+
+export const PandoraSearchInputSchema = Schema.Struct({
+	searchText: Schema.String.check(
+		Schema.isMinLength(1),
+		Schema.isMaxLength(256),
+	),
+});
+export type ApiPandoraSearchInput = Schema.Schema.Type<
+	typeof PandoraSearchInputSchema
+>;
 
 export const TrackCapabilitiesSchema = Schema.Struct({
 	feedback: Schema.Boolean,
@@ -44,9 +55,51 @@ export const SearchAlbumSchema = Schema.Struct({
 	),
 });
 
+/**
+ * Pandora-specific search result entries (artists, genre stations). The
+ * upstream payload carries additional fields the UI does not render; bind
+ * only the fields rendered by the UI and strip the rest at the boundary.
+ */
+export const PandoraSearchArtistSchema = Schema.Struct({
+	artistName: Schema.String,
+	musicToken: Schema.String,
+	score: Schema.optionalKey(Schema.Number),
+});
+export type ApiPandoraSearchArtist = Schema.Schema.Type<
+	typeof PandoraSearchArtistSchema
+>;
+
+export const PandoraSearchGenreStationSchema = Schema.Struct({
+	stationName: Schema.String,
+	musicToken: Schema.String,
+	score: Schema.optionalKey(Schema.Number),
+});
+export type ApiPandoraSearchGenreStation = Schema.Schema.Type<
+	typeof PandoraSearchGenreStationSchema
+>;
+
+export const PandoraSearchSongSchema = Schema.Struct({
+	songName: Schema.String,
+	artistName: Schema.String,
+	musicToken: Schema.String,
+	score: Schema.optionalKey(Schema.Number),
+});
+
+export const PandoraSearchResponseSchema = Schema.Struct({
+	artists: Schema.optionalKey(Schema.Array(PandoraSearchArtistSchema)),
+	songs: Schema.optionalKey(Schema.Array(PandoraSearchSongSchema)),
+	genreStations: Schema.optionalKey(
+		Schema.Array(PandoraSearchGenreStationSchema),
+	),
+});
+export type ApiPandoraSearchResponse = Schema.Schema.Type<
+	typeof PandoraSearchResponseSchema
+>;
+
 export const SearchResponseSchema = Schema.Struct({
 	tracks: Schema.Array(SearchTrackSchema),
 	albums: Schema.Array(SearchAlbumSchema),
-	pandoraArtists: Schema.Array(Schema.Unknown),
-	pandoraGenres: Schema.Array(Schema.Unknown),
+	pandoraArtists: Schema.Array(PandoraSearchArtistSchema),
+	pandoraGenres: Schema.Array(PandoraSearchGenreStationSchema),
 });
+export type ApiSearchResponse = Schema.Schema.Type<typeof SearchResponseSchema>;
