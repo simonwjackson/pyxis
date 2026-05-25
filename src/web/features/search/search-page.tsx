@@ -1,44 +1,96 @@
 /**
  * @module SearchPage
  * Unified search page for discovering music across all sources.
+ *
+ * Reads `search.unified` and `library.albumStates.resolve` through the
+ * Effect RPC client and adapts both AsyncResults into the pure
+ * {@link SearchState} ADT. The states query subscribes to
+ * {@link LIBRARY_ALBUM_STATES_TAG} so a successful `library.album.save`
+ * refreshes the discovery/collection placement badge in the search
+ * results, mirroring the legacy `utils.library.resolveAlbumStates.invalidate()`
+ * fan-out.
+ *
+ * Mutations preserve the legacy invalidation fan-outs through reactivity tags:
+ *  - `radio.station.create` publishes {@link RADIO_STATIONS_TAG}
+ *    (was `utils.radio.list.invalidate()`).
+ *  - `library.album.save` publishes {@link LIBRARY_ALBUMS_TAG},
+ *    {@link LIBRARY_HOT_ALBUMS_TAG}, and {@link LIBRARY_ALBUM_STATES_TAG}
+ *    (was the `utils.library.albums` + `utils.library.hotAlbums` +
+ *    `utils.library.resolveAlbumStates` invalidation triple).
+ *  - `playlist.radio.create` publishes {@link PLAYLIST_LIST_TAG}
+ *    (was `utils.playlist.list.invalidate()`).
+ *
+ * Play-album uses `album.withTracks.get` as an imperative fetch (the
+ * legacy code used `utils.album.getWithTracks.fetch()` in the click
+ * handler); modeling it as a mutation atom with `mode: "promiseExit"`
+ * matches the existing station-detail "fetch tracks then play" pattern.
  */
 
-import { useState, useCallback, useMemo, useRef } from "react";
+import { useAtomSet, useAtomValue } from "@effect/atom-react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
-import { trpc } from "@/web/shared/lib/trpc";
-import { usePlaybackContext } from "@/web/shared/playback/playback-context";
+import {
+	LIBRARY_ALBUM_STATES_TAG,
+	LIBRARY_ALBUMS_TAG,
+	LIBRARY_HOT_ALBUMS_TAG,
+	PLAYLIST_LIST_TAG,
+} from "@/web/features/home/libraryReactivityTags";
+import { RADIO_STATIONS_TAG } from "@/web/features/stations/radioReactivityTags";
+import { PyxisRpcClient } from "@/web/shared/api/rpcClient";
+import { projectQueryResult } from "@/web/shared/effect/projectQueryResult";
+import { formatPlacementLabel } from "@/web/shared/lib/library-placement";
 import {
 	sourceAlbumTrackToNowPlaying,
 	tracksToQueuePayload,
 } from "@/web/shared/lib/now-playing-utils";
-import { formatPlacementLabel } from "@/web/shared/lib/library-placement";
-import { SearchInput } from "./search-input";
+import { usePlaybackContext } from "@/web/shared/playback/playback-context";
 import { Spinner } from "@/web/shared/ui/spinner";
+import { SearchAlbums } from "./components/SearchAlbums";
 import { SearchArtists } from "./components/SearchArtists";
 import { SearchGenres } from "./components/SearchGenres";
-import { SearchAlbums } from "./components/SearchAlbums";
 import { SearchResultsEmpty } from "./components/SearchResultsEmpty";
 import { SearchTracks } from "./components/SearchTracks";
+import { SearchState } from "./SearchState";
+import { SearchInput } from "./search-input";
 import { SearchResultsRoot } from "./search-results-root";
-import type {
-	SearchTrack,
-	SearchAlbum,
-	SearchArtist,
-	SearchGenreStation,
-} from "./types";
+import type { SearchTrack } from "./types";
 
-type SearchData = {
-	readonly tracks: readonly SearchTrack[];
-	readonly albums: readonly SearchAlbum[];
-	readonly pandoraArtists: readonly SearchArtist[];
-	readonly pandoraGenres: readonly SearchGenreStation[];
+const createStationMutationAtom = PyxisRpcClient.mutation(
+	"radio.station.create",
+);
+const createStationReactivityKeys = [RADIO_STATIONS_TAG] as const;
+
+const saveAlbumMutationAtom = PyxisRpcClient.mutation("library.album.save");
+const saveAlbumReactivityKeys = [
+	LIBRARY_ALBUMS_TAG,
+	LIBRARY_HOT_ALBUMS_TAG,
+	LIBRARY_ALBUM_STATES_TAG,
+] as const;
+
+const createPlaylistRadioMutationAtom = PyxisRpcClient.mutation(
+	"playlist.radio.create",
+);
+const createPlaylistRadioReactivityKeys = [PLAYLIST_LIST_TAG] as const;
+
+/**
+ * `album.withTracks.get` is used as an imperative "fetch then play"
+ * call rather than a continuously rendered read, mirroring the legacy
+ * `utils.album.getWithTracks.fetch({ id })`. Modeling it as a mutation
+ * atom with `mode: "promiseExit"` matches the existing station-detail
+ * pattern for `radio.stationTracks.get`.
+ */
+const albumWithTracksFetchAtom = PyxisRpcClient.mutation(
+	"album.withTracks.get",
+);
+
+type SearchContentProps = {
+	readonly state: SearchState;
+	readonly onPlayAlbum: (albumId: string) => void;
+	readonly playingAlbumId: string | null;
+	readonly onSaveAlbum: (albumId: string) => void;
+	readonly onStartRadio: (track: SearchTrack) => void;
+	readonly onCreateStation: (musicToken: string) => void;
 };
-
-type SearchState =
-	| { readonly type: "idle" }
-	| { readonly type: "loading" }
-	| { readonly type: "empty" }
-	| { readonly type: "results"; readonly data: SearchData };
 
 function SearchContent({
 	state,
@@ -47,62 +99,64 @@ function SearchContent({
 	onSaveAlbum,
 	onStartRadio,
 	onCreateStation,
-}: {
-	readonly state: SearchState;
-	readonly onPlayAlbum: (albumId: string) => void;
-	readonly playingAlbumId: string | null;
-	readonly onSaveAlbum: (albumId: string) => void;
-	readonly onStartRadio: (track: SearchTrack) => void;
-	readonly onCreateStation: (musicToken: string) => void;
-}) {
-	switch (state.type) {
-		case "loading":
-			return (
-				<div className="flex justify-center py-8">
-					<Spinner />
-				</div>
-			);
-		case "empty":
-			return <SearchResultsEmpty />;
-		case "results":
-			return (
-				<SearchResultsRoot>
-					{state.data.albums.length > 0 ? (
-						<SearchAlbums
-							albums={state.data.albums}
-							onPlayAlbum={onPlayAlbum}
-							playingAlbumId={playingAlbumId}
-							onSaveAlbum={onSaveAlbum}
-						/>
-					) : null}
-					{state.data.tracks.length > 0 ? (
-						<SearchTracks
-							tracks={state.data.tracks}
-							onStartRadio={onStartRadio}
-						/>
-					) : null}
-					{state.data.pandoraArtists.length > 0 ? (
-						<SearchArtists
-							artists={state.data.pandoraArtists}
-							onCreateStation={onCreateStation}
-						/>
-					) : null}
-					{state.data.pandoraGenres.length > 0 ? (
-						<SearchGenres
-							genres={state.data.pandoraGenres}
-							onCreateStation={onCreateStation}
-						/>
-					) : null}
-				</SearchResultsRoot>
-			);
-		case "idle":
+}: SearchContentProps) {
+	switch (state._tag) {
+		case "Idle":
 			return (
 				<div className="text-center py-20 text-[var(--color-text-dim)]">
 					<p className="zune-display text-5xl sm:text-6xl text-[var(--color-text-dim)]/40 mb-6">
 						discover
 					</p>
-					<p className="text-sm">search for artists, songs, or albums across all sources</p>
+					<p className="text-sm">
+						search for artists, songs, or albums across all sources
+					</p>
 				</div>
+			);
+		case "Loading":
+			return (
+				<div className="flex justify-center py-8">
+					<Spinner />
+				</div>
+			);
+		case "Empty":
+			return <SearchResultsEmpty />;
+		case "LoadError":
+		case "Defect":
+			return (
+				<div className="text-center py-20 text-[var(--color-error)]">
+					<p className="text-sm">failed to search</p>
+				</div>
+			);
+		case "Results":
+			return (
+				<SearchResultsRoot>
+					{state.results.albums.length > 0 ? (
+						<SearchAlbums
+							albums={state.results.albums}
+							onPlayAlbum={onPlayAlbum}
+							playingAlbumId={playingAlbumId}
+							onSaveAlbum={onSaveAlbum}
+						/>
+					) : null}
+					{state.results.tracks.length > 0 ? (
+						<SearchTracks
+							tracks={state.results.tracks}
+							onStartRadio={onStartRadio}
+						/>
+					) : null}
+					{state.results.pandoraArtists.length > 0 ? (
+						<SearchArtists
+							artists={state.results.pandoraArtists}
+							onCreateStation={onCreateStation}
+						/>
+					) : null}
+					{state.results.pandoraGenres.length > 0 ? (
+						<SearchGenres
+							genres={state.results.pandoraGenres}
+							onCreateStation={onCreateStation}
+						/>
+					) : null}
+				</SearchResultsRoot>
 			);
 	}
 }
@@ -110,62 +164,48 @@ function SearchContent({
 export function SearchPage() {
 	const [query, setQuery] = useState("");
 	const [playingAlbumId, setPlayingAlbumId] = useState<string | null>(null);
-	const utils = trpc.useUtils();
 	const playback = usePlaybackContext();
 	const playbackRef = useRef(playback);
 	playbackRef.current = playback;
 
-	const unifiedQuery = trpc.search.unified.useQuery({ query }, { enabled: query.length >= 2 });
-
-	const sourceIds = useMemo(
-		() => unifiedQuery.data?.albums.flatMap((album) => album.sourceIds) ?? [],
-		[unifiedQuery.data],
+	const searchQueryAtom = useMemo(
+		() => PyxisRpcClient.query("search.unified", { query }),
+		[query],
 	);
-	const libraryStatesQuery = trpc.library.resolveAlbumStates.useQuery(
-		{ sourceIds },
-		{ enabled: sourceIds.length > 0 },
-	);
+	const searchResult = projectQueryResult(useAtomValue(searchQueryAtom));
 
-	const createStation = trpc.radio.create.useMutation({
-		onSuccess() {
-			toast.success("station created");
-			utils.radio.list.invalidate();
-		},
-		onError(err) {
-			toast.error(`Failed to create station: ${err.message}`);
-		},
+	// Derive the states query atom directly from the search result so the
+	// atom is keyed by the structural identity of the album source ids
+	// (`sourceIdsKey`). Computing both the ids and the atom in the same
+	// memo keeps the dependency list honest and avoids creating a new
+	// `library.albumStates.resolve` atom on every render.
+	const sourceIdsKey =
+		searchResult._tag === "Success"
+			? searchResult.value.albums.flatMap((album) => album.sourceIds).join("|")
+			: "";
+	const statesQueryAtom = useMemo(() => {
+		const sourceIds = sourceIdsKey.length > 0 ? sourceIdsKey.split("|") : [];
+		return PyxisRpcClient.query(
+			"library.albumStates.resolve",
+			{ sourceIds },
+			{ reactivityKeys: [LIBRARY_ALBUM_STATES_TAG] as const },
+		);
+	}, [sourceIdsKey]);
+	const statesResult = projectQueryResult(useAtomValue(statesQueryAtom));
+
+	const state = SearchState.fromResults(query, searchResult, statesResult);
+
+	const createStation = useAtomSet(createStationMutationAtom, {
+		mode: "promiseExit",
 	});
-
-	const saveAlbum = trpc.library.saveAlbum.useMutation({
-		onSuccess(data) {
-			switch (data.outcome) {
-				case "created":
-					toast.success("album added to discovery");
-					break;
-				case "restored":
-					toast.success("album restored to discovery");
-					break;
-				case "existing":
-					toast.info(`album already in ${formatPlacementLabel(data.placement).toLowerCase()}`);
-					break;
-			}
-			utils.library.albums.invalidate();
-			utils.library.hotAlbums.invalidate();
-			utils.library.resolveAlbumStates.invalidate();
-		},
-		onError(err) {
-			toast.error(`Failed to add album: ${err.message}`);
-		},
+	const saveAlbum = useAtomSet(saveAlbumMutationAtom, {
+		mode: "promiseExit",
 	});
-
-	const createRadio = trpc.playlist.createRadio.useMutation({
-		onSuccess() {
-			toast.success("radio created");
-			utils.playlist.list.invalidate();
-		},
-		onError(err) {
-			toast.error(`Failed to create radio: ${err.message}`);
-		},
+	const createPlaylistRadio = useAtomSet(createPlaylistRadioMutationAtom, {
+		mode: "promiseExit",
+	});
+	const fetchAlbumWithTracks = useAtomSet(albumWithTracksFetchAtom, {
+		mode: "promiseExit",
 	});
 
 	const handleSearch = useCallback((nextQuery: string) => {
@@ -174,111 +214,110 @@ export function SearchPage() {
 
 	const handleCreateStation = useCallback(
 		(musicToken: string) => {
-			createStation.mutate({ musicToken });
+			void createStation({
+				payload: { musicToken },
+				reactivityKeys: createStationReactivityKeys,
+			}).then((exit) => {
+				if (exit._tag === "Success") {
+					toast.success("station created");
+				} else {
+					toast.error("Failed to create station");
+				}
+			});
 		},
 		[createStation],
 	);
 
 	const handleSaveAlbum = useCallback(
 		(albumId: string) => {
-			saveAlbum.mutate({ id: albumId });
+			void saveAlbum({
+				payload: { id: albumId },
+				reactivityKeys: saveAlbumReactivityKeys,
+			}).then((exit) => {
+				if (exit._tag === "Success") {
+					switch (exit.value.outcome) {
+						case "created":
+							toast.success("album added to discovery");
+							break;
+						case "restored":
+							toast.success("album restored to discovery");
+							break;
+						case "existing":
+							toast.info(
+								`album already in ${formatPlacementLabel(exit.value.placement).toLowerCase()}`,
+							);
+							break;
+					}
+				} else {
+					toast.error("Failed to add album");
+				}
+			});
 		},
 		[saveAlbum],
 	);
 
 	const handlePlayAlbum = useCallback(
-		async (albumId: string) => {
+		(albumId: string) => {
 			if (playingAlbumId) return;
 			setPlayingAlbumId(albumId);
-			try {
-				const data = await utils.album.getWithTracks.fetch({ id: albumId });
-				const ordered = data.tracks.map((track) =>
-					sourceAlbumTrackToNowPlaying(track, data.album.title, data.album.artworkUrl ?? null),
-				);
-				playbackRef.current.playQueue({
-					tracks: tracksToQueuePayload(ordered),
-					context: { type: "album", albumId },
-					startIndex: 0,
+			void fetchAlbumWithTracks({ payload: { id: albumId } })
+				.then((exit) => {
+					if (exit._tag !== "Success") {
+						toast.error("failed to load album");
+						return;
+					}
+					const data = exit.value;
+					const ordered = data.tracks.map((track) =>
+						sourceAlbumTrackToNowPlaying(
+							track,
+							data.album.title,
+							data.album.artworkUrl ?? null,
+						),
+					);
+					playbackRef.current.playQueue({
+						tracks: tracksToQueuePayload(ordered),
+						context: { type: "album", albumId },
+						startIndex: 0,
+					});
+				})
+				.finally(() => {
+					setPlayingAlbumId(null);
 				});
-			} catch {
-				toast.error("failed to load album");
-			} finally {
-				setPlayingAlbumId(null);
-			}
 		},
-		[playingAlbumId, utils.album.getWithTracks],
+		[fetchAlbumWithTracks, playingAlbumId],
 	);
 
 	const handleStartRadio = useCallback(
 		(track: SearchTrack) => {
-			createRadio.mutate({
-				trackId: track.id,
-				name: `${track.title} Radio`,
-				...(track.artworkUrl != null ? { artworkUrl: track.artworkUrl } : {}),
+			void createPlaylistRadio({
+				payload: {
+					trackId: track.id,
+					name: `${track.title} Radio`,
+					...(track.artworkUrl != null ? { artworkUrl: track.artworkUrl } : {}),
+				},
+				reactivityKeys: createPlaylistRadioReactivityKeys,
+			}).then((exit) => {
+				if (exit._tag === "Success") {
+					toast.success("radio created");
+				} else {
+					toast.error("Failed to create radio");
+				}
 			});
 		},
-		[createRadio],
+		[createPlaylistRadio],
 	);
-
-	const searchState: SearchState = useMemo(() => {
-		const data = unifiedQuery.data;
-		const resolvedStates = new Map(
-			(libraryStatesQuery.data ?? []).map((state) => [state.sourceId, state] as const),
-		);
-
-		if (unifiedQuery.isLoading && query.length >= 2) {
-			return { type: "loading" };
-		}
-
-		if (data) {
-			const albums = data.albums.map((album) => {
-				const matchedState = album.sourceIds
-					.map((sourceId) => resolvedStates.get(sourceId))
-					.find(Boolean);
-				return {
-					...album,
-					...(matchedState
-						? {
-							state: {
-								albumId: matchedState.albumId,
-								placement: matchedState.placement,
-								isHot: matchedState.isHot,
-							},
-						}
-						: {}),
-				};
-			});
-
-			const hasResults =
-				data.tracks.length > 0 ||
-				albums.length > 0 ||
-				data.pandoraArtists.length > 0 ||
-				data.pandoraGenres.length > 0;
-
-			if (hasResults) {
-				return {
-					type: "results",
-					data: {
-						tracks: data.tracks,
-						albums,
-						pandoraArtists: data.pandoraArtists,
-						pandoraGenres: data.pandoraGenres,
-					},
-				};
-			}
-
-			return { type: "empty" };
-		}
-
-		return { type: "idle" };
-	}, [libraryStatesQuery.data, query.length, unifiedQuery.data, unifiedQuery.isLoading]);
 
 	return (
 		<div className="flex-1 px-4 sm:px-8 py-10 space-y-6">
-			<h2 className="zune-display zune-page-title text-[var(--color-text)] mb-4">search</h2>
-			<SearchInput onSearch={handleSearch} placeholder="search artists, songs, albums..." />
+			<h2 className="zune-display zune-page-title text-[var(--color-text)] mb-4">
+				search
+			</h2>
+			<SearchInput
+				onSearch={handleSearch}
+				placeholder="search artists, songs, albums..."
+			/>
 			<SearchContent
-				state={searchState}
+				state={state}
 				onPlayAlbum={handlePlayAlbum}
 				playingAlbumId={playingAlbumId}
 				onSaveAlbum={handleSaveAlbum}

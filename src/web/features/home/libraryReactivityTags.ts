@@ -8,7 +8,8 @@
  * `playlist.radio.create`, …) publish the matching tag so the shelves
  * refresh in step with their legacy React Query invalidations
  * (`utils.library.albums.invalidate()`, `utils.library.hotAlbums.invalidate()`,
- * `utils.playlist.list.invalidate()`).
+ * `utils.playlist.list.invalidate()`,
+ * `utils.library.resolveAlbumStates.invalidate()`).
  */
 
 /** Refresh tag for any `library.albums.list` variant (all placements). */
@@ -19,3 +20,13 @@ export const LIBRARY_HOT_ALBUMS_TAG = "library.hotAlbums" as const;
 
 /** Refresh tag for the `playlist.list` query. */
 export const PLAYLIST_LIST_TAG = "playlist.list" as const;
+
+/**
+ * Refresh tag for the `library.albumStates.resolve` query. The search page
+ * and source album detail bind their state queries to this tag so a
+ * `library.album.save` mutation (or any mutation that changes the
+ * source-id -> library-album mapping) refreshes the badge/placement
+ * indicators in step with the legacy `utils.library.resolveAlbumStates`
+ * invalidation.
+ */
+export const LIBRARY_ALBUM_STATES_TAG = "library.albumStates" as const;

@@ -32,6 +32,7 @@ export const SearchTrackSchema = Schema.Struct({
 	artworkUrl: Schema.optionalKey(Schema.String),
 	capabilities: TrackCapabilitiesSchema,
 });
+export type ApiSearchTrack = Schema.Schema.Type<typeof SearchTrackSchema>;
 
 export const SearchAlbumSchema = Schema.Struct({
 	id: Schema.String,
@@ -54,6 +55,7 @@ export const SearchAlbumSchema = Schema.Struct({
 		]),
 	),
 });
+export type ApiSearchAlbum = Schema.Schema.Type<typeof SearchAlbumSchema>;
 
 /**
  * Pandora-specific search result entries (artists, genre stations). The

@@ -134,22 +134,18 @@ const webConsumerInventory: readonly WebConsumerInventoryEntry[] = [
 	//   utils.library.albums / utils.library.hotAlbums / utils.playlist.list
 	//   invalidations did.
 
-	consumer(
-		"src/web/features/search/search-page.tsx",
-		[
-			"trpc:import",
-			"trpc.search.unified.useQuery",
-			"trpc.library.resolveAlbumStates.useQuery",
-			"trpc.radio.create.useMutation",
-			"trpc.library.saveAlbum.useMutation",
-			"trpc.playlist.createRadio.useMutation",
-			"trpc.useUtils",
-		],
-		[
-			"radio.create -> radio.list; library.saveAlbum -> library albums/hot/states; playlist.createRadio -> playlist.list",
-		],
-		"SearchState atoms and command refresh tags",
-	),
+	// Migrated to Effect atoms in U6 -- entry intentionally omitted.
+	// src/web/features/search/search-page.tsx -> search.unified query atom +
+	//   library.albumStates.resolve query atom (subscribed to
+	//   LIBRARY_ALBUM_STATES_TAG) + SearchState ADT. Mutations:
+	//   radio.station.create publishes RADIO_STATIONS_TAG (mirrors
+	//   utils.radio.list.invalidate); library.album.save publishes
+	//   LIBRARY_ALBUMS_TAG + LIBRARY_HOT_ALBUMS_TAG + LIBRARY_ALBUM_STATES_TAG
+	//   (mirrors utils.library.albums/hotAlbums/resolveAlbumStates invalidations);
+	//   playlist.radio.create publishes PLAYLIST_LIST_TAG (mirrors
+	//   utils.playlist.list.invalidate). The play-album action uses
+	//   album.withTracks.get as an imperative mutation-atom fetch, matching
+	//   the station-detail "fetch then play" pattern.
 	consumer(
 		"src/web/features/album-detail/library-album-detail-root.tsx",
 		[

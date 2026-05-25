@@ -63,6 +63,19 @@ export const LibraryAlbumStateSchema = Schema.Struct({
 	sourceId: Schema.String,
 	albumId: Schema.optionalKey(Schema.String),
 	placement: Schema.optionalKey(AlbumPlacementSchema),
+	/**
+	 * Hot-shelf signal mirrored from the resolved album. Optional because
+	 * states for sources without a library album row carry only `sourceId`.
+	 * Preserved on the wire so the search results badge and source album
+	 * detail header keep matching the legacy tRPC behavior after the U6
+	 * Effect RPC cutover.
+	 */
+	isHot: Schema.optionalKey(Schema.Boolean),
+	/**
+	 * Hot-shelf rank, present when {@link isHot} is `true`. Optional and
+	 * nullable for the same reason {@link isHot} is optional.
+	 */
+	hotRank: Schema.optionalKey(Schema.Union([Schema.Number, Schema.Null])),
 });
 export type ApiLibraryAlbumState = Schema.Schema.Type<
 	typeof LibraryAlbumStateSchema
