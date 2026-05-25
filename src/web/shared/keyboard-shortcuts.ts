@@ -4,12 +4,17 @@
  * Manages playback controls, navigation, and UI toggles via keyboard.
  */
 
-import { useEffect, useCallback, useRef } from "react";
+import { useAtomSet } from "@effect/atom-react";
 import { useNavigate } from "@tanstack/react-router";
+import { useCallback, useEffect, useRef } from "react";
 import { toast } from "sonner";
+import {
+	libraryBookmarkAddMutationAtom,
+	trackFeedbackAddMutationAtom,
+	trackSleepSetMutationAtom,
+} from "./commands/trackCommandAtoms";
 import { matchShortcut } from "./lib/shortcuts";
 import { usePlaybackContext } from "./playback/playback-context";
-import { trpc } from "./lib/trpc";
 
 /**
  * Handler callbacks for keyboard shortcut actions.
@@ -36,37 +41,23 @@ type KeyboardShortcutHandlers = {
  * });
  * ```
  */
-export function useKeyboardShortcuts({ onCommandPalette, onToggleHelp }: KeyboardShortcutHandlers) {
+export function useKeyboardShortcuts({
+	onCommandPalette,
+	onToggleHelp,
+}: KeyboardShortcutHandlers) {
 	const navigate = useNavigate();
 	const playback = usePlaybackContext();
 	const handlersRef = useRef({ onCommandPalette, onToggleHelp });
 	handlersRef.current = { onCommandPalette, onToggleHelp };
 
-	const feedbackMutation = trpc.track.feedback.useMutation({
-		onSuccess(_data, variables) {
-			toast.success(variables.positive ? "Track liked" : "Track disliked");
-		},
-		onError(err) {
-			toast.error(`Feedback failed: ${err.message}`);
-		},
+	const submitFeedback = useAtomSet(trackFeedbackAddMutationAtom, {
+		mode: "promiseExit",
 	});
-
-	const sleepMutation = trpc.track.sleep.useMutation({
-		onSuccess() {
-			toast.success("Track will be skipped for 30 days");
-		},
-		onError(err) {
-			toast.error(`Sleep failed: ${err.message}`);
-		},
+	const submitSleep = useAtomSet(trackSleepSetMutationAtom, {
+		mode: "promiseExit",
 	});
-
-	const bookmarkSongMutation = trpc.library.addBookmark.useMutation({
-		onSuccess() {
-			toast.success("Song bookmarked");
-		},
-		onError(err) {
-			toast.error(`Bookmark failed: ${err.message}`);
-		},
+	const submitBookmark = useAtomSet(libraryBookmarkAddMutationAtom, {
+		mode: "promiseExit",
 	});
 
 	const handleKeyDown = useCallback(
@@ -97,20 +88,30 @@ export function useKeyboardShortcuts({ onCommandPalette, onToggleHelp }: Keyboar
 				case "likeTrack":
 					e.preventDefault();
 					if (playback.currentTrack && playback.currentStationToken) {
-						feedbackMutation.mutate({
-							id: playback.currentTrack.trackToken,
-							radioId: playback.currentStationToken,
-							positive: true,
+						void submitFeedback({
+							payload: {
+								id: playback.currentTrack.trackToken,
+								radioId: playback.currentStationToken,
+								positive: true,
+							},
+						}).then((exit) => {
+							if (exit._tag === "Success") toast.success("Track liked");
+							else toast.error("Feedback failed");
 						});
 					}
 					break;
 				case "dislikeTrack":
 					e.preventDefault();
 					if (playback.currentTrack && playback.currentStationToken) {
-						feedbackMutation.mutate({
-							id: playback.currentTrack.trackToken,
-							radioId: playback.currentStationToken,
-							positive: false,
+						void submitFeedback({
+							payload: {
+								id: playback.currentTrack.trackToken,
+								radioId: playback.currentStationToken,
+								positive: false,
+							},
+						}).then((exit) => {
+							if (exit._tag === "Success") toast.success("Track disliked");
+							else toast.error("Feedback failed");
 						});
 						playback.triggerSkip();
 					}
@@ -118,7 +119,13 @@ export function useKeyboardShortcuts({ onCommandPalette, onToggleHelp }: Keyboar
 				case "sleepTrack":
 					e.preventDefault();
 					if (playback.currentTrack) {
-						sleepMutation.mutate({ id: playback.currentTrack.trackToken });
+						void submitSleep({
+							payload: { id: playback.currentTrack.trackToken },
+						}).then((exit) => {
+							if (exit._tag === "Success")
+								toast.success("Track will be skipped for 30 days");
+							else toast.error("Sleep failed");
+						});
 						playback.triggerSkip();
 					}
 					break;
@@ -128,7 +135,15 @@ export function useKeyboardShortcuts({ onCommandPalette, onToggleHelp }: Keyboar
 				case "bookmarkSong":
 					e.preventDefault();
 					if (playback.currentTrack) {
-						bookmarkSongMutation.mutate({ id: playback.currentTrack.trackToken, type: "song" });
+						void submitBookmark({
+							payload: {
+								id: playback.currentTrack.trackToken,
+								type: "song",
+							},
+						}).then((exit) => {
+							if (exit._tag === "Success") toast.success("Song bookmarked");
+							else toast.error("Bookmark failed");
+						});
 					}
 					break;
 				case "bookmarkArtist":
@@ -164,7 +179,7 @@ export function useKeyboardShortcuts({ onCommandPalette, onToggleHelp }: Keyboar
 					break;
 			}
 		},
-		[playback, navigate, feedbackMutation, sleepMutation, bookmarkSongMutation],
+		[playback, navigate, submitFeedback, submitSleep, submitBookmark],
 	);
 
 	useEffect(() => {

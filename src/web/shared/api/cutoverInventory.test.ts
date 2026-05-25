@@ -88,30 +88,20 @@ const webConsumerInventory: readonly WebConsumerInventoryEntry[] = [
 		],
 		"NowPlayingBarState atom and command atoms",
 	),
-	consumer(
-		"src/web/shared/layout/command-palette.tsx",
-		[
-			"trpc:import",
-			"trpc.track.feedback.useMutation",
-			"trpc.track.sleep.useMutation",
-			"trpc.library.addBookmark.useMutation",
-		],
-		["Command side effects currently do not invalidate React Query caches"],
-		"CommandPaletteState command atoms",
-	),
-	consumer(
-		"src/web/shared/keyboard-shortcuts.ts",
-		[
-			"trpc:import",
-			"trpc.track.feedback.useMutation",
-			"trpc.track.sleep.useMutation",
-			"trpc.library.addBookmark.useMutation",
-		],
-		[
-			"Keyboard command side effects currently do not invalidate React Query caches",
-		],
-		"Playback command atoms shared by keyboard shortcuts",
-	),
+	// Migrated to Effect atoms in U6 -- entries intentionally omitted.
+	// src/web/shared/layout/command-palette.tsx ->
+	//   trackFeedbackAddMutationAtom + trackSleepSetMutationAtom +
+	//   libraryBookmarkAddMutationAtom (from
+	//   src/web/shared/commands/trackCommandAtoms.ts), invoked via
+	//   useAtomSet({ mode: "promiseExit" }) so the palette still toasts on
+	//   success without touching React Query. The three commands do not
+	//   publish reactivity tags because the legacy tRPC consumers did not
+	//   invalidate any caches either.
+	// src/web/shared/keyboard-shortcuts.ts ->
+	//   same shared track command atoms as the command palette
+	//   (trackCommandAtoms.ts), invoked via useAtomSet({ mode: "promiseExit" })
+	//   so the global keyboard shortcuts emit the same success/failure
+	//   toasts as before without going through React Query.
 	// Migrated to Effect atoms in U6 -- entries intentionally omitted.
 	// src/web/shared/layout/sidebar.tsx -> authStatusQueryAtom + AuthStatusState
 	// src/web/shared/layout/mobile-nav.tsx -> authStatusQueryAtom + AuthStatusState
