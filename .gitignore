@@ -15,3 +15,8 @@ result
 dist-web
 .tmp/images/1770007391114
 .orchestra
+
+# Android build output and local SDK state
+android/.gradle/
+android/**/build/
+android/local.properties

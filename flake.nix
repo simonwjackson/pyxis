@@ -80,7 +80,48 @@
       pkgs = import nixpkgs {
         inherit system;
         overlays = [yt-dlp-overlay];
+        config = {
+          android_sdk.accept_license = true;
+          allowUnfree = true;
+        };
       };
+      androidShell =
+        if pkgs.stdenv.isLinux
+        then let
+          androidComposition = pkgs.androidenv.composeAndroidPackages {
+            buildToolsVersions = ["34.0.0"];
+            platformVersions = ["31" "34"];
+            abiVersions = ["arm64-v8a" "x86_64"];
+            includeEmulator = false;
+            includeSystemImages = false;
+            includeNDK = false;
+          };
+          androidSdk = androidComposition.androidsdk;
+        in
+          pkgs.mkShell {
+            packages = [
+              androidSdk
+              pkgs.jdk17
+              pkgs.gradle
+            ];
+
+            ANDROID_HOME = "${androidSdk}/libexec/android-sdk";
+            ANDROID_SDK_ROOT = "${androidSdk}/libexec/android-sdk";
+            JAVA_HOME = "${pkgs.jdk17}";
+            GRADLE_OPTS = "-Dorg.gradle.project.android.aapt2FromMavenOverride=${androidSdk}/libexec/android-sdk/build-tools/34.0.0/aapt2";
+
+            shellHook = ''
+              export PATH="${androidSdk}/libexec/android-sdk/platform-tools:$PATH"
+              echo "Android development environment ready for Pyxis kiosk"
+            '';
+          }
+        else
+          pkgs.mkShell {
+            packages = [pkgs.jdk17 pkgs.gradle];
+            shellHook = ''
+              echo "Android connected-device builds are supported from the Linux dev shell."
+            '';
+          };
     in {
       default = pkgs.mkShell {
         packages = [
@@ -92,6 +133,8 @@
           bun2nix.packages.${system}.default
         ];
       };
+
+      android = androidShell;
     });
 
     homeManagerModules.default = ./nix/modules/home-manager.nix;

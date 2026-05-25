@@ -31,3 +31,15 @@ typecheck:
 # Dev mode (Vite embedded in Bun server)
 dev:
     bun run dev
+
+# Build the Sony Android debug APK
+android-build:
+    nix develop .#android --command bash -lc 'cd android && ./gradlew assembleDebug'
+
+# Run Android JVM unit tests
+android-test:
+    nix develop .#android --command bash -lc 'cd android && ./gradlew testDebugUnitTest'
+
+# Install the Sony Android debug APK on a connected device
+android-install:
+    nix develop .#android --command adb install -r -t android/app/build/outputs/apk/debug/app-debug.apk
