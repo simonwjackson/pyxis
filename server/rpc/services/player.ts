@@ -5,9 +5,10 @@
  * web RPC, Android media bridge, and listen-log side effects continue to
  * observe one player state owner.
  *
- * The U3 surface intentionally exposes a callback-style `subscribe` rather
- * than an Effect Stream; the streaming RPC contract is built on top of this
- * subscribe in U5 once the player handler is migrated.
+ * U5 threads `appliesToTrackId` through the report/ended methods so the
+ * underlying singleton can drop stale client reports without leaking that
+ * concern into RPC handlers. The streaming RPC contract is built on top of
+ * `subscribe` in `server/rpc/handlers/player.ts`.
  */
 
 import { Context, Effect, Layer } from "effect";
@@ -38,10 +39,42 @@ export type PlayerShape = {
 	readonly jumpTo: (index: number) => Effect.Effect<PlayerState>;
 	readonly seek: (position: number) => Effect.Effect<PlayerState>;
 	readonly setVolume: (level: number) => Effect.Effect<PlayerState>;
-	readonly setDuration: (duration: number) => Effect.Effect<PlayerState>;
-	readonly reportProgress: (progress: number) => Effect.Effect<void>;
-	readonly reportAudioError: (message: string) => Effect.Effect<void>;
-	readonly trackEnded: Effect.Effect<PlayerState>;
+	/**
+	 * Apply a client-reported duration. `appliesToTrackId` lets the singleton
+	 * drop stale reports from a previous track without emitting subscriber
+	 * updates. Resolves with the resulting player state.
+	 */
+	readonly setDuration: (
+		duration: number,
+		appliesToTrackId?: string,
+	) => Effect.Effect<PlayerState>;
+	/**
+	 * Apply a client-reported progress sample. Silent on success (no
+	 * subscriber notification). `appliesToTrackId` lets the singleton drop
+	 * stale samples from a previous track. Resolves with `true` when applied
+	 * and `false` when dropped as stale.
+	 */
+	readonly reportProgress: (
+		progress: number,
+		appliesToTrackId?: string,
+	) => Effect.Effect<boolean>;
+	/**
+	 * Capture a client-side audio error. `appliesToTrackId` drops reports
+	 * about previous tracks. Resolves with the resulting player state.
+	 */
+	readonly reportAudioError: (
+		message: string,
+		appliesToTrackId?: string,
+	) => Effect.Effect<PlayerState>;
+	/**
+	 * Track-ended report. `appliesToTrackId` drops late reports for previous
+	 * tracks so they cannot advance the queue twice. Resolves with the
+	 * resulting player state regardless of whether the queue advanced,
+	 * stopped, or the report was dropped as stale.
+	 */
+	readonly trackEnded: (
+		appliesToTrackId?: string,
+	) => Effect.Effect<PlayerState>;
 	readonly subscribe: (
 		listener: PlayerStateListener,
 	) => Effect.Effect<() => void>;
@@ -68,10 +101,19 @@ export type PlayerBehavior = {
 	readonly jumpTo: (index: number) => void;
 	readonly seek: (position: number) => void;
 	readonly setVolume: (level: number) => void;
-	readonly setDuration: (duration: number) => void;
-	readonly reportProgress: (progress: number) => void;
-	readonly reportAudioError: (message: string) => void;
-	readonly trackEnded: () => void;
+	readonly setDuration: (
+		duration: number,
+		appliesToTrackId?: string,
+	) => boolean;
+	readonly reportProgress: (
+		progress: number,
+		appliesToTrackId?: string,
+	) => boolean;
+	readonly reportAudioError: (
+		message: string,
+		appliesToTrackId?: string,
+	) => boolean;
+	readonly trackEnded: (appliesToTrackId?: string) => void;
 	readonly subscribe: (listener: PlayerStateListener) => () => void;
 };
 
@@ -94,13 +136,18 @@ function makeShape(behavior: PlayerBehavior): PlayerShape {
 		jumpTo: (index) => afterCommand(() => behavior.jumpTo(index)),
 		seek: (position) => afterCommand(() => behavior.seek(position)),
 		setVolume: (level) => afterCommand(() => behavior.setVolume(level)),
-		setDuration: (duration) =>
-			afterCommand(() => behavior.setDuration(duration)),
-		reportProgress: (progress) =>
-			Effect.sync(() => behavior.reportProgress(progress)),
-		reportAudioError: (message) =>
-			Effect.sync(() => behavior.reportAudioError(message)),
-		trackEnded: afterCommand(() => behavior.trackEnded()),
+		setDuration: (duration, appliesToTrackId) =>
+			afterCommand(() => {
+				behavior.setDuration(duration, appliesToTrackId);
+			}),
+		reportProgress: (progress, appliesToTrackId) =>
+			Effect.sync(() => behavior.reportProgress(progress, appliesToTrackId)),
+		reportAudioError: (message, appliesToTrackId) =>
+			afterCommand(() => {
+				behavior.reportAudioError(message, appliesToTrackId);
+			}),
+		trackEnded: (appliesToTrackId) =>
+			afterCommand(() => behavior.trackEnded(appliesToTrackId)),
 		subscribe: (listener) => Effect.sync(() => behavior.subscribe(listener)),
 	};
 }
@@ -136,11 +183,14 @@ export const PlayerLayerLive: Layer.Layer<Player> = Layer.sync(Player)(() =>
 		},
 		seek: (position) => PlayerSingleton.seek(position),
 		setVolume: (level) => PlayerSingleton.setVolume(level),
-		setDuration: (duration) => PlayerSingleton.setDuration(duration),
-		reportProgress: (progress) => PlayerSingleton.reportProgress(progress),
-		reportAudioError: (message) => PlayerSingleton.reportAudioError(message),
-		trackEnded: () => {
-			PlayerSingleton.trackEnded();
+		setDuration: (duration, appliesToTrackId) =>
+			PlayerSingleton.setDuration(duration, appliesToTrackId),
+		reportProgress: (progress, appliesToTrackId) =>
+			PlayerSingleton.reportProgress(progress, appliesToTrackId),
+		reportAudioError: (message, appliesToTrackId) =>
+			PlayerSingleton.reportAudioError(message, appliesToTrackId),
+		trackEnded: (appliesToTrackId) => {
+			PlayerSingleton.trackEnded(appliesToTrackId);
 		},
 		subscribe: (listener) => PlayerSingleton.subscribe(listener),
 	}),

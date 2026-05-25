@@ -383,6 +383,75 @@ describe("subscribe", () => {
 	});
 });
 
+describe("stale appliesToTrackId guards", () => {
+	beforeEach(() => {
+		stop();
+	});
+
+	it("drops progress reports addressed to a previous track", () => {
+		play([createTrack("1"), createTrack("2")], { type: "manual" });
+		skip(); // current is now id=2
+		pause();
+		const before = getState().progress;
+
+		const applied = reportProgress(120, "1");
+
+		expect(applied).toBe(false);
+		expect(getState().progress).toBe(before);
+		expect(getState().currentTrack?.id).toBe("2");
+	});
+
+	it("drops duration reports addressed to a previous track without notifying", () => {
+		play([createTrack("1"), createTrack("2")], { type: "manual" });
+		skip();
+		const durations: number[] = [];
+		const unsubscribe = subscribe((s) => durations.push(s.duration));
+		try {
+			const applied = setDuration(999, "1");
+
+			expect(applied).toBe(false);
+			expect(durations).toEqual([]);
+			expect(getState().duration).not.toBe(999);
+		} finally {
+			unsubscribe();
+		}
+	});
+
+	it("drops audio error reports addressed to a previous track", () => {
+		play([createTrack("1"), createTrack("2")], { type: "manual" });
+		skip();
+		setDuration(60); // marks audio observed on current track "2"
+
+		const applied = reportAudioError("stale error", "1");
+
+		expect(applied).toBe(false);
+		expect(getAudioRealization().failed).toBe(false);
+	});
+
+	it("drops trackEnded reports addressed to a previous track", () => {
+		play([createTrack("1"), createTrack("2"), createTrack("3")], {
+			type: "manual",
+		});
+		skip(); // current = 2
+		const before = getState().currentTrack?.id;
+
+		const next = trackEnded("1");
+
+		expect(next).toBeUndefined();
+		expect(getState().currentTrack?.id).toBe(before);
+	});
+
+	it("applies reports whose appliesToTrackId matches the current track", () => {
+		play([createTrack("1"), createTrack("2")], { type: "manual" });
+		pause();
+
+		const applied = reportProgress(50, "1");
+
+		expect(applied).toBe(true);
+		expect(getState().progress).toBe(50);
+	});
+});
+
 describe("cutover characterization", () => {
 	beforeEach(() => {
 		stop();

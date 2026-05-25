@@ -5,11 +5,11 @@
  * State changes are broadcast to subscribers and persisted to the database.
  */
 
-import * as Queue from "./queue.js";
-import { schedulePlayerSave, loadPlayerState } from "./persistence.js";
-import { createLogger } from "../../src/logger.js";
 import { getDb } from "../../src/db/index.js";
+import { createLogger } from "../../src/logger.js";
 import { generateId } from "../lib/ids.js";
+import { loadPlayerState, schedulePlayerSave } from "./persistence.js";
+import * as Queue from "./queue.js";
 
 const log = createLogger("playback").child({ component: "player" });
 
@@ -69,7 +69,11 @@ export type AudioRealizationState = {
 };
 
 export function getAudioRealization(): AudioRealizationState {
-	return { observedAt: audioObservedAt, failed: audioFailed, error: audioError };
+	return {
+		observedAt: audioObservedAt,
+		failed: audioFailed,
+		error: audioError,
+	};
 }
 
 function resetAudioRealization(): void {
@@ -88,7 +92,15 @@ function notify(): void {
 	const state = getState();
 	const trackId = state.currentTrack?.id ?? "none";
 	const nextId = state.nextTrack?.id ?? "none";
-	log.info({ status: state.status, track: trackId, next: nextId, listeners: listeners.size }, "notify");
+	log.info(
+		{
+			status: state.status,
+			track: trackId,
+			next: nextId,
+			listeners: listeners.size,
+		},
+		"notify",
+	);
 	schedulePlayerSave({
 		status: state.status,
 		progress: state.progress,
@@ -177,7 +189,10 @@ function maybeLogListen(): void {
 					"listen logged",
 				);
 			} catch (err) {
-				log.error({ err, track: listenEntry.compositeId }, "failed to log listen");
+				log.error(
+					{ err, track: listenEntry.compositeId },
+					"failed to log listen",
+				);
 				throw err;
 			}
 		});
@@ -226,8 +241,15 @@ export function subscribe(listener: PlayerListener): () => void {
  * play();
  * ```
  */
-export function play(tracks?: readonly Queue.QueueTrack[], context?: Queue.QueueContext, startIndex?: number): void {
-	log.info({ tracks: tracks?.length ?? "none", startIndex: startIndex ?? "none" }, "play() called");
+export function play(
+	tracks?: readonly Queue.QueueTrack[],
+	context?: Queue.QueueContext,
+	startIndex?: number,
+): void {
+	log.info(
+		{ tracks: tracks?.length ?? "none", startIndex: startIndex ?? "none" },
+		"play() called",
+	);
 	if (tracks && context) {
 		maybeLogListen();
 		Queue.setQueue(tracks, context, startIndex);
@@ -299,7 +321,13 @@ export function stop(): void {
  * @returns The new current track, or undefined if the queue ended
  */
 export function skip(): Queue.QueueTrack | undefined {
-	log.info({ currentIndex: Queue.getState().currentIndex, queueLen: Queue.getState().items.length }, "skip() called");
+	log.info(
+		{
+			currentIndex: Queue.getState().currentIndex,
+			queueLen: Queue.getState().items.length,
+		},
+		"skip() called",
+	);
 	maybeLogListen();
 	const nextTrack = Queue.next();
 	if (!nextTrack) {
@@ -328,7 +356,10 @@ export function skip(): Queue.QueueTrack | undefined {
  * @returns The new current track, or undefined if at queue start
  */
 export function previousTrack(): Queue.QueueTrack | undefined {
-	log.info({ currentIndex: Queue.getState().currentIndex }, "previous() called");
+	log.info(
+		{ currentIndex: Queue.getState().currentIndex },
+		"previous() called",
+	);
 	maybeLogListen();
 	const prev = Queue.previous();
 	if (!prev) return undefined;
@@ -357,7 +388,10 @@ export function previousTrack(): Queue.QueueTrack | undefined {
  * ```
  */
 export function jumpToIndex(index: number): Queue.QueueTrack | undefined {
-	log.info({ index, currentIndex: Queue.getState().currentIndex }, "jumpTo() called");
+	log.info(
+		{ index, currentIndex: Queue.getState().currentIndex },
+		"jumpTo() called",
+	);
 	maybeLogListen();
 	const track = Queue.jumpTo(index);
 	if (!track) return undefined;
@@ -395,16 +429,41 @@ export function setVolume(level: number): void {
 }
 
 /**
+ * Returns true when an `appliesToTrackId` report does not target the
+ * currently playing track. Stale reports from a previous track (skip races,
+ * double-clicks, late client deliveries) must be dropped so they do not
+ * overwrite progress, duration, audio realization, or advance the queue.
+ */
+function isStaleReport(appliesToTrackId: string | undefined): boolean {
+	if (appliesToTrackId === undefined) return false;
+	const current = Queue.currentTrack();
+	if (!current) return true;
+	return current.id !== appliesToTrackId;
+}
+
+/**
  * Sets the duration of the current track.
  * Called by the client when actual track duration becomes known.
  *
  * @param d - Track duration in seconds
+ * @param appliesToTrackId - Optional opaque track id the report belongs to.
+ *   Reports targeting a different current track are dropped silently.
+ * @returns `true` when the report was applied, `false` when it was dropped
+ *   as stale.
  */
-export function setDuration(d: number): void {
+export function setDuration(d: number, appliesToTrackId?: string): boolean {
+	if (isStaleReport(appliesToTrackId)) {
+		log.debug(
+			{ appliesToTrackId, current: Queue.currentTrack()?.id ?? "none" },
+			"stale duration report ignored",
+		);
+		return false;
+	}
 	duration = d;
 	markAudioObserved();
 	updatedAt = Date.now();
 	notify();
+	return true;
 }
 
 /**
@@ -412,29 +471,65 @@ export function setDuration(d: number): void {
  * Used by clients to periodically sync their playback position with the server.
  *
  * @param p - Current playback position in seconds as reported by the client
+ * @param appliesToTrackId - Optional opaque track id the report belongs to.
+ *   Reports targeting a different current track are dropped silently.
+ * @returns `true` when the report was applied, `false` when it was dropped
+ *   as stale.
  */
-export function reportProgress(p: number): void {
+export function reportProgress(p: number, appliesToTrackId?: string): boolean {
+	if (isStaleReport(appliesToTrackId)) {
+		log.debug(
+			{ appliesToTrackId, current: Queue.currentTrack()?.id ?? "none" },
+			"stale progress report ignored",
+		);
+		return false;
+	}
 	progress = p;
 	markAudioObserved();
 	updatedAt = Date.now();
 	// No notify — this is a silent update from client to keep server in sync
+	return true;
 }
 
-export function reportAudioError(message: string): void {
+export function reportAudioError(
+	message: string,
+	appliesToTrackId?: string,
+): boolean {
+	if (isStaleReport(appliesToTrackId)) {
+		log.debug(
+			{ appliesToTrackId, current: Queue.currentTrack()?.id ?? "none" },
+			"stale audio error report ignored",
+		);
+		return false;
+	}
 	audioFailed = true;
 	audioError = message.slice(0, 500);
 	audioObservedAt = null;
 	updatedAt = Date.now();
 	notify();
+	return true;
 }
 
 /**
  * Called when a track naturally ends on the client.
- * Advances to the next track or stops if the queue is exhausted.
+ * Advances to the next track or stops if the queue is exhausted. A stale
+ * `appliesToTrackId` (the client reported the previous track ending after
+ * the queue advanced) is dropped without advancing the queue.
  *
- * @returns The next track that started playing, or undefined if playback stopped
+ * @param appliesToTrackId - Optional opaque track id the ended report targets.
+ * @returns The next track that started playing, or undefined if playback
+ *   stopped, the queue ended, or the report was dropped as stale.
  */
-export function trackEnded(): Queue.QueueTrack | undefined {
+export function trackEnded(
+	appliesToTrackId?: string,
+): Queue.QueueTrack | undefined {
+	if (isStaleReport(appliesToTrackId)) {
+		log.debug(
+			{ appliesToTrackId, current: Queue.currentTrack()?.id ?? "none" },
+			"stale trackEnded ignored",
+		);
+		return undefined;
+	}
 	return skip();
 }
 

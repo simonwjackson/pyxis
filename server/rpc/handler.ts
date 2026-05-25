@@ -4,11 +4,10 @@
  * and exposes a layer suitable for the production RPC server (U7) and the
  * in-memory test client (`RpcTest.makeClient`).
  *
- * Player and queue handlers (including the realtime streaming RPCs) land in
- * U5. To keep this layer typecheckable while U5 is still in flight, the U4
- * layer is built against {@link NonRealtimeRpc} — the application RPC group
- * with all `player.*` and `queue.*` tags omitted. U5 will replace
- * {@link NonRealtimeRpc} / {@link PyxisRpcLayerLive} with the full layer.
+ * U5 adds the realtime player/queue handlers (including streaming RPCs) so
+ * the production layer now covers every tag in {@link PyxisRpc}. The
+ * {@link NonRealtimeRpc} alias is retained for the existing handler-level
+ * tests that only exercise the non-realtime endpoint families.
  */
 
 import { Effect, Layer } from "effect";
@@ -26,12 +25,16 @@ import { authHandlers } from "./handlers/auth.js";
 import { libraryHandlers } from "./handlers/library.js";
 import { listenLogHandlers } from "./handlers/listenLog.js";
 import { logHandlers } from "./handlers/log.js";
+import { playerHandlers } from "./handlers/player.js";
 import { playlistHandlers } from "./handlers/playlist.js";
+import { queueHandlers } from "./handlers/queue.js";
 import { radioHandlers } from "./handlers/radio.js";
 import { searchHandlers } from "./handlers/search.js";
 import { trackHandlers } from "./handlers/track.js";
 import { AuthSession, AuthSessionLayerLive } from "./services/authSession.js";
 import { Library, LibraryLayerLive } from "./services/library.js";
+import { Player, PlayerLayerLive } from "./services/player.js";
+import { Queue, QueueLayerLive } from "./services/queue.js";
 import {
 	SourceCatalog,
 	SourceCatalogLayerLive,
@@ -40,7 +43,12 @@ import { mapUnknownError } from "./sourceErrorMap.js";
 
 const log = createLogger("server").child({ component: "rpc.handler" });
 
-/** RPC tags landing in U5 (player + queue, including streams). */
+/**
+ * RPC tags owned by the realtime player + queue handler families (added
+ * in U5). They remain exported so the non-realtime test surface
+ * ({@link NonRealtimeRpc}) and any later tagging logic can reference the
+ * canonical list of realtime tags in one place.
+ */
 export const REALTIME_RPC_TAGS = [
 	"player.state.get",
 	"player.play",
@@ -67,9 +75,10 @@ export const REALTIME_RPC_TAGS = [
 ] as const;
 
 /**
- * Application RPC group restricted to U4's non-realtime endpoint families.
- * U5 will swap callers to {@link PyxisRpc} directly once player/queue
- * handlers land.
+ * Application RPC group restricted to the non-realtime endpoint families.
+ * The non-realtime handler test (`handler.test.ts`) builds a layer against
+ * this projection so it can keep using `RpcTest.makeClient` without wiring
+ * the realtime player/queue services.
  */
 export const NonRealtimeRpc = PyxisRpc.omit(...REALTIME_RPC_TAGS);
 
@@ -155,12 +164,44 @@ export const NonRealtimeHandlersLayer = NonRealtimeRpc.toLayer(
 );
 
 /**
- * Production layer composition for the non-realtime handler set. Provides
- * all the service contracts the handlers depend on. U5 / U7 extend this
- * with the player + queue services and mount it on the HTTP route.
+ * Build the handler layer for the full {@link PyxisRpc} group. Includes the
+ * realtime player + queue handlers added in U5 alongside the non-realtime
+ * families wired through {@link NonRealtimeHandlersLayer}.
  */
-export const PyxisRpcLayerLive = NonRealtimeHandlersLayer.pipe(
+export const HandlersLayer = PyxisRpc.toLayer(
+	Effect.gen(function* () {
+		const auth = yield* AuthSession;
+		const library = yield* Library;
+		const catalog = yield* SourceCatalog;
+		const player = yield* Player;
+		const queue = yield* Queue;
+		const handlers = {
+			...authHandlers({ auth }),
+			...libraryHandlers({ auth, library, catalog }),
+			...albumHandlers({ catalog }),
+			...artistHandlers({ catalog }),
+			...searchHandlers({ auth, catalog }),
+			...radioHandlers({ auth }),
+			...playlistHandlers({ auth, catalog }),
+			...trackHandlers({ auth }),
+			...listenLogHandlers(),
+			...logHandlers(),
+			...playerHandlers({ player, queue }),
+			...queueHandlers({ queue }),
+		};
+		return handlers as never;
+	}),
+);
+
+/**
+ * Production layer composition for the full handler set. Provides every
+ * service contract the handlers depend on. U7 mounts this on the HTTP
+ * route as the application's only RPC runtime.
+ */
+export const PyxisRpcLayerLive = HandlersLayer.pipe(
 	Layer.provide(AuthSessionLayerLive),
 	Layer.provide(LibraryLayerLive),
 	Layer.provide(SourceCatalogLayerLive),
+	Layer.provide(PlayerLayerLive),
+	Layer.provide(QueueLayerLive),
 );
