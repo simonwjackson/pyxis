@@ -50,30 +50,12 @@ const webConsumerInventory: readonly WebConsumerInventoryEntry[] = [
 		],
 		"src/web/shared/api/rpcClient.ts",
 	),
-	consumer(
-		"src/web/shared/playback/use-playback.ts",
-		[
-			"trpc:import",
-			"trpc.player.reportProgress.useMutation",
-			"trpc.player.reportDuration.useMutation",
-			"trpc.player.reportAudioError.useMutation",
-			"trpc.player.trackEnded.useMutation",
-			"trpc.log.client.useMutation",
-			"trpc.player.pause.useMutation",
-			"trpc.player.resume.useMutation",
-			"trpc.player.seek.useMutation",
-			"trpc.player.skip.useMutation",
-			"trpc.player.previous.useMutation",
-			"trpc.player.stop.useMutation",
-			"trpc.player.play.useMutation",
-			"trpc.player.jumpTo.useMutation",
-			"manual:/trpc",
-		],
-		[
-			"Manual EventSource(/trpc/player.onStateChange) is the playback realtime source; reportProgress is intentionally silent",
-		],
-		"src/web/shared/playback/PlaybackState atoms over player.state.stream and player commands",
-	),
+	// Migrated to Effect atoms in U6 -- entries intentionally omitted.
+	// src/web/shared/playback/use-playback.ts -> playerStateStreamAtom over
+	//   player.state.stream plus player command/report mutation atoms from
+	//   src/web/shared/playback/playerAtoms.ts. The hook still owns DOM Audio
+	//   lifecycle and local optimistic playback state; the wire boundary no
+	//   longer uses React Query or legacy subscriptions.
 	// Migrated to Effect atoms in U6 -- entries intentionally omitted.
 	// src/web/shared/layout/now-playing-bar.tsx ->
 	//   queueStateStreamAtom over queue.state.stream + NowPlayingBarState for

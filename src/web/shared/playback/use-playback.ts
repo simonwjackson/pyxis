@@ -4,8 +4,25 @@
  * Manages HTML Audio element and syncs state with server via SSE subscriptions.
  */
 
-import { useState, useRef, useCallback, useEffect } from "react";
-import { trpc } from "../lib/trpc";
+import { useAtomSet, useAtomValue } from "@effect/atom-react";
+import { AsyncResult } from "effect/unstable/reactivity";
+import { useCallback, useEffect, useRef, useState } from "react";
+import type { ApiPlayerState } from "../../../api/contracts/player.js";
+import {
+	clientLogWriteMutationAtom,
+	playerAudioErrorReportMutationAtom,
+	playerDurationReportMutationAtom,
+	playerPauseMutationAtom,
+	playerPlayMutationAtom,
+	playerPreviousMutationAtom,
+	playerProgressReportMutationAtom,
+	playerResumeMutationAtom,
+	playerSeekMutationAtom,
+	playerSkipMutationAtom,
+	playerStateStreamAtom,
+	playerStopMutationAtom,
+	playerTrackEndedMutationAtom,
+} from "./playerAtoms";
 import type {
 	PlaybackContextValue,
 	PlaybackQueueContext,
@@ -72,7 +89,9 @@ export function usePlayback(): PlaybackContextValue {
 	// Track the last stream URL to avoid reloading same track
 	const lastStreamUrlRef = useRef<string | null>(null);
 	const seekingRef = useRef(false);
-	const handleServerStateRef = useRef<(state: ServerState, source?: string) => void>(() => {});
+	const handleServerStateRef = useRef<
+		(state: ServerState, source?: string) => void
+	>(() => {});
 	// Track whether we've handled the first SSE state after page load.
 	// We only suppress autoplay for a newly loaded track during that first sync,
 	// not on later reconnects for the same session.
@@ -80,38 +99,31 @@ export function usePlayback(): PlaybackContextValue {
 	// Track the latest server progress for seek-on-resume
 	const serverProgressRef = useRef(0);
 
-	type ServerTrack = {
-		readonly id: string;
-		readonly title: string;
-		readonly artist: string;
-		readonly album: string;
-		readonly duration: number | null;
-		readonly artworkUrl: string | null;
-		readonly streamUrl: string;
-	};
+	type ServerState = ApiPlayerState;
 
-	type ServerState = {
-		readonly status: "playing" | "paused" | "stopped";
-		readonly currentTrack: ServerTrack | null;
-		readonly progress: number;
-		readonly duration: number;
-		readonly volume: number;
-		readonly updatedAt: number;
-	};
-
-	const reportProgress = trpc.player.reportProgress.useMutation();
-	const reportDuration = trpc.player.reportDuration.useMutation();
-	const reportAudioError = trpc.player.reportAudioError.useMutation();
-	const trackEndedMutation = trpc.player.trackEnded.useMutation();
-	const clientLog = trpc.log.client.useMutation();
+	const playerStateResult = useAtomValue(playerStateStreamAtom);
+	const reportProgress = useAtomSet(playerProgressReportMutationAtom, {
+		mode: "promiseExit",
+	});
+	const reportDuration = useAtomSet(playerDurationReportMutationAtom, {
+		mode: "promiseExit",
+	});
+	const reportAudioError = useAtomSet(playerAudioErrorReportMutationAtom, {
+		mode: "promiseExit",
+	});
+	const trackEnded = useAtomSet(playerTrackEndedMutationAtom, {
+		mode: "promiseExit",
+	});
+	const clientLogWrite = useAtomSet(clientLogWriteMutationAtom, {
+		mode: "promiseExit",
+	});
 
 	/** Fire-and-forget log to server playback.log */
 	const logToServer = useCallback(
 		(message: string) => {
-			clientLog.mutate({ message });
+			void clientLogWrite({ payload: { message } });
 		},
-		// eslint-disable-next-line react-hooks/exhaustive-deps
-		[],
+		[clientLogWrite],
 	);
 
 	// Initialize audio element once
@@ -126,22 +138,24 @@ export function usePlayback(): PlaybackContextValue {
 		};
 		const onDurationChange = () => {
 			setState((prev) => ({ ...prev, duration: audio.duration }));
-			reportDuration.mutate({ duration: audio.duration });
+			void reportDuration({ payload: { duration: audio.duration } });
 		};
 		const onEnded = () => {
 			logToServer("[audio] track ended, calling trackEnded mutation");
 			setState((prev) => ({ ...prev, isPlaying: false }));
-			trackEndedMutation.mutate(undefined, {
-				onSuccess(data) {
-					handleServerStateRef.current(data, "trackEnded-response");
-				},
+			void trackEnded({ payload: {} }).then((exit) => {
+				if (exit._tag === "Success") {
+					handleServerStateRef.current(exit.value, "trackEnded-response");
+				}
 			});
 		};
 		const onError = () => {
 			const mediaError = audio.error;
 			// MEDIA_ERR_ABORTED is expected during track transitions (src changed while loading)
 			if (mediaError?.code === MediaError.MEDIA_ERR_ABORTED) {
-				logToServer(`[audio] MEDIA_ERR_ABORTED silenced (transition expected) src=${audio.src}`);
+				logToServer(
+					`[audio] MEDIA_ERR_ABORTED silenced (transition expected) src=${audio.src}`,
+				);
 				return;
 			}
 			let message = "Audio playback failed";
@@ -150,15 +164,18 @@ export function usePlayback(): PlaybackContextValue {
 					[MediaError.MEDIA_ERR_ABORTED]: "Playback aborted",
 					[MediaError.MEDIA_ERR_NETWORK]: "Network error loading audio",
 					[MediaError.MEDIA_ERR_DECODE]: "Audio decoding error",
-					[MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED]: "Audio format not supported",
+					[MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED]:
+						"Audio format not supported",
 				};
 				message = codeMessages[mediaError.code] ?? message;
 				if (mediaError.message) {
 					message += `: ${mediaError.message}`;
 				}
 			}
-			logToServer(`[audio] error code=${mediaError?.code ?? "unknown"} message=${message} src=${audio.src}`);
-			reportAudioError.mutate({ message });
+			logToServer(
+				`[audio] error code=${mediaError?.code ?? "unknown"} message=${message} src=${audio.src}`,
+			);
+			void reportAudioError({ payload: { message } });
 			setState((prev) => ({
 				...prev,
 				isPlaying: false,
@@ -178,8 +195,7 @@ export function usePlayback(): PlaybackContextValue {
 			audio.removeEventListener("error", onError);
 			audio.pause();
 		};
-		// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, []);
+	}, [logToServer, reportAudioError, reportDuration, trackEnded]);
 
 	/** Seek audio to a position once playable, handling both loaded and loading states */
 	const seekAudioTo = useCallback(
@@ -213,7 +229,7 @@ export function usePlayback(): PlaybackContextValue {
 				}
 				const message = err instanceof Error ? err.message : "Playback failed";
 				logToServer(`[audio] play() rejected (${context}): ${message}`);
-				reportAudioError.mutate({ message });
+				void reportAudioError({ payload: { message } });
 				setState((prev) => ({
 					...prev,
 					isPlaying: false,
@@ -231,12 +247,15 @@ export function usePlayback(): PlaybackContextValue {
 			if (!audio) return;
 
 			const track = serverState.currentTrack;
-			const isInitialState = source === "sse" && !hasReceivedInitialStateRef.current;
+			const isInitialState =
+				source === "sse" && !hasReceivedInitialStateRef.current;
 
 			// Always keep server progress ref updated
 			serverProgressRef.current = serverState.progress;
 
-			logToServer(`[${source}] received status=${serverState.status} track=${track?.id ?? "none"} progress=${String(serverState.progress)} initial=${String(isInitialState)}`);
+			logToServer(
+				`[${source}] received status=${serverState.status} track=${track?.id ?? "none"} progress=${String(serverState.progress)} initial=${String(isInitialState)}`,
+			);
 
 			if (isInitialState) {
 				hasReceivedInitialStateRef.current = true;
@@ -246,7 +265,9 @@ export function usePlayback(): PlaybackContextValue {
 				// Load new audio if the stream URL changed (ignore ?next= prefetch hint)
 				const baseUrl = track.streamUrl.split("?")[0];
 				const lastBaseUrl = lastStreamUrlRef.current?.split("?")[0] ?? null;
-				logToServer(`[${source}] baseUrl comparison: base=${baseUrl} last=${lastBaseUrl} changed=${String(baseUrl !== lastBaseUrl)}`);
+				logToServer(
+					`[${source}] baseUrl comparison: base=${baseUrl} last=${lastBaseUrl} changed=${String(baseUrl !== lastBaseUrl)}`,
+				);
 
 				if (baseUrl !== lastBaseUrl) {
 					// New track
@@ -258,30 +279,44 @@ export function usePlayback(): PlaybackContextValue {
 
 					if (isInitialState) {
 						// On the first SSE sync after page load, don't auto-play a newly loaded track.
-						logToServer(`[${source}] → FIRST SSE state: load track, show paused at ${String(serverState.progress)}s`);
+						logToServer(
+							`[${source}] → FIRST SSE state: load track, show paused at ${String(serverState.progress)}s`,
+						);
 					} else if (serverState.status === "playing") {
 						logToServer(`[${source}] → LOAD new src + play() (status=playing)`);
 						safePlay(audio, "new track load");
 					} else {
-						logToServer(`[${source}] → LOAD new src (status=${serverState.status}, not playing)`);
+						logToServer(
+							`[${source}] → LOAD new src (status=${serverState.status}, not playing)`,
+						);
 					}
 				} else {
 					// Same track — sync play/pause state
 					if (isInitialState) {
 						if (serverState.status === "playing") {
 							if (audio.paused) {
-								const delta = Math.abs(audio.currentTime - serverState.progress);
+								const delta = Math.abs(
+									audio.currentTime - serverState.progress,
+								);
 								if (delta > 2) {
-									logToServer(`[${source}] → FIRST SSE state: same track paused locally, seek ${String(audio.currentTime)}→${String(serverState.progress)} (delta=${String(delta)})`);
+									logToServer(
+										`[${source}] → FIRST SSE state: same track paused locally, seek ${String(audio.currentTime)}→${String(serverState.progress)} (delta=${String(delta)})`,
+									);
 									seekAudioTo(audio, serverState.progress);
 								}
-								logToServer(`[${source}] → FIRST SSE state: same track, resume because server=playing`);
+								logToServer(
+									`[${source}] → FIRST SSE state: same track, resume because server=playing`,
+								);
 								safePlay(audio, "initial same track resume");
 							} else {
-								logToServer(`[${source}] → FIRST SSE state: same track already playing, keep playing`);
+								logToServer(
+									`[${source}] → FIRST SSE state: same track already playing, keep playing`,
+								);
 							}
 						} else if (serverState.status === "paused") {
-							logToServer(`[${source}] → FIRST SSE state: same track, seek to ${String(serverState.progress)}s, show paused`);
+							logToServer(
+								`[${source}] → FIRST SSE state: same track, seek to ${String(serverState.progress)}s, show paused`,
+							);
 							seekAudioTo(audio, serverState.progress);
 							if (!audio.paused) {
 								audio.pause();
@@ -295,7 +330,9 @@ export function usePlayback(): PlaybackContextValue {
 						// Another device started playing — apply progress threshold to avoid jitter
 						const delta = Math.abs(audio.currentTime - serverState.progress);
 						if (delta > 2) {
-							logToServer(`[${source}] → SAME track: seek ${String(audio.currentTime)}→${String(serverState.progress)} (delta=${String(delta)})`);
+							logToServer(
+								`[${source}] → SAME track: seek ${String(audio.currentTime)}→${String(serverState.progress)} (delta=${String(delta)})`,
+							);
 							audio.currentTime = serverState.progress;
 						}
 						logToServer(`[${source}] → SAME track: resume (paused→playing)`);
@@ -308,14 +345,17 @@ export function usePlayback(): PlaybackContextValue {
 						audio.pause();
 						audio.currentTime = 0;
 					} else {
-						logToServer(`[${source}] → SAME track: no action needed (server=${serverState.status} paused=${String(audio.paused)})`);
+						logToServer(
+							`[${source}] → SAME track: no action needed (server=${serverState.status} paused=${String(audio.paused)})`,
+						);
 					}
 				}
 
 				// Sync volume
 				audio.volume = serverState.volume / 100;
 
-				const suppressAutoplayOnInitialLoad = isInitialState && baseUrl !== lastBaseUrl;
+				const suppressAutoplayOnInitialLoad =
+					isInitialState && baseUrl !== lastBaseUrl;
 
 				setState((prev) => ({
 					...prev,
@@ -329,7 +369,9 @@ export function usePlayback(): PlaybackContextValue {
 					},
 					// Suppress autoplay only for a newly loaded track on first connect.
 					// Reconnects for the same in-flight track should preserve playing state.
-					isPlaying: suppressAutoplayOnInitialLoad ? false : serverState.status === "playing",
+					isPlaying: suppressAutoplayOnInitialLoad
+						? false
+						: serverState.status === "playing",
 					progress: isInitialState ? serverState.progress : prev.progress,
 					volume: serverState.volume,
 				}));
@@ -355,62 +397,13 @@ export function usePlayback(): PlaybackContextValue {
 	// Keep ref in sync so audio event listeners always call the latest version
 	handleServerStateRef.current = handleServerState;
 
-	// Subscribe to server player state changes via manual EventSource so we control
-	// reconnect behavior explicitly. The server also emits a heartbeat to keep the
-	// SSE connection warm during long stretches with no playback state changes.
+	// Subscribe to server player state changes through Effect RPC. The atom
+	// runtime owns stream connection lifecycle and republishes the latest state.
 	useEffect(() => {
-		let eventSource: EventSource | null = null;
-		let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
-		let cancelled = false;
-		let reconnectDelay = 1000;
-		const MAX_RECONNECT_DELAY = 16000;
-
-		function connect() {
-			if (cancelled) return;
-
-			// tRPC SSE URL: no input param when subscription input is undefined
-			eventSource = new EventSource("/trpc/player.onStateChange");
-
-			// tRPC SSE emits a named "connected" event on establishment
-			eventSource.addEventListener("connected", () => {
-				logToServer("[sse] EventSource connected");
-				reconnectDelay = 1000; // Reset backoff on successful connection
-			});
-
-			// Data arrives as unnamed SSE events (server emits `data:` without `event:` line),
-			// so the standard onmessage handler receives them.
-			// The data payload is the JSON-serialized player state directly.
-			eventSource.onmessage = (event) => {
-				try {
-					const serverState = JSON.parse(event.data as string) as ServerState;
-					handleServerState(serverState, "sse");
-				} catch {
-					// Ignore parse errors
-				}
-			};
-
-			eventSource.onerror = () => {
-				logToServer(`[sse] EventSource error, reconnecting in ${String(reconnectDelay)}ms`);
-				eventSource?.close();
-				eventSource = null;
-				if (!cancelled) {
-					reconnectTimer = setTimeout(() => {
-						reconnectDelay = Math.min(reconnectDelay * 2, MAX_RECONNECT_DELAY);
-						connect();
-					}, reconnectDelay);
-				}
-			};
+		if (AsyncResult.isSuccess(playerStateResult)) {
+			handleServerState(playerStateResult.value, "sse");
 		}
-
-		connect();
-
-		return () => {
-			cancelled = true;
-			if (reconnectTimer) clearTimeout(reconnectTimer);
-			eventSource?.close();
-			eventSource = null;
-		};
-	}, [handleServerState, logToServer]);
+	}, [playerStateResult, handleServerState]);
 
 	// Periodically report progress to server (every 5s while playing)
 	useEffect(() => {
@@ -418,33 +411,28 @@ export function usePlayback(): PlaybackContextValue {
 		const interval = setInterval(() => {
 			const audio = audioRef.current;
 			if (audio && !audio.paused) {
-				reportProgress.mutate({ progress: audio.currentTime });
+				void reportProgress({ payload: { progress: audio.currentTime } });
 			}
 		}, 5000);
 		return () => clearInterval(interval);
-		// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, [state.isPlaying]);
+	}, [state.isPlaying, reportProgress]);
 
 	// --- Server mutation wrappers ---
-	const pauseMutation = trpc.player.pause.useMutation();
-	const resumeMutation = trpc.player.resume.useMutation();
-	const seekMutation = trpc.player.seek.useMutation();
-	const skipMutation = trpc.player.skip.useMutation();
-	const previousMutation = trpc.player.previous.useMutation();
-	const stopMutation = trpc.player.stop.useMutation();
-	const playMutation = trpc.player.play.useMutation({
-		onSuccess(data) {
-			handleServerState(data, "play-response");
-		},
-		onError(error) {
-			logToServer(`[action] play mutation failed: ${error.message}`);
-			setState((prev) => ({
-				...prev,
-				error: error.message,
-			}));
-		},
+	const pause = useAtomSet(playerPauseMutationAtom, { mode: "promiseExit" });
+	const resume = useAtomSet(playerResumeMutationAtom, { mode: "promiseExit" });
+	const seekRemote = useAtomSet(playerSeekMutationAtom, {
+		mode: "promiseExit",
 	});
-	const jumpToMutation = trpc.player.jumpTo.useMutation();
+	const skip = useAtomSet(playerSkipMutationAtom, { mode: "promiseExit" });
+	const previous = useAtomSet(playerPreviousMutationAtom, {
+		mode: "promiseExit",
+	});
+	const stopRemote = useAtomSet(playerStopMutationAtom, {
+		mode: "promiseExit",
+	});
+	const playRemote = useAtomSet(playerPlayMutationAtom, {
+		mode: "promiseExit",
+	});
 
 	const togglePlayPause = useCallback(() => {
 		if (state.isPlaying) {
@@ -455,7 +443,7 @@ export function usePlayback(): PlaybackContextValue {
 				audio.pause();
 			}
 			setState((prev) => ({ ...prev, isPlaying: false }));
-			pauseMutation.mutate();
+			void pause({ payload: undefined });
 		} else {
 			logToServer("[action] togglePlayPause → resume");
 			const audio = audioRef.current;
@@ -463,15 +451,17 @@ export function usePlayback(): PlaybackContextValue {
 				// Seek to server progress before playing — handles handoff from another device
 				const delta = Math.abs(audio.currentTime - serverProgressRef.current);
 				if (delta > 2) {
-					logToServer(`[action] seek before resume: ${String(audio.currentTime)}→${String(serverProgressRef.current)} (delta=${String(delta)})`);
+					logToServer(
+						`[action] seek before resume: ${String(audio.currentTime)}→${String(serverProgressRef.current)} (delta=${String(delta)})`,
+					);
 					audio.currentTime = serverProgressRef.current;
 				}
 				safePlay(audio, "togglePlayPause resume");
 			}
 			setState((prev) => ({ ...prev, isPlaying: true }));
-			resumeMutation.mutate();
+			void resume({ payload: undefined });
 		}
-	}, [state.isPlaying, pauseMutation, resumeMutation, logToServer, safePlay]);
+	}, [state.isPlaying, pause, resume, logToServer, safePlay]);
 
 	const stop = useCallback(() => {
 		const audio = audioRef.current;
@@ -489,8 +479,8 @@ export function usePlayback(): PlaybackContextValue {
 			duration: 0,
 			error: null,
 		}));
-		stopMutation.mutate();
-	}, [stopMutation]);
+		void stopRemote({ payload: undefined });
+	}, [stopRemote]);
 
 	const seek = useCallback(
 		(time: number) => {
@@ -499,13 +489,13 @@ export function usePlayback(): PlaybackContextValue {
 				seekingRef.current = true;
 				audio.currentTime = time;
 				setState((prev) => ({ ...prev, progress: time }));
-				seekMutation.mutate({ position: time });
+				void seekRemote({ payload: { position: time } });
 				setTimeout(() => {
 					seekingRef.current = false;
 				}, 200);
 			}
 		},
-		[seekMutation],
+		[seekRemote],
 	);
 
 	const setCurrentStationToken = useCallback((token: string | null) => {
@@ -514,73 +504,81 @@ export function usePlayback(): PlaybackContextValue {
 
 	const triggerSkip = useCallback(() => {
 		logToServer("[action] skip");
-		skipMutation.mutate(undefined, {
-			onSuccess(data) {
-				handleServerState(data, "skip-response");
-			},
+		void skip({ payload: undefined }).then((exit) => {
+			if (exit._tag === "Success") {
+				handleServerState(exit.value, "skip-response");
+			}
 		});
-	}, [skipMutation, logToServer, handleServerState]);
+	}, [skip, logToServer, handleServerState]);
 
 	const triggerPrevious = useCallback(() => {
 		logToServer("[action] previous");
-		previousMutation.mutate(undefined, {
-			onSuccess(data) {
-				handleServerState(data, "prev-response");
-			},
-		});
-	}, [previousMutation, logToServer, handleServerState]);
-
-	const triggerJumpTo = useCallback(
-		(index: number) => {
-			logToServer(`[action] jumpTo(${String(index)})`);
-			jumpToMutation.mutate(
-				{ index },
-				{
-					onSuccess(data) {
-						handleServerState(data, "jumpTo-response");
-					},
-				},
-			);
-		},
-		[jumpToMutation, logToServer, handleServerState],
-	);
-
-	const playTrack = useCallback((track: PlaybackTrack) => {
-		logToServer(`[action] playTrack id=${track.trackToken} url=${track.audioUrl}`);
-		const audio = audioRef.current;
-		if (!audio) return;
-		audio.src = track.audioUrl;
-		lastStreamUrlRef.current = track.audioUrl;
-		audio.play().catch((err: unknown) => {
-			// AbortError is expected when src changes during play()
-			if (err instanceof DOMException && err.name === "AbortError") {
-				logToServer("[audio] play() AbortError silenced (transition expected)");
-				return;
+		void previous({ payload: undefined }).then((exit) => {
+			if (exit._tag === "Success") {
+				handleServerState(exit.value, "prev-response");
 			}
-			const message = err instanceof Error ? err.message : "Playback failed";
-			logToServer(`[audio] play() rejected: ${message}`);
+		});
+	}, [previous, logToServer, handleServerState]);
+
+	const playTrack = useCallback(
+		(track: PlaybackTrack) => {
+			logToServer(
+				`[action] playTrack id=${track.trackToken} url=${track.audioUrl}`,
+			);
+			const audio = audioRef.current;
+			if (!audio) return;
+			audio.src = track.audioUrl;
+			lastStreamUrlRef.current = track.audioUrl;
+			audio.play().catch((err: unknown) => {
+				// AbortError is expected when src changes during play()
+				if (err instanceof DOMException && err.name === "AbortError") {
+					logToServer(
+						"[audio] play() AbortError silenced (transition expected)",
+					);
+					return;
+				}
+				const message = err instanceof Error ? err.message : "Playback failed";
+				logToServer(`[audio] play() rejected: ${message}`);
+				setState((prev) => ({
+					...prev,
+					isPlaying: false,
+					error: message,
+				}));
+			});
 			setState((prev) => ({
 				...prev,
-				isPlaying: false,
-				error: message,
+				currentTrack: track,
+				isPlaying: true,
+				progress: 0,
+				duration: 0,
+				error: null,
 			}));
-		});
-		setState((prev) => ({
-			...prev,
-			currentTrack: track,
-			isPlaying: true,
-			progress: 0,
-			duration: 0,
-			error: null,
-		}));
-	}, [logToServer]);
+		},
+		[logToServer],
+	);
 
 	const playQueue = useCallback(
 		({ tracks, context, startIndex }: PlaybackQueueRequest) => {
 			setCurrentStationToken(getCurrentStationToken(context));
-			playMutation.mutate({ tracks: [...tracks], context, startIndex });
+			void playRemote({
+				payload: {
+					tracks: [...tracks],
+					context,
+					...(startIndex === undefined ? {} : { startIndex }),
+				},
+			}).then((exit) => {
+				if (exit._tag === "Success") {
+					handleServerState(exit.value, "play-response");
+				} else {
+					logToServer("[action] play mutation failed");
+					setState((prev) => ({
+						...prev,
+						error: "Playback failed",
+					}));
+				}
+			});
 		},
-		[playMutation, setCurrentStationToken],
+		[playRemote, setCurrentStationToken, handleServerState, logToServer],
 	);
 
 	const clearError = useCallback(() => {
@@ -588,7 +586,9 @@ export function usePlayback(): PlaybackContextValue {
 	}, []);
 
 	const status = state.currentTrack
-		? (state.isPlaying ? "playing" : "paused")
+		? state.isPlaying
+			? "playing"
+			: "paused"
 		: "stopped";
 
 	return {
