@@ -28,16 +28,16 @@ just nix-lock       # Regenerate bun.nix from bun.lock
 ### Two-Layer System
 
 ```
-Web Frontend (src/web/)              tRPC Server (server/)
+Web Frontend (src/web/)              Effect RPC Server (server/rpc/)
        ↓                                    ↓
-tRPC Client ──────────────────→ Source Manager (src/sources/)
+Effect atoms + PyxisRpcClient ───→ Source Manager (src/sources/)
                                        ↓              ↓
                                  Pandora Source   YTMusic Source
 ```
 
-**Web Frontend**: React + TanStack Router + tRPC client. Connects to backend via proxied `/trpc` endpoint.
+**Web Frontend**: React + TanStack Router + Effect atoms. Connects to backend via the Effect RPC `/rpc` endpoint through `src/web/shared/api/rpcClient.ts`.
 
-**Backend Server**: Bun HTTP server with tRPC API (`server/router.ts`), WebSocket support, and audio streaming proxy (`/stream/:compositeTrackId`).
+**Backend Server**: Bun HTTP server with Effect RPC handlers (`server/rpc/**`), stream-backed player/queue realtime RPCs, and a plain HTTP audio streaming proxy (`/stream/:compositeTrackId`). Stale `/trpc/*` requests intentionally fail closed with 410.
 
 ### Source Abstraction Layer (src/sources/)
 
@@ -60,8 +60,10 @@ Crypto layer (`src/sources/pandora/crypto/`): Blowfish ECB encryption for API pa
 
 ### Effect-TS Patterns
 
-All Pandora API operations use Effect for type-safe error handling:
-- Tagged errors in `src/sources/pandora/types/errors.ts` (ApiCallError, SessionError, etc.)
+- Wire contracts live in `src/api/contracts/**` and the authoritative RPC group is `src/api/rpc.ts`.
+- Server handlers live in `server/rpc/handlers/**` and are composed by `server/rpc/handler.ts`.
+- Web reads/writes go through `PyxisRpcClient` and feature/shared Effect atoms, not React Query.
+- Pandora API operations use Effect for type-safe error handling with tagged errors in `src/sources/pandora/types/errors.ts`.
 
 ### Database (src/db/)
 

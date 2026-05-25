@@ -6,7 +6,7 @@ Use this checklist to validate the Pyxis Sony Walkman NW-A306 MVP. Record pass/f
 
 - [ ] From another LAN device, open `http://192.168.1.243:8765/` and confirm the Pyxis web app loads.
 - [ ] From another LAN device, open `http://192.168.1.243:8765/healthz` and confirm it returns a minimal Pyxis health marker.
-- [ ] Confirm `/trpc` requests from the web app work from the LAN origin.
+- [ ] Confirm `/rpc` requests from the web app work from the LAN origin.
 - [ ] Confirm `/stream` URLs are reachable from the LAN origin.
 - [ ] Confirm the host firewall and Pyxis binding allow LAN access before debugging Android WebView behavior.
 

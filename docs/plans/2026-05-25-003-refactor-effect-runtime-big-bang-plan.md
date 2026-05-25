@@ -1,7 +1,7 @@
 ---
 title: refactor: Big-bang switchover to Effect runtime
 type: refactor
-status: active
+status: implemented
 date: 2026-05-25
 deepened: 2026-05-25
 supersedes: docs/plans/2026-05-24-001-refactor-effect-rpc-migration-plan.md
@@ -18,7 +18,7 @@ Switch Pyxis to the Lattice runtime in one coordinated production cutover: Effec
 
 ## Problem Frame
 
-Pyxis already has Lattice ingredients installed, including Effect v4 beta, `@effect/atom-react`, React 19, and partial Effect Schema contracts under `src/api/contracts/**`. The live runtime is still mostly legacy: `server/index.ts` mounts `/trpc`, `server/routers/**` defines the API with tRPC and Zod, `src/web/main.tsx` wires React Query, and feature surfaces consume raw `trpc.*` hooks directly.
+Pyxis now uses the Lattice runtime end-to-end: Effect Schema contracts under `src/api/contracts/**`, the authoritative `src/api/rpc.ts` group, `server/rpc/**` handlers/services, and Effect atom-driven React state. The legacy `/trpc` transport, React Query provider, web tRPC client, and server tRPC routers have been removed; stale `/trpc/*` requests fail closed.
 
 The previous active migration plan assumed a production strangler period with `/rpc` and `/trpc` side by side. The user clarified that the desired posture is a big-bang switchover: prepare safely inside the branch, then land a single Effect-first production state rather than a mixed runtime.
 

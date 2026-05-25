@@ -4,15 +4,15 @@
 
 ```
 Web Frontend (src/web/)
-  React + TanStack Router + tRPC client
-  Connects to backend via proxied /trpc endpoint
+  React + TanStack Router + Effect atoms
+  Connects to backend via Effect RPC /rpc endpoint
             ↓
-tRPC Server (server/)
-  router.ts         Combined tRPC router
-  trpc.ts           Context factory, auth middleware
-  routers/          Route handlers by domain
-  services/         Business logic (session, playback, stream, source manager)
-  handlers/         WebSocket handler
+Effect RPC Server (server/rpc/)
+  handlers/         Effect RPC handlers by domain
+  services/         Effect service/layer wrappers
+  handler.ts        Full PyxisRpc handler layer
+  http.ts           Bun-compatible /rpc HTTP adapter
+  ../services/      Business logic (session, playback, stream, source manager)
             ↓
 Source Manager (src/sources/)
   index.ts          SourceManager aggregates all sources
@@ -70,7 +70,7 @@ Self-contained Pandora client library:
 ## Server Data Flow
 
 ```
-Client Request → tRPC Router → Service Layer
+Client Request → /rpc Effect RPC Handler → Service Layer
                                      ↓
                                Source Manager
                                      ↓
