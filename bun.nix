@@ -613,14 +613,6 @@
     url = "https://registry.npmjs.org/@tanstack/history/-/history-1.154.14.tgz";
     hash = "sha512-xyIfof8eHBuub1CkBnbKNKQXeRZC4dClhmzePHVOEel4G7lk/dW+TQ16da7CFdeNLv6u6Owf5VoBQxoo6DFTSA==";
   };
-  "@tanstack/query-core@5.90.20" = fetchurl {
-    url = "https://registry.npmjs.org/@tanstack/query-core/-/query-core-5.90.20.tgz";
-    hash = "sha512-OMD2HLpNouXEfZJWcKeVKUgQ5n+n3A2JFmBaScpNDUqSrQSjiveC7dKMe53uJUg1nDG16ttFPz2xfilz6i2uVg==";
-  };
-  "@tanstack/react-query@5.90.20" = fetchurl {
-    url = "https://registry.npmjs.org/@tanstack/react-query/-/react-query-5.90.20.tgz";
-    hash = "sha512-vXBxa+qeyveVO7OA0jX1z+DeyCA4JKnThKv411jd5SORpBKgkcVnYKCiBgECvADvniBX7tobwBmg01qq9JmMJw==";
-  };
   "@tanstack/react-router@1.157.18" = fetchurl {
     url = "https://registry.npmjs.org/@tanstack/react-router/-/react-router-1.157.18.tgz";
     hash = "sha512-qs//HcVhEZ0K2/Sqejol0vOWaFIh4EoYTQQix9FhHOyWvdUpGoTJS0+g/qxEnZZm7r9QNOrnyrYZ5CDAqnII6g==";
@@ -656,18 +648,6 @@
   "@toon-format/toon@2.1.0" = fetchurl {
     url = "https://registry.npmjs.org/@toon-format/toon/-/toon-2.1.0.tgz";
     hash = "sha512-JwWptdF5eOA0HaQxbKAzkpQtR4wSWTEfDlEy/y3/4okmOAX1qwnpLZMmtEWr+ncAhTTY1raCKH0kteHhSXnQqg==";
-  };
-  "@trpc/client@11.9.0" = fetchurl {
-    url = "https://registry.npmjs.org/@trpc/client/-/client-11.9.0.tgz";
-    hash = "sha512-3r4RT/GbR263QO+2gCPyrs5fEYaXua3/AzCs+GbWC09X0F+mVkyBpO3GRSDObiNU/N1YB597U7WGW3WA1d1TVw==";
-  };
-  "@trpc/react-query@11.9.0" = fetchurl {
-    url = "https://registry.npmjs.org/@trpc/react-query/-/react-query-11.9.0.tgz";
-    hash = "sha512-9Gpj06ZcfsA77PB5A8VC2MFS/E7pPvoNqaSlSrAgLyRsKqy0gldFOW2RMKura69M6fwtgjg9+4i2+rOHKT7qLw==";
-  };
-  "@trpc/server@11.9.0" = fetchurl {
-    url = "https://registry.npmjs.org/@trpc/server/-/server-11.9.0.tgz";
-    hash = "sha512-T8gC4NOCzx8tCsQEQ5sSjf24bN+9AEqXZRfpThG+YCEmcEwXfS7RP8VVrl5Vodt1S+zGEDyQSof4YVAj1zq/mg==";
   };
   "@tybys/wasm-util@0.10.1" = fetchurl {
     url = "https://registry.npmjs.org/@tybys/wasm-util/-/wasm-util-0.10.1.tgz";

@@ -1,6 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { readdirSync, readFileSync } from "node:fs";
-import { basename, join } from "node:path";
+import { existsSync } from "node:fs";
 import { canonicalizeRpcParityPair } from "./parity.test-support.js";
 
 type ProcedureClassification = "read" | "command" | "stream";
@@ -690,11 +689,9 @@ const cutoverEndpointInventory: readonly CutoverEndpoint[] = [
 		"player.onStateChange",
 		"stream",
 		"none",
-		"snapshot-first player SSE with heartbeat",
-		"Subscription cleanup clears heartbeat and listener",
-		[
-			"src/web/shared/playback/use-playback.ts manual EventSource /trpc/player.onStateChange",
-		],
+		"snapshot-first player stream",
+		"Effect stream scope cleanup releases listener",
+		["src/web/shared/playback/use-playback.ts playerStateStreamAtom"],
 		"Realtime state source",
 		"player.state.stream",
 		"effect-stream",
@@ -797,54 +794,20 @@ const cutoverEndpointInventory: readonly CutoverEndpoint[] = [
 	),
 ];
 
-function routerProcedureNames(filePath: string): readonly string[] {
-	const source = readFileSync(filePath, "utf8");
-	return [
-		...source.matchAll(
-			/^\s*([A-Za-z][A-Za-z0-9_]*)\s*:\s*(?:publicProcedure|pandoraProtectedProcedure)/gm,
-		),
-	]
-		.map((match) => match[1])
-		.filter((name): name is string => name !== undefined);
-}
-
-function scannedProcedures(): readonly string[] {
-	return readdirSync("server/routers")
-		.filter((entry) => entry.endsWith(".ts"))
-		.flatMap((entry) => {
-			const routerName = basename(entry, ".ts");
-			return routerProcedureNames(join("server/routers", entry)).map(
-				(procedure) => `${routerName}.${procedure}`,
-			);
-		})
-		.sort();
-}
-
-function rootRouterFamilies(): readonly string[] {
-	const source = readFileSync("server/router.ts", "utf8");
-	return [
-		...source.matchAll(
-			/^\s*([A-Za-z][A-Za-z0-9_]*)\s*:\s*[A-Za-z][A-Za-z0-9_]*Router/gm,
-		),
-	]
-		.map((match) => match[1])
-		.filter((name): name is string => name !== undefined)
-		.sort();
-}
-
 describe("tRPC cutover endpoint inventory", () => {
-	it("maps every current router procedure to an Effect replacement or explicit removal", () => {
+	it("retains the legacy procedure inventory as a completed cutover artifact", () => {
+		expect(cutoverEndpointInventory.length).toBeGreaterThan(0);
 		expect(
-			cutoverEndpointInventory.map((entry) => entry.procedure).sort(),
-		).toEqual(scannedProcedures());
+			cutoverEndpointInventory.every(
+				(entry) => entry.replacement.status !== "explicit-removal",
+			),
+		).toBe(true);
 	});
 
-	it("maps every server/routers file into the root app router", () => {
-		const routerFiles = readdirSync("server/routers")
-			.filter((entry) => entry.endsWith(".ts"))
-			.map((entry) => basename(entry, ".ts"))
-			.sort();
-		expect(rootRouterFamilies()).toEqual(routerFiles);
+	it("removes the legacy router implementation files after the cutover", () => {
+		expect(existsSync("server/routers")).toBe(false);
+		expect(existsSync("server/router.ts")).toBe(false);
+		expect(existsSync("server/trpc.ts")).toBe(false);
 	});
 
 	it("records behavior, consumers, invalidation, and replacement status for each procedure", () => {

@@ -1,11 +1,11 @@
 /**
  * @module server/index
  * Main HTTP server entry point for Pyxis music server.
- * Sets up Bun HTTP server with tRPC endpoint, audio streaming proxy,
- * CORS handling, and server-sent events for real-time state updates.
+ * Sets up Bun HTTP server with the Effect RPC endpoint, audio streaming proxy,
+ * CORS handling, and static/Vite web serving.
  *
  * Server endpoints:
- * - `/trpc/*` - tRPC API including SSE subscriptions
+ * - `/rpc` - Effect RPC API
  * - `/stream/:compositeTrackId` - Audio streaming proxy with caching
  * - `/*` - Static files from dist-web/ with SPA fallback (production only)
  *
@@ -23,19 +23,20 @@ import { existsSync } from "node:fs";
 import { IncomingMessage, ServerResponse } from "node:http";
 import { Socket } from "node:net";
 import { join, resolve } from "node:path";
-import { fetchRequestHandler } from "@trpc/server/adapters/fetch";
 import type { ViteDevServer } from "vite";
 import { resolveConfig } from "../src/config.js";
 import { createLogger } from "../src/logger.js";
-import { createAndroidMediaBridge, isAndroidMediaBridgeRequest } from "./lib/androidMediaBridge.js";
+import {
+	createAndroidMediaBridge,
+	isAndroidMediaBridgeRequest,
+} from "./lib/androidMediaBridge.js";
 import { createHealthResponse, isHealthRequest } from "./lib/health.js";
 import { resolveTrackForStream } from "./lib/ids.js";
-import { appRouter } from "./router.js";
+import { handleRpcRequest } from "./rpc/http.js";
 import { tryAutoLogin } from "./services/autoLogin.js";
 import { setCredentialsConfig } from "./services/credentials.js";
 import { ensureSourceManager, setAppConfig } from "./services/sourceManager.js";
 import { handleStreamRequest, prefetchToCache } from "./services/stream.js";
-import { createContext } from "./trpc.js";
 
 const configFlagIndex = process.argv.indexOf("--config");
 const configPath =
@@ -46,7 +47,7 @@ setCredentialsConfig(config);
 
 const serverLogger = createLogger("server");
 const streamLog = serverLogger.child({ component: "stream" });
-const trpcLog = serverLogger.child({ component: "trpc" });
+const rpcLog = serverLogger.child({ component: "rpc" });
 const androidMediaBridge = createAndroidMediaBridge(config.androidBridge);
 
 // Static file serving is enabled when a production build exists and Vite dev mode
@@ -234,59 +235,30 @@ const _server = Bun.serve({
 				});
 		}
 
-		// tRPC handler (includes SSE subscriptions via GET)
-		if (url.pathname.startsWith("/trpc")) {
-			const trpcPath = url.pathname.replace("/trpc/", "").replace("/trpc", "");
-			if (
-				trpcPath &&
-				!trpcPath.includes("player.") &&
-				!trpcPath.includes("queue.") &&
-				!trpcPath.includes("log.")
-			) {
-				trpcLog.info({ method: req.method, path: trpcPath }, "request");
-			}
-			return fetchRequestHandler({
-				endpoint: "/trpc",
-				req,
-				router: appRouter,
-				createContext: () => createContext(req),
-				onError({ error, path }) {
-					trpcLog.error(
-						{ path, code: error.code, err: error.message },
-						"tRPC error",
-					);
-				},
-			})
+		// Effect RPC application endpoint.
+		if (url.pathname === "/rpc") {
+			return handleRpcRequest(req)
 				.then((response) => {
-					// Set CORS headers directly on the original response to preserve
-					// SSE stream lifecycle (wrapping in new Response() disconnects
-					// the tRPC subscription cleanup signals, causing listener drops)
 					response.headers.set("Access-Control-Allow-Origin", corsOrigin);
 					response.headers.set("Access-Control-Allow-Credentials", "true");
-					if (trpcPath.includes("radio.getTracks")) {
-						trpcLog.info(
-							{ path: "radio.getTracks", status: response.status },
-							"response",
-						);
-					}
 					return response;
 				})
 				.catch((err: unknown) => {
 					const message = err instanceof Error ? err.message : String(err);
-					trpcLog.error(
-						{ path: trpcPath, err: message },
-						"unhandled tRPC error",
-					);
-					return new Response(
-						JSON.stringify([
-							{ error: { message: "Internal server error", code: -32603 } },
-						]),
-						{
-							status: 500,
-							headers: { "Content-Type": "application/json", ...CORS_HEADERS },
-						},
-					);
+					rpcLog.error({ err: message }, "unhandled RPC error");
+					return new Response("Internal server error", {
+						status: 500,
+						headers: { "Content-Type": "text/plain", ...CORS_HEADERS },
+					});
 				});
+		}
+
+		// Removed API endpoint: fail stale clients closed instead of serving SPA.
+		if (url.pathname.startsWith("/trpc")) {
+			return new Response("The tRPC API has been removed. Use /rpc.", {
+				status: 410,
+				headers: { "Content-Type": "text/plain", ...CORS_HEADERS },
+			});
 		}
 
 		// Static file serving (production build)
