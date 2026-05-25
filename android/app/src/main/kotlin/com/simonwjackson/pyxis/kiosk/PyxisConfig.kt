@@ -12,6 +12,8 @@ data class PyxisConfig(
     val cleartextHost: String,
     val isTemporaryMvp: Boolean,
 ) {
+    val healthUrl: String = "${serverUrl}healthz"
+
     init {
         val uri = URI(serverUrl)
         require(uri.scheme == "http") { "Sony MVP uses explicit local-LAN HTTP only" }
