@@ -192,4 +192,15 @@ export async function closeDb(): Promise<void> {
 	dbInstance = undefined;
 }
 
+/**
+ * Inject a database instance for tests that exercise handlers/services
+ * which call {@link getDb} directly. Passing `null` clears any previously
+ * injected instance so subsequent `getDb()` calls fall back to the live
+ * resolution path. The caller owns the lifecycle of the injected instance
+ * (e.g. an in-memory or temp-directory database created in a test fixture).
+ */
+export function setDbForTesting(db: DbInstance | null): void {
+	dbInstance = db ?? undefined;
+}
+
 export * from "./config.js";
