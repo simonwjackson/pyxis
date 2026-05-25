@@ -18,6 +18,7 @@ class MainActivity : Activity() {
     private val mainHandler = Handler(Looper.getMainLooper())
     private val reachabilityClient = ReachabilityClient()
     private val navigationPolicy = NavigationPolicy(config)
+    private val kioskPolicy by lazy { KioskPolicy(this) }
     private var shellState: PyxisShellState = PyxisShellState.initial(config)
     private var webView: WebView? = null
 
@@ -26,8 +27,14 @@ class MainActivity : Activity() {
         requestWindowFeature(Window.FEATURE_NO_TITLE)
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         WebView.setWebContentsDebuggingEnabled(BuildConfig.DEBUG)
+        kioskPolicy.applyIfDeviceOwner()
         renderShellState(shellState)
         checkReachability()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        kioskPolicy.applyIfDeviceOwner()
     }
 
     override fun onDestroy() {
