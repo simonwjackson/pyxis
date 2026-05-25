@@ -7,9 +7,9 @@ Music streaming daemon with a web frontend, supporting Pandora and YouTube Music
 
 ## Architecture
 
-Two-process system:
-- **Backend server** (`bun run dev:server`) — tRPC API + audio stream proxy on port 8765
-- **Web frontend** (`bun run dev:web`) — React + Vite on port 5678
+Single Bun server with embedded web development mode:
+- **Backend server** (`bun run dev`) — tRPC API, audio stream proxy, and Vite middleware in development on port 8765
+- **Production web frontend** (`bun run build:web`) — React/Vite build served by the Bun server from `dist-web/`
 
 ## Configuration
 
@@ -66,20 +66,34 @@ If no config file exists, the server starts with defaults.
 # Enter dev environment
 nix develop
 
-# Run both frontend and backend
-bun run dev:web     # Vite dev server
-bun run dev:server  # Bun backend server
+# Run development server
+just dev            # Bun server with Vite embedded
 
 # Build
 bun run build:web   # Vite production build
 nix build           # Full Nix package
 
 # Testing & Quality
-bun test            # Run all tests
+bun test            # Run tests
 bun run typecheck   # TypeScript type checking
 
+# Android Sony kiosk MVP
+just android-build   # Build debug APK
+just android-test    # Run Android JVM unit tests
+just android-install # Install debug APK on a connected device
+
 # After dependency changes
-just update-hashes  # Update Nix npm dependency hash
+just nix-lock        # Regenerate bun.nix from bun.lock
+```
+
+### Android Sony kiosk MVP
+
+The Android kiosk APK is a debug-only native WebView shell for the Sony Walkman NW-A306. It targets the local Pyxis server at `http://192.168.1.243:8765/` for the MVP.
+
+Read the provisioning and recovery runbook before attempting Device Owner setup:
+
+```text
+docs/operations/sony-android-kiosk-provisioning.md
 ```
 
 ### Nix Home Manager
