@@ -38,15 +38,26 @@ export const SourceIdSchema = Schema.Struct({
 });
 export type ApiSourceId = Schema.Schema.Type<typeof SourceIdSchema>;
 
+export const OpaqueTrackIdSchema = Schema.String.check(
+	Schema.isMinLength(1),
+	Schema.isMaxLength(768),
+	Schema.makeFilter((value) =>
+		/^[A-Za-z0-9_-]+$/.test(value)
+			? undefined
+			: { path: [], issue: "opaque track id contains unsupported characters" },
+	),
+);
+
 export const CompositeTrackIdSchema = Schema.String.check(
 	Schema.isMinLength(1),
 	Schema.isMaxLength(768),
 	Schema.makeFilter((value) => {
 		const separatorIndex = value.indexOf(":");
 		if (separatorIndex === -1) {
-			return /^[A-Za-z0-9_-]+$/.test(value)
-				? undefined
-				: { path: [], issue: "opaque track id contains unsupported characters" };
+			return {
+				path: [],
+				issue: "composite track id must include a source prefix",
+			};
 		}
 
 		const source = value.slice(0, separatorIndex);
@@ -56,11 +67,17 @@ export const CompositeTrackIdSchema = Schema.String.check(
 			Schema.decodeUnknownSync(SourceIdPartSchema)(id);
 			return undefined;
 		} catch {
-			return { path: [], issue: "composite track id must use a known source prefix and non-empty id" };
+			return {
+				path: [],
+				issue:
+					"composite track id must use a known source prefix and non-empty id",
+			};
 		}
 	}),
 );
-export type ApiCompositeTrackId = Schema.Schema.Type<typeof CompositeTrackIdSchema>;
+export type ApiCompositeTrackId = Schema.Schema.Type<
+	typeof CompositeTrackIdSchema
+>;
 
 export const StreamUrlSchema = Schema.String.check(
 	Schema.isMinLength(1),
@@ -100,6 +117,13 @@ export type ApiPublicError = Schema.Schema.Type<typeof PublicErrorSchema>;
 
 export const OkResponseSchema = Schema.Struct({ ok: Schema.Literal(true) });
 export const PaginationInputSchema = Schema.Struct({
-	limit: Schema.optionalKey(Schema.Number.check(Schema.isInt(), Schema.isBetween({ minimum: 1, maximum: 200 }))),
-	offset: Schema.optionalKey(Schema.Number.check(Schema.isInt(), Schema.isGreaterThanOrEqualTo(0))),
+	limit: Schema.optionalKey(
+		Schema.Number.check(
+			Schema.isInt(),
+			Schema.isBetween({ minimum: 1, maximum: 200 }),
+		),
+	),
+	offset: Schema.optionalKey(
+		Schema.Number.check(Schema.isInt(), Schema.isGreaterThanOrEqualTo(0)),
+	),
 });
