@@ -1,9 +1,10 @@
 ---
 title: refactor: Migrate Pyxis API runtime to Effect RPC
 type: refactor
-status: active
+status: superseded
 date: 2026-05-24
 deepened: 2026-05-24
+superseded_by: docs/plans/2026-05-25-003-refactor-effect-runtime-big-bang-plan.md
 verify_command: "just typecheck && just test"
 ---
 
