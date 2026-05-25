@@ -85,6 +85,11 @@ const LogSchema = z.object({
 		.default("info"),
 });
 
+const AndroidBridgeSchema = z.object({
+	enabled: z.boolean().default(false),
+	token: optionalString,
+});
+
 /**
  * Zod schema for the complete application configuration.
  * Validates and provides defaults for server, web, sources, and log settings.
@@ -95,6 +100,7 @@ export const ConfigSchema = z.object({
 	sources: SourcesSchema.default(() => SourcesSchema.parse({})),
 	upgrade: UpgradeSchema.default(() => UpgradeSchema.parse({})),
 	log: LogSchema.default(() => LogSchema.parse({})),
+	androidBridge: AndroidBridgeSchema.default(() => AndroidBridgeSchema.parse({})),
 });
 
 /**
@@ -146,6 +152,23 @@ function applyEnvOverrides(config: Record<string, unknown>): Record<string, unkn
 			result["log"] = {};
 		}
 		(result["log"] as Record<string, unknown>)["level"] = logLevel;
+	}
+
+	const androidBridgeEnabled = process.env["PYXIS_ANDROID_BRIDGE_ENABLED"];
+	if (androidBridgeEnabled) {
+		if (!result["androidBridge"] || typeof result["androidBridge"] !== "object") {
+			result["androidBridge"] = {};
+		}
+		(result["androidBridge"] as Record<string, unknown>)["enabled"] =
+			androidBridgeEnabled === "1" || androidBridgeEnabled.toLowerCase() === "true";
+	}
+
+	const androidBridgeToken = process.env["PYXIS_ANDROID_BRIDGE_TOKEN"];
+	if (androidBridgeToken) {
+		if (!result["androidBridge"] || typeof result["androidBridge"] !== "object") {
+			result["androidBridge"] = {};
+		}
+		(result["androidBridge"] as Record<string, unknown>)["token"] = androidBridgeToken;
 	}
 
 	const discogsToken = process.env["PYXIS_DISCOGS_TOKEN"];

@@ -15,6 +15,8 @@ describe("ConfigSchema", () => {
 			expect(config.web.port).toBe(5678);
 			expect(config.web.allowedHosts).toEqual([]);
 			expect(config.log.level).toBe("info");
+			expect(config.androidBridge.enabled).toBe(false);
+			expect(config.androidBridge.token).toBeUndefined();
 		});
 
 		it("preserves custom values when provided", () => {
@@ -31,6 +33,7 @@ describe("ConfigSchema", () => {
 					storage: { maxCapacityMB: 2048, ttlDays: 60 },
 				},
 				log: { level: "debug" },
+				androidBridge: { enabled: true, token: "bridge-secret" },
 			});
 
 			expect(config.server.port).toBe(9000);
@@ -43,6 +46,8 @@ describe("ConfigSchema", () => {
 			expect(config.upgrade.storage.maxCapacityMB).toBe(2048);
 			expect(config.upgrade.storage.ttlDays).toBe(60);
 			expect(config.log.level).toBe("debug");
+			expect(config.androidBridge.enabled).toBe(true);
+			expect(config.androidBridge.token).toBe("bridge-secret");
 		});
 	});
 
@@ -109,6 +114,8 @@ describe("resolveConfig", () => {
 		delete process.env["PYXIS_WEB_PORT"];
 		delete process.env["PYXIS_LOG_LEVEL"];
 		delete process.env["PYXIS_DISCOGS_TOKEN"];
+		delete process.env["PYXIS_ANDROID_BRIDGE_ENABLED"];
+		delete process.env["PYXIS_ANDROID_BRIDGE_TOKEN"];
 	});
 
 	afterEach(() => {
@@ -163,6 +170,16 @@ describe("resolveConfig", () => {
 		const config = resolveConfig("/nonexistent/path/config.yaml");
 
 		expect(config.sources.discogs.token).toBe("my-discogs-token");
+	});
+
+	it("applies environment variable overrides for Android bridge guardrail", () => {
+		process.env["PYXIS_ANDROID_BRIDGE_ENABLED"] = "1";
+		process.env["PYXIS_ANDROID_BRIDGE_TOKEN"] = "env-bridge-token";
+
+		const config = resolveConfig("/nonexistent/path/config.yaml");
+
+		expect(config.androidBridge.enabled).toBe(true);
+		expect(config.androidBridge.token).toBe("env-bridge-token");
 	});
 
 	it("applies multiple environment variable overrides", () => {

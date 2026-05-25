@@ -27,6 +27,7 @@ import { fetchRequestHandler } from "@trpc/server/adapters/fetch";
 import type { ViteDevServer } from "vite";
 import { resolveConfig } from "../src/config.js";
 import { createLogger } from "../src/logger.js";
+import { createAndroidMediaBridge, isAndroidMediaBridgeRequest } from "./lib/androidMediaBridge.js";
 import { createHealthResponse, isHealthRequest } from "./lib/health.js";
 import { resolveTrackForStream } from "./lib/ids.js";
 import { appRouter } from "./router.js";
@@ -46,6 +47,7 @@ setCredentialsConfig(config);
 const serverLogger = createLogger("server");
 const streamLog = serverLogger.child({ component: "stream" });
 const trpcLog = serverLogger.child({ component: "trpc" });
+const androidMediaBridge = createAndroidMediaBridge(config.androidBridge);
 
 // Static file serving is enabled when a production build exists and Vite dev mode
 // is not explicitly requested.
@@ -163,6 +165,10 @@ const _server = Bun.serve({
 
 		if (isHealthRequest(url, req.method)) {
 			return createHealthResponse();
+		}
+
+		if (isAndroidMediaBridgeRequest(url)) {
+			return androidMediaBridge.handle(req);
 		}
 
 		// Stream endpoint: /stream/:opaqueId (accepts nanoid or source:id)
