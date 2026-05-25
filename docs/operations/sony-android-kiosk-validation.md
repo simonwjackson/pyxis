@@ -30,6 +30,20 @@ Use this checklist to validate the Pyxis Sony Walkman NW-A306 MVP. Record pass/f
 - [ ] Confirm the expected orientation behavior on the Sony.
 - [ ] Note any Pyxis web UI compatibility fixes required before Device Owner validation.
 
+## Media session feasibility gate
+
+Run these before claiming full MediaSession support or relaxing kiosk policy:
+
+- [ ] Install the debug APK and launch Pyxis Kiosk.
+- [ ] Confirm `PyxisMediaSessionService` is running with `adb shell dumpsys activity services com.simonwjackson.pyxis.kiosk`.
+- [ ] Confirm the app no longer forces the screen to stay awake; the Sony can be turned off or allowed to sleep during playback validation.
+- [ ] Start Pyxis playback in the WebView, turn the screen off for a short smoke interval, then wake the device and confirm whether playback continued, paused, or degraded.
+- [ ] Send ADB media key events and record whether MediaSession callbacks/system routing are observable.
+- [ ] Test Bluetooth play/pause media buttons and record whether callbacks are observable.
+- [ ] Under Device Owner policy, record whether keyguard, notification shade, and lockscreen media controls are visible, hidden by policy, or require a policy change.
+- [ ] If visible system surfaces are enabled, attempt to escape via notification shade, settings, recents, home, back, notification taps, package replacement, and reboot/resume.
+- [ ] Treat failure of WebView screen-off playback or required media surfaces as a stop/go finding for the MediaSession bridge plan, not as a completed pass.
+
 ## Device Owner preflight
 
 - [ ] Confirm USB debugging is authorized from the trusted provisioner machine.
