@@ -30,7 +30,7 @@ import {
 	tracksToQueuePayload,
 } from "@/web/shared/lib/now-playing-utils";
 import { usePlaybackContext } from "@/web/shared/playback/playback-context";
-import { queueStateStreamAtom } from "./queueContextAtom";
+import { queueStateStreamAtom } from "@/web/shared/playback/queueStateStreamAtom";
 import { StationDetailState } from "./StationDetailState";
 import { StationDetailArtistSeedRow } from "./station-detail-artist-seed-row";
 import { StationDetailFeedbackRow } from "./station-detail-feedback-row";

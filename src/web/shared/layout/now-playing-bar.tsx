@@ -5,15 +5,22 @@
  * Desktop: transport + compact more menu replaces the dense icon toolbar.
  */
 
-import { useCallback, useRef, useState } from "react";
-import { MoreHorizontal } from "lucide-react";
+import { useAtomSet, useAtomValue } from "@effect/atom-react";
 import { useNavigate } from "@tanstack/react-router";
+import { MoreHorizontal } from "lucide-react";
+import { useCallback, useRef, useState } from "react";
 import { toast } from "sonner";
-import { TrackInfoModal } from "../track-info-modal";
+import {
+	libraryBookmarkAddMutationAtom,
+	trackFeedbackAddMutationAtom,
+	trackSleepSetMutationAtom,
+} from "../commands/trackCommandAtoms";
 import { formatTime } from "../lib/now-playing-utils";
-import { trpc } from "../lib/trpc";
 import { usePlaybackContext } from "../playback/playback-context";
+import { queueStateStreamAtom } from "../playback/queueStateStreamAtom";
 import type { PlaybackQueueContext } from "../playback/types";
+import { TrackInfoModal } from "../track-info-modal";
+import { NowPlayingBarState } from "./NowPlayingBarState";
 import { NowPlayingActionItem } from "./now-playing-bar/components/NowPlayingActionItem";
 import { NowPlayingActionSheet } from "./now-playing-bar/components/NowPlayingActionSheet";
 import { NowPlayingArtwork } from "./now-playing-bar/components/NowPlayingArtwork";
@@ -90,44 +97,21 @@ export function NowPlayingBar() {
 		seek,
 	} = playback;
 	const navigate = useNavigate();
-	const [queueContext, setQueueContext] = useState<PlaybackQueueContext>({
-		type: "manual",
-	});
-	const [queueIndex, setQueueIndex] = useState(0);
+	const queueResult = useAtomValue(queueStateStreamAtom);
+	const { queueContext, queueIndex } =
+		NowPlayingBarState.fromQueueResult(queueResult);
 	const [showTrackInfo, setShowTrackInfo] = useState(false);
 	const [showActionSheet, setShowActionSheet] = useState(false);
 	const progressBarRef = useRef<HTMLDivElement>(null);
 
-	trpc.queue.onChange.useSubscription(undefined, {
-		onData(queueState) {
-			setQueueContext(queueState.context as PlaybackQueueContext);
-			setQueueIndex(queueState.currentIndex);
-		},
+	const submitFeedback = useAtomSet(trackFeedbackAddMutationAtom, {
+		mode: "promiseExit",
 	});
-
-	const feedbackMutation = trpc.track.feedback.useMutation({
-		onSuccess(_, variables) {
-			toast.success(variables.positive ? "liked" : "disliked");
-		},
-		onError(error) {
-			toast.error(`feedback failed: ${error.message}`);
-		},
+	const submitSleep = useAtomSet(trackSleepSetMutationAtom, {
+		mode: "promiseExit",
 	});
-	const sleepMutation = trpc.track.sleep.useMutation({
-		onSuccess() {
-			toast.success("track will be skipped for 30 days");
-		},
-		onError(error) {
-			toast.error(`sleep failed: ${error.message}`);
-		},
-	});
-	const bookmarkSongMutation = trpc.library.addBookmark.useMutation({
-		onSuccess() {
-			toast.success("song bookmarked");
-		},
-		onError(error) {
-			toast.error(`bookmark failed: ${error.message}`);
-		},
+	const submitBookmark = useAtomSet(libraryBookmarkAddMutationAtom, {
+		mode: "promiseExit",
 	});
 
 	const handleSeek = useCallback(
@@ -152,36 +136,57 @@ export function NowPlayingBar() {
 
 	const handleLike = useCallback(() => {
 		if (!currentTrack || queueContext.type !== "radio") return;
-		feedbackMutation.mutate({
-			radioId: queueContext.seedId,
-			id: currentTrack.trackToken,
-			positive: true,
+		void submitFeedback({
+			payload: {
+				radioId: queueContext.seedId,
+				id: currentTrack.trackToken,
+				positive: true,
+			},
+		}).then((exit) => {
+			if (exit._tag === "Success") toast.success("liked");
+			else toast.error("feedback failed");
 		});
-	}, [currentTrack, queueContext, feedbackMutation]);
+	}, [currentTrack, queueContext, submitFeedback]);
 
 	const handleDislike = useCallback(() => {
 		if (!currentTrack || queueContext.type !== "radio") return;
-		feedbackMutation.mutate({
-			radioId: queueContext.seedId,
-			id: currentTrack.trackToken,
-			positive: false,
+		void submitFeedback({
+			payload: {
+				radioId: queueContext.seedId,
+				id: currentTrack.trackToken,
+				positive: false,
+			},
+		}).then((exit) => {
+			if (exit._tag === "Success") toast.success("disliked");
+			else toast.error("feedback failed");
 		});
 		triggerSkip();
-	}, [currentTrack, queueContext, feedbackMutation, triggerSkip]);
+	}, [currentTrack, queueContext, submitFeedback, triggerSkip]);
 
 	const handleBookmark = useCallback(() => {
 		if (!currentTrack) return;
-		bookmarkSongMutation.mutate({
-			id: currentTrack.trackToken,
-			type: "song",
+		void submitBookmark({
+			payload: {
+				id: currentTrack.trackToken,
+				type: "song",
+			},
+		}).then((exit) => {
+			if (exit._tag === "Success") toast.success("song bookmarked");
+			else toast.error("bookmark failed");
 		});
-	}, [currentTrack, bookmarkSongMutation]);
+	}, [currentTrack, submitBookmark]);
 
 	const handleSleep = useCallback(() => {
 		if (!currentTrack) return;
-		sleepMutation.mutate({ id: currentTrack.trackToken });
+		void submitSleep({ payload: { id: currentTrack.trackToken } }).then(
+			(exit) => {
+				if (exit._tag === "Success")
+					toast.success("track will be skipped for 30 days");
+				else toast.error("sleep failed");
+			},
+		);
 		triggerSkip();
-	}, [currentTrack, sleepMutation, triggerSkip]);
+	}, [currentTrack, submitSleep, triggerSkip]);
 
 	const handleGoToContext = useCallback(() => {
 		navigateToContext(navigate, queueContext);
@@ -205,10 +210,9 @@ export function NowPlayingBar() {
 
 	return (
 		<>
-			<div
+			<section
 				className="fixed bottom-0 left-0 right-0 border-t border-[var(--color-border)] safe-bottom"
 				style={{ backgroundColor: "var(--color-bg-panel)", zIndex: 40 }}
-				role="region"
 				aria-label="Now playing"
 			>
 				<NowPlayingProgressBar
@@ -274,7 +278,7 @@ export function NowPlayingBar() {
 						onSkip={triggerSkip}
 					/>
 				</NowPlayingMobileBar>
-			</div>
+			</section>
 
 			{showActionSheet ? (
 				<NowPlayingActionSheet

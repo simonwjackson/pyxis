@@ -74,20 +74,11 @@ const webConsumerInventory: readonly WebConsumerInventoryEntry[] = [
 		],
 		"src/web/shared/playback/PlaybackState atoms over player.state.stream and player commands",
 	),
-	consumer(
-		"src/web/shared/layout/now-playing-bar.tsx",
-		[
-			"trpc:import",
-			"trpc.queue.onChange.useSubscription",
-			"trpc.track.feedback.useMutation",
-			"trpc.track.sleep.useMutation",
-			"trpc.library.addBookmark.useMutation",
-		],
-		[
-			"Queue subscription updates local queue context; feedback/sleep/bookmark only toast today",
-		],
-		"NowPlayingBarState atom and command atoms",
-	),
+	// Migrated to Effect atoms in U6 -- entries intentionally omitted.
+	// src/web/shared/layout/now-playing-bar.tsx ->
+	//   queueStateStreamAtom over queue.state.stream + NowPlayingBarState for
+	//   the latest queue context/index, plus shared track command atoms for
+	//   feedback/sleep/bookmark toasts.
 	// Migrated to Effect atoms in U6 -- entries intentionally omitted.
 	// src/web/shared/layout/command-palette.tsx ->
 	//   trackFeedbackAddMutationAtom + trackSleepSetMutationAtom +
