@@ -4,15 +4,22 @@
  * Database files are stored in XDG_DATA_HOME/pyxis/db/ (typically ~/.local/share/pyxis/db/).
  */
 
-import { Effect, Exit, Scope } from "effect";
+import {
+	existsSync,
+	mkdirSync,
+	readFileSync,
+	renameSync,
+	unlinkSync,
+	writeFileSync,
+} from "node:fs";
+import { basename, dirname, join } from "node:path";
 import {
 	createNodeDatabase,
 	type GenerateDatabaseWithPersistence,
 } from "@proseql/node";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { Effect, Exit, Scope } from "effect";
 import { parse as parseYaml, stringify as stringifyYaml } from "yaml";
-import { dbConfig, DB_DIR, type DbConfig } from "./config.js";
+import { DB_DIR, type DbConfig, dbConfig } from "./config.js";
 
 const ALBUMS_PATH = join(DB_DIR, "albums.yaml");
 const LISTEN_LOG_PATH = join(DB_DIR, "listen-log.jsonl");
@@ -43,9 +50,10 @@ export function backfillAlbumPlacementFile(filePath: string): boolean {
 			changed = true;
 		}
 		if (album.placementUpdatedAt === undefined) {
-			album.placementUpdatedAt = typeof album.createdAt === "number" && Number.isFinite(album.createdAt)
-				? album.createdAt
-				: Date.now();
+			album.placementUpdatedAt =
+				typeof album.createdAt === "number" && Number.isFinite(album.createdAt)
+					? album.createdAt
+					: Date.now();
 			changed = true;
 		}
 	}
@@ -109,7 +117,6 @@ export function repairJsonlFile(filePath: string): boolean {
 		try {
 			JSON.parse(line);
 			repairedLines.push(line);
-			continue;
 		} catch {
 			const parts = splitConcatenatedJsonObjects(line);
 			if (parts.length <= 1) {
@@ -125,7 +132,23 @@ export function repairJsonlFile(filePath: string): boolean {
 
 	if (!changed) return false;
 
-	writeFileSync(filePath, `${repairedLines.join("\n")}\n`, "utf-8");
+	const repairedContent = `${repairedLines.join("\n")}\n`;
+	const tempPath = join(
+		dirname(filePath),
+		`.${basename(filePath)}.${process.pid}.${Date.now()}.tmp`,
+	);
+
+	try {
+		writeFileSync(tempPath, repairedContent, { encoding: "utf-8", flag: "wx" });
+		renameSync(tempPath, filePath);
+	} catch (error) {
+		try {
+			if (existsSync(tempPath)) unlinkSync(tempPath);
+		} catch {
+			// Preserve the original repair error if temp cleanup fails.
+		}
+		throw error;
+	}
 	return true;
 }
 
