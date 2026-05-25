@@ -5,18 +5,19 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Commands
 
 ```bash
-# Development - run both web frontend and backend server
-bun run dev:web     # Vite dev server on port 5678
-bun run dev:server  # Bun server on port 8765
+# Development
+just dev            # Bun server with Vite middleware on port 8765
 
 # Build
 bun run build:web   # Vite production build
 nix build           # Full Nix package
 
 # Testing & Quality
-bun test            # Run all tests
+just format         # Format changed files
+just lint           # Check formatting and lint rules for changed files
+just test-unit      # Run unit tests
 bun test <file>     # Run single test file
-bun run typecheck   # TypeScript type checking
+just typecheck      # TypeScript type checking
 
 # After dependency changes
 just nix-lock       # Regenerate bun.nix from bun.lock

@@ -74,8 +74,10 @@ bun run build:web   # Vite production build
 nix build           # Full Nix package
 
 # Testing & Quality
-bun test            # Run tests
-bun run typecheck   # TypeScript type checking
+just format         # Format changed files
+just lint           # Check formatting and lint rules for changed files
+just test-unit      # Run unit tests
+just typecheck      # TypeScript type checking
 
 # Android Sony kiosk MVP
 just android-build   # Build debug APK
