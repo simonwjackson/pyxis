@@ -101,6 +101,7 @@ export function usePlayback(): PlaybackContextValue {
 
 	const reportProgress = trpc.player.reportProgress.useMutation();
 	const reportDuration = trpc.player.reportDuration.useMutation();
+	const reportAudioError = trpc.player.reportAudioError.useMutation();
 	const trackEndedMutation = trpc.player.trackEnded.useMutation();
 	const clientLog = trpc.log.client.useMutation();
 
@@ -157,6 +158,7 @@ export function usePlayback(): PlaybackContextValue {
 				}
 			}
 			logToServer(`[audio] error code=${mediaError?.code ?? "unknown"} message=${message} src=${audio.src}`);
+			reportAudioError.mutate({ message });
 			setState((prev) => ({
 				...prev,
 				isPlaying: false,
@@ -211,6 +213,7 @@ export function usePlayback(): PlaybackContextValue {
 				}
 				const message = err instanceof Error ? err.message : "Playback failed";
 				logToServer(`[audio] play() rejected (${context}): ${message}`);
+				reportAudioError.mutate({ message });
 				setState((prev) => ({
 					...prev,
 					isPlaying: false,
@@ -218,7 +221,7 @@ export function usePlayback(): PlaybackContextValue {
 				}));
 			});
 		},
-		[logToServer],
+		[logToServer, reportAudioError],
 	);
 
 	// Shared handler for server player state — called from both SSE and mutation responses

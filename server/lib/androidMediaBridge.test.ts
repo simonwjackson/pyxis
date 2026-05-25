@@ -35,6 +35,7 @@ describe("android media bridge HTTP boundary", () => {
 
 	it("returns an authorized state snapshot", async () => {
 		PlayerService.play([track()], { type: "manual" });
+		PlayerService.reportProgress(5);
 		const bridge = createAndroidMediaBridge({ enabled: true, token: "secret", now: () => 1001 });
 
 		const response = await bridge.handle(request("/android-media-bridge/state", {

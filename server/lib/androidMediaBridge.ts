@@ -87,13 +87,11 @@ export class AndroidMediaBridgeHandler {
 			this.stateRevision += 1;
 		}
 		const publishedAt = this.now();
+		const audio = PlayerService.getAudioRealization();
 		return toAndroidMediaBridgeState(view, {
 			publishedAt,
 			stateRevision: this.stateRevision,
-			audio: {
-				observedAt: view.status === "playing" ? publishedAt : null,
-				failed: false,
-			},
+			audio,
 		});
 	}
 

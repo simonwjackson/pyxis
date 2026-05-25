@@ -55,9 +55,34 @@ let progress = 0;
 let duration = 0;
 let volume = 100;
 let updatedAt = Date.now();
+let audioObservedAt: number | null = null;
+let audioFailed = false;
+let audioError: string | null = null;
 
 const listeners = new Set<PlayerListener>();
 let listenLogWriteQueue: Promise<void> = Promise.resolve();
+
+export type AudioRealizationState = {
+	readonly observedAt: number | null;
+	readonly failed: boolean;
+	readonly error: string | null;
+};
+
+export function getAudioRealization(): AudioRealizationState {
+	return { observedAt: audioObservedAt, failed: audioFailed, error: audioError };
+}
+
+function resetAudioRealization(): void {
+	audioObservedAt = null;
+	audioFailed = false;
+	audioError = null;
+}
+
+function markAudioObserved(): void {
+	audioObservedAt = Date.now();
+	audioFailed = false;
+	audioError = null;
+}
 
 function notify(): void {
 	const state = getState();
@@ -213,6 +238,7 @@ export function play(tracks?: readonly Queue.QueueTrack[], context?: Queue.Queue
 		status = "stopped";
 		progress = 0;
 		duration = 0;
+		resetAudioRealization();
 		updatedAt = Date.now();
 		notify();
 		return;
@@ -221,6 +247,7 @@ export function play(tracks?: readonly Queue.QueueTrack[], context?: Queue.Queue
 	status = "playing";
 	progress = 0;
 	duration = track.duration ?? 0;
+	resetAudioRealization();
 	updatedAt = Date.now();
 	notify();
 }
@@ -259,6 +286,7 @@ export function stop(): void {
 	progress = 0;
 	duration = 0;
 	status = "stopped";
+	resetAudioRealization();
 	updatedAt = Date.now();
 	Queue.clear();
 	notify();
@@ -278,6 +306,7 @@ export function skip(): Queue.QueueTrack | undefined {
 		status = "stopped";
 		progress = 0;
 		duration = 0;
+		resetAudioRealization();
 		updatedAt = Date.now();
 		notify();
 		return undefined;
@@ -286,6 +315,7 @@ export function skip(): Queue.QueueTrack | undefined {
 	status = "playing";
 	progress = 0;
 	duration = nextTrack.duration ?? 0;
+	resetAudioRealization();
 	updatedAt = Date.now();
 	notify();
 	return nextTrack;
@@ -306,6 +336,7 @@ export function previousTrack(): Queue.QueueTrack | undefined {
 	status = "playing";
 	progress = 0;
 	duration = prev.duration ?? 0;
+	resetAudioRealization();
 	updatedAt = Date.now();
 	notify();
 	return prev;
@@ -334,6 +365,7 @@ export function jumpToIndex(index: number): Queue.QueueTrack | undefined {
 	status = "playing";
 	progress = 0;
 	duration = track.duration ?? 0;
+	resetAudioRealization();
 	updatedAt = Date.now();
 	notify();
 	return track;
@@ -370,6 +402,7 @@ export function setVolume(level: number): void {
  */
 export function setDuration(d: number): void {
 	duration = d;
+	markAudioObserved();
 	updatedAt = Date.now();
 	notify();
 }
@@ -382,8 +415,17 @@ export function setDuration(d: number): void {
  */
 export function reportProgress(p: number): void {
 	progress = p;
+	markAudioObserved();
 	updatedAt = Date.now();
 	// No notify — this is a silent update from client to keep server in sync
+}
+
+export function reportAudioError(message: string): void {
+	audioFailed = true;
+	audioError = message.slice(0, 500);
+	audioObservedAt = null;
+	updatedAt = Date.now();
+	notify();
 }
 
 /**

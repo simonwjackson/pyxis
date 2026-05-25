@@ -170,6 +170,13 @@ export const playerRouter = router({
 			return { ok: true };
 		}),
 
+	reportAudioError: publicProcedure
+		.input(z.object({ message: z.string().max(500) }))
+		.mutation(({ input }) => {
+			PlayerService.reportAudioError(input.message);
+			return { ok: true };
+		}),
+
 	trackEnded: publicProcedure.mutation(() => {
 		PlayerService.trackEnded();
 		return serializePlayerState(PlayerService.getState());
