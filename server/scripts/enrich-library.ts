@@ -21,12 +21,12 @@ import { Effect } from "effect";
 import { resolveConfig } from "@shared/config.js";
 import { getDb } from "@shared/db/index.js";
 import { createLogger } from "@shared/logger.js";
-import { createBandcampFullSource } from "@shared/sources/bandcamp/index.js";
-import { createDeezerSource } from "@shared/sources/deezer/index.js";
-import { createDiscogsSource } from "@shared/sources/discogs/index.js";
+import { createBandcampFullSource } from "@shared/sources/bandcamp/source.js";
+import { createDeezerSource } from "@shared/sources/deezer/source.js";
+import { createDiscogsSource } from "@shared/sources/discogs/source.js";
 import { createMatcher } from "@shared/sources/matcher.js";
-import { createMusicBrainzSource } from "@shared/sources/musicbrainz/index.js";
-import { createSoundCloudFullSource } from "@shared/sources/soundcloud/index.js";
+import { createMusicBrainzSource } from "@shared/sources/musicbrainz/source.js";
+import { createSoundCloudFullSource } from "@shared/sources/soundcloud/source.js";
 import type {
   MetadataSearchQuery,
   MetadataSource,

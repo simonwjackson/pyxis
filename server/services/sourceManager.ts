@@ -8,19 +8,19 @@
 import type { AppConfig } from "@shared/config.js";
 import { getDb } from "@shared/db/index.js";
 import { createLogger } from "@shared/logger.js";
-import { createBandcampFullSource } from "@shared/sources/bandcamp/index.js";
-import { createDeezerSource } from "@shared/sources/deezer/index.js";
-import { createDiscogsSource } from "@shared/sources/discogs/index.js";
+import { createBandcampFullSource } from "@shared/sources/bandcamp/source.js";
+import { createDeezerSource } from "@shared/sources/deezer/source.js";
+import { createDiscogsSource } from "@shared/sources/discogs/source.js";
 import type { SourceManager } from "@shared/sources/index.js";
 import { createSourceManager } from "@shared/sources/index.js";
-import { createMusicBrainzSource } from "@shared/sources/musicbrainz/index.js";
+import { createMusicBrainzSource } from "@shared/sources/musicbrainz/source.js";
 import type { PandoraSession } from "@shared/sources/pandora/client.js";
 import {
   createPandoraSource,
   isPandoraSource,
 } from "@shared/sources/pandora/index.js";
 import type { PlaylistItem } from "@shared/sources/pandora/types/api.js";
-import { createSoundCloudFullSource } from "@shared/sources/soundcloud/index.js";
+import { createSoundCloudFullSource } from "@shared/sources/soundcloud/source.js";
 import type { MetadataSource, Source } from "@shared/sources/types.js";
 import { createYouTubeSource } from "@shared/sources/youtube/index.js";
 import type { YtMusicPlaylistEntry } from "@shared/sources/ytmusic/index.js";

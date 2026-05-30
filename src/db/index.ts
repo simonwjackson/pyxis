@@ -203,4 +203,3 @@ export function setDbForTesting(db: DbInstance | null): void {
   dbInstance = db ?? undefined;
 }
 
-export * from "./config.js";
