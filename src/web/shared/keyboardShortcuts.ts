@@ -15,6 +15,7 @@ import {
 } from "./commands/trackCommandAtoms";
 import { matchShortcut } from "./lib/shortcuts";
 import { usePlaybackContext } from "./playback/PlaybackContext";
+import { PlaybackState } from "./playback/types";
 
 /**
  * Handler callbacks for keyboard shortcut actions.
@@ -85,13 +86,15 @@ export function useKeyboardShortcuts({
           e.preventDefault();
           playback.triggerSkip();
           break;
-        case "likeTrack":
+        case "likeTrack": {
           e.preventDefault();
-          if (playback.currentTrack && playback.currentStationToken) {
+          const track = PlaybackState.currentTrack(playback.state);
+          const stationToken = PlaybackState.currentStationToken(playback.state);
+          if (track && stationToken) {
             void submitFeedback({
               payload: {
-                id: playback.currentTrack.trackToken,
-                radioId: playback.currentStationToken,
+                id: track.trackToken,
+                radioId: stationToken,
                 positive: true,
               },
             }).then((exit) => {
@@ -100,13 +103,16 @@ export function useKeyboardShortcuts({
             });
           }
           break;
-        case "dislikeTrack":
+        }
+        case "dislikeTrack": {
           e.preventDefault();
-          if (playback.currentTrack && playback.currentStationToken) {
+          const track = PlaybackState.currentTrack(playback.state);
+          const stationToken = PlaybackState.currentStationToken(playback.state);
+          if (track && stationToken) {
             void submitFeedback({
               payload: {
-                id: playback.currentTrack.trackToken,
-                radioId: playback.currentStationToken,
+                id: track.trackToken,
+                radioId: stationToken,
                 positive: false,
               },
             }).then((exit) => {
@@ -116,11 +122,13 @@ export function useKeyboardShortcuts({
             playback.triggerSkip();
           }
           break;
-        case "sleepTrack":
+        }
+        case "sleepTrack": {
           e.preventDefault();
-          if (playback.currentTrack) {
+          const track = PlaybackState.currentTrack(playback.state);
+          if (track) {
             void submitSleep({
-              payload: { id: playback.currentTrack.trackToken },
+              payload: { id: track.trackToken },
             }).then((exit) => {
               if (exit._tag === "Success")
                 toast.success("Track will be skipped for 30 days");
@@ -129,15 +137,17 @@ export function useKeyboardShortcuts({
             playback.triggerSkip();
           }
           break;
+        }
         case "trackInfo":
           // Handled by NowPlayingPage directly
           break;
-        case "bookmarkSong":
+        case "bookmarkSong": {
           e.preventDefault();
-          if (playback.currentTrack) {
+          const track = PlaybackState.currentTrack(playback.state);
+          if (track) {
             void submitBookmark({
               payload: {
-                id: playback.currentTrack.trackToken,
+                id: track.trackToken,
                 type: "song",
               },
             }).then((exit) => {
@@ -146,6 +156,7 @@ export function useKeyboardShortcuts({
             });
           }
           break;
+        }
         case "bookmarkArtist":
           // Would require artist token, skip for now
           break;

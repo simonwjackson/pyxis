@@ -44,6 +44,7 @@ import {
   tracksToQueuePayload,
 } from "@app/shared/lib/nowPlayingUtils";
 import { usePlaybackContext } from "@app/shared/playback/PlaybackContext";
+import { PlaybackState } from "@app/shared/playback/types";
 import { Spinner } from "@app/shared/ui/Spinner";
 import { SearchAlbums } from "./components/SearchAlbums";
 import { SearchArtists } from "./components/SearchArtists";

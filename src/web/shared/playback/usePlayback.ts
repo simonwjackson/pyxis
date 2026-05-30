@@ -27,13 +27,14 @@ import type {
   PlaybackContextValue,
   PlaybackQueueContext,
   PlaybackQueueRequest,
+  PlaybackState,
   PlaybackTrack,
 } from "./types";
 
 /**
  * Internal playback state.
  */
-type PlaybackState = {
+type InternalPlaybackState = {
   /** Currently playing track, or null if stopped */
   readonly currentTrack: PlaybackTrack | null;
   /** Current station token (for Pandora radio context) */
@@ -76,7 +77,7 @@ function getCurrentStationToken(context: PlaybackQueueContext): string | null {
 
 export function usePlayback(): PlaybackContextValue {
   const audioRef = useRef<HTMLAudioElement | null>(null);
-  const [state, setState] = useState<PlaybackState>({
+  const [state, setState] = useState<InternalPlaybackState>({
     currentTrack: null,
     currentStationToken: null,
     isPlaying: false,
@@ -585,20 +586,34 @@ export function usePlayback(): PlaybackContextValue {
     setState((prev) => ({ ...prev, error: null }));
   }, []);
 
-  const status = state.currentTrack
-    ? state.isPlaying
-      ? "playing"
-      : "paused"
-    : "stopped";
+  // Project the internal loose state into the public PlaybackState ADT.
+  // Failed takes precedence (errors don't disappear silently); otherwise
+  // the presence of a currentTrack distinguishes Stopped from Playing/Paused.
+  const publicState: PlaybackState = state.error
+    ? {
+        _tag: "Failed",
+        error: state.error,
+        track: state.currentTrack,
+        stationToken: state.currentStationToken,
+      }
+    : state.currentTrack == null
+      ? { _tag: "Stopped" }
+      : state.isPlaying
+        ? {
+            _tag: "Playing",
+            track: state.currentTrack,
+            stationToken: state.currentStationToken,
+          }
+        : {
+            _tag: "Paused",
+            track: state.currentTrack,
+            stationToken: state.currentStationToken,
+          };
 
   return {
-    status,
-    currentTrack: state.currentTrack,
-    currentStationToken: state.currentStationToken,
-    isPlaying: state.isPlaying,
+    state: publicState,
     progress: state.progress,
     duration: state.duration,
-    error: state.error,
     volume: state.volume,
     playTrack,
     playQueue,

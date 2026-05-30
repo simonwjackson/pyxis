@@ -38,16 +38,73 @@ export type PlaybackQueueRequest = {
   readonly startIndex?: number;
 };
 
-export type PlaybackStatus = "stopped" | "paused" | "playing";
+/**
+ * Discriminated-union playback state. Replaces the legacy bag of
+ * `status` + `isPlaying` + nullable currentTrack/error fields.
+ *
+ * - Stopped: no audio loaded; mutations like `playTrack` move into Playing.
+ * - Playing: audio is playing; `track` is always defined.
+ * - Paused: audio is paused; `track` is always defined.
+ * - Failed: last attempt errored; `track` may or may not be loaded.
+ */
+export type PlaybackState =
+  | { readonly _tag: "Stopped" }
+  | {
+      readonly _tag: "Playing";
+      readonly track: PlaybackTrack;
+      readonly stationToken: string | null;
+    }
+  | {
+      readonly _tag: "Paused";
+      readonly track: PlaybackTrack;
+      readonly stationToken: string | null;
+    }
+  | {
+      readonly _tag: "Failed";
+      readonly error: string;
+      readonly track: PlaybackTrack | null;
+      readonly stationToken: string | null;
+    };
+
+export const PlaybackState = {
+  /** Currently loaded track, or null when the player is Stopped or Failed without a track. */
+  currentTrack: (state: PlaybackState): PlaybackTrack | null => {
+    switch (state._tag) {
+      case "Stopped":
+        return null;
+      case "Playing":
+      case "Paused":
+        return state.track;
+      case "Failed":
+        return state.track;
+    }
+  },
+  /** Station token for radio context, or null for non-radio or stopped states. */
+  currentStationToken: (state: PlaybackState): string | null => {
+    switch (state._tag) {
+      case "Stopped":
+        return null;
+      case "Playing":
+      case "Paused":
+      case "Failed":
+        return state.stationToken;
+    }
+  },
+  /** Last error message when in Failed state, null otherwise. */
+  error: (state: PlaybackState): string | null =>
+    state._tag === "Failed" ? state.error : null,
+  /** True only while audio is actively playing (not paused, stopped, or failed). */
+  isPlaying: (state: PlaybackState): boolean => state._tag === "Playing",
+};
 
 export type PlaybackContextValue = {
-  readonly status: PlaybackStatus;
-  readonly currentTrack: PlaybackTrack | null;
-  readonly currentStationToken: string | null;
-  readonly isPlaying: boolean;
+  /** Single-source-of-truth state ADT. Consumers read currentTrack, error, etc. via `PlaybackState.*` selectors. */
+  readonly state: PlaybackState;
+  /** Current playback position in seconds. */
   readonly progress: number;
+  /** Total track duration in seconds, 0 when no track is loaded. */
   readonly duration: number;
-  readonly error: string | null;
+  /** Volume level from 0-100. */
   readonly volume: number;
   playTrack: (track: PlaybackTrack) => void;
   playQueue: (request: PlaybackQueueRequest) => void;

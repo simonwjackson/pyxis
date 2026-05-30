@@ -35,7 +35,9 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
  *
  * @example
  * ```tsx
- * const { isPlaying, togglePlayPause, currentTrack } = usePlaybackContext();
+ * const playback = usePlaybackContext();
+ * const track = PlaybackState.currentTrack(playback.state);
+ * if (PlaybackState.isPlaying(playback.state)) playback.togglePlayPause();
  * ```
  */
 export function usePlaybackContext() {

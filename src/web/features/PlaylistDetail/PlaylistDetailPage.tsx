@@ -18,6 +18,7 @@ import {
   tracksToQueuePayload,
 } from "@app/shared/lib/nowPlayingUtils";
 import { usePlaybackContext } from "@app/shared/playback/PlaybackContext";
+import { PlaybackState } from "@app/shared/playback/types";
 import { Button } from "@app/shared/ui/Button";
 import { Skeleton } from "@app/shared/ui/Skeleton";
 import { PlaylistDetailState } from "./PlaylistDetailState";
@@ -96,7 +97,7 @@ export function PlaylistDetailPage({
 
   const hasAutoPlayedRef = useRef(false);
 
-  const currentTrackId = playback.currentTrack?.trackToken;
+  const currentTrackId = PlaybackState.currentTrack(playback.state)?.trackToken;
 
   const startPlayback = useCallback(
     (idx: number, doShuffle: boolean) => {
@@ -129,11 +130,11 @@ export function PlaylistDetailPage({
   };
 
   useEffect(() => {
-    if (playback.error) {
-      toast.error(`Audio error: ${playback.error}`);
+    if (PlaybackState.error(playback.state)) {
+      toast.error(`Audio error: ${PlaybackState.error(playback.state)}`);
       playbackRef.current.clearError();
     }
-  }, [playback.error]);
+  }, [PlaybackState.error(playback.state)]);
 
   if (state._tag === "Loading") {
     return <PlaylistDetailSkeleton />;

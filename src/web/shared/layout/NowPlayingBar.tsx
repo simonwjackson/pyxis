@@ -17,6 +17,7 @@ import {
 } from "../commands/trackCommandAtoms";
 import { formatTime } from "../lib/nowPlayingUtils";
 import { usePlaybackContext } from "../playback/PlaybackContext";
+import { PlaybackState } from "../playback/types";
 import { queueStateStreamAtom } from "../playback/queueStateStreamAtom";
 import type { PlaybackQueueContext } from "../playback/types";
 import { TrackInfoModal } from "../TrackInfoModal";
@@ -86,16 +87,10 @@ function navigateToContext(
 
 export function NowPlayingBar() {
   const playback = usePlaybackContext();
-  const {
-    currentTrack,
-    isPlaying,
-    progress,
-    duration,
-    togglePlayPause,
-    triggerSkip,
-    triggerPrevious,
-    seek,
-  } = playback;
+  const { progress, duration, togglePlayPause, triggerSkip, triggerPrevious, seek } =
+    playback;
+  const currentTrack = PlaybackState.currentTrack(playback.state);
+  const isPlaying = PlaybackState.isPlaying(playback.state);
   const navigate = useNavigate();
   const queueResult = useAtomValue(queueStateStreamAtom);
   const { queueContext, queueIndex } =

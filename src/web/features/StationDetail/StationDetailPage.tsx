@@ -30,6 +30,7 @@ import {
   tracksToQueuePayload,
 } from "@app/shared/lib/nowPlayingUtils";
 import { usePlaybackContext } from "@app/shared/playback/PlaybackContext";
+import { PlaybackState } from "@app/shared/playback/types";
 import { queueStateStreamAtom } from "@app/shared/playback/queueStateStreamAtom";
 import { StationDetailState } from "./StationDetailState";
 import { StationDetailArtistSeedRow } from "./StationDetailArtistSeedRow";
@@ -94,7 +95,7 @@ export function StationDetailPage({ token, autoPlay }: StationDetailPageProps) {
     ? queueResult.value.context
     : null;
   const isThisStationPlaying =
-    playback.currentTrack != null &&
+    PlaybackState.currentTrack(playback.state) != null &&
     queueContext?.type === "radio" &&
     queueContext.seedId === token;
 
@@ -123,11 +124,11 @@ export function StationDetailPage({ token, autoPlay }: StationDetailPageProps) {
   }, [autoPlay, startRadioPlayback]);
 
   useEffect(() => {
-    if (playback.error) {
-      toast.error(`Audio error: ${playback.error}`);
+    if (PlaybackState.error(playback.state)) {
+      toast.error(`Audio error: ${PlaybackState.error(playback.state)}`);
       playbackRef.current.clearError();
     }
-  }, [playback.error]);
+  }, [PlaybackState.error(playback.state)]);
 
   const removeSeedResult = projectQueryResult(
     useAtomValue(removeSeedMutationAtom),

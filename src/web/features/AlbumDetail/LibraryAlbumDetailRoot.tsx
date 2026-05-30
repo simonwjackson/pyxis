@@ -49,6 +49,7 @@ import {
   tracksToQueuePayload,
 } from "@app/shared/lib/nowPlayingUtils";
 import { usePlaybackContext } from "@app/shared/playback/PlaybackContext";
+import { PlaybackState } from "@app/shared/playback/types";
 import { LibraryAlbumDetailState } from "./AlbumDetailState";
 import { AlbumDetailContent } from "./AlbumDetailContent";
 import { AlbumDetailSkeleton } from "./AlbumDetailSkeleton";
@@ -134,7 +135,7 @@ export function LibraryAlbumDetailRoot({
 
   const album = state._tag === "Ready" ? state.album : null;
   const tracks = state._tag === "Ready" ? state.tracks : null;
-  const currentTrackId = playback.currentTrack?.trackToken;
+  const currentTrackId = PlaybackState.currentTrack(playback.state)?.trackToken;
   const hasAutoPlayedRef = useRef(false);
 
   const startPlayback = useCallback(
@@ -160,11 +161,11 @@ export function LibraryAlbumDetailRoot({
   }, [album, autoPlay, shuffle, startIndex, startPlayback, tracks]);
 
   useEffect(() => {
-    if (playback.error) {
-      toast.error(`Audio error: ${playback.error}`);
+    if (PlaybackState.error(playback.state)) {
+      toast.error(`Audio error: ${PlaybackState.error(playback.state)}`);
       playbackRef.current.clearError();
     }
-  }, [playback.error]);
+  }, [PlaybackState.error(playback.state)]);
 
   const handleSaveAlbum = useCallback(() => {
     void saveAlbum({

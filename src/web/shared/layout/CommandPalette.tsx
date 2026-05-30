@@ -14,6 +14,7 @@ import {
   trackSleepSetMutationAtom,
 } from "../commands/trackCommandAtoms";
 import { usePlaybackContext } from "../playback/PlaybackContext";
+import { PlaybackState } from "../playback/types";
 import { useTheme } from "../theme/ThemeContext";
 import { CommandPaletteCommandListPanel } from "./CommandPalette/components/CommandPaletteCommandListPanel";
 import { CommandPaletteFooter } from "./CommandPalette/components/CommandPaletteFooter";
@@ -58,12 +59,14 @@ export function CommandPalette({ onClose }: CommandPaletteProps) {
         case "skipTrack":
           playback.triggerSkip();
           break;
-        case "likeTrack":
-          if (playback.currentTrack && playback.currentStationToken) {
+        case "likeTrack": {
+          const track = PlaybackState.currentTrack(playback.state);
+          const stationToken = PlaybackState.currentStationToken(playback.state);
+          if (track && stationToken) {
             void submitFeedback({
               payload: {
-                id: playback.currentTrack.trackToken,
-                radioId: playback.currentStationToken,
+                id: track.trackToken,
+                radioId: stationToken,
                 positive: true,
               },
             }).then((exit) => {
@@ -71,12 +74,15 @@ export function CommandPalette({ onClose }: CommandPaletteProps) {
             });
           }
           break;
-        case "dislikeTrack":
-          if (playback.currentTrack && playback.currentStationToken) {
+        }
+        case "dislikeTrack": {
+          const track = PlaybackState.currentTrack(playback.state);
+          const stationToken = PlaybackState.currentStationToken(playback.state);
+          if (track && stationToken) {
             void submitFeedback({
               payload: {
-                id: playback.currentTrack.trackToken,
-                radioId: playback.currentStationToken,
+                id: track.trackToken,
+                radioId: stationToken,
                 positive: false,
               },
             }).then((exit) => {
@@ -85,10 +91,12 @@ export function CommandPalette({ onClose }: CommandPaletteProps) {
             playback.triggerSkip();
           }
           break;
-        case "sleepTrack":
-          if (playback.currentTrack) {
+        }
+        case "sleepTrack": {
+          const track = PlaybackState.currentTrack(playback.state);
+          if (track) {
             void submitSleep({
-              payload: { id: playback.currentTrack.trackToken },
+              payload: { id: track.trackToken },
             }).then((exit) => {
               if (exit._tag === "Success")
                 toast.success("track will be skipped for 30 days");
@@ -96,11 +104,13 @@ export function CommandPalette({ onClose }: CommandPaletteProps) {
             playback.triggerSkip();
           }
           break;
-        case "bookmarkSong":
-          if (playback.currentTrack) {
+        }
+        case "bookmarkSong": {
+          const track = PlaybackState.currentTrack(playback.state);
+          if (track) {
             void submitBookmark({
               payload: {
-                id: playback.currentTrack.trackToken,
+                id: track.trackToken,
                 type: "song",
               },
             }).then((exit) => {
@@ -108,6 +118,7 @@ export function CommandPalette({ onClose }: CommandPaletteProps) {
             });
           }
           break;
+        }
         case "goToStations":
           navigate({
             to: "/",

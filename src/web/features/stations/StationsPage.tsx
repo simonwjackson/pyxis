@@ -16,6 +16,7 @@ import { useState } from "react";
 import { PyxisRpcClient } from "@app/shared/api/rpcClient";
 import { projectQueryResult } from "@app/shared/effect/projectQueryResult";
 import { usePlaybackContext } from "@app/shared/playback/PlaybackContext";
+import { PlaybackState } from "@app/shared/playback/types";
 import { StationListSkeleton } from "@app/shared/ui/Skeleton";
 import type { ApiStationSummary } from "../../../api/contracts/radio.js";
 import { DeleteStationDialog } from "./DeleteStationDialog";
@@ -124,7 +125,7 @@ export function StationsPage() {
       </div>
       <StationList
         stations={filteredStations}
-        currentStationId={playback.currentStationToken ?? undefined}
+        currentStationId={PlaybackState.currentStationToken(playback.state) ?? undefined}
         onSelect={handleSelect}
         onDetails={handleDetails}
         onRename={(station) => setDialog({ type: "rename", station })}
