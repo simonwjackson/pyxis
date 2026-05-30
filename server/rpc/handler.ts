@@ -142,7 +142,7 @@ export const publicHandler = <A, R>(
  * cast keeps that runtime contract authoritative without losing dependency
  * inference on the resulting layer.
  */
-export const NonRealtimeHandlersLayer = NonRealtimeRpc.toLayer(
+export const NonRealtimeRpcHandlersLayer = NonRealtimeRpc.toLayer(
   Effect.gen(function* () {
     const auth = yield* AuthSession;
     const library = yield* Library;
@@ -166,9 +166,9 @@ export const NonRealtimeHandlersLayer = NonRealtimeRpc.toLayer(
 /**
  * Build the handler layer for the full {@link PyxisRpc} group. Includes the
  * realtime player + queue handlers added in U5 alongside the non-realtime
- * families wired through {@link NonRealtimeHandlersLayer}.
+ * families wired through {@link NonRealtimeRpcHandlersLayer}.
  */
-export const HandlersLayer = PyxisRpc.toLayer(
+export const PyxisRpcHandlersLayer = PyxisRpc.toLayer(
   Effect.gen(function* () {
     const auth = yield* AuthSession;
     const library = yield* Library;
@@ -198,7 +198,7 @@ export const HandlersLayer = PyxisRpc.toLayer(
  * service contract the handlers depend on. U7 mounts this on the HTTP
  * route as the application's only RPC runtime.
  */
-export const PyxisRpcLayerLive = HandlersLayer.pipe(
+export const PyxisRpcLayerLive = PyxisRpcHandlersLayer.pipe(
   Layer.provide(AuthSessionLayerLive),
   Layer.provide(LibraryLayerLive),
   Layer.provide(SourceCatalogLayerLive),

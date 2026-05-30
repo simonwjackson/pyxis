@@ -2,7 +2,7 @@
  * @module @app/web/shared/effect/layerAtom
  *
  * Override seam for the RPC client protocol layer. The default value is the
- * live browser HTTP transport ({@link liveRpcProtocolLayer}); harnesses and
+ * live browser HTTP transport ({@link RpcProtocolLayerLive}); harnesses and
  * tests can replace this atom's value to inject an in-memory RPC transport
  * without touching feature code.
  *
@@ -26,7 +26,7 @@ import type { Protocol } from "effect/unstable/rpc/RpcClient";
  * model continues to work after the cutover. The exact wire endpoint is
  * mounted by U7 (`server/index.ts`); this layer only names it.
  */
-export const liveRpcProtocolLayer: Layer.Layer<Protocol> =
+export const RpcProtocolLayerLive: Layer.Layer<Protocol> =
   RpcClient.layerProtocolHttp({
     url: "/rpc",
   }).pipe(
@@ -35,7 +35,7 @@ export const liveRpcProtocolLayer: Layer.Layer<Protocol> =
   );
 
 /**
- * Override-able protocol layer atom. Default value is {@link liveRpcProtocolLayer}.
+ * Override-able protocol layer atom. Default value is {@link RpcProtocolLayerLive}.
  *
  * To override in tests / Storybook:
  * ```ts
@@ -44,4 +44,4 @@ export const liveRpcProtocolLayer: Layer.Layer<Protocol> =
  * ```
  */
 export const rpcProtocolLayerAtom: Atom.Writable<Layer.Layer<Protocol>> =
-  Atom.make<Layer.Layer<Protocol>>(liveRpcProtocolLayer);
+  Atom.make<Layer.Layer<Protocol>>(RpcProtocolLayerLive);

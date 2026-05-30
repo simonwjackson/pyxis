@@ -16,7 +16,7 @@ import type {
   CanonicalAlbum,
   CanonicalTrack,
 } from "@shared/sources/types.js";
-import { NonRealtimeHandlersLayer, NonRealtimeRpc } from "./handler.js";
+import { NonRealtimeRpcHandlersLayer, NonRealtimeRpc } from "./handler.js";
 import {
   type AuthSessionBehavior,
   AuthSessionLayerFromBehavior,
@@ -90,7 +90,7 @@ function makeServiceLayer() {
   );
 }
 
-const TestRpcLayer = NonRealtimeHandlersLayer.pipe(
+const TestRpcLayer = NonRealtimeRpcHandlersLayer.pipe(
   Layer.provide(makeServiceLayer()),
 );
 
