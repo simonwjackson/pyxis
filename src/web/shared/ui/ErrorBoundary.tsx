@@ -16,15 +16,10 @@ type ErrorBoundaryProps = {
   readonly fallback?: ReactNode;
 };
 
-/**
- * Internal state tracking error status.
- */
-type ErrorBoundaryState = {
-  /** Whether an error has been caught */
-  readonly hasError: boolean;
-  /** The caught error object, or null */
-  readonly error: Error | null;
-};
+/** Internal error-boundary state ADT. */
+type ErrorBoundaryState =
+  | { readonly _tag: "Ready" }
+  | { readonly _tag: "Crashed"; readonly error: Error };
 
 /**
  * Error boundary component that catches JavaScript errors in child components.
@@ -46,15 +41,15 @@ export class ErrorBoundary extends Component<
 > {
   constructor(props: ErrorBoundaryProps) {
     super(props);
-    this.state = { hasError: false, error: null };
+    this.state = { _tag: "Ready" };
   }
 
   static getDerivedStateFromError(error: Error): ErrorBoundaryState {
-    return { hasError: true, error };
+    return { _tag: "Crashed", error };
   }
 
   render() {
-    if (this.state.hasError) {
+    if (this.state._tag === "Crashed") {
       if (this.props.fallback) {
         return this.props.fallback;
       }
@@ -86,11 +81,11 @@ export class ErrorBoundary extends Component<
             something went wrong
           </h3>
           <p className="text-sm text-pyxis-muted mb-4 max-w-md">
-            {this.state.error?.message ?? "An unexpected error occurred"}
+            {this.state.error.message}
           </p>
           <Button
             variant="outline"
-            onClick={() => this.setState({ hasError: false, error: null })}
+            onClick={() => this.setState({ _tag: "Ready" })}
           >
             Try again
           </Button>
