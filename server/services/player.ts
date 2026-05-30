@@ -122,7 +122,11 @@ function notify(): void {
  * @example
  * ```ts
  * const state = getState();
- * console.log(`Now playing: ${state.currentTrack?.title} at ${state.progress}s`);
+ * const log = createLogger("player");
+ * log.info(
+ *   { track: state.currentTrack?.title, progress: state.progress },
+ *   "now playing",
+ * );
  * ```
  */
 export function getState(): PlayerState {
@@ -207,8 +211,9 @@ function maybeLogListen(): void {
  *
  * @example
  * ```ts
+ * const log = createLogger("player");
  * const unsubscribe = subscribe((state) => {
- *   console.log(`Status: ${state.status}`);
+ *   log.info({ status: state.status }, "player status changed");
  * });
  * // Later: unsubscribe();
  * ```
@@ -381,9 +386,10 @@ export function previousTrack(): Queue.QueueTrack | undefined {
  *
  * @example
  * ```ts
+ * const log = createLogger("player");
  * const track = jumpToIndex(5);
  * if (track) {
- *   console.log(`Now playing: ${track.title}`);
+ *   log.info({ track: track.title }, "jumped to track");
  * }
  * ```
  */
@@ -543,9 +549,10 @@ export function trackEnded(
  * @example
  * ```ts
  * // On server startup
+ * const log = createLogger("player");
  * const restored = await restoreFromDb();
  * if (restored) {
- *   console.log("Playback state restored from previous session");
+ *   log.info("playback state restored from previous session");
  * }
  * ```
  */

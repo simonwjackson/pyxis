@@ -109,9 +109,10 @@ export function updateSessionPandora(
  *
  * @example
  * ```ts
+ * const log = createLogger("session");
  * const session = getSession(sessionId);
  * if (session) {
- *   console.log(`User: ${session.username}`);
+ *   log.info({ user: session.username }, "session resolved");
  * }
  * ```
  */
@@ -127,8 +128,9 @@ export function getSession(sessionId: string): SessionData | undefined {
  *
  * @example
  * ```ts
+ * const log = createLogger("session");
  * if (deleteSession(sessionId)) {
- *   console.log("User logged out");
+ *   log.info("user logged out");
  * }
  * ```
  */

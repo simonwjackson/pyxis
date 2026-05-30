@@ -27,7 +27,7 @@ type SearchInputProps = {
  * @example
  * ```tsx
  * <SearchInput
- *   onSearch={(query) => console.log(query)}
+ *   onSearch={(query) => onSubmit(query)}
  *   ariaLabel="Search music"
  * />
  * ```

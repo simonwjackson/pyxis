@@ -172,8 +172,9 @@ export function getState(): QueueState {
  *
  * @example
  * ```ts
+ * const log = createLogger("queue");
  * const unsubscribe = subscribe((state) => {
- *   console.log(`Queue has ${state.items.length} tracks`);
+ *   log.info({ tracks: state.items.length }, "queue updated");
  * });
  * // Later: unsubscribe();
  * ```

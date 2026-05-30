@@ -209,7 +209,8 @@ function applyEnvOverrides(
  * @example
  * ```ts
  * const config = resolveConfig();
- * console.log(config.server.port); // 8765 (default)
+ * const log = createLogger("config");
+ * log.info({ port: config.server.port }, "resolved server port");
  *
  * // With custom config file
  * const config = resolveConfig("/path/to/config.yaml");
