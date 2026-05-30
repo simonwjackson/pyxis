@@ -12,7 +12,7 @@ import type {
   Source,
 } from "./types.js";
 
-const createMockTrack = (
+const makeCanonicalTrack = (
   id: string,
   title: string,
   artist: string,
@@ -24,7 +24,7 @@ const createMockTrack = (
   sourceId: { source: "ytmusic", id },
 });
 
-const createMockAlbum = (
+const makeCanonicalAlbum = (
   id: string,
   title: string,
   artist: string,
@@ -36,7 +36,7 @@ const createMockAlbum = (
   sourceIds: [{ source: "ytmusic", id }],
 });
 
-const createMockPlaylist = (id: string, name: string): CanonicalPlaylist => ({
+const makeCanonicalPlaylist = (id: string, name: string): CanonicalPlaylist => ({
   id,
   name,
   source: "ytmusic",
@@ -79,10 +79,10 @@ describe("createSourceManager", () => {
   describe("listAllPlaylists", () => {
     it("aggregates playlists from all playlist-capable sources", async () => {
       const ytPlaylists: CanonicalPlaylist[] = [
-        createMockPlaylist("yt-1", "YT Playlist 1"),
+        makeCanonicalPlaylist("yt-1", "YT Playlist 1"),
       ];
       const pandoraPlaylists: CanonicalPlaylist[] = [
-        createMockPlaylist("pandora-1", "Station 1"),
+        makeCanonicalPlaylist("pandora-1", "Station 1"),
       ];
 
       const sources: Source[] = [
@@ -112,7 +112,7 @@ describe("createSourceManager", () => {
         {
           type: "ytmusic",
           name: "YouTube Music",
-          listPlaylists: async () => [createMockPlaylist("yt-1", "Playlist")],
+          listPlaylists: async () => [makeCanonicalPlaylist("yt-1", "Playlist")],
           getPlaylistTracks: async () => [],
         },
         { type: "musicbrainz", name: "MusicBrainz" }, // No playlist capability
@@ -127,8 +127,8 @@ describe("createSourceManager", () => {
   describe("getPlaylistTracks", () => {
     it("returns tracks from the specified source", async () => {
       const tracks: CanonicalTrack[] = [
-        createMockTrack("1", "Track 1", "Artist 1"),
-        createMockTrack("2", "Track 2", "Artist 2"),
+        makeCanonicalTrack("1", "Track 1", "Artist 1"),
+        makeCanonicalTrack("2", "Track 2", "Artist 2"),
       ];
 
       const source: Source = {
@@ -195,8 +195,8 @@ describe("createSourceManager", () => {
 
   describe("getAlbumTracks", () => {
     it("returns album and tracks from the specified source", async () => {
-      const album = createMockAlbum("album-1", "Album Title", "Artist");
-      const tracks = [createMockTrack("1", "Track 1", "Artist")];
+      const album = makeCanonicalAlbum("album-1", "Album Title", "Artist");
+      const tracks = [makeCanonicalTrack("1", "Track 1", "Artist")];
 
       const source: Source = {
         type: "ytmusic",
@@ -231,10 +231,10 @@ describe("createSourceManager", () => {
   describe("searchAll", () => {
     it("aggregates search results from all searchable sources", async () => {
       const ytTracks: CanonicalTrack[] = [
-        createMockTrack("yt-1", "YT Song", "Artist"),
+        makeCanonicalTrack("yt-1", "YT Song", "Artist"),
       ];
       const ytAlbums: CanonicalAlbum[] = [
-        createMockAlbum("yt-album", "YT Album", "Artist"),
+        makeCanonicalAlbum("yt-album", "YT Album", "Artist"),
       ];
 
       const source: Source = {
@@ -263,7 +263,7 @@ describe("createSourceManager", () => {
         type: "ytmusic",
         name: "YouTube Music",
         search: async () => ({
-          tracks: [createMockTrack("1", "Track", "Artist")],
+          tracks: [makeCanonicalTrack("1", "Track", "Artist")],
           albums: [],
         }),
       };
@@ -282,7 +282,7 @@ describe("createSourceManager", () => {
     });
 
     it("merges albums with metadata sources", async () => {
-      const primaryAlbum = createMockAlbum(
+      const primaryAlbum = makeCanonicalAlbum(
         "primary-1",
         "Test Album",
         "Test Artist",

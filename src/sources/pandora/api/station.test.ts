@@ -21,7 +21,7 @@ import {
 } from "./station.js";
 
 describe("station API", () => {
-  // Mock auth state for testing
+  // Authenticated session fixture for tests
   const mockAuthState: AuthState = {
     syncTime: 0,
     partnerId: "42",

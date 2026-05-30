@@ -17,7 +17,7 @@ import {
   deleteSongBookmark,
 } from "./bookmark.js";
 
-// Mock authenticated state
+// Authenticated session fixture for tests
 const mockAuthState = {
   syncTime: 1234567890,
   partnerId: "42",

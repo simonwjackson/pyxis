@@ -18,7 +18,7 @@ import {
 } from "./user.js";
 
 describe("user API", () => {
-  // Mock auth state for testing
+  // Authenticated session fixture for tests
   const mockAuthState: AuthState = {
     syncTime: 0,
     partnerId: "42",

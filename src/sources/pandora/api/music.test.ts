@@ -9,7 +9,7 @@ import type { AuthState } from "./call.js";
 import { getTrack, search, shareMusic } from "./music.js";
 
 describe("music API", () => {
-  // Mock auth state for testing
+  // Authenticated session fixture for tests
   const mockAuthState: AuthState = {
     syncTime: 0,
     partnerId: "42",

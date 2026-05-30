@@ -237,7 +237,7 @@ describe("handleStreamRequest", () => {
       getStreamUrl: async () => "https://example.com/404",
     } as unknown as SourceManager;
 
-    // Mock fetch to return 404
+    // Force fetch to return 404
     const originalFetch = globalThis.fetch;
     globalThis.fetch = async () => new Response("Not found", { status: 404 });
 
