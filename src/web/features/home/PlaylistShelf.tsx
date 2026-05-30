@@ -4,6 +4,7 @@ import { CollectionGridSkeleton } from "@app/shared/ui/collection-grid/Collectio
 import type { SortOption } from "@app/shared/ui/collection-grid/types";
 import { ArrowDownAZ, Clock, Shuffle } from "lucide-react";
 import { useCallback } from "react";
+import type { HomeShelfState } from "./HomeState";
 import { PlaylistCard } from "./PlaylistCard";
 import type { PlaylistData } from "./types";
 
@@ -27,15 +28,13 @@ const filterPlaylist = (playlist: PlaylistData, query: string) =>
   playlist.name.toLowerCase().includes(query);
 
 type PlaylistShelfProps = {
-  readonly playlists: readonly PlaylistData[];
-  readonly isLoading: boolean;
+  readonly state: HomeShelfState<PlaylistData>;
   readonly onOpenPlaylist: (playlist: PlaylistData) => void;
   readonly onSeeAll: () => void;
 };
 
 export function PlaylistShelf({
-  playlists,
-  isLoading,
+  state,
   onOpenPlaylist,
   onSeeAll,
 }: PlaylistShelfProps) {
@@ -49,38 +48,46 @@ export function PlaylistShelf({
     [onOpenPlaylist],
   );
 
-  if (isLoading) {
-    return <CollectionGridSkeleton title="my playlists" />;
-  }
-
-  if (playlists.length === 0) {
-    return (
-      <CollectionGridEmpty
-        title="my playlists"
-        message="No playlists found. Create a station to get started."
-      />
-    );
-  }
-
-  return (
-    <CollectionGridRoot
-      title="my playlists"
-      items={playlists}
-      keyOf={(playlist) => playlist.id}
-      renderItem={renderPlaylistItem}
-      filterFn={filterPlaylist}
-      sortOptions={PLAYLIST_SORT_OPTIONS}
-      defaultSort="shuffle"
-      paramPrefix="pl"
-      headerActions={
-        <button
-          type="button"
-          onClick={onSeeAll}
-          className="zune-label text-pyxis-dim hover:text-pyxis-text transition-colors"
-        >
-          see all
-        </button>
+  switch (state._tag) {
+    case "Loading":
+      return <CollectionGridSkeleton title="my playlists" />;
+    case "LoadError":
+    case "Defect":
+      return (
+        <CollectionGridEmpty
+          title="my playlists"
+          message="Unable to load playlists right now."
+        />
+      );
+    case "Ready":
+      if (state.items.length === 0) {
+        return (
+          <CollectionGridEmpty
+            title="my playlists"
+            message="No playlists found. Create a station to get started."
+          />
+        );
       }
-    />
-  );
+      return (
+        <CollectionGridRoot
+          title="my playlists"
+          items={state.items}
+          keyOf={(playlist) => playlist.id}
+          renderItem={renderPlaylistItem}
+          filterFn={filterPlaylist}
+          sortOptions={PLAYLIST_SORT_OPTIONS}
+          defaultSort="shuffle"
+          paramPrefix="pl"
+          headerActions={
+            <button
+              type="button"
+              onClick={onSeeAll}
+              className="zune-label text-pyxis-dim hover:text-pyxis-text transition-colors"
+            >
+              see all
+            </button>
+          }
+        />
+      );
+  }
 }

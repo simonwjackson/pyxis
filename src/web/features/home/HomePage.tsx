@@ -122,12 +122,10 @@ function HomePlaylistShelfSection({
 }) {
   const result = projectQueryResult(useAtomValue(playlistsQueryAtom));
   const state = HomeState.playlistShelfFromResult(result);
-  const playlists = state._tag === "Ready" ? state.items : [];
 
   return (
     <PlaylistShelf
-      playlists={playlists}
-      isLoading={state._tag === "Loading"}
+      state={state}
       onOpenPlaylist={onOpenPlaylist}
       onSeeAll={onSeeAll}
     />
