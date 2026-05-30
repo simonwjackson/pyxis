@@ -11,7 +11,7 @@ import { Effect } from "effect";
 import type {
   ApiArtistIdInput,
   ApiArtistSearchInput,
-} from "../../../src/api/contracts/artist.js";
+} from "@shared/api/contracts/artist.js";
 import { formatSourceId, parseId } from "../../lib/ids.js";
 import { publicHandler } from "../handler.js";
 import type { SourceCatalogShape } from "../services/sourceCatalog.js";

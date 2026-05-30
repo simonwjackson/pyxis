@@ -10,9 +10,9 @@
 
 import { describe, expect, it } from "bun:test";
 import { Effect } from "effect";
-import type { SourceManager } from "../../../src/sources/index.js";
-import type { PandoraSession } from "../../../src/sources/pandora/client.js";
-import { ApiCallError } from "../../../src/sources/pandora/types/errors.js";
+import type { SourceManager } from "@shared/sources/index.js";
+import type { PandoraSession } from "@shared/sources/pandora/client.js";
+import { ApiCallError } from "@shared/sources/pandora/types/errors.js";
 import {
   AuthSession,
   type AuthSessionBehavior,

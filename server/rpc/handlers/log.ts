@@ -12,8 +12,8 @@
  */
 
 import { Effect } from "effect";
-import type { ApiClientLogInput } from "../../../src/api/contracts/log.js";
-import { createLogger } from "../../../src/logger.js";
+import type { ApiClientLogInput } from "@shared/api/contracts/log.js";
+import { createLogger } from "@shared/logger.js";
 
 const log = createLogger("playback").child({ component: "client" });
 

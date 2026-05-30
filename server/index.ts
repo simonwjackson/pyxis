@@ -24,8 +24,8 @@ import { IncomingMessage, ServerResponse } from "node:http";
 import { Socket } from "node:net";
 import { join, resolve } from "node:path";
 import type { ViteDevServer } from "vite";
-import { resolveConfig } from "../src/config.js";
-import { createLogger } from "../src/logger.js";
+import { resolveConfig } from "@shared/config.js";
+import { createLogger } from "@shared/logger.js";
 import {
   createAndroidMediaBridge,
   isAndroidMediaBridgeRequest,

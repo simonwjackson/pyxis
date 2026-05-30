@@ -18,22 +18,22 @@
  */
 
 import { Effect } from "effect";
-import { resolveConfig } from "../../src/config.js";
-import { getDb } from "../../src/db/index.js";
-import { createLogger } from "../../src/logger.js";
-import { createBandcampFullSource } from "../../src/sources/bandcamp/index.js";
-import { createDeezerSource } from "../../src/sources/deezer/index.js";
-import { createDiscogsSource } from "../../src/sources/discogs/index.js";
-import { createMatcher } from "../../src/sources/matcher.js";
-import { createMusicBrainzSource } from "../../src/sources/musicbrainz/index.js";
-import { createSoundCloudFullSource } from "../../src/sources/soundcloud/index.js";
+import { resolveConfig } from "@shared/config.js";
+import { getDb } from "@shared/db/index.js";
+import { createLogger } from "@shared/logger.js";
+import { createBandcampFullSource } from "@shared/sources/bandcamp/index.js";
+import { createDeezerSource } from "@shared/sources/deezer/index.js";
+import { createDiscogsSource } from "@shared/sources/discogs/index.js";
+import { createMatcher } from "@shared/sources/matcher.js";
+import { createMusicBrainzSource } from "@shared/sources/musicbrainz/index.js";
+import { createSoundCloudFullSource } from "@shared/sources/soundcloud/index.js";
 import type {
   MetadataSearchQuery,
   MetadataSource,
   NormalizedRelease,
   SourceType,
-} from "../../src/sources/types.js";
-import { hasMetadataSearchCapability } from "../../src/sources/types.js";
+} from "@shared/sources/types.js";
+import { hasMetadataSearchCapability } from "@shared/sources/types.js";
 
 const logger = createLogger("enrich");
 

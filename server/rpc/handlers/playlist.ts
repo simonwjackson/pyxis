@@ -15,13 +15,13 @@ import { Effect } from "effect";
 import type {
   ApiCreatePlaylistRadioInput,
   ApiPlaylistTracksInput,
-} from "../../../src/api/contracts/playlist.js";
-import { getDb } from "../../../src/db/index.js";
+} from "@shared/api/contracts/playlist.js";
+import { getDb } from "@shared/db/index.js";
 import type {
   CanonicalPlaylist,
   CanonicalTrack,
-} from "../../../src/sources/types.js";
-import { generateRadioUrl } from "../../../src/sources/ytmusic/index.js";
+} from "@shared/sources/types.js";
+import { generateRadioUrl } from "@shared/sources/ytmusic/index.js";
 import {
   formatSourceId,
   parseId,

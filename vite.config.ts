@@ -85,7 +85,13 @@ export default defineConfig({
   },
   resolve: {
     alias: {
-      "@": path.resolve(import.meta.dirname, "src"),
+      "@app": path.resolve(import.meta.dirname, "src/web"),
+      "@server": path.resolve(import.meta.dirname, "server"),
+      "@shared/api": path.resolve(import.meta.dirname, "src/api"),
+      "@shared/sources": path.resolve(import.meta.dirname, "src/sources"),
+      "@shared/db": path.resolve(import.meta.dirname, "src/db"),
+      "@shared/config": path.resolve(import.meta.dirname, "src/config"),
+      "@shared/logger": path.resolve(import.meta.dirname, "src/logger"),
     },
   },
   build: {

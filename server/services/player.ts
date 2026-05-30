@@ -5,8 +5,8 @@
  * State changes are broadcast to subscribers and persisted to the database.
  */
 
-import { getDb } from "../../src/db/index.js";
-import { createLogger } from "../../src/logger.js";
+import { getDb } from "@shared/db/index.js";
+import { createLogger } from "@shared/logger.js";
 import { generateId } from "../lib/ids.js";
 import { loadPlayerState, schedulePlayerSave } from "./persistence.js";
 import * as Queue from "./queue.js";

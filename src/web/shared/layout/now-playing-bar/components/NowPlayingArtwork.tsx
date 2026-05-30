@@ -1,5 +1,5 @@
 import { Music } from "lucide-react";
-import type { PlaybackTrack } from "@/web/shared/playback/types";
+import type { PlaybackTrack } from "@app/shared/playback/types";
 
 type NowPlayingArtworkProps = {
   readonly track: PlaybackTrack;

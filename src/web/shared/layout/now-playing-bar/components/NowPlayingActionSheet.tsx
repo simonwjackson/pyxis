@@ -1,7 +1,7 @@
 import { X } from "lucide-react";
 import type { ReactNode } from "react";
-import { formatTime } from "@/web/shared/lib/now-playing-utils";
-import type { PlaybackTrack } from "@/web/shared/playback/types";
+import { formatTime } from "@app/shared/lib/now-playing-utils";
+import type { PlaybackTrack } from "@app/shared/playback/types";
 import { NowPlayingArtwork } from "./NowPlayingArtwork";
 
 type NowPlayingActionSheetProps = {

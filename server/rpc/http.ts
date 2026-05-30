@@ -10,7 +10,7 @@
 import { Effect, Layer } from "effect";
 import { HttpEffect } from "effect/unstable/http";
 import { RpcSerialization, RpcServer } from "effect/unstable/rpc";
-import { PyxisRpc } from "../../src/api/rpc.js";
+import { PyxisRpc } from "@shared/api/rpc.js";
 import { PyxisRpcLayerLive } from "./handler.js";
 
 const rpcLayer = PyxisRpcLayerLive.pipe(

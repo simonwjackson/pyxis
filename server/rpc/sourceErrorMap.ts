@@ -18,7 +18,7 @@ import {
   PartnerLoginError,
   SessionError,
   UserLoginError,
-} from "../../src/sources/pandora/types/errors.js";
+} from "@shared/sources/pandora/types/errors.js";
 import {
   AuthRefreshFailed,
   Defect,

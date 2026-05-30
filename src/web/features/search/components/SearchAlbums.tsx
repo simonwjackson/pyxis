@@ -1,6 +1,6 @@
 import { Link } from "@tanstack/react-router";
 import { Disc3, Loader2, Play } from "lucide-react";
-import { formatPlacementLabel } from "@/web/shared/lib/library-placement";
+import { formatPlacementLabel } from "@app/shared/lib/library-placement";
 import type { SearchAlbum } from "../types";
 import { SearchHotBadge } from "./SearchHotBadge";
 import { SearchPlacementBadge } from "./SearchPlacementBadge";

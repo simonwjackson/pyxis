@@ -4,7 +4,7 @@
  * Sessions are stored in-memory and associate users with their Pandora credentials.
  */
 
-import type { PandoraSession } from "../../src/sources/pandora/client.js";
+import type { PandoraSession } from "@shared/sources/pandora/client.js";
 
 /**
  * Internal session data structure stored for each authenticated user.

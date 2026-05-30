@@ -4,7 +4,7 @@
  * Handles source routing, metadata enrichment, and search aggregation.
  */
 
-import type { Logger } from "../logger.js";
+import type { Logger } from "@shared/logger.js";
 import { createMatcher } from "./matcher.js";
 import type {
   CanonicalAlbum,

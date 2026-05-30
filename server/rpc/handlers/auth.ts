@@ -15,8 +15,8 @@ import { Effect } from "effect";
 import type {
   ApiChangeSettingsInput,
   ApiSetExplicitFilterInput,
-} from "../../../src/api/contracts/auth.js";
-import * as Pandora from "../../../src/sources/pandora/client.js";
+} from "@shared/api/contracts/auth.js";
+import * as Pandora from "@shared/sources/pandora/client.js";
 import { getPandoraSessionFromCredentials } from "../../services/credentials.js";
 import { publicHandler } from "../handler.js";
 import type { AuthSessionShape } from "../services/authSession.js";

@@ -28,11 +28,11 @@ import { readFileSync } from "node:fs";
 import { Effect } from "effect";
 import { nanoid } from "nanoid";
 import { parse } from "yaml";
-import { getDb } from "../../src/db/index.js";
-import { createLogger } from "../../src/logger.js";
-import { createSourceManager } from "../../src/sources/index.js";
-import type { SourceType } from "../../src/sources/types.js";
-import { createYtMusicSource } from "../../src/sources/ytmusic/index.js";
+import { getDb } from "@shared/db/index.js";
+import { createLogger } from "@shared/logger.js";
+import { createSourceManager } from "@shared/sources/index.js";
+import type { SourceType } from "@shared/sources/types.js";
+import { createYtMusicSource } from "@shared/sources/ytmusic/index.js";
 
 const YAML_PATH =
   process.argv[2] ??

@@ -11,11 +11,11 @@
  */
 
 import { Effect } from "effect";
-import type { ApiSourceAlbumIdInput } from "../../../src/api/contracts/album.js";
+import type { ApiSourceAlbumIdInput } from "@shared/api/contracts/album.js";
 import type {
   CanonicalAlbum,
   CanonicalTrack,
-} from "../../../src/sources/types.js";
+} from "@shared/sources/types.js";
 import { formatSourceId, parseId, trackCapabilities } from "../../lib/ids.js";
 import { ValidationError } from "../errors.js";
 import { publicHandler } from "../handler.js";

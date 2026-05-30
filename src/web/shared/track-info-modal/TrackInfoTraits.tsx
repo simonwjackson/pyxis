@@ -1,7 +1,7 @@
 import { useAtomValue } from "@effect/atom-react";
 import { useMemo } from "react";
-import { PyxisRpcClient } from "@/web/shared/api/rpcClient";
-import { projectQueryResult } from "@/web/shared/effect/projectQueryResult";
+import { PyxisRpcClient } from "@app/shared/api/rpcClient";
+import { projectQueryResult } from "@app/shared/effect/projectQueryResult";
 import { TrackInfoState } from "./TrackInfoState";
 import { TrackInfoTraitsEmpty } from "./TrackInfoTraitsEmpty";
 import { TrackInfoTraitsError } from "./TrackInfoTraitsError";

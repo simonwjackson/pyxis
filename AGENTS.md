@@ -73,7 +73,7 @@ PGlite (in-browser Postgres) with Drizzle ORM. Schema defines: albums, album_sou
 
 Two configs:
 - `tsconfig.json` - Server + sources (NodeNext modules)
-- `tsconfig.web.json` - Web frontend (ESNext/bundler, `@/*` path alias)
+- `tsconfig.web.json` - Web frontend (ESNext/bundler) with layer-scoped aliases: `@app/*` (web product), `@server/*` (Bun server), `@shared/api/*`, `@shared/sources/*`, `@shared/db/*`, `@shared/config`, `@shared/logger`. Shared modules MUST NOT import from `@app/*` or `@server/*`.
 
 Both use strict mode with `exactOptionalPropertyTypes` and `noUncheckedIndexedAccess`.
 

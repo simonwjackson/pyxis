@@ -17,10 +17,10 @@ import {
 } from "node:fs";
 import { join } from "node:path";
 import envPaths from "env-paths";
-import { createLogger } from "../../src/logger.js";
-import type { SourceManager } from "../../src/sources/index.js";
-import type { SourceType } from "../../src/sources/types.js";
-import { decodeChapterTrackId } from "../../src/sources/youtube/index.js";
+import { createLogger } from "@shared/logger.js";
+import type { SourceManager } from "@shared/sources/index.js";
+import type { SourceType } from "@shared/sources/types.js";
+import { decodeChapterTrackId } from "@shared/sources/youtube/index.js";
 
 const log = createLogger("stream").child({ component: "stream" });
 

@@ -20,8 +20,8 @@ import type {
   ApiQueueAddInput,
   ApiQueueIndexInput,
   ApiQueueState,
-} from "../../../src/api/contracts/queue.js";
-import { createLogger } from "../../../src/logger.js";
+} from "@shared/api/contracts/queue.js";
+import { createLogger } from "@shared/logger.js";
 import { resolveTrackSource } from "../../lib/ids.js";
 import type { QueueState, QueueTrack } from "../../services/queue.js";
 import { publicHandler } from "../handler.js";

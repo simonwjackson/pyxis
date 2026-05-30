@@ -9,8 +9,8 @@
  * the old `server/trpc.ts` shape.
  */
 
-import type { SourceManager } from "../../src/sources/index.js";
-import type { PandoraSession } from "../../src/sources/pandora/client.js";
+import type { SourceManager } from "@shared/sources/index.js";
+import type { PandoraSession } from "@shared/sources/pandora/client.js";
 
 /**
  * The full request-time view of authenticated state plus the active source

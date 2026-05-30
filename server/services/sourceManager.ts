@@ -5,26 +5,26 @@
  * and provides a global fallback manager for unauthenticated requests.
  */
 
-import type { AppConfig } from "../../src/config.js";
-import { getDb } from "../../src/db/index.js";
-import { createLogger } from "../../src/logger.js";
-import { createBandcampFullSource } from "../../src/sources/bandcamp/index.js";
-import { createDeezerSource } from "../../src/sources/deezer/index.js";
-import { createDiscogsSource } from "../../src/sources/discogs/index.js";
-import type { SourceManager } from "../../src/sources/index.js";
-import { createSourceManager } from "../../src/sources/index.js";
-import { createMusicBrainzSource } from "../../src/sources/musicbrainz/index.js";
-import type { PandoraSession } from "../../src/sources/pandora/client.js";
+import type { AppConfig } from "@shared/config.js";
+import { getDb } from "@shared/db/index.js";
+import { createLogger } from "@shared/logger.js";
+import { createBandcampFullSource } from "@shared/sources/bandcamp/index.js";
+import { createDeezerSource } from "@shared/sources/deezer/index.js";
+import { createDiscogsSource } from "@shared/sources/discogs/index.js";
+import type { SourceManager } from "@shared/sources/index.js";
+import { createSourceManager } from "@shared/sources/index.js";
+import { createMusicBrainzSource } from "@shared/sources/musicbrainz/index.js";
+import type { PandoraSession } from "@shared/sources/pandora/client.js";
 import {
   createPandoraSource,
   isPandoraSource,
-} from "../../src/sources/pandora/index.js";
-import type { PlaylistItem } from "../../src/sources/pandora/types/api.js";
-import { createSoundCloudFullSource } from "../../src/sources/soundcloud/index.js";
-import type { MetadataSource, Source } from "../../src/sources/types.js";
-import { createYouTubeSource } from "../../src/sources/youtube/index.js";
-import type { YtMusicPlaylistEntry } from "../../src/sources/ytmusic/index.js";
-import { createYtMusicSource } from "../../src/sources/ytmusic/index.js";
+} from "@shared/sources/pandora/index.js";
+import type { PlaylistItem } from "@shared/sources/pandora/types/api.js";
+import { createSoundCloudFullSource } from "@shared/sources/soundcloud/index.js";
+import type { MetadataSource, Source } from "@shared/sources/types.js";
+import { createYouTubeSource } from "@shared/sources/youtube/index.js";
+import type { YtMusicPlaylistEntry } from "@shared/sources/ytmusic/index.js";
+import { createYtMusicSource } from "@shared/sources/ytmusic/index.js";
 
 const logger = createLogger("server");
 

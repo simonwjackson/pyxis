@@ -1,5 +1,5 @@
 import { ChevronLeft, Play, Plus } from "lucide-react";
-import { Button } from "@/web/shared/ui/button";
+import { Button } from "@app/shared/ui/button";
 
 type StationDetailHeaderProps = {
   readonly stationName: string;

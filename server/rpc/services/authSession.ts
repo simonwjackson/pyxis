@@ -19,9 +19,9 @@
  */
 
 import { Context, Effect, Layer } from "effect";
-import { createLogger } from "../../../src/logger.js";
-import type { SourceManager } from "../../../src/sources/index.js";
-import type { PandoraSession } from "../../../src/sources/pandora/client.js";
+import { createLogger } from "@shared/logger.js";
+import type { SourceManager } from "@shared/sources/index.js";
+import type { PandoraSession } from "@shared/sources/pandora/client.js";
 import {
   getPandoraSessionFromCredentials,
   refreshPandoraSession as runRefreshPandoraSession,

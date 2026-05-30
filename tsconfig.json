@@ -13,7 +13,18 @@
     "noUncheckedIndexedAccess": true,
     "sourceMap": true,
     "esModuleInterop": true,
-    "skipLibCheck": true
+    "skipLibCheck": true,
+    "baseUrl": ".",
+    "paths": {
+      "@server/*": ["./server/*"],
+      "@shared/api/*": ["./src/api/*"],
+      "@shared/sources/*": ["./src/sources/*"],
+      "@shared/db/*": ["./src/db/*"],
+      "@shared/config": ["./src/config.ts"],
+      "@shared/config.js": ["./src/config.ts"],
+      "@shared/logger": ["./src/logger.ts"],
+      "@shared/logger.js": ["./src/logger.ts"]
+    }
   },
   "include": [
     "src/sources/**/*",

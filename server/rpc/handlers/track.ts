@@ -19,8 +19,8 @@ import type {
   ApiTrackIdRequest,
   ApiTrackSleepInput,
   ApiTrackStreamUrlInput,
-} from "../../../src/api/contracts/track.js";
-import * as Pandora from "../../../src/sources/pandora/client.js";
+} from "@shared/api/contracts/track.js";
+import * as Pandora from "@shared/sources/pandora/client.js";
 import {
   buildStreamUrl,
   formatSourceId,

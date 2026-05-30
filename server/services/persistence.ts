@@ -5,8 +5,8 @@
  * Uses ProseQL with YAML/JSONL persistence.
  */
 
-import { getDb, type QueueItem } from "../../src/db/index.js";
-import type { SourceType } from "../../src/sources/types.js";
+import { getDb, type QueueItem } from "@shared/db/index.js";
+import type { SourceType } from "@shared/sources/types.js";
 import type { PlayerStatus } from "./player.js";
 import type { QueueContext, QueueState, QueueTrack } from "./queue.js";
 

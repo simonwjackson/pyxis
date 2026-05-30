@@ -20,10 +20,10 @@ import type {
   ApiSetAlbumPlacementInput,
   ApiUpdateAlbumInput,
   ApiUpdateLibraryTrackInput,
-} from "../../../src/api/contracts/library.js";
-import { getDb } from "../../../src/db/index.js";
-import * as Pandora from "../../../src/sources/pandora/client.js";
-import type { SourceType } from "../../../src/sources/types.js";
+} from "@shared/api/contracts/library.js";
+import { getDb } from "@shared/db/index.js";
+import * as Pandora from "@shared/sources/pandora/client.js";
+import type { SourceType } from "@shared/sources/types.js";
 import { parseId, trackCapabilities } from "../../lib/ids.js";
 import { publicHandler } from "../handler.js";
 import type { AuthSessionShape } from "../services/authSession.js";

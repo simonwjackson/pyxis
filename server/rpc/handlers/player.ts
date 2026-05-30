@@ -35,8 +35,8 @@ import type {
   ApiSeekInput,
   ApiTrackEndedInput,
   ApiVolumeInput,
-} from "../../../src/api/contracts/player.js";
-import { createLogger } from "../../../src/logger.js";
+} from "@shared/api/contracts/player.js";
+import { createLogger } from "@shared/logger.js";
 import { buildStreamUrl, resolveTrackSource } from "../../lib/ids.js";
 import { toPlayerStateView } from "../../lib/playerStateView.js";
 import type { PlayerState } from "../../services/player.js";

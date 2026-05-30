@@ -23,7 +23,7 @@ import type {
   CanonicalAlbum,
   CanonicalPlaylist,
   CanonicalTrack,
-} from "../../../src/sources/types.js";
+} from "@shared/sources/types.js";
 import type { AuthSessionShape } from "../services/authSession.js";
 import type {
   LibraryShape,

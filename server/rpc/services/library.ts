@@ -7,10 +7,10 @@
  */
 
 import { Context, Effect, Layer } from "effect";
-import type { AlbumPlacement } from "../../../src/db/config.js";
-import { type DbInstance, getDb } from "../../../src/db/index.js";
-import { createLogger } from "../../../src/logger.js";
-import type { SourceManager } from "../../../src/sources/index.js";
+import type { AlbumPlacement } from "@shared/db/config.js";
+import { type DbInstance, getDb } from "@shared/db/index.js";
+import { createLogger } from "@shared/logger.js";
+import type { SourceManager } from "@shared/sources/index.js";
 import { parseId } from "../../lib/ids.js";
 import {
   getLibraryAlbum,

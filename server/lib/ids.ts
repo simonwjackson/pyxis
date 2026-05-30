@@ -5,8 +5,8 @@
  */
 
 import { nanoid } from "nanoid";
-import { getDb } from "../../src/db/index.js";
-import type { SourceType } from "../../src/sources/types.js";
+import { getDb } from "@shared/db/index.js";
+import type { SourceType } from "@shared/sources/types.js";
 
 // --- Capability types ---
 

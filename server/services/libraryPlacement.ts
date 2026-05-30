@@ -3,7 +3,7 @@
  * Central placement semantics for album library state.
  */
 
-import type { AlbumPlacement } from "../../src/db/config.js";
+import type { AlbumPlacement } from "@shared/db/config.js";
 
 export const LIBRARY_PLACEMENTS = [
   "discovery",

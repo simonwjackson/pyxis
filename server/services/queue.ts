@@ -5,8 +5,8 @@
  * (radio, album, playlist, manual), and provides auto-fetch for radio stations.
  */
 
-import { createLogger } from "../../src/logger.js";
-import type { SourceType } from "../../src/sources/types.js";
+import { createLogger } from "@shared/logger.js";
+import type { SourceType } from "@shared/sources/types.js";
 import { loadQueueState, scheduleQueueSave } from "./persistence.js";
 
 const log = createLogger("playback").child({ component: "queue" });

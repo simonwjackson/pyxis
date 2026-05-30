@@ -18,7 +18,7 @@ import type {
   CanonicalPlaylist,
   CanonicalTrack,
   SourceType,
-} from "../../../src/sources/types.js";
+} from "@shared/sources/types.js";
 import type { SourceCatalogShape } from "../services/sourceCatalog.js";
 import { albumHandlers } from "./album.js";
 

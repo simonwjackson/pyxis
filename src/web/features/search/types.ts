@@ -1,4 +1,4 @@
-import type { AlbumPlacement } from "@/web/shared/lib/library-placement";
+import type { AlbumPlacement } from "@app/shared/lib/library-placement";
 
 export type SearchArtist = {
   readonly musicToken: string;

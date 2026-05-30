@@ -36,19 +36,19 @@ import {
   LIBRARY_HOT_ALBUMS_TAG,
   libraryAlbumTag,
   libraryAlbumTracksTag,
-} from "@/web/features/home/libraryReactivityTags";
-import { PyxisRpcClient } from "@/web/shared/api/rpcClient";
-import { projectQueryResult } from "@/web/shared/effect/projectQueryResult";
+} from "@app/features/home/libraryReactivityTags";
+import { PyxisRpcClient } from "@app/shared/api/rpcClient";
+import { projectQueryResult } from "@app/shared/effect/projectQueryResult";
 import {
   type AlbumPlacement,
   formatPlacementLabel,
-} from "@/web/shared/lib/library-placement";
+} from "@app/shared/lib/library-placement";
 import {
   albumTrackToNowPlaying,
   shuffleArray,
   tracksToQueuePayload,
-} from "@/web/shared/lib/now-playing-utils";
-import { usePlaybackContext } from "@/web/shared/playback/playback-context";
+} from "@app/shared/lib/now-playing-utils";
+import { usePlaybackContext } from "@app/shared/playback/playback-context";
 import { LibraryAlbumDetailState } from "./AlbumDetailState";
 import { AlbumDetailContent } from "./album-detail-content";
 import { AlbumDetailSkeleton } from "./album-detail-skeleton";

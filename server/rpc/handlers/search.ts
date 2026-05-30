@@ -14,16 +14,16 @@ import { Effect } from "effect";
 import type {
   ApiPandoraSearchInput,
   ApiSearchInput,
-} from "../../../src/api/contracts/search.js";
-import * as Pandora from "../../../src/sources/pandora/client.js";
+} from "@shared/api/contracts/search.js";
+import * as Pandora from "@shared/sources/pandora/client.js";
 import type {
   SearchArtist,
   SearchGenreStation,
-} from "../../../src/sources/pandora/types/api.js";
+} from "@shared/sources/pandora/types/api.js";
 import type {
   CanonicalAlbum,
   CanonicalTrack,
-} from "../../../src/sources/types.js";
+} from "@shared/sources/types.js";
 import { formatSourceId, trackCapabilities } from "../../lib/ids.js";
 import { publicHandler } from "../handler.js";
 import type { AuthSessionShape } from "../services/authSession.js";

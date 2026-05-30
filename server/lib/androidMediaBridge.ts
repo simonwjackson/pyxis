@@ -1,9 +1,9 @@
 import type {
   AndroidMediaBridgeCommandResult,
   AndroidMediaBridgeState,
-} from "../../src/api/contracts/androidMediaBridge.js";
-import type { AppConfig } from "../../src/config.js";
-import { createLogger } from "../../src/logger.js";
+} from "@shared/api/contracts/androidMediaBridge.js";
+import type { AppConfig } from "@shared/config.js";
+import { createLogger } from "@shared/logger.js";
 import * as PlayerService from "../services/player.js";
 import {
   parseNativeBridgeLogPayload,

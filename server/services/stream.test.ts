@@ -7,7 +7,7 @@ import { describe, expect, it } from "bun:test";
 import { existsSync, readdirSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import envPaths from "env-paths";
-import type { SourceManager } from "../../src/sources/index.js";
+import type { SourceManager } from "@shared/sources/index.js";
 import {
   encodeTrackId,
   handleStreamRequest,

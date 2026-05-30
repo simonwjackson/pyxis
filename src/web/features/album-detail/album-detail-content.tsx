@@ -12,10 +12,10 @@ import {
   formatPlacementLabel,
   hotBadgeClassName,
   placementBadgeClassName,
-} from "@/web/shared/lib/library-placement";
-import { formatTime } from "@/web/shared/lib/now-playing-utils";
-import { Button } from "@/web/shared/ui/button";
-import { EditableText } from "@/web/shared/ui/editable-text";
+} from "@app/shared/lib/library-placement";
+import { formatTime } from "@app/shared/lib/now-playing-utils";
+import { Button } from "@app/shared/ui/button";
+import { EditableText } from "@app/shared/ui/editable-text";
 import type { AlbumDetailContentProps } from "./types";
 
 const PLACEMENTS: readonly AlbumPlacement[] = [

@@ -9,10 +9,10 @@
 
 import { useAtomValue } from "@effect/atom-react";
 import { useMemo, useState } from "react";
-import { PyxisRpcClient } from "@/web/shared/api/rpcClient";
-import { projectQueryResult } from "@/web/shared/effect/projectQueryResult";
-import { Button } from "@/web/shared/ui/button";
-import { Spinner } from "@/web/shared/ui/spinner";
+import { PyxisRpcClient } from "@app/shared/api/rpcClient";
+import { projectQueryResult } from "@app/shared/effect/projectQueryResult";
+import { Button } from "@app/shared/ui/button";
+import { Spinner } from "@app/shared/ui/spinner";
 import type { ApiListenLogEntry } from "../../../api/contracts/listenLog.js";
 import { HistoryState } from "./HistoryState";
 

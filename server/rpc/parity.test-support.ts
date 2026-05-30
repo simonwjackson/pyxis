@@ -2,7 +2,7 @@ import {
   type CanonicalParityValue,
   type ContractParityOptions,
   canonicalizeContractPayload,
-} from "../../src/api/contracts/parity.test-support.js";
+} from "@shared/api/contracts/parity.test-support.js";
 
 export type RpcParityOptions = ContractParityOptions;
 

@@ -12,7 +12,7 @@ import { Data } from "effect";
 import type {
   ApiPublicError,
   ApiSourceType,
-} from "../../src/api/contracts/common.js";
+} from "@shared/api/contracts/common.js";
 
 /** Input failed schema validation or domain-specific shape checks. */
 export class ValidationError extends Data.TaggedError("ValidationError")<{

@@ -18,7 +18,7 @@ import type {
   CanonicalPlaylist,
   CanonicalTrack,
   SourceType,
-} from "../../../src/sources/types.js";
+} from "@shared/sources/types.js";
 import type { AuthSessionShape } from "../services/authSession.js";
 import type { SourceCatalogShape } from "../services/sourceCatalog.js";
 import { playlistHandlers } from "./playlist.js";

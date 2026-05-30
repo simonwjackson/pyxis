@@ -34,17 +34,17 @@ import {
   LIBRARY_ALBUMS_TAG,
   LIBRARY_HOT_ALBUMS_TAG,
   PLAYLIST_LIST_TAG,
-} from "@/web/features/home/libraryReactivityTags";
-import { RADIO_STATIONS_TAG } from "@/web/features/stations/radioReactivityTags";
-import { PyxisRpcClient } from "@/web/shared/api/rpcClient";
-import { projectQueryResult } from "@/web/shared/effect/projectQueryResult";
-import { formatPlacementLabel } from "@/web/shared/lib/library-placement";
+} from "@app/features/home/libraryReactivityTags";
+import { RADIO_STATIONS_TAG } from "@app/features/stations/radioReactivityTags";
+import { PyxisRpcClient } from "@app/shared/api/rpcClient";
+import { projectQueryResult } from "@app/shared/effect/projectQueryResult";
+import { formatPlacementLabel } from "@app/shared/lib/library-placement";
 import {
   sourceAlbumTrackToNowPlaying,
   tracksToQueuePayload,
-} from "@/web/shared/lib/now-playing-utils";
-import { usePlaybackContext } from "@/web/shared/playback/playback-context";
-import { Spinner } from "@/web/shared/ui/spinner";
+} from "@app/shared/lib/now-playing-utils";
+import { usePlaybackContext } from "@app/shared/playback/playback-context";
+import { Spinner } from "@app/shared/ui/spinner";
 import { SearchAlbums } from "./components/SearchAlbums";
 import { SearchArtists } from "./components/SearchArtists";
 import { SearchGenres } from "./components/SearchGenres";

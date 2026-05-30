@@ -11,8 +11,8 @@
 import { useAtomSet, useAtomValue } from "@effect/atom-react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { PyxisRpcClient } from "@/web/shared/api/rpcClient";
-import { projectQueryResult } from "@/web/shared/effect/projectQueryResult";
+import { PyxisRpcClient } from "@app/shared/api/rpcClient";
+import { projectQueryResult } from "@app/shared/effect/projectQueryResult";
 import { RADIO_STATIONS_TAG } from "./radioReactivityTags";
 import { StationCommandState } from "./StationCommandState";
 

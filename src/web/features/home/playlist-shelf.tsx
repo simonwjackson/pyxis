@@ -1,9 +1,9 @@
 import { ArrowDownAZ, Clock, Shuffle } from "lucide-react";
 import { useCallback } from "react";
-import { CollectionGridEmpty } from "@/web/shared/ui/collection-grid/CollectionGridEmpty";
-import { CollectionGridRoot } from "@/web/shared/ui/collection-grid/CollectionGridRoot";
-import { CollectionGridSkeleton } from "@/web/shared/ui/collection-grid/CollectionGridSkeleton";
-import type { SortOption } from "@/web/shared/ui/collection-grid/types";
+import { CollectionGridEmpty } from "@app/shared/ui/collection-grid/CollectionGridEmpty";
+import { CollectionGridRoot } from "@app/shared/ui/collection-grid/CollectionGridRoot";
+import { CollectionGridSkeleton } from "@app/shared/ui/collection-grid/CollectionGridSkeleton";
+import type { SortOption } from "@app/shared/ui/collection-grid/types";
 import { PlaylistCard } from "./playlist-card";
 import type { PlaylistData } from "./types";
 

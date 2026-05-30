@@ -15,7 +15,7 @@ import { RpcTest } from "effect/unstable/rpc";
 import type {
   CanonicalAlbum,
   CanonicalTrack,
-} from "../../src/sources/types.js";
+} from "@shared/sources/types.js";
 import { NonRealtimeHandlersLayer, NonRealtimeRpc } from "./handler.js";
 import {
   type AuthSessionBehavior,

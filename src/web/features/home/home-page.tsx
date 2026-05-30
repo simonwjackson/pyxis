@@ -18,9 +18,9 @@ import { useAtomValue } from "@effect/atom-react";
 import { useNavigate } from "@tanstack/react-router";
 import { Plus } from "lucide-react";
 import { useCallback, useState } from "react";
-import { PyxisRpcClient } from "@/web/shared/api/rpcClient";
-import { projectQueryResult } from "@/web/shared/effect/projectQueryResult";
-import { CollectionGridSkeleton } from "@/web/shared/ui/collection-grid/CollectionGridSkeleton";
+import { PyxisRpcClient } from "@app/shared/api/rpcClient";
+import { projectQueryResult } from "@app/shared/effect/projectQueryResult";
+import { CollectionGridSkeleton } from "@app/shared/ui/collection-grid/CollectionGridSkeleton";
 import { AlbumShelf, HOT_SORT_OPTIONS } from "./album-shelf";
 import { HomeState } from "./HomeState";
 import {

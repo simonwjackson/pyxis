@@ -20,17 +20,17 @@ import { useNavigate } from "@tanstack/react-router";
 import { AsyncResult } from "effect/unstable/reactivity";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
-import { AddSeedDialog } from "@/web/features/stations/add-seed-dialog";
-import { radioStationTag } from "@/web/features/stations/radioReactivityTags";
-import { StationCommandState } from "@/web/features/stations/StationCommandState";
-import { PyxisRpcClient } from "@/web/shared/api/rpcClient";
-import { projectQueryResult } from "@/web/shared/effect/projectQueryResult";
+import { AddSeedDialog } from "@app/features/stations/add-seed-dialog";
+import { radioStationTag } from "@app/features/stations/radioReactivityTags";
+import { StationCommandState } from "@app/features/stations/StationCommandState";
+import { PyxisRpcClient } from "@app/shared/api/rpcClient";
+import { projectQueryResult } from "@app/shared/effect/projectQueryResult";
 import {
   radioTrackToNowPlaying,
   tracksToQueuePayload,
-} from "@/web/shared/lib/now-playing-utils";
-import { usePlaybackContext } from "@/web/shared/playback/playback-context";
-import { queueStateStreamAtom } from "@/web/shared/playback/queueStateStreamAtom";
+} from "@app/shared/lib/now-playing-utils";
+import { usePlaybackContext } from "@app/shared/playback/playback-context";
+import { queueStateStreamAtom } from "@app/shared/playback/queueStateStreamAtom";
 import { StationDetailState } from "./StationDetailState";
 import { StationDetailArtistSeedRow } from "./station-detail-artist-seed-row";
 import { StationDetailFeedbackRow } from "./station-detail-feedback-row";

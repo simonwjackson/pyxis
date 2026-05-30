@@ -11,9 +11,9 @@
  */
 
 import { Effect, Layer } from "effect";
-import type { ApiPublicError } from "../../src/api/contracts/common.js";
-import { PyxisRpc } from "../../src/api/rpc.js";
-import { createLogger } from "../../src/logger.js";
+import type { ApiPublicError } from "@shared/api/contracts/common.js";
+import { PyxisRpc } from "@shared/api/rpc.js";
+import { createLogger } from "@shared/logger.js";
 import {
   internalDefect,
   type PublicError,

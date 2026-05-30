@@ -35,7 +35,7 @@ import type {
   Playlist,
   QueueItem,
   QueueState,
-} from "../../src/db/config.js";
+} from "@shared/db/config.js";
 
 const paths = envPaths("pyxis", { suffix: "" });
 const DATA_DIR = join(paths.data, "db");

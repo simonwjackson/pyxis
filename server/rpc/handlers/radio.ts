@@ -23,10 +23,10 @@ import type {
   ApiRadioIdInput,
   ApiRemoveRadioSeedInput,
   ApiRenameStationInput,
-} from "../../../src/api/contracts/radio.js";
-import { createLogger } from "../../../src/logger.js";
-import * as Pandora from "../../../src/sources/pandora/client.js";
-import type { PlaylistItem } from "../../../src/sources/pandora/types/api.js";
+} from "@shared/api/contracts/radio.js";
+import { createLogger } from "@shared/logger.js";
+import * as Pandora from "@shared/sources/pandora/client.js";
+import type { PlaylistItem } from "@shared/sources/pandora/types/api.js";
 import { formatSourceId, parseId, trackCapabilities } from "../../lib/ids.js";
 import {
   getSourceManager,

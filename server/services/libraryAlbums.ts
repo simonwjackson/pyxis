@@ -4,10 +4,10 @@
  */
 
 import { Effect } from "effect";
-import type { AlbumPlacement } from "../../src/db/config.js";
-import type { DbInstance } from "../../src/db/index.js";
-import type { SourceManager } from "../../src/sources/index.js";
-import type { SourceType } from "../../src/sources/types.js";
+import type { AlbumPlacement } from "@shared/db/config.js";
+import type { DbInstance } from "@shared/db/index.js";
+import type { SourceManager } from "@shared/sources/index.js";
+import type { SourceType } from "@shared/sources/types.js";
 import { formatSourceId, generateId, parseId } from "../lib/ids.js";
 import { getHotAlbumMap, type HotAlbumState } from "./hotAlbums.js";
 import {

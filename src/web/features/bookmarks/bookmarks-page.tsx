@@ -13,10 +13,10 @@
 import { useAtomSet, useAtomValue } from "@effect/atom-react";
 import { Music, Plus, Trash2, User } from "lucide-react";
 import { toast } from "sonner";
-import { PyxisRpcClient } from "@/web/shared/api/rpcClient";
-import { projectQueryResult } from "@/web/shared/effect/projectQueryResult";
-import { Button } from "@/web/shared/ui/button";
-import { Spinner } from "@/web/shared/ui/spinner";
+import { PyxisRpcClient } from "@app/shared/api/rpcClient";
+import { projectQueryResult } from "@app/shared/effect/projectQueryResult";
+import { Button } from "@app/shared/ui/button";
+import { Spinner } from "@app/shared/ui/spinner";
 import { RADIO_STATIONS_TAG } from "../stations/radioReactivityTags";
 import { BookmarksState } from "./BookmarksState";
 import { LIBRARY_BOOKMARKS_TAG } from "./bookmarksReactivityTags";

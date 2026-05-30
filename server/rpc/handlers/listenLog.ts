@@ -6,8 +6,8 @@
  */
 
 import { Effect } from "effect";
-import type { ApiListenLogInput } from "../../../src/api/contracts/listenLog.js";
-import { getDb } from "../../../src/db/index.js";
+import type { ApiListenLogInput } from "@shared/api/contracts/listenLog.js";
+import { getDb } from "@shared/db/index.js";
 import { publicHandler } from "../handler.js";
 
 const DEFAULT_LIMIT = 50;

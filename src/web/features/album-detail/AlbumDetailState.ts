@@ -28,7 +28,7 @@
  */
 
 import { AsyncResult } from "effect/unstable/reactivity";
-import type { AlbumPlacement } from "@/web/shared/lib/library-placement";
+import type { AlbumPlacement } from "@app/shared/lib/library-placement";
 import type { ApiSourceAlbumWithTracks } from "../../../api/contracts/album.js";
 import type { ApiPublicError } from "../../../api/contracts/common.js";
 import type {

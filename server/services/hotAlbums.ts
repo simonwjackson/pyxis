@@ -3,8 +3,8 @@
  * Computes album hotness from recent listen history.
  */
 
-import type { DbInstance } from "../../src/db/index.js";
-import type { SourceType } from "../../src/sources/types.js";
+import type { DbInstance } from "@shared/db/index.js";
+import type { SourceType } from "@shared/sources/types.js";
 import { formatSourceId, parseId } from "../lib/ids.js";
 
 export const HOT_WINDOW_MS = 30 * 24 * 60 * 60 * 1000;

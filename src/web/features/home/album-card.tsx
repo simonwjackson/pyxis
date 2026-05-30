@@ -5,7 +5,7 @@ import {
   formatPlacementLabel,
   hotBadgeClassName,
   placementBadgeClassName,
-} from "@/web/shared/lib/library-placement";
+} from "@app/shared/lib/library-placement";
 import type { AlbumData } from "./types";
 
 type AlbumCardProps = {

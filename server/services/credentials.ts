@@ -5,11 +5,11 @@
  */
 
 import { Effect } from "effect";
-import type { AppConfig } from "../../src/config.js";
-import { getPandoraPassword } from "../../src/config.js";
-import { createLogger } from "../../src/logger.js";
-import type { PandoraSession } from "../../src/sources/pandora/client.js";
-import { login as pandoraLogin } from "../../src/sources/pandora/client.js";
+import type { AppConfig } from "@shared/config.js";
+import { getPandoraPassword } from "@shared/config.js";
+import { createLogger } from "@shared/logger.js";
+import type { PandoraSession } from "@shared/sources/pandora/client.js";
+import { login as pandoraLogin } from "@shared/sources/pandora/client.js";
 import {
   getSourceManager,
   invalidateManagers,

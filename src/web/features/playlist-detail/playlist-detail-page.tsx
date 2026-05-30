@@ -8,18 +8,18 @@ import { useNavigate } from "@tanstack/react-router";
 import { ArrowLeft, Music, Play, Shuffle } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef } from "react";
 import { toast } from "sonner";
-import { PLAYLIST_LIST_TAG } from "@/web/features/home/libraryReactivityTags";
-import { PyxisRpcClient } from "@/web/shared/api/rpcClient";
-import { projectQueryResult } from "@/web/shared/effect/projectQueryResult";
+import { PLAYLIST_LIST_TAG } from "@app/features/home/libraryReactivityTags";
+import { PyxisRpcClient } from "@app/shared/api/rpcClient";
+import { projectQueryResult } from "@app/shared/effect/projectQueryResult";
 import {
   formatTime,
   playlistTrackToNowPlaying,
   shuffleArray,
   tracksToQueuePayload,
-} from "@/web/shared/lib/now-playing-utils";
-import { usePlaybackContext } from "@/web/shared/playback/playback-context";
-import { Button } from "@/web/shared/ui/button";
-import { Skeleton } from "@/web/shared/ui/skeleton";
+} from "@app/shared/lib/now-playing-utils";
+import { usePlaybackContext } from "@app/shared/playback/playback-context";
+import { Button } from "@app/shared/ui/button";
+import { Skeleton } from "@app/shared/ui/skeleton";
 import { PlaylistDetailState } from "./PlaylistDetailState";
 
 /**

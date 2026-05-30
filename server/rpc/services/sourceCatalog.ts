@@ -8,15 +8,15 @@
  */
 
 import { Context, Effect, Layer } from "effect";
-import { createLogger } from "../../../src/logger.js";
-import type { SourceManager } from "../../../src/sources/index.js";
+import { createLogger } from "@shared/logger.js";
+import type { SourceManager } from "@shared/sources/index.js";
 import type {
   CanonicalAlbum,
   CanonicalPlaylist,
   CanonicalTrack,
   SearchResult,
   SourceType,
-} from "../../../src/sources/types.js";
+} from "@shared/sources/types.js";
 import { getPandoraSessionFromCredentials } from "../../services/credentials.js";
 import {
   ensureSourceManager,

@@ -4,12 +4,12 @@ import {
   useRouterState,
 } from "@tanstack/react-router";
 import { useCallback, useState } from "react";
-import { useKeyboardShortcuts } from "@/web/shared/keyboard-shortcuts";
-import { CommandPalette } from "@/web/shared/layout/command-palette";
-import { MobileNav } from "@/web/shared/layout/mobile-nav";
-import { NowPlayingBar } from "@/web/shared/layout/now-playing-bar";
-import { Sidebar } from "@/web/shared/layout/sidebar";
-import { ErrorBoundary } from "@/web/shared/ui/error-boundary";
+import { useKeyboardShortcuts } from "@app/shared/keyboard-shortcuts";
+import { CommandPalette } from "@app/shared/layout/command-palette";
+import { MobileNav } from "@app/shared/layout/mobile-nav";
+import { NowPlayingBar } from "@app/shared/layout/now-playing-bar";
+import { Sidebar } from "@app/shared/layout/sidebar";
+import { ErrorBoundary } from "@app/shared/ui/error-boundary";
 
 function AppShell() {
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);

@@ -13,10 +13,10 @@
 import { useAtomSet, useAtomValue } from "@effect/atom-react";
 import { useMemo } from "react";
 import { toast } from "sonner";
-import { PyxisRpcClient } from "@/web/shared/api/rpcClient";
-import { projectQueryResult } from "@/web/shared/effect/projectQueryResult";
-import { authStatusQueryAtom } from "@/web/shared/layout/authStatusAtom";
-import { Spinner } from "@/web/shared/ui/spinner";
+import { PyxisRpcClient } from "@app/shared/api/rpcClient";
+import { projectQueryResult } from "@app/shared/effect/projectQueryResult";
+import { authStatusQueryAtom } from "@app/shared/layout/authStatusAtom";
+import { Spinner } from "@app/shared/ui/spinner";
 import { SettingsState } from "./SettingsState";
 
 const AUTH_SETTINGS_TAG = "auth.settings" as const;

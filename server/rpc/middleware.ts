@@ -14,7 +14,7 @@
  */
 
 import { Effect } from "effect";
-import { createLogger } from "../../src/logger.js";
+import { createLogger } from "@shared/logger.js";
 import type { RpcSessionContext } from "./context.js";
 import {
   type AuthRefreshFailed,

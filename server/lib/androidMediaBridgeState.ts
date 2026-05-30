@@ -1,4 +1,4 @@
-import type { AndroidMediaBridgeState } from "../../src/api/contracts/androidMediaBridge.js";
+import type { AndroidMediaBridgeState } from "@shared/api/contracts/androidMediaBridge.js";
 import type { PlayerStateView } from "./playerStateView.js";
 
 export type AudioRealization = {

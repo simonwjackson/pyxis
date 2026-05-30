@@ -15,8 +15,8 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { createNodeDatabase } from "@proseql/node";
 import { Effect, Exit, Scope } from "effect";
-import { dbConfig } from "../../../src/db/config.js";
-import type { DbInstance } from "../../../src/db/index.js";
+import { dbConfig } from "@shared/db/config.js";
+import type { DbInstance } from "@shared/db/index.js";
 import {
   Library,
   type LibraryBehavior,

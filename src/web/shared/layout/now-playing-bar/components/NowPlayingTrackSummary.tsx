@@ -1,4 +1,4 @@
-import type { PlaybackTrack } from "@/web/shared/playback/types";
+import type { PlaybackTrack } from "@app/shared/playback/types";
 
 type NowPlayingTrackSummaryProps = {
   readonly track: PlaybackTrack;

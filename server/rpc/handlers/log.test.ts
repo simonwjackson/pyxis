@@ -9,7 +9,7 @@
 
 import { describe, expect, it } from "bun:test";
 import { Effect, Exit, Schema } from "effect";
-import { ClientLogInputSchema } from "../../../src/api/contracts/log.js";
+import { ClientLogInputSchema } from "@shared/api/contracts/log.js";
 import { logHandlers } from "./log.js";
 
 const handlers = logHandlers();

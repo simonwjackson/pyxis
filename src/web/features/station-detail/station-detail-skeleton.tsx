@@ -1,4 +1,4 @@
-import { Skeleton } from "@/web/shared/ui/skeleton";
+import { Skeleton } from "@app/shared/ui/skeleton";
 
 export function StationDetailSkeleton() {
   return (

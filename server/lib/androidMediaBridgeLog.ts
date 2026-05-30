@@ -1,4 +1,4 @@
-import { createLogger } from "../../src/logger.js";
+import { createLogger } from "@shared/logger.js";
 
 const log = createLogger("playback").child({
   component: "android-bridge-native",

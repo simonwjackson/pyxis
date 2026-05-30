@@ -4,7 +4,7 @@
  */
 
 import { useEffect, useId, useRef, useState } from "react";
-import { Input } from "@/web/shared/ui/input";
+import { Input } from "@app/shared/ui/input";
 
 /**
  * Props for the SearchInput component.

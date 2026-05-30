@@ -4,11 +4,11 @@
  * Called once during server boot to set up Pandora session and restore playback state.
  */
 
-import type { AppConfig } from "../../src/config.js";
-import { getPandoraPassword } from "../../src/config.js";
-import type { Logger } from "../../src/logger.js";
-import { ApiCallError } from "../../src/sources/pandora/types/errors.js";
-import type { SourceType } from "../../src/sources/types.js";
+import type { AppConfig } from "@shared/config.js";
+import { getPandoraPassword } from "@shared/config.js";
+import type { Logger } from "@shared/logger.js";
+import { ApiCallError } from "@shared/sources/pandora/types/errors.js";
+import type { SourceType } from "@shared/sources/types.js";
 import { formatSourceId, parseId } from "../lib/ids.js";
 import { loginPandora, refreshPandoraSession } from "./credentials.js";
 import * as PlayerService from "./player.js";
