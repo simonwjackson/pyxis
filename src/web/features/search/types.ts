@@ -25,12 +25,14 @@ export type SearchTrack = {
   readonly capabilities: { readonly radio: boolean };
 };
 
-export type SearchAlbumState = {
+type SearchAlbumInLibrary = {
   readonly _tag: "InLibrary";
   readonly albumId: string;
   readonly placement: AlbumPlacement;
   readonly isHot: boolean;
 };
+
+export type SearchAlbumState = SearchAlbumInLibrary;
 
 export const SearchAlbumState = {
   placement: (state: SearchAlbumState): AlbumPlacement => state.placement,
