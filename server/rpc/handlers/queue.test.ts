@@ -145,20 +145,20 @@ describe("queue.jump (invalid index is no-op)", () => {
   it("does not advance for an out-of-bounds index", async () => {
     QueueSingleton.setQueue([track("ytmusic:a")], { type: "manual" });
     const result = await withHandlers(async (handlers) =>
-      Effect.runPromise(handlers["queue.jump"]({ index: 99 })),
+      Effect.runPromise(handlers["queue.cursor.jump"]({ index: 99 })),
     );
     expect(result.currentIndex).toBe(0);
   });
 });
 
-describe("queue.clear", () => {
+describe("queue.tracks.clear", () => {
   it("clears the singleton queue and returns an empty state", async () => {
     QueueSingleton.setQueue([track("ytmusic:a")], {
       type: "album",
       albumId: "abc",
     });
     const result = await withHandlers(async (handlers) =>
-      Effect.runPromise(handlers["queue.clear"]()),
+      Effect.runPromise(handlers["queue.tracks.clear"]()),
     );
     expect(result.items).toEqual([]);
     expect(result.context.type).toBe("manual");
@@ -166,7 +166,7 @@ describe("queue.clear", () => {
   });
 });
 
-describe("queue.shuffle", () => {
+describe("queue.tracks.shuffle", () => {
   it("returns an updated state for multi-track queues", async () => {
     QueueSingleton.setQueue(
       [track("ytmusic:a"), track("ytmusic:b"), track("ytmusic:c")],
@@ -174,7 +174,7 @@ describe("queue.shuffle", () => {
       1,
     );
     const result = await withHandlers(async (handlers) =>
-      Effect.runPromise(handlers["queue.shuffle"]()),
+      Effect.runPromise(handlers["queue.tracks.shuffle"]()),
     );
     expect(result.currentIndex).toBe(0);
     expect(result.items[0]?.id).toBe("ytmusic:b");

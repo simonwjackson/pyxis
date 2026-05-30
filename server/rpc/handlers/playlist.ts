@@ -65,7 +65,7 @@ function encodePlaylist(playlist: CanonicalPlaylist) {
 }
 
 export const playlistHandlers = (deps: PlaylistHandlerDeps) => ({
-  "playlist.list": () =>
+  "library.playlists.list": () =>
     publicHandler(
       Effect.gen(function* () {
         const manager = yield* deps.catalog.resolveManager;

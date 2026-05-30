@@ -67,7 +67,7 @@ describe("playlist handlers", () => {
       auth,
       catalog: makeCatalog({ trackCalls: [] }),
     });
-    const result = await Effect.runPromise(handlers["playlist.list"]());
+    const result = await Effect.runPromise(handlers["library.playlists.list"]());
     expect(result.map((p) => p.id)).toEqual(["ytmusic:pl1", "pandora:pl2"]);
     expect(result[0]?.capabilities).toEqual({ radio: true });
   });

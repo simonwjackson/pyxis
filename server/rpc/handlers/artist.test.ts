@@ -45,7 +45,7 @@ describe("artist handlers", () => {
   it("artist.get returns the encoded id with a placeholder name", async () => {
     const handlers = artistHandlers({ catalog: makeCatalog([]) });
     const result = await Effect.runPromise(
-      handlers["artist.get"]({ id: "ytmusic:abc" }),
+      handlers["artist.metadata.get"]({ id: "ytmusic:abc" }),
     );
     expect(result).toEqual({
       id: "ytmusic:abc",
@@ -57,7 +57,7 @@ describe("artist handlers", () => {
   it("artist.get returns source 'unknown' for bare ids", async () => {
     const handlers = artistHandlers({ catalog: makeCatalog([]) });
     const result = await Effect.runPromise(
-      handlers["artist.get"]({ id: "library_nanoid" }),
+      handlers["artist.metadata.get"]({ id: "library_nanoid" }),
     );
     expect(result.source).toBe("unknown");
   });
@@ -85,7 +85,7 @@ describe("artist handlers", () => {
     ];
     const handlers = artistHandlers({ catalog: makeCatalog(tracks) });
     const result = await Effect.runPromise(
-      handlers["artist.search"]({ query: "alpha" }),
+      handlers["artist.search.run"]({ query: "alpha" }),
     );
     expect(result.artists).toEqual([
       { id: "ytmusic:t1", name: "Alpha" },

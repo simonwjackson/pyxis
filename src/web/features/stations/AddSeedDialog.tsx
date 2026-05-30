@@ -63,7 +63,7 @@ export function AddSeedDialog({ radioId, onClose }: AddSeedDialogProps) {
   const searchAtom = useMemo(
     () =>
       debouncedQuery.length > 0
-        ? PyxisRpcClient.query("search.pandora", {
+        ? PyxisRpcClient.query("search.pandora.run", {
             searchText: debouncedQuery,
           })
         : idleSearchAtom,

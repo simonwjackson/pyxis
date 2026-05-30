@@ -176,7 +176,7 @@ const trackExplanationGet = Rpc.make("track.explanation.get", {
 
 // --- Album ----------------------------------------------------------------
 
-const albumGet = Rpc.make("album.get", {
+const albumGet = Rpc.make("album.metadata.get", {
   payload: SourceAlbumIdInputSchema,
   success: SourceAlbumSchema,
   error: PublicErrorSchema,
@@ -194,12 +194,12 @@ const albumWithTracksGet = Rpc.make("album.withTracks.get", {
 
 // --- Artist ---------------------------------------------------------------
 
-const artistGet = Rpc.make("artist.get", {
+const artistGet = Rpc.make("artist.metadata.get", {
   payload: ArtistIdInputSchema,
   success: ArtistSchema,
   error: PublicErrorSchema,
 });
-const artistSearch = Rpc.make("artist.search", {
+const artistSearch = Rpc.make("artist.search.run", {
   payload: ArtistSearchInputSchema,
   success: ArtistSearchResponseSchema,
   error: PublicErrorSchema,
@@ -258,7 +258,7 @@ const radioSeedRemove = Rpc.make("radio.seed.remove", {
 
 // --- Playlist -------------------------------------------------------------
 
-const playlistList = Rpc.make("playlist.list", {
+const playlistList = Rpc.make("library.playlists.list", {
   success: PlaylistListSchema,
   error: PublicErrorSchema,
 });
@@ -342,12 +342,12 @@ const libraryBookmarkRemove = Rpc.make("library.bookmark.remove", {
 
 // --- Search ---------------------------------------------------------------
 
-const searchPandora = Rpc.make("search.pandora", {
+const searchPandora = Rpc.make("search.pandora.run", {
   payload: PandoraSearchInputSchema,
   success: PandoraSearchResponseSchema,
   error: PublicErrorSchema,
 });
-const searchUnified = Rpc.make("search.unified", {
+const searchUnified = Rpc.make("search.unified.run", {
   payload: SearchInputSchema,
   success: SearchResponseSchema,
   error: PublicErrorSchema,
@@ -359,37 +359,37 @@ const playerStateGet = Rpc.make("player.state.get", {
   success: PlayerStateSchema,
   error: PublicErrorSchema,
 });
-const playerPlay = Rpc.make("player.play", {
+const playerPlay = Rpc.make("player.transport.play", {
   payload: PlayInputSchema,
   success: PlayerStateSchema,
   error: PublicErrorSchema,
 });
-const playerPause = Rpc.make("player.pause", {
+const playerPause = Rpc.make("player.transport.pause", {
   success: PlayerStateSchema,
   error: PublicErrorSchema,
 });
-const playerResume = Rpc.make("player.resume", {
+const playerResume = Rpc.make("player.transport.resume", {
   success: PlayerStateSchema,
   error: PublicErrorSchema,
 });
-const playerStop = Rpc.make("player.stop", {
+const playerStop = Rpc.make("player.transport.stop", {
   success: PlayerStateSchema,
   error: PublicErrorSchema,
 });
-const playerSkip = Rpc.make("player.skip", {
+const playerSkip = Rpc.make("player.transport.skip", {
   success: PlayerStateSchema,
   error: PublicErrorSchema,
 });
-const playerPrevious = Rpc.make("player.previous", {
+const playerPrevious = Rpc.make("player.transport.previous", {
   success: PlayerStateSchema,
   error: PublicErrorSchema,
 });
-const playerJumpTo = Rpc.make("player.jumpTo", {
+const playerJumpTo = Rpc.make("player.transport.jumpTo", {
   payload: JumpToIndexInputSchema,
   success: PlayerStateSchema,
   error: PublicErrorSchema,
 });
-const playerSeek = Rpc.make("player.seek", {
+const playerSeek = Rpc.make("player.transport.seek", {
   payload: SeekInputSchema,
   success: PlayerStateSchema,
   error: PublicErrorSchema,
@@ -414,7 +414,7 @@ const playerAudioErrorReport = Rpc.make("player.audioError.report", {
   success: OkResponseSchema,
   error: PublicErrorSchema,
 });
-const playerTrackEnded = Rpc.make("player.trackEnded", {
+const playerTrackEnded = Rpc.make("player.transport.trackEnded", {
   payload: TrackEndedInputSchema,
   success: PlayerStateSchema,
   error: PublicErrorSchema,
@@ -441,16 +441,16 @@ const queueTrackRemove = Rpc.make("queue.track.remove", {
   success: QueueStateSchema,
   error: PublicErrorSchema,
 });
-const queueClear = Rpc.make("queue.clear", {
+const queueClear = Rpc.make("queue.tracks.clear", {
   success: QueueStateSchema,
   error: PublicErrorSchema,
 });
-const queueJump = Rpc.make("queue.jump", {
+const queueJump = Rpc.make("queue.cursor.jump", {
   payload: QueueIndexInputSchema,
   success: QueueStateSchema,
   error: PublicErrorSchema,
 });
-const queueShuffle = Rpc.make("queue.shuffle", {
+const queueShuffle = Rpc.make("queue.tracks.shuffle", {
   success: QueueStateSchema,
   error: PublicErrorSchema,
 });

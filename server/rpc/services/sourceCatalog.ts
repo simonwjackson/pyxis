@@ -104,7 +104,7 @@ function wrap<A>(
 function makeShape(behavior: SourceCatalogBehavior): SourceCatalogShape {
   return {
     listPlaylists: (manager) =>
-      wrap("playlist.list", () => Promise.resolve(manager.listAllPlaylists())),
+      wrap("library.playlists.list", () => Promise.resolve(manager.listAllPlaylists())),
     getPlaylistTracks: (manager, source, playlistId) =>
       wrap("playlist.tracks", () =>
         manager.getPlaylistTracks(source, playlistId),

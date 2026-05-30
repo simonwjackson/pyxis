@@ -96,7 +96,7 @@ export const playerHandlers = (deps: PlayerHandlerDeps) => ({
   "player.state.get": () =>
     publicHandler(deps.player.getState.pipe(Effect.map(serializePlayerState))),
 
-  "player.play": (payload: ApiPlayInput) =>
+  "player.transport.play": (payload: ApiPlayInput) =>
     publicHandler(
       Effect.gen(function* () {
         const tracks = payload.tracks;
@@ -118,27 +118,27 @@ export const playerHandlers = (deps: PlayerHandlerDeps) => ({
       }),
     ),
 
-  "player.pause": () =>
+  "player.transport.pause": () =>
     publicHandler(deps.player.pause.pipe(Effect.map(serializePlayerState))),
 
-  "player.resume": () =>
+  "player.transport.resume": () =>
     publicHandler(deps.player.resume.pipe(Effect.map(serializePlayerState))),
 
-  "player.stop": () =>
+  "player.transport.stop": () =>
     publicHandler(deps.player.stop.pipe(Effect.map(serializePlayerState))),
 
-  "player.skip": () =>
+  "player.transport.skip": () =>
     publicHandler(deps.player.skip.pipe(Effect.map(serializePlayerState))),
 
-  "player.previous": () =>
+  "player.transport.previous": () =>
     publicHandler(deps.player.previous.pipe(Effect.map(serializePlayerState))),
 
-  "player.jumpTo": (payload: ApiJumpToIndexInput) =>
+  "player.transport.jumpTo": (payload: ApiJumpToIndexInput) =>
     publicHandler(
       deps.player.jumpTo(payload.index).pipe(Effect.map(serializePlayerState)),
     ),
 
-  "player.seek": (payload: ApiSeekInput) =>
+  "player.transport.seek": (payload: ApiSeekInput) =>
     publicHandler(
       deps.player.seek(payload.position).pipe(Effect.map(serializePlayerState)),
     ),
@@ -171,7 +171,7 @@ export const playerHandlers = (deps: PlayerHandlerDeps) => ({
         .pipe(Effect.map(() => ({ ok: true as const }))),
     ),
 
-  "player.trackEnded": (payload: ApiTrackEndedInput) =>
+  "player.transport.trackEnded": (payload: ApiTrackEndedInput) =>
     publicHandler(
       deps.player
         .trackEnded(payload.appliesToTrackId)

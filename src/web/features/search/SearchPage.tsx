@@ -169,7 +169,7 @@ export function SearchPage() {
   playbackRef.current = playback;
 
   const searchQueryAtom = useMemo(
-    () => PyxisRpcClient.query("search.unified", { query }),
+    () => PyxisRpcClient.query("search.unified.run", { query }),
     [query],
   );
   const searchResult = projectQueryResult(useAtomValue(searchQueryAtom));

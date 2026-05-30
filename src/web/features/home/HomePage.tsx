@@ -31,7 +31,7 @@ import {
 import { PlaylistShelf } from "./PlaylistShelf";
 import type { PlaylistData } from "./types";
 
-const playlistsQueryAtom = PyxisRpcClient.query("playlist.list", undefined, {
+const playlistsQueryAtom = PyxisRpcClient.query("library.playlists.list", undefined, {
   reactivityKeys: [PLAYLIST_LIST_TAG] as const,
 });
 

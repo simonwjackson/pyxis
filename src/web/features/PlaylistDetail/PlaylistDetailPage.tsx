@@ -74,7 +74,7 @@ export function PlaylistDetailPage({
 
   const playlistsQueryAtom = useMemo(
     () =>
-      PyxisRpcClient.query("playlist.list", undefined, {
+      PyxisRpcClient.query("library.playlists.list", undefined, {
         reactivityKeys: [PLAYLIST_LIST_TAG] as const,
       }),
     [],

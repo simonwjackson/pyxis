@@ -28,17 +28,17 @@ export const playerAudioErrorReportMutationAtom = PyxisRpcClient.mutation(
   "player.audioError.report",
 );
 export const playerTrackEndedMutationAtom =
-  PyxisRpcClient.mutation("player.trackEnded");
-export const playerPauseMutationAtom = PyxisRpcClient.mutation("player.pause");
+  PyxisRpcClient.mutation("player.transport.trackEnded");
+export const playerPauseMutationAtom = PyxisRpcClient.mutation("player.transport.pause");
 export const playerResumeMutationAtom =
-  PyxisRpcClient.mutation("player.resume");
-export const playerSeekMutationAtom = PyxisRpcClient.mutation("player.seek");
-export const playerSkipMutationAtom = PyxisRpcClient.mutation("player.skip");
+  PyxisRpcClient.mutation("player.transport.resume");
+export const playerSeekMutationAtom = PyxisRpcClient.mutation("player.transport.seek");
+export const playerSkipMutationAtom = PyxisRpcClient.mutation("player.transport.skip");
 export const playerPreviousMutationAtom =
-  PyxisRpcClient.mutation("player.previous");
-export const playerStopMutationAtom = PyxisRpcClient.mutation("player.stop");
-export const playerPlayMutationAtom = PyxisRpcClient.mutation("player.play");
+  PyxisRpcClient.mutation("player.transport.previous");
+export const playerStopMutationAtom = PyxisRpcClient.mutation("player.transport.stop");
+export const playerPlayMutationAtom = PyxisRpcClient.mutation("player.transport.play");
 export const playerJumpToMutationAtom =
-  PyxisRpcClient.mutation("player.jumpTo");
+  PyxisRpcClient.mutation("player.transport.jumpTo");
 export const clientLogWriteMutationAtom =
   PyxisRpcClient.mutation("log.client.write");

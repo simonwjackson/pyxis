@@ -75,7 +75,7 @@ describe("album handlers", () => {
       catalog: makeCatalog({ album: sampleAlbum, tracks: [], calls }),
     });
     const header = await Effect.runPromise(
-      handlers["album.get"]({ id: "ytmusic:remote_1" }),
+      handlers["album.metadata.get"]({ id: "ytmusic:remote_1" }),
     );
     expect(calls).toEqual([{ source: "ytmusic", albumId: "remote_1" }]);
     expect(header).toEqual({
@@ -139,7 +139,7 @@ describe("album handlers", () => {
       catalog: makeCatalog({ album: sampleAlbum, tracks: [], calls }),
     });
     const exit = await Effect.runPromise(
-      Effect.exit(handlers["album.get"]({ id: "bareid" })),
+      Effect.exit(handlers["album.metadata.get"]({ id: "bareid" })),
     );
     expect(exit._tag).toBe("Failure");
     if (exit._tag === "Failure") {

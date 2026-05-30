@@ -19,7 +19,7 @@ export const LIBRARY_ALBUMS_TAG = "library.albums" as const;
 export const LIBRARY_HOT_ALBUMS_TAG = "library.hotAlbums" as const;
 
 /** Refresh tag for the `playlist.list` query. */
-export const PLAYLIST_LIST_TAG = "playlist.list" as const;
+export const PLAYLIST_LIST_TAG = "library.playlists.list" as const;
 
 /**
  * Refresh tag for the `library.albumStates.resolve` query. The search page

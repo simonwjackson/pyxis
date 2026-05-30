@@ -72,7 +72,7 @@ describe("search.unified handler", () => {
       catalog: makeCatalog(),
     });
     const result = await Effect.runPromise(
-      handlers["search.unified"]({ query: "hello" }),
+      handlers["search.unified.run"]({ query: "hello" }),
     );
     expect(result.tracks.map((t) => t.id)).toEqual(["ytmusic:t1"]);
     expect(result.albums.map((a) => a.id)).toEqual(["ytmusic:album_1"]);

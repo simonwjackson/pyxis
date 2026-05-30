@@ -49,7 +49,7 @@ function encodeAlbumTrack(track: CanonicalTrack) {
 }
 
 export const albumHandlers = (deps: AlbumHandlerDeps) => ({
-  "album.get": (payload: ApiSourceAlbumIdInput) =>
+  "album.metadata.get": (payload: ApiSourceAlbumIdInput) =>
     publicHandler(
       Effect.gen(function* () {
         const parsed = parseId(payload.id);

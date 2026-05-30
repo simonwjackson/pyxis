@@ -21,7 +21,7 @@ export type ArtistHandlerDeps = {
 };
 
 export const artistHandlers = (deps: ArtistHandlerDeps) => ({
-  "artist.get": (payload: ApiArtistIdInput) =>
+  "artist.metadata.get": (payload: ApiArtistIdInput) =>
     Effect.sync(() => {
       const parsed = parseId(payload.id);
       return {
@@ -31,7 +31,7 @@ export const artistHandlers = (deps: ArtistHandlerDeps) => ({
       };
     }),
 
-  "artist.search": (payload: ApiArtistSearchInput) =>
+  "artist.search.run": (payload: ApiArtistSearchInput) =>
     publicHandler(
       Effect.gen(function* () {
         const manager = yield* deps.catalog.resolveManager;

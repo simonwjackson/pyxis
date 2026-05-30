@@ -52,8 +52,9 @@ describe("API contract import boundaries", () => {
   it("exposes a single RPC group with entity.concept.action tag naming", () => {
     const tags = [...PyxisRpc.requests.keys()];
     expect(tags.length).toBeGreaterThan(0);
+    // Lattice runtime.md: tags follow exactly `entity.concept.action`.
     const malformed = tags.filter(
-      (tag) => !/^[a-z][A-Za-z0-9]*(\.[a-z][A-Za-z0-9]*){1,3}$/.test(tag),
+      (tag) => !/^[a-z][A-Za-z0-9]*\.[a-z][A-Za-z0-9]*\.[a-z][A-Za-z0-9]*$/.test(tag),
     );
     expect(malformed).toEqual([]);
     expect(new Set(tags).size).toBe(tags.length);

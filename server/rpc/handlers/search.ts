@@ -66,14 +66,14 @@ function encodeAlbum(album: CanonicalAlbum) {
 }
 
 export const searchHandlers = (deps: SearchHandlerDeps) => ({
-  "search.pandora": (payload: ApiPandoraSearchInput) =>
+  "search.pandora.run": (payload: ApiPandoraSearchInput) =>
     publicHandler(
       deps.auth.withAuthRetry((ctx) =>
         Pandora.search(ctx.pandoraSession, payload.searchText),
       ),
     ),
 
-  "search.unified": (payload: ApiSearchInput) =>
+  "search.unified.run": (payload: ApiSearchInput) =>
     publicHandler(
       Effect.gen(function* () {
         const manager = yield* deps.catalog.resolveManager;

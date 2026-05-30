@@ -102,12 +102,12 @@ describe("player.pause / resume / stop / skip / previous / jumpTo", () => {
   it("pause + resume route through the singleton", async () => {
     PlayerSingleton.play([track("ytmusic:a")], { type: "manual" });
     const paused = await withHandlers(async (handlers) =>
-      Effect.runPromise(handlers["player.pause"]()),
+      Effect.runPromise(handlers["player.transport.pause"]()),
     );
     expect(paused.status).toBe("paused");
 
     const resumed = await withHandlers(async (handlers) =>
-      Effect.runPromise(handlers["player.resume"]()),
+      Effect.runPromise(handlers["player.transport.resume"]()),
     );
     expect(resumed.status).toBe("playing");
     expect(PlayerSingleton.getState().status).toBe("playing");
@@ -118,7 +118,7 @@ describe("player.pause / resume / stop / skip / previous / jumpTo", () => {
       type: "manual",
     });
     const result = await withHandlers(async (handlers) =>
-      Effect.runPromise(handlers["player.skip"]()),
+      Effect.runPromise(handlers["player.transport.skip"]()),
     );
     expect(result.currentTrack?.id).toBe("ytmusic:b");
     expect(QueueSingleton.getState().currentIndex).toBe(1);
@@ -130,7 +130,7 @@ describe("player.pause / resume / stop / skip / previous / jumpTo", () => {
       { type: "manual" },
     );
     const result = await withHandlers(async (handlers) =>
-      Effect.runPromise(handlers["player.jumpTo"]({ index: 2 })),
+      Effect.runPromise(handlers["player.transport.jumpTo"]({ index: 2 })),
     );
     expect(result.currentTrack?.id).toBe("ytmusic:c");
   });
@@ -138,7 +138,7 @@ describe("player.pause / resume / stop / skip / previous / jumpTo", () => {
   it("stop clears the queue", async () => {
     PlayerSingleton.play([track("ytmusic:a")], { type: "manual" });
     const result = await withHandlers(async (handlers) =>
-      Effect.runPromise(handlers["player.stop"]()),
+      Effect.runPromise(handlers["player.transport.stop"]()),
     );
     expect(result.status).toBe("stopped");
     expect(result.currentTrack).toBeNull();
@@ -152,7 +152,7 @@ describe("player.seek and player.volume.set", () => {
     PlayerSingleton.setDuration(120);
 
     await withHandlers(async (handlers) => {
-      await Effect.runPromise(handlers["player.seek"]({ position: 45 }));
+      await Effect.runPromise(handlers["player.transport.seek"]({ position: 45 }));
     });
     PlayerSingleton.pause();
     expect(PlayerSingleton.getState().progress).toBeGreaterThanOrEqual(45);
@@ -276,7 +276,7 @@ describe("player.trackEnded (stale guard)", () => {
 
     const result = await withHandlers(async (handlers) =>
       Effect.runPromise(
-        handlers["player.trackEnded"]({ appliesToTrackId: "ytmusic:a" }),
+        handlers["player.transport.trackEnded"]({ appliesToTrackId: "ytmusic:a" }),
       ),
     );
     expect(result.currentTrack?.id).toBe(before);
@@ -288,7 +288,7 @@ describe("player.trackEnded (stale guard)", () => {
       type: "manual",
     });
     const result = await withHandlers(async (handlers) =>
-      Effect.runPromise(handlers["player.trackEnded"]({})),
+      Effect.runPromise(handlers["player.transport.trackEnded"]({})),
     );
     expect(result.currentTrack?.id).toBe("ytmusic:b");
   });

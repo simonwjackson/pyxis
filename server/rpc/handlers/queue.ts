@@ -95,15 +95,15 @@ export const queueHandlers = (deps: QueueHandlerDeps) => ({
         .pipe(Effect.map(serializeQueueState)),
     ),
 
-  "queue.clear": () =>
+  "queue.tracks.clear": () =>
     publicHandler(deps.queue.clear.pipe(Effect.map(serializeQueueState))),
 
-  "queue.jump": (payload: ApiQueueIndexInput) =>
+  "queue.cursor.jump": (payload: ApiQueueIndexInput) =>
     publicHandler(
       deps.queue.jumpTo(payload.index).pipe(Effect.map(serializeQueueState)),
     ),
 
-  "queue.shuffle": () =>
+  "queue.tracks.shuffle": () =>
     publicHandler(deps.queue.shuffle.pipe(Effect.map(serializeQueueState))),
 
   /**
