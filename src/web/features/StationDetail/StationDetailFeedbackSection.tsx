@@ -13,18 +13,34 @@ export function StationDetailFeedbackSection({
     <div>
       <h3 className="zune-label text-pyxis-muted mb-4">feedback</h3>
 
-      {state._tag === "Empty" ? <StationDetailFeedbackEmpty /> : null}
-      {state._tag === "Ready" ? (
-        <>
-          {state.liked.length > 0 ? (
-            <StationDetailLikedFeedbackGroup feedback={state.liked} />
-          ) : null}
-          {state.disliked.length > 0 ? (
-            <StationDetailDislikedFeedbackGroup feedback={state.disliked} />
-          ) : null}
-        </>
-      ) : null}
+      <StationDetailFeedbackBody state={state} />
     </div>
+  );
+}
+
+function StationDetailFeedbackBody({
+  state,
+}: {
+  readonly state: StationDetailFeedbackState;
+}) {
+  switch (state._tag) {
+    case "Empty":
+      return <StationDetailFeedbackEmpty />;
+    case "Ready":
+      return <StationDetailFeedbackReady state={state} />;
+  }
+}
+
+function StationDetailFeedbackReady({
+  state,
+}: {
+  readonly state: Extract<StationDetailFeedbackState, { _tag: "Ready" }>;
+}) {
+  return (
+    <>
+      <StationDetailLikedFeedbackGroup feedback={state.liked} />
+      <StationDetailDislikedFeedbackGroup feedback={state.disliked} />
+    </>
   );
 }
 
@@ -46,6 +62,7 @@ type StationDetailFeedbackGroupProps = {
 function StationDetailLikedFeedbackGroup({
   feedback,
 }: StationDetailFeedbackGroupProps) {
+  if (feedback.length === 0) return null;
   return (
     <div className="mb-4">
       <p className="text-xs text-pyxis-dim mb-1 flex items-center gap-1">
@@ -64,6 +81,7 @@ function StationDetailLikedFeedbackGroup({
 function StationDetailDislikedFeedbackGroup({
   feedback,
 }: StationDetailFeedbackGroupProps) {
+  if (feedback.length === 0) return null;
   return (
     <div>
       <p className="text-xs text-pyxis-dim mb-1 flex items-center gap-1">

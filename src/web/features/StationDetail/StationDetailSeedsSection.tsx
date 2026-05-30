@@ -18,24 +18,38 @@ export function StationDetailSeedsSection({
       return <StationDetailSeedsEmpty />;
     case "Ready":
       return (
-        <div>
-          {state.artists.length > 0 ? (
-            <StationDetailArtistSeedsGroup
-              seeds={state.artists}
-              isRemoving={isRemoving}
-              onRemove={onRemove}
-            />
-          ) : null}
-          {state.songs.length > 0 ? (
-            <StationDetailSongSeedsGroup
-              seeds={state.songs}
-              isRemoving={isRemoving}
-              onRemove={onRemove}
-            />
-          ) : null}
-        </div>
+        <StationDetailSeedsReady
+          state={state}
+          isRemoving={isRemoving}
+          onRemove={onRemove}
+        />
       );
   }
+}
+
+function StationDetailSeedsReady({
+  state,
+  isRemoving,
+  onRemove,
+}: {
+  readonly state: Extract<StationDetailSeedsState, { _tag: "Ready" }>;
+  readonly isRemoving: boolean;
+  readonly onRemove: (seedId: string) => void;
+}) {
+  return (
+    <div>
+      <StationDetailArtistSeedsGroup
+        seeds={state.artists}
+        isRemoving={isRemoving}
+        onRemove={onRemove}
+      />
+      <StationDetailSongSeedsGroup
+        seeds={state.songs}
+        isRemoving={isRemoving}
+        onRemove={onRemove}
+      />
+    </div>
+  );
 }
 
 function StationDetailSeedsEmpty() {
@@ -60,6 +74,7 @@ function StationDetailArtistSeedsGroup({
   isRemoving,
   onRemove,
 }: StationDetailSeedGroupProps) {
+  if (seeds.length === 0) return null;
   return (
     <div className="space-y-1 mb-4">
       <p className="text-xs text-pyxis-dim mb-1">Artists</p>
@@ -80,6 +95,7 @@ function StationDetailSongSeedsGroup({
   isRemoving,
   onRemove,
 }: StationDetailSeedGroupProps) {
+  if (seeds.length === 0) return null;
   return (
     <div className="space-y-1">
       <p className="text-xs text-pyxis-dim mb-1">Songs</p>
