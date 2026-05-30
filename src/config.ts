@@ -4,90 +4,94 @@
  * Configuration file is located at XDG_CONFIG_HOME/pyxis/config.yaml.
  */
 
-import { z } from "zod";
-import { parse as parseYaml } from "yaml";
-import { readFileSync, existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import envPaths from "env-paths";
+import { parse as parseYaml } from "yaml";
+import { z } from "zod";
 
 const optionalString = z.preprocess(
-	(val) => (val === null ? undefined : val),
-	z.string().optional(),
+  (val) => (val === null ? undefined : val),
+  z.string().optional(),
 );
 
 const ServerSchema = z.object({
-	port: z.number().int().min(1).max(65535).default(8765),
-	hostname: z.string().default("localhost"),
+  port: z.number().int().min(1).max(65535).default(8765),
+  hostname: z.string().default("localhost"),
 });
 
 const WebSchema = z.object({
-	port: z.number().int().min(1).max(65535).default(5678),
-	allowedHosts: z.array(z.string()).default([]),
+  port: z.number().int().min(1).max(65535).default(5678),
+  allowedHosts: z.array(z.string()).default([]),
 });
 
 const PandoraSourceSchema = z.object({
-	username: optionalString,
+  username: optionalString,
 });
 
 const MusicBrainzSourceSchema = z.object({
-	enabled: z.boolean().default(true),
+  enabled: z.boolean().default(true),
 });
 
 const DiscogsSourceSchema = z.object({
-	enabled: z.boolean().default(true),
-	token: optionalString,
+  enabled: z.boolean().default(true),
+  token: optionalString,
 });
 
 const DeezerSourceSchema = z.object({
-	enabled: z.boolean().default(true),
+  enabled: z.boolean().default(true),
 });
 
 const BandcampSourceSchema = z.object({
-	enabled: z.boolean().default(true),
+  enabled: z.boolean().default(true),
 });
 
 const SoundCloudSourceSchema = z.object({
-	enabled: z.boolean().default(true),
-	clientId: optionalString,
+  enabled: z.boolean().default(true),
+  clientId: optionalString,
 });
 
 const SoulseekSourceSchema = z.object({
-	enabled: z.boolean().default(false),
-	username: optionalString,
-	maxConcurrentDownloads: z.number().int().min(1).default(2),
+  enabled: z.boolean().default(false),
+  username: optionalString,
+  maxConcurrentDownloads: z.number().int().min(1).default(2),
 });
 
 const SourcesSchema = z.object({
-	pandora: PandoraSourceSchema.default(() => PandoraSourceSchema.parse({})),
-	musicbrainz: MusicBrainzSourceSchema.default(() => MusicBrainzSourceSchema.parse({})),
-	discogs: DiscogsSourceSchema.default(() => DiscogsSourceSchema.parse({})),
-	deezer: DeezerSourceSchema.default(() => DeezerSourceSchema.parse({})),
-	bandcamp: BandcampSourceSchema.default(() => BandcampSourceSchema.parse({})),
-	soundcloud: SoundCloudSourceSchema.default(() => SoundCloudSourceSchema.parse({})),
-	soulseek: SoulseekSourceSchema.default(() => SoulseekSourceSchema.parse({})),
+  pandora: PandoraSourceSchema.default(() => PandoraSourceSchema.parse({})),
+  musicbrainz: MusicBrainzSourceSchema.default(() =>
+    MusicBrainzSourceSchema.parse({}),
+  ),
+  discogs: DiscogsSourceSchema.default(() => DiscogsSourceSchema.parse({})),
+  deezer: DeezerSourceSchema.default(() => DeezerSourceSchema.parse({})),
+  bandcamp: BandcampSourceSchema.default(() => BandcampSourceSchema.parse({})),
+  soundcloud: SoundCloudSourceSchema.default(() =>
+    SoundCloudSourceSchema.parse({}),
+  ),
+  soulseek: SoulseekSourceSchema.default(() => SoulseekSourceSchema.parse({})),
 });
 
 const UpgradeStorageSchema = z.object({
-	maxCapacityMB: z.number().positive().optional(),
-	ttlDays: z.number().positive().optional(),
+  maxCapacityMB: z.number().positive().optional(),
+  ttlDays: z.number().positive().optional(),
 });
 
 const UpgradeSchema = z.object({
-	enabled: z.boolean().default(false),
-	radioLookahead: z.number().int().min(1).default(3),
-	retrySchedule: z.array(z.number().int().positive()).default([1, 3, 7, 30]),
-	storage: UpgradeStorageSchema.default(() => UpgradeStorageSchema.parse({})),
+  enabled: z.boolean().default(false),
+  radioLookahead: z.number().int().min(1).default(3),
+  retrySchedule: z.array(z.number().int().positive()).default([1, 3, 7, 30]),
+  storage: UpgradeStorageSchema.default(() => UpgradeStorageSchema.parse({})),
 });
 
 const LogSchema = z.object({
-	level: z
-		.enum(["trace", "debug", "info", "warn", "error", "fatal"])
-		.default("info"),
+  level: z
+    .enum(["trace", "debug", "info", "warn", "error", "fatal"])
+    .default("info"),
 });
 
 const AndroidBridgeSchema = z.object({
-	enabled: z.boolean().default(false),
-	token: optionalString,
+  enabled: z.boolean().default(false),
+  token: optionalString,
 });
 
 /**
@@ -95,12 +99,14 @@ const AndroidBridgeSchema = z.object({
  * Validates and provides defaults for server, web, sources, and log settings.
  */
 export const ConfigSchema = z.object({
-	server: ServerSchema.default(() => ServerSchema.parse({})),
-	web: WebSchema.default(() => WebSchema.parse({})),
-	sources: SourcesSchema.default(() => SourcesSchema.parse({})),
-	upgrade: UpgradeSchema.default(() => UpgradeSchema.parse({})),
-	log: LogSchema.default(() => LogSchema.parse({})),
-	androidBridge: AndroidBridgeSchema.default(() => AndroidBridgeSchema.parse({})),
+  server: ServerSchema.default(() => ServerSchema.parse({})),
+  web: WebSchema.default(() => WebSchema.parse({})),
+  sources: SourcesSchema.default(() => SourcesSchema.parse({})),
+  upgrade: UpgradeSchema.default(() => UpgradeSchema.parse({})),
+  log: LogSchema.default(() => LogSchema.parse({})),
+  androidBridge: AndroidBridgeSchema.default(() =>
+    AndroidBridgeSchema.parse({}),
+  ),
 });
 
 /**
@@ -113,77 +119,84 @@ const paths = envPaths("pyxis", { suffix: "" });
 const DEFAULT_CONFIG_PATH = join(paths.config, "config.yaml");
 
 function loadYaml(filePath: string): unknown {
-	if (!existsSync(filePath)) return {};
-	const content = readFileSync(filePath, "utf-8");
-	const parsed: unknown = parseYaml(content);
-	return parsed ?? {};
+  if (!existsSync(filePath)) return {};
+  const content = readFileSync(filePath, "utf-8");
+  const parsed: unknown = parseYaml(content);
+  return parsed ?? {};
 }
 
-function applyEnvOverrides(config: Record<string, unknown>): Record<string, unknown> {
-	const result = structuredClone(config);
+function applyEnvOverrides(
+  config: Record<string, unknown>,
+): Record<string, unknown> {
+  const result = structuredClone(config);
 
-	const serverPort = process.env["PYXIS_SERVER_PORT"];
-	if (serverPort) {
-		if (!result["server"] || typeof result["server"] !== "object") {
-			result["server"] = {};
-		}
-		(result["server"] as Record<string, unknown>)["port"] = Number.parseInt(serverPort, 10);
-	}
+  const serverPort = process.env.PYXIS_SERVER_PORT;
+  if (serverPort) {
+    if (!result.server || typeof result.server !== "object") {
+      result.server = {};
+    }
+    (result.server as Record<string, unknown>).port = Number.parseInt(
+      serverPort,
+      10,
+    );
+  }
 
-	const serverHostname = process.env["PYXIS_SERVER_HOSTNAME"];
-	if (serverHostname) {
-		if (!result["server"] || typeof result["server"] !== "object") {
-			result["server"] = {};
-		}
-		(result["server"] as Record<string, unknown>)["hostname"] = serverHostname;
-	}
+  const serverHostname = process.env.PYXIS_SERVER_HOSTNAME;
+  if (serverHostname) {
+    if (!result.server || typeof result.server !== "object") {
+      result.server = {};
+    }
+    (result.server as Record<string, unknown>).hostname = serverHostname;
+  }
 
-	const webPort = process.env["PYXIS_WEB_PORT"];
-	if (webPort) {
-		if (!result["web"] || typeof result["web"] !== "object") {
-			result["web"] = {};
-		}
-		(result["web"] as Record<string, unknown>)["port"] = Number.parseInt(webPort, 10);
-	}
+  const webPort = process.env.PYXIS_WEB_PORT;
+  if (webPort) {
+    if (!result.web || typeof result.web !== "object") {
+      result.web = {};
+    }
+    (result.web as Record<string, unknown>).port = Number.parseInt(webPort, 10);
+  }
 
-	const logLevel = process.env["PYXIS_LOG_LEVEL"];
-	if (logLevel) {
-		if (!result["log"] || typeof result["log"] !== "object") {
-			result["log"] = {};
-		}
-		(result["log"] as Record<string, unknown>)["level"] = logLevel;
-	}
+  const logLevel = process.env.PYXIS_LOG_LEVEL;
+  if (logLevel) {
+    if (!result.log || typeof result.log !== "object") {
+      result.log = {};
+    }
+    (result.log as Record<string, unknown>).level = logLevel;
+  }
 
-	const androidBridgeEnabled = process.env["PYXIS_ANDROID_BRIDGE_ENABLED"];
-	if (androidBridgeEnabled) {
-		if (!result["androidBridge"] || typeof result["androidBridge"] !== "object") {
-			result["androidBridge"] = {};
-		}
-		(result["androidBridge"] as Record<string, unknown>)["enabled"] =
-			androidBridgeEnabled === "1" || androidBridgeEnabled.toLowerCase() === "true";
-	}
+  const androidBridgeEnabled = process.env.PYXIS_ANDROID_BRIDGE_ENABLED;
+  if (androidBridgeEnabled) {
+    if (!result.androidBridge || typeof result.androidBridge !== "object") {
+      result.androidBridge = {};
+    }
+    (result.androidBridge as Record<string, unknown>).enabled =
+      androidBridgeEnabled === "1" ||
+      androidBridgeEnabled.toLowerCase() === "true";
+  }
 
-	const androidBridgeToken = process.env["PYXIS_ANDROID_BRIDGE_TOKEN"];
-	if (androidBridgeToken) {
-		if (!result["androidBridge"] || typeof result["androidBridge"] !== "object") {
-			result["androidBridge"] = {};
-		}
-		(result["androidBridge"] as Record<string, unknown>)["token"] = androidBridgeToken;
-	}
+  const androidBridgeToken = process.env.PYXIS_ANDROID_BRIDGE_TOKEN;
+  if (androidBridgeToken) {
+    if (!result.androidBridge || typeof result.androidBridge !== "object") {
+      result.androidBridge = {};
+    }
+    (result.androidBridge as Record<string, unknown>).token =
+      androidBridgeToken;
+  }
 
-	const discogsToken = process.env["PYXIS_DISCOGS_TOKEN"];
-	if (discogsToken) {
-		if (!result["sources"] || typeof result["sources"] !== "object") {
-			result["sources"] = {};
-		}
-		const sources = result["sources"] as Record<string, unknown>;
-		if (!sources["discogs"] || typeof sources["discogs"] !== "object") {
-			sources["discogs"] = {};
-		}
-		(sources["discogs"] as Record<string, unknown>)["token"] = discogsToken;
-	}
+  const discogsToken = process.env.PYXIS_DISCOGS_TOKEN;
+  if (discogsToken) {
+    if (!result.sources || typeof result.sources !== "object") {
+      result.sources = {};
+    }
+    const sources = result.sources as Record<string, unknown>;
+    if (!sources.discogs || typeof sources.discogs !== "object") {
+      sources.discogs = {};
+    }
+    (sources.discogs as Record<string, unknown>).token = discogsToken;
+  }
 
-	return result;
+  return result;
 }
 
 /**
@@ -203,10 +216,10 @@ function applyEnvOverrides(config: Record<string, unknown>): Record<string, unkn
  * ```
  */
 export function resolveConfig(configPath?: string): AppConfig {
-	const yamlPath = configPath ?? DEFAULT_CONFIG_PATH;
-	const raw = loadYaml(yamlPath);
-	const withEnv = applyEnvOverrides(raw as Record<string, unknown>);
-	return ConfigSchema.parse(withEnv);
+  const yamlPath = configPath ?? DEFAULT_CONFIG_PATH;
+  const raw = loadYaml(yamlPath);
+  const withEnv = applyEnvOverrides(raw as Record<string, unknown>);
+  return ConfigSchema.parse(withEnv);
 }
 
 /**
@@ -216,9 +229,9 @@ export function resolveConfig(configPath?: string): AppConfig {
  * @returns The Pandora password if set, undefined otherwise
  */
 export function getPandoraPassword(): string | undefined {
-	return process.env["PYXIS_PANDORA_PASSWORD"];
+  return process.env.PYXIS_PANDORA_PASSWORD;
 }
 
 export function getSoulseekPassword(): string | undefined {
-	return process.env["PYXIS_SOULSEEK_PASSWORD"];
+  return process.env.PYXIS_SOULSEEK_PASSWORD;
 }

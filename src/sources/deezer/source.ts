@@ -4,7 +4,12 @@
  * Provides album search capabilities using the Deezer API.
  */
 
-import type { NormalizedRelease, MetadataSource, MetadataSearchQuery, ReleaseType } from "../types.js";
+import type {
+  MetadataSearchQuery,
+  MetadataSource,
+  NormalizedRelease,
+  ReleaseType,
+} from "../types.js";
 import { createDeezerClient } from "./client.js";
 import type { AlbumSearchItem } from "./schemas.js";
 
@@ -14,13 +19,15 @@ import type { AlbumSearchItem } from "./schemas.js";
  * @param recordType - Deezer record type string (album, single, ep, compilation)
  * @returns Canonical release type
  */
-const mapRecordTypeToReleaseType = (recordType: string | undefined): ReleaseType => {
-	if (!recordType) return "album";
-	const normalized = recordType.toLowerCase();
-	if (normalized === "ep") return "ep";
-	if (normalized === "single") return "single";
-	if (normalized === "compilation") return "compilation";
-	return "album";
+const mapRecordTypeToReleaseType = (
+  recordType: string | undefined,
+): ReleaseType => {
+  if (!recordType) return "album";
+  const normalized = recordType.toLowerCase();
+  if (normalized === "ep") return "ep";
+  if (normalized === "single") return "single";
+  if (normalized === "compilation") return "compilation";
+  return "album";
 };
 
 /**
@@ -30,25 +37,27 @@ const mapRecordTypeToReleaseType = (recordType: string | undefined): ReleaseType
  * @returns Normalized release object for cross-source compatibility
  */
 const normalizeAlbum = (album: AlbumSearchItem): NormalizedRelease => {
-	const artistName = album.artist?.name ?? "Unknown";
-	const artworkUrl = album.cover_medium ?? album.cover;
+  const artistName = album.artist?.name ?? "Unknown";
+  const artworkUrl = album.cover_medium ?? album.cover;
 
-	return {
-		fingerprint: "",
-		title: album.title,
-		artists: [
-			{
-				name: artistName,
-				ids: album.artist ? [{ source: "deezer", id: String(album.artist.id) }] : [],
-			},
-		],
-		releaseType: mapRecordTypeToReleaseType(album.record_type),
-		ids: [{ source: "deezer", id: String(album.id) }],
-		confidence: 1,
-		genres: [],
-		...(artworkUrl != null ? { artworkUrl } : {}),
-		sourceScores: { deezer: 100 },
-	};
+  return {
+    fingerprint: "",
+    title: album.title,
+    artists: [
+      {
+        name: artistName,
+        ids: album.artist
+          ? [{ source: "deezer", id: String(album.artist.id) }]
+          : [],
+      },
+    ],
+    releaseType: mapRecordTypeToReleaseType(album.record_type),
+    ids: [{ source: "deezer", id: String(album.id) }],
+    confidence: 1,
+    genres: [],
+    ...(artworkUrl != null ? { artworkUrl } : {}),
+    sourceScores: { deezer: 100 },
+  };
 };
 
 /**
@@ -56,18 +65,18 @@ const normalizeAlbum = (album: AlbumSearchItem): NormalizedRelease => {
  * Includes application identification and rate limiting settings.
  */
 export type DeezerSourceConfig = {
-	/** Application name for User-Agent header */
-	readonly appName: string;
-	/** Application version for User-Agent header */
-	readonly version: string;
-	/** Contact URL/email for User-Agent header */
-	readonly contact: string;
-	/** Maximum requests per second (default: 5) */
-	readonly requestsPerSecond?: number;
-	/** Token bucket burst size for rate limiting (default: 10) */
-	readonly burstSize?: number;
-	/** Maximum retry attempts on rate limit errors (default: 3) */
-	readonly maxRetries?: number;
+  /** Application name for User-Agent header */
+  readonly appName: string;
+  /** Application version for User-Agent header */
+  readonly version: string;
+  /** Contact URL/email for User-Agent header */
+  readonly contact: string;
+  /** Maximum requests per second (default: 5) */
+  readonly requestsPerSecond?: number;
+  /** Token bucket burst size for rate limiting (default: 10) */
+  readonly burstSize?: number;
+  /** Maximum retry attempts on rate limit errors (default: 3) */
+  readonly maxRetries?: number;
 };
 
 /**
@@ -77,8 +86,8 @@ export type DeezerSourceConfig = {
  * @returns Search query string for Deezer API
  */
 const buildQuery = (input: MetadataSearchQuery): string => {
-	if (input.kind === "text") return input.query;
-	return `${input.artist} ${input.title}`;
+  if (input.kind === "text") return input.query;
+  return `${input.artist} ${input.title}`;
 };
 
 /**
@@ -98,29 +107,31 @@ const buildQuery = (input: MetadataSearchQuery): string => {
  * const releases = await source.searchReleases({ kind: "text", query: "daft punk" });
  */
 export const createDeezerSource = (
-	config: DeezerSourceConfig,
+  config: DeezerSourceConfig,
 ): MetadataSource => {
-	const client = createDeezerClient({
-		appName: config.appName,
-		version: config.version,
-		contact: config.contact,
-		...(config.requestsPerSecond != null ? { requestsPerSecond: config.requestsPerSecond } : {}),
-		...(config.burstSize != null ? { burstSize: config.burstSize } : {}),
-		...(config.maxRetries != null ? { maxRetries: config.maxRetries } : {}),
-	});
+  const client = createDeezerClient({
+    appName: config.appName,
+    version: config.version,
+    contact: config.contact,
+    ...(config.requestsPerSecond != null
+      ? { requestsPerSecond: config.requestsPerSecond }
+      : {}),
+    ...(config.burstSize != null ? { burstSize: config.burstSize } : {}),
+    ...(config.maxRetries != null ? { maxRetries: config.maxRetries } : {}),
+  });
 
-	const searchReleases = async (
-		input: MetadataSearchQuery,
-		limit = 10,
-	): Promise<readonly NormalizedRelease[]> => {
-		const query = buildQuery(input);
-		const albums = await client.searchAlbums(query, limit);
-		return albums.map(normalizeAlbum);
-	};
+  const searchReleases = async (
+    input: MetadataSearchQuery,
+    limit = 10,
+  ): Promise<readonly NormalizedRelease[]> => {
+    const query = buildQuery(input);
+    const albums = await client.searchAlbums(query, limit);
+    return albums.map(normalizeAlbum);
+  };
 
-	return {
-		type: "deezer",
-		name: "Deezer",
-		searchReleases,
-	};
+  return {
+    type: "deezer",
+    name: "Deezer",
+    searchReleases,
+  };
 };

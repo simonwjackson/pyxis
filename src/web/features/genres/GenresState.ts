@@ -15,33 +15,33 @@ import type { ApiPublicError } from "../../../api/contracts/common.js";
 import type { ApiGenreCategory } from "../../../api/contracts/radio.js";
 
 export type GenresState =
-	| { readonly _tag: "Loading" }
-	| { readonly _tag: "Empty" }
-	| {
-			readonly _tag: "Ready";
-			readonly categories: readonly ApiGenreCategory[];
-	  }
-	| { readonly _tag: "LoadError"; readonly error: ApiPublicError }
-	| { readonly _tag: "Defect"; readonly defect: unknown };
+  | { readonly _tag: "Loading" }
+  | { readonly _tag: "Empty" }
+  | {
+      readonly _tag: "Ready";
+      readonly categories: readonly ApiGenreCategory[];
+    }
+  | { readonly _tag: "LoadError"; readonly error: ApiPublicError }
+  | { readonly _tag: "Defect"; readonly defect: unknown };
 
 export const GenresState = {
-	fromResult(
-		result: AsyncResult.AsyncResult<
-			readonly ApiGenreCategory[],
-			ApiPublicError
-		>,
-	): GenresState {
-		return AsyncResult.matchWithWaiting(result, {
-			onWaiting: (): GenresState => ({ _tag: "Loading" }),
-			onError: (error): GenresState => ({ _tag: "LoadError", error }),
-			onDefect: (defect): GenresState => ({ _tag: "Defect", defect }),
-			onSuccess: (success): GenresState => {
-				const categories = success.value;
-				if (categories.length === 0) {
-					return { _tag: "Empty" };
-				}
-				return { _tag: "Ready", categories };
-			},
-		});
-	},
+  fromResult(
+    result: AsyncResult.AsyncResult<
+      readonly ApiGenreCategory[],
+      ApiPublicError
+    >,
+  ): GenresState {
+    return AsyncResult.matchWithWaiting(result, {
+      onWaiting: (): GenresState => ({ _tag: "Loading" }),
+      onError: (error): GenresState => ({ _tag: "LoadError", error }),
+      onDefect: (defect): GenresState => ({ _tag: "Defect", defect }),
+      onSuccess: (success): GenresState => {
+        const categories = success.value;
+        if (categories.length === 0) {
+          return { _tag: "Empty" };
+        }
+        return { _tag: "Ready", categories };
+      },
+    });
+  },
 };

@@ -10,6 +10,6 @@
 import { PyxisRpcClient } from "../api/rpcClient.js";
 
 export const authStatusQueryAtom = PyxisRpcClient.query(
-	"auth.status.get",
-	undefined,
+  "auth.status.get",
+  undefined,
 );

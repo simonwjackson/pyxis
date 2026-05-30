@@ -26,8 +26,8 @@ import { StationCommandState } from "@/web/features/stations/StationCommandState
 import { PyxisRpcClient } from "@/web/shared/api/rpcClient";
 import { projectQueryResult } from "@/web/shared/effect/projectQueryResult";
 import {
-	radioTrackToNowPlaying,
-	tracksToQueuePayload,
+  radioTrackToNowPlaying,
+  tracksToQueuePayload,
 } from "@/web/shared/lib/now-playing-utils";
 import { usePlaybackContext } from "@/web/shared/playback/playback-context";
 import { queueStateStreamAtom } from "@/web/shared/playback/queueStateStreamAtom";
@@ -35,9 +35,9 @@ import { StationDetailState } from "./StationDetailState";
 import { StationDetailArtistSeedRow } from "./station-detail-artist-seed-row";
 import { StationDetailFeedbackRow } from "./station-detail-feedback-row";
 import {
-	StationDetailDislikedFeedbackGroup,
-	StationDetailFeedbackSection,
-	StationDetailLikedFeedbackGroup,
+  StationDetailDislikedFeedbackGroup,
+  StationDetailFeedbackSection,
+  StationDetailLikedFeedbackGroup,
 } from "./station-detail-feedback-section";
 import { StationDetailHeader } from "./station-detail-header";
 import { StationDetailSeedsSection } from "./station-detail-seeds-section";
@@ -62,7 +62,7 @@ const removeSeedMutationAtom = PyxisRpcClient.mutation("radio.seed.remove");
  * and hands the tracks to the playback context.
  */
 const stationTracksMutationAtom = PyxisRpcClient.mutation(
-	"radio.stationTracks.get",
+  "radio.stationTracks.get",
 );
 
 /**
@@ -70,204 +70,204 @@ const stationTracksMutationAtom = PyxisRpcClient.mutation(
  * Allows managing station seeds and viewing liked/disliked tracks.
  */
 export function StationDetailPage({ token, autoPlay }: StationDetailPageProps) {
-	const [showAddSeed, setShowAddSeed] = useState(false);
-	const navigate = useNavigate();
-	const playback = usePlaybackContext();
-	const playbackRef = useRef(playback);
-	playbackRef.current = playback;
-	const hasAutoPlayedRef = useRef(false);
+  const [showAddSeed, setShowAddSeed] = useState(false);
+  const navigate = useNavigate();
+  const playback = usePlaybackContext();
+  const playbackRef = useRef(playback);
+  playbackRef.current = playback;
+  const hasAutoPlayedRef = useRef(false);
 
-	const stationQueryAtom = useMemo(
-		() =>
-			PyxisRpcClient.query(
-				"radio.station.get",
-				{ id: token },
-				{ reactivityKeys: [radioStationTag(token)] },
-			),
-		[token],
-	);
-	const stationResult = projectQueryResult(useAtomValue(stationQueryAtom));
-	const state = StationDetailState.fromResult(stationResult);
+  const stationQueryAtom = useMemo(
+    () =>
+      PyxisRpcClient.query(
+        "radio.station.get",
+        { id: token },
+        { reactivityKeys: [radioStationTag(token)] },
+      ),
+    [token],
+  );
+  const stationResult = projectQueryResult(useAtomValue(stationQueryAtom));
+  const state = StationDetailState.fromResult(stationResult);
 
-	const queueResult = useAtomValue(queueStateStreamAtom);
-	const queueContext = AsyncResult.isSuccess(queueResult)
-		? queueResult.value.context
-		: null;
-	const isThisStationPlaying =
-		playback.currentTrack != null &&
-		queueContext?.type === "radio" &&
-		queueContext.seedId === token;
+  const queueResult = useAtomValue(queueStateStreamAtom);
+  const queueContext = AsyncResult.isSuccess(queueResult)
+    ? queueResult.value.context
+    : null;
+  const isThisStationPlaying =
+    playback.currentTrack != null &&
+    queueContext?.type === "radio" &&
+    queueContext.seedId === token;
 
-	const fetchTracks = useAtomSet(stationTracksMutationAtom, {
-		mode: "promiseExit",
-	});
+  const fetchTracks = useAtomSet(stationTracksMutationAtom, {
+    mode: "promiseExit",
+  });
 
-	const startRadioPlayback = useCallback(() => {
-		void fetchTracks({ payload: { id: token, quality: "high" } }).then(
-			(exit) => {
-				if (exit._tag !== "Success") return;
-				const newTracks = exit.value.map(radioTrackToNowPlaying);
-				playbackRef.current.playQueue({
-					tracks: tracksToQueuePayload(newTracks),
-					context: { type: "radio", seedId: token },
-					startIndex: 0,
-				});
-			},
-		);
-	}, [fetchTracks, token]);
+  const startRadioPlayback = useCallback(() => {
+    void fetchTracks({ payload: { id: token, quality: "high" } }).then(
+      (exit) => {
+        if (exit._tag !== "Success") return;
+        const newTracks = exit.value.map(radioTrackToNowPlaying);
+        playbackRef.current.playQueue({
+          tracks: tracksToQueuePayload(newTracks),
+          context: { type: "radio", seedId: token },
+          startIndex: 0,
+        });
+      },
+    );
+  }, [fetchTracks, token]);
 
-	useEffect(() => {
-		if (!autoPlay || hasAutoPlayedRef.current) return;
-		hasAutoPlayedRef.current = true;
-		startRadioPlayback();
-	}, [autoPlay, startRadioPlayback]);
+  useEffect(() => {
+    if (!autoPlay || hasAutoPlayedRef.current) return;
+    hasAutoPlayedRef.current = true;
+    startRadioPlayback();
+  }, [autoPlay, startRadioPlayback]);
 
-	useEffect(() => {
-		if (playback.error) {
-			toast.error(`Audio error: ${playback.error}`);
-			playbackRef.current.clearError();
-		}
-	}, [playback.error]);
+  useEffect(() => {
+    if (playback.error) {
+      toast.error(`Audio error: ${playback.error}`);
+      playbackRef.current.clearError();
+    }
+  }, [playback.error]);
 
-	const removeSeedResult = projectQueryResult(
-		useAtomValue(removeSeedMutationAtom),
-	);
-	const removeSeedState = StationCommandState.fromResult(removeSeedResult);
-	const isRemovingSeed = StationCommandState.isSubmitting(removeSeedState);
-	const removeSeed = useAtomSet(removeSeedMutationAtom, {
-		mode: "promiseExit",
-	});
+  const removeSeedResult = projectQueryResult(
+    useAtomValue(removeSeedMutationAtom),
+  );
+  const removeSeedState = StationCommandState.fromResult(removeSeedResult);
+  const isRemovingSeed = StationCommandState.isSubmitting(removeSeedState);
+  const removeSeed = useAtomSet(removeSeedMutationAtom, {
+    mode: "promiseExit",
+  });
 
-	const handleRemoveSeed = (seedId: string) => {
-		void removeSeed({
-			payload: { radioId: token, seedId },
-			reactivityKeys: [radioStationTag(token)],
-		}).then((exit) => {
-			if (exit._tag === "Success") {
-				toast.success("seed removed");
-			} else {
-				toast.error("Failed to remove seed");
-			}
-		});
-	};
+  const handleRemoveSeed = (seedId: string) => {
+    void removeSeed({
+      payload: { radioId: token, seedId },
+      reactivityKeys: [radioStationTag(token)],
+    }).then((exit) => {
+      if (exit._tag === "Success") {
+        toast.success("seed removed");
+      } else {
+        toast.error("Failed to remove seed");
+      }
+    });
+  };
 
-	if (state._tag === "Loading") {
-		return <StationDetailSkeleton />;
-	}
+  if (state._tag === "Loading") {
+    return <StationDetailSkeleton />;
+  }
 
-	if (state._tag === "LoadError" || state._tag === "Defect") {
-		return (
-			<div className="flex-1 px-4 sm:px-8 py-10">
-				<p className="text-[var(--color-error)]">
-					Failed to load station details
-				</p>
-			</div>
-		);
-	}
+  if (state._tag === "LoadError" || state._tag === "Defect") {
+    return (
+      <div className="flex-1 px-4 sm:px-8 py-10">
+        <p className="text-[var(--color-error)]">
+          Failed to load station details
+        </p>
+      </div>
+    );
+  }
 
-	if (state._tag === "NotFound") {
-		return (
-			<div className="flex-1 px-4 sm:px-8 py-10">
-				<p className="text-[var(--color-text-dim)]">station not found.</p>
-			</div>
-		);
-	}
+  if (state._tag === "NotFound") {
+    return (
+      <div className="flex-1 px-4 sm:px-8 py-10">
+        <p className="text-[var(--color-text-dim)]">station not found.</p>
+      </div>
+    );
+  }
 
-	const station = state.station;
-	const artistSeeds = station.music?.artists ?? [];
-	const songSeeds = station.music?.songs ?? [];
-	const thumbsUp = station.feedback?.thumbsUp ?? [];
-	const thumbsDown = station.feedback?.thumbsDown ?? [];
-	const hasSeeds = artistSeeds.length > 0 || songSeeds.length > 0;
-	const hasFeedback = thumbsUp.length > 0 || thumbsDown.length > 0;
+  const station = state.station;
+  const artistSeeds = station.music?.artists ?? [];
+  const songSeeds = station.music?.songs ?? [];
+  const thumbsUp = station.feedback?.thumbsUp ?? [];
+  const thumbsDown = station.feedback?.thumbsDown ?? [];
+  const hasSeeds = artistSeeds.length > 0 || songSeeds.length > 0;
+  const hasFeedback = thumbsUp.length > 0 || thumbsDown.length > 0;
 
-	return (
-		<div className="flex-1 px-4 sm:px-8 py-10 space-y-8 max-w-3xl mx-auto">
-			<StationDetailHeader
-				stationName={station.name}
-				isPlaying={isThisStationPlaying}
-				onBack={() =>
-					navigate({
-						to: "/",
-						search: {
-							pl_sort: undefined,
-							pl_page: undefined,
-							al_sort: undefined,
-							al_page: undefined,
-						},
-					})
-				}
-				onPlay={startRadioPlayback}
-				onAddSeed={() => setShowAddSeed(true)}
-			/>
+  return (
+    <div className="flex-1 px-4 sm:px-8 py-10 space-y-8 max-w-3xl mx-auto">
+      <StationDetailHeader
+        stationName={station.name}
+        isPlaying={isThisStationPlaying}
+        onBack={() =>
+          navigate({
+            to: "/",
+            search: {
+              pl_sort: undefined,
+              pl_page: undefined,
+              al_sort: undefined,
+              al_page: undefined,
+            },
+          })
+        }
+        onPlay={startRadioPlayback}
+        onAddSeed={() => setShowAddSeed(true)}
+      />
 
-			<StationDetailSeedsSection
-				hasSeeds={hasSeeds}
-				artistSeeds={
-					artistSeeds.length > 0 ? (
-						<div className="space-y-1 mb-4">
-							<p className="text-xs text-[var(--color-text-dim)] mb-1">
-								Artists
-							</p>
-							{artistSeeds.map((seed) => (
-								<StationDetailArtistSeedRow
-									key={seed.seedId}
-									seed={seed}
-									isRemoving={isRemovingSeed}
-									onRemove={handleRemoveSeed}
-								/>
-							))}
-						</div>
-					) : null
-				}
-				songSeeds={
-					songSeeds.length > 0 ? (
-						<div className="space-y-1">
-							<p className="text-xs text-[var(--color-text-dim)] mb-1">Songs</p>
-							{songSeeds.map((seed) => (
-								<StationDetailSongSeedRow
-									key={seed.seedId}
-									seed={seed}
-									isRemoving={isRemovingSeed}
-									onRemove={handleRemoveSeed}
-								/>
-							))}
-						</div>
-					) : null
-				}
-			/>
+      <StationDetailSeedsSection
+        hasSeeds={hasSeeds}
+        artistSeeds={
+          artistSeeds.length > 0 ? (
+            <div className="space-y-1 mb-4">
+              <p className="text-xs text-[var(--color-text-dim)] mb-1">
+                Artists
+              </p>
+              {artistSeeds.map((seed) => (
+                <StationDetailArtistSeedRow
+                  key={seed.seedId}
+                  seed={seed}
+                  isRemoving={isRemovingSeed}
+                  onRemove={handleRemoveSeed}
+                />
+              ))}
+            </div>
+          ) : null
+        }
+        songSeeds={
+          songSeeds.length > 0 ? (
+            <div className="space-y-1">
+              <p className="text-xs text-[var(--color-text-dim)] mb-1">Songs</p>
+              {songSeeds.map((seed) => (
+                <StationDetailSongSeedRow
+                  key={seed.seedId}
+                  seed={seed}
+                  isRemoving={isRemovingSeed}
+                  onRemove={handleRemoveSeed}
+                />
+              ))}
+            </div>
+          ) : null
+        }
+      />
 
-			<StationDetailFeedbackSection
-				hasFeedback={hasFeedback}
-				likedFeedback={
-					thumbsUp.length > 0 ? (
-						<StationDetailLikedFeedbackGroup>
-							{thumbsUp.map((feedback) => (
-								<StationDetailFeedbackRow
-									key={feedback.feedbackId}
-									feedback={feedback}
-								/>
-							))}
-						</StationDetailLikedFeedbackGroup>
-					) : null
-				}
-				dislikedFeedback={
-					thumbsDown.length > 0 ? (
-						<StationDetailDislikedFeedbackGroup>
-							{thumbsDown.map((feedback) => (
-								<StationDetailFeedbackRow
-									key={feedback.feedbackId}
-									feedback={feedback}
-								/>
-							))}
-						</StationDetailDislikedFeedbackGroup>
-					) : null
-				}
-			/>
+      <StationDetailFeedbackSection
+        hasFeedback={hasFeedback}
+        likedFeedback={
+          thumbsUp.length > 0 ? (
+            <StationDetailLikedFeedbackGroup>
+              {thumbsUp.map((feedback) => (
+                <StationDetailFeedbackRow
+                  key={feedback.feedbackId}
+                  feedback={feedback}
+                />
+              ))}
+            </StationDetailLikedFeedbackGroup>
+          ) : null
+        }
+        dislikedFeedback={
+          thumbsDown.length > 0 ? (
+            <StationDetailDislikedFeedbackGroup>
+              {thumbsDown.map((feedback) => (
+                <StationDetailFeedbackRow
+                  key={feedback.feedbackId}
+                  feedback={feedback}
+                />
+              ))}
+            </StationDetailDislikedFeedbackGroup>
+          ) : null
+        }
+      />
 
-			{showAddSeed ? (
-				<AddSeedDialog radioId={token} onClose={() => setShowAddSeed(false)} />
-			) : null}
-		</div>
-	);
+      {showAddSeed ? (
+        <AddSeedDialog radioId={token} onClose={() => setShowAddSeed(false)} />
+      ) : null}
+    </div>
+  );
 }

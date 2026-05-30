@@ -6,12 +6,12 @@
  * three simple quality levels: high, medium, low.
  */
 
-import type { PlaylistItem } from "./types/api.js"
+import type { PlaylistItem } from "./types/api.js";
 
 /**
  * User-facing audio quality levels
  */
-export type Quality = "low" | "medium" | "high"
+export type Quality = "low" | "medium" | "high";
 
 /**
  * Pandora API audio format identifiers
@@ -20,16 +20,16 @@ export type AudioFormat =
   | "HTTP_128_MP3"
   | "HTTP_64_AAC"
   | "HTTP_64_AACPLUS"
-  | "HTTP_32_AACPLUS"
+  | "HTTP_32_AACPLUS";
 
 /**
  * Quality level metadata
  */
 export type QualityInfo = {
-  readonly bitrate: string
-  readonly format: string
-  readonly description: string
-}
+  readonly bitrate: string;
+  readonly format: string;
+  readonly description: string;
+};
 
 /**
  * Quality level metadata lookup table.
@@ -39,24 +39,24 @@ export const QUALITY_INFO: Record<Quality, QualityInfo> = {
   high: {
     bitrate: "128",
     format: "MP3",
-    description: "High quality (128 kbps MP3)"
+    description: "High quality (128 kbps MP3)",
   },
   medium: {
     bitrate: "64",
     format: "AAC+",
-    description: "Medium quality (64 kbps AAC+)"
+    description: "Medium quality (64 kbps AAC+)",
   },
   low: {
     bitrate: "32",
     format: "AAC+",
-    description: "Low quality (32 kbps AAC+)"
-  }
-} as const
+    description: "Low quality (32 kbps AAC+)",
+  },
+} as const;
 
 /**
  * Default quality level
  */
-export const DEFAULT_QUALITY: Quality = "high"
+export const DEFAULT_QUALITY: Quality = "high";
 
 /**
  * Maps a quality level to the Pandora API audio format parameter.
@@ -74,10 +74,10 @@ export const DEFAULT_QUALITY: Quality = "high"
 export function getAudioFormat(quality: Quality): AudioFormat | undefined {
   switch (quality) {
     case "high":
-      return "HTTP_128_MP3"
+      return "HTTP_128_MP3";
     case "medium":
     case "low":
-      return undefined // Use audioUrlMap instead
+      return undefined; // Use audioUrlMap instead
   }
 }
 
@@ -90,33 +90,33 @@ export function getAudioFormat(quality: Quality): AudioFormat | undefined {
  */
 export function getAudioUrl(
   item: PlaylistItem,
-  quality: Quality
+  quality: Quality,
 ): string | undefined {
   // High quality uses additionalAudioUrl (HTTP_128_MP3)
   if (quality === "high") {
-    const additional = item.additionalAudioUrl
+    const additional = item.additionalAudioUrl;
     if (additional) {
       if (typeof additional === "string") {
-        return additional
+        return additional;
       }
       // It's a readonly string array
-      return additional[0]
+      return additional[0];
     }
     // Fallback to audioUrlMap.highQuality if 128kbps not available
-    return item.audioUrlMap?.highQuality?.audioUrl
+    return item.audioUrlMap?.highQuality?.audioUrl;
   }
 
   // Medium/low use audioUrlMap
-  const map = item.audioUrlMap
-  if (!map) return undefined
+  const map = item.audioUrlMap;
+  if (!map) return undefined;
 
   switch (quality) {
     case "medium":
-      return map.highQuality?.audioUrl // 64kbps AAC+
+      return map.highQuality?.audioUrl; // 64kbps AAC+
     case "low":
-      return map.lowQuality?.audioUrl // 32kbps AAC+
+      return map.lowQuality?.audioUrl; // 32kbps AAC+
     default:
-      return map.highQuality?.audioUrl
+      return map.highQuality?.audioUrl;
   }
 }
 
@@ -127,7 +127,7 @@ export function getAudioUrl(
  * @returns QualityInfo containing bitrate, format, and description
  */
 export function getQualityInfo(quality: Quality): QualityInfo {
-  return QUALITY_INFO[quality]
+  return QUALITY_INFO[quality];
 }
 
 /**
@@ -137,5 +137,5 @@ export function getQualityInfo(quality: Quality): QualityInfo {
  * @returns True if value is "low", "medium", or "high"
  */
 export function isValidQuality(value: string): value is Quality {
-  return ["low", "medium", "high"].includes(value)
+  return ["low", "medium", "high"].includes(value);
 }

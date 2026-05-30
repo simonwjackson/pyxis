@@ -6,9 +6,9 @@
 
 import { createRateLimiter, type RateLimiterStats } from "../rate-limiter.js";
 import {
-	AlbumSearchResultSchema,
-	ErrorResponseSchema,
-	type AlbumSearchItem,
+  type AlbumSearchItem,
+  AlbumSearchResultSchema,
+  ErrorResponseSchema,
 } from "./schemas.js";
 
 /**
@@ -16,18 +16,18 @@ import {
  * Includes application identification and rate limiting settings.
  */
 export type DeezerClientConfig = {
-	/** Application name for User-Agent header */
-	readonly appName: string;
-	/** Application version for User-Agent header */
-	readonly version: string;
-	/** Contact URL/email for User-Agent header */
-	readonly contact: string;
-	/** Maximum requests per second (default: 5) */
-	readonly requestsPerSecond?: number;
-	/** Token bucket burst size for rate limiting (default: 10) */
-	readonly burstSize?: number;
-	/** Maximum retry attempts on rate limit errors (default: 3) */
-	readonly maxRetries?: number;
+  /** Application name for User-Agent header */
+  readonly appName: string;
+  /** Application version for User-Agent header */
+  readonly version: string;
+  /** Contact URL/email for User-Agent header */
+  readonly contact: string;
+  /** Maximum requests per second (default: 5) */
+  readonly requestsPerSecond?: number;
+  /** Token bucket burst size for rate limiting (default: 10) */
+  readonly burstSize?: number;
+  /** Maximum retry attempts on rate limit errors (default: 3) */
+  readonly maxRetries?: number;
 };
 
 /**
@@ -35,21 +35,21 @@ export type DeezerClientConfig = {
  * Provides methods for searching albums and accessing rate limiter stats.
  */
 export type DeezerClient = {
-	/**
-	 * Searches Deezer for albums matching the query.
-	 * @param query - Search query string
-	 * @param limit - Maximum number of results to return (default: 25)
-	 * @returns Array of album search items
-	 */
-	readonly searchAlbums: (
-		query: string,
-		limit?: number,
-	) => Promise<readonly AlbumSearchItem[]>;
-	/**
-	 * Returns current rate limiter statistics.
-	 * @returns Stats including requests made, tokens available, etc.
-	 */
-	readonly getStats: () => RateLimiterStats;
+  /**
+   * Searches Deezer for albums matching the query.
+   * @param query - Search query string
+   * @param limit - Maximum number of results to return (default: 25)
+   * @returns Array of album search items
+   */
+  readonly searchAlbums: (
+    query: string,
+    limit?: number,
+  ) => Promise<readonly AlbumSearchItem[]>;
+  /**
+   * Returns current rate limiter statistics.
+   * @returns Stats including requests made, tokens available, etc.
+   */
+  readonly getStats: () => RateLimiterStats;
 };
 
 /**
@@ -67,87 +67,89 @@ export type DeezerClient = {
  * });
  * const albums = await client.searchAlbums("daft punk", 10);
  */
-export const createDeezerClient = (config: DeezerClientConfig): DeezerClient => {
-	const {
-		appName,
-		version,
-		contact,
-		requestsPerSecond = 5,
-		burstSize = 10,
-		maxRetries = 3,
-	} = config;
+export const createDeezerClient = (
+  config: DeezerClientConfig,
+): DeezerClient => {
+  const {
+    appName,
+    version,
+    contact,
+    requestsPerSecond = 5,
+    burstSize = 10,
+    maxRetries = 3,
+  } = config;
 
-	const baseUrl = "https://api.deezer.com";
-	const userAgent = `${appName}/${version} (${contact})`;
+  const baseUrl = "https://api.deezer.com";
+  const userAgent = `${appName}/${version} (${contact})`;
 
-	const rateLimiter = createRateLimiter({
-		requestsPerSecond,
-		burstSize,
-		maxRetries,
-		baseBackoffMs: 1000,
-	});
+  const rateLimiter = createRateLimiter({
+    requestsPerSecond,
+    burstSize,
+    maxRetries,
+    baseBackoffMs: 1000,
+  });
 
-	const request = async (
-		endpoint: string,
-		params: Record<string, string | number> = {},
-		retryCount = 0,
-	): Promise<unknown> => {
-		await rateLimiter.acquire();
+  const request = async (
+    endpoint: string,
+    params: Record<string, string | number> = {},
+    retryCount = 0,
+  ): Promise<unknown> => {
+    await rateLimiter.acquire();
 
-		const searchParams = new URLSearchParams(
-			Object.fromEntries(
-				Object.entries(params).map(([k, v]) => [k, String(v)]),
-			),
-		);
+    const searchParams = new URLSearchParams(
+      Object.fromEntries(
+        Object.entries(params).map(([k, v]) => [k, String(v)]),
+      ),
+    );
 
-		const url =
-			Object.keys(params).length > 0
-				? `${baseUrl}${endpoint}?${searchParams}`
-				: `${baseUrl}${endpoint}`;
+    const url =
+      Object.keys(params).length > 0
+        ? `${baseUrl}${endpoint}?${searchParams}`
+        : `${baseUrl}${endpoint}`;
 
-		const response = await fetch(url, {
-			headers: {
-				"User-Agent": userAgent,
-				Accept: "application/json",
-			},
-		});
+    const response = await fetch(url, {
+      headers: {
+        "User-Agent": userAgent,
+        Accept: "application/json",
+      },
+    });
 
-		if (response.status === 429) {
-			if (retryCount >= maxRetries) {
-				throw new Error(`Deezer rate limited after ${maxRetries} retries`);
-			}
+    if (response.status === 429) {
+      if (retryCount >= maxRetries) {
+        throw new Error(`Deezer rate limited after ${maxRetries} retries`);
+      }
 
-			rateLimiter.onRateLimited();
-			const backoffMs = Math.pow(2, retryCount) * 1000 + Math.random() * 1000;
-			await new Promise((r) => setTimeout(r, backoffMs));
-			return request(endpoint, params, retryCount + 1);
-		}
+      rateLimiter.onRateLimited();
+      const backoffMs = 2 ** retryCount * 1000 + Math.random() * 1000;
+      await new Promise((r) => setTimeout(r, backoffMs));
+      return request(endpoint, params, retryCount + 1);
+    }
 
-		if (!response.ok) {
-			throw new Error(
-				`Deezer API error: ${response.status} ${response.statusText}`,
-			);
-		}
+    if (!response.ok) {
+      throw new Error(
+        `Deezer API error: ${response.status} ${response.statusText}`,
+      );
+    }
 
-		const data: unknown = await response.json();
+    const data: unknown = await response.json();
 
-		const errorParse = ErrorResponseSchema.safeParse(data);
-		if (errorParse.success) {
-			throw new Error(
-				`Deezer API error: ${errorParse.data.error.message} (code: ${errorParse.data.error.code})`,
-			);
-		}
+    const errorParse = ErrorResponseSchema.safeParse(data);
+    if (errorParse.success) {
+      throw new Error(
+        `Deezer API error: ${errorParse.data.error.message} (code: ${errorParse.data.error.code})`,
+      );
+    }
 
-		return data;
-	};
+    return data;
+  };
 
-	return {
-		searchAlbums: async (query: string, limit = 25) => {
-			const data = await request("/search/album", { q: query, limit });
-			const result = AlbumSearchResultSchema.parse(data);
-			return result.data;
-		},
+  return {
+    searchAlbums: async (query: string, limit = 25) => {
+      const data = await request("/search/album", { q: query, limit });
+      const result = AlbumSearchResultSchema.parse(data);
+      return result.data;
+    },
 
-		getStats: () => rateLimiter.getStats(),
-	};
+    getStats: () => rateLimiter.getStats(),
+  };
 };

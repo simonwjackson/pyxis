@@ -8,10 +8,10 @@
  */
 export type PandoraConfig = {
   /** Pandora account email or username */
-  readonly username: string
+  readonly username: string;
   /** Pandora account password */
-  readonly password: string
-}
+  readonly password: string;
+};
 
 /**
  * Device credentials for partner authentication.
@@ -20,13 +20,13 @@ export type PandoraConfig = {
  */
 export type DeviceKey = {
   /** Partner username (e.g., "android") */
-  readonly username: string
+  readonly username: string;
   /** Partner password (device-specific) */
-  readonly password: string
+  readonly password: string;
   /** Device identifier string */
-  readonly deviceId: string
+  readonly deviceId: string;
   /** Blowfish key for encrypting API request payloads */
-  readonly encryptKey: string
+  readonly encryptKey: string;
   /** Blowfish key for decrypting API response data (e.g., syncTime) */
-  readonly decryptKey: string
-}
+  readonly decryptKey: string;
+};

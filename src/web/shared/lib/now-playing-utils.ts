@@ -9,16 +9,16 @@
  * Pandora tracks have additional capabilities like feedback and sleep.
  */
 export type TrackCapabilities = {
-	/** Can give thumbs up/down feedback */
-	readonly feedback: boolean;
-	/** Can temporarily hide from station (30 days) */
-	readonly sleep: boolean;
-	/** Can bookmark song or artist */
-	readonly bookmark: boolean;
-	/** Can explain why track was selected */
-	readonly explain: boolean;
-	/** Can create radio station from track */
-	readonly radio: boolean;
+  /** Can give thumbs up/down feedback */
+  readonly feedback: boolean;
+  /** Can temporarily hide from station (30 days) */
+  readonly sleep: boolean;
+  /** Can bookmark song or artist */
+  readonly bookmark: boolean;
+  /** Can explain why track was selected */
+  readonly explain: boolean;
+  /** Can create radio station from track */
+  readonly radio: boolean;
 };
 
 /**
@@ -26,20 +26,20 @@ export type TrackCapabilities = {
  * All source-specific tracks are normalized to this shape.
  */
 export type NowPlayingTrack = {
-	/** Opaque track ID (source:trackId format) */
-	readonly id: string;
-	/** Track title */
-	readonly songName: string;
-	/** Artist name */
-	readonly artistName: string;
-	/** Album name */
-	readonly albumName: string;
-	/** Album artwork URL */
-	readonly albumArtUrl?: string;
-	/** Available actions for this track */
-	readonly capabilities: TrackCapabilities;
-	/** Duration in seconds */
-	readonly duration?: number;
+  /** Opaque track ID (source:trackId format) */
+  readonly id: string;
+  /** Track title */
+  readonly songName: string;
+  /** Artist name */
+  readonly artistName: string;
+  /** Album name */
+  readonly albumName: string;
+  /** Album artwork URL */
+  readonly albumArtUrl?: string;
+  /** Available actions for this track */
+  readonly capabilities: TrackCapabilities;
+  /** Duration in seconds */
+  readonly duration?: number;
 };
 
 /**
@@ -49,23 +49,23 @@ export type NowPlayingTrack = {
  * @returns Normalized NowPlayingTrack
  */
 export function radioTrackToNowPlaying(track: {
-	readonly id: string;
-	readonly title: string;
-	readonly artist: string;
-	readonly album: string;
-	readonly artworkUrl?: string | null;
-	readonly duration?: number | null;
-	readonly capabilities: TrackCapabilities;
+  readonly id: string;
+  readonly title: string;
+  readonly artist: string;
+  readonly album: string;
+  readonly artworkUrl?: string | null;
+  readonly duration?: number | null;
+  readonly capabilities: TrackCapabilities;
 }): NowPlayingTrack {
-	return {
-		id: track.id,
-		songName: track.title,
-		artistName: track.artist,
-		albumName: track.album,
-		...(track.artworkUrl != null ? { albumArtUrl: track.artworkUrl } : {}),
-		...(track.duration != null ? { duration: track.duration } : {}),
-		capabilities: track.capabilities,
-	};
+  return {
+    id: track.id,
+    songName: track.title,
+    artistName: track.artist,
+    albumName: track.album,
+    ...(track.artworkUrl != null ? { albumArtUrl: track.artworkUrl } : {}),
+    ...(track.duration != null ? { duration: track.duration } : {}),
+    capabilities: track.capabilities,
+  };
 }
 
 /**
@@ -75,23 +75,23 @@ export function radioTrackToNowPlaying(track: {
  * @returns Normalized NowPlayingTrack
  */
 export function playlistTrackToNowPlaying(track: {
-	readonly id: string;
-	readonly title: string;
-	readonly artist: string;
-	readonly album: string;
-	readonly artworkUrl?: string;
-	readonly duration?: number;
-	readonly capabilities: TrackCapabilities;
+  readonly id: string;
+  readonly title: string;
+  readonly artist: string;
+  readonly album: string;
+  readonly artworkUrl?: string;
+  readonly duration?: number;
+  readonly capabilities: TrackCapabilities;
 }): NowPlayingTrack {
-	return {
-		id: track.id,
-		songName: track.title,
-		artistName: track.artist,
-		albumName: track.album,
-		...(track.artworkUrl != null ? { albumArtUrl: track.artworkUrl } : {}),
-		...(track.duration != null ? { duration: track.duration } : {}),
-		capabilities: track.capabilities,
-	};
+  return {
+    id: track.id,
+    songName: track.title,
+    artistName: track.artist,
+    albumName: track.album,
+    ...(track.artworkUrl != null ? { albumArtUrl: track.artworkUrl } : {}),
+    ...(track.duration != null ? { duration: track.duration } : {}),
+    capabilities: track.capabilities,
+  };
 }
 
 /**
@@ -99,13 +99,13 @@ export function playlistTrackToNowPlaying(track: {
  * Used for converting album tracks to NowPlayingTrack format.
  */
 export type AlbumTrackRow = {
-	readonly id: string;
-	readonly trackIndex: number;
-	readonly title: string;
-	readonly artist: string;
-	readonly duration?: number | null;
-	readonly artworkUrl?: string | null;
-	readonly capabilities: TrackCapabilities;
+  readonly id: string;
+  readonly trackIndex: number;
+  readonly title: string;
+  readonly artist: string;
+  readonly duration?: number | null;
+  readonly artworkUrl?: string | null;
+  readonly capabilities: TrackCapabilities;
 };
 
 /**
@@ -117,20 +117,20 @@ export type AlbumTrackRow = {
  * @returns Normalized NowPlayingTrack
  */
 export function albumTrackToNowPlaying(
-	track: AlbumTrackRow,
-	albumName: string,
-	albumArtUrl: string | null,
+  track: AlbumTrackRow,
+  albumName: string,
+  albumArtUrl: string | null,
 ): NowPlayingTrack {
-	const artUrl = track.artworkUrl ?? albumArtUrl;
-	return {
-		id: track.id,
-		songName: track.title,
-		artistName: track.artist,
-		albumName,
-		...(artUrl != null ? { albumArtUrl: artUrl } : {}),
-		capabilities: track.capabilities,
-		...(track.duration != null ? { duration: track.duration } : {}),
-	};
+  const artUrl = track.artworkUrl ?? albumArtUrl;
+  return {
+    id: track.id,
+    songName: track.title,
+    artistName: track.artist,
+    albumName,
+    ...(artUrl != null ? { albumArtUrl: artUrl } : {}),
+    capabilities: track.capabilities,
+    ...(track.duration != null ? { duration: track.duration } : {}),
+  };
 }
 
 /**
@@ -138,13 +138,13 @@ export function albumTrackToNowPlaying(
  * Unlike AlbumTrackRow (library), these have source-prefixed IDs directly.
  */
 export type SourceAlbumTrack = {
-	readonly id: string;
-	readonly trackIndex: number;
-	readonly title: string;
-	readonly artist: string;
-	readonly duration?: number;
-	readonly artworkUrl?: string;
-	readonly capabilities: TrackCapabilities;
+  readonly id: string;
+  readonly trackIndex: number;
+  readonly title: string;
+  readonly artist: string;
+  readonly duration?: number;
+  readonly artworkUrl?: string;
+  readonly capabilities: TrackCapabilities;
 };
 
 /**
@@ -156,20 +156,20 @@ export type SourceAlbumTrack = {
  * @returns Normalized NowPlayingTrack
  */
 export function sourceAlbumTrackToNowPlaying(
-	track: SourceAlbumTrack,
-	albumName: string,
-	albumArtUrl: string | null,
+  track: SourceAlbumTrack,
+  albumName: string,
+  albumArtUrl: string | null,
 ): NowPlayingTrack {
-	const artUrl = track.artworkUrl ?? albumArtUrl;
-	return {
-		id: track.id,
-		songName: track.title,
-		artistName: track.artist,
-		albumName,
-		...(artUrl != null ? { albumArtUrl: artUrl } : {}),
-		capabilities: track.capabilities,
-		...(track.duration != null ? { duration: track.duration } : {}),
-	};
+  const artUrl = track.artworkUrl ?? albumArtUrl;
+  return {
+    id: track.id,
+    songName: track.title,
+    artistName: track.artist,
+    albumName,
+    ...(artUrl != null ? { albumArtUrl: artUrl } : {}),
+    capabilities: track.capabilities,
+    ...(track.duration != null ? { duration: track.duration } : {}),
+  };
 }
 
 /**
@@ -179,14 +179,14 @@ export function sourceAlbumTrackToNowPlaying(
  * @returns Array of queue track objects matching server queue.play input
  */
 export function tracksToQueuePayload(tracks: readonly NowPlayingTrack[]) {
-	return tracks.map((t) => ({
-		id: t.id,
-		title: t.songName,
-		artist: t.artistName,
-		album: t.albumName,
-		duration: t.duration ?? null,
-		artworkUrl: t.albumArtUrl ?? null,
-	}));
+  return tracks.map((t) => ({
+    id: t.id,
+    title: t.songName,
+    artist: t.artistName,
+    album: t.albumName,
+    duration: t.duration ?? null,
+    artworkUrl: t.albumArtUrl ?? null,
+  }));
 }
 
 /**
@@ -197,14 +197,14 @@ export function tracksToQueuePayload(tracks: readonly NowPlayingTrack[]) {
  * @returns New shuffled array
  */
 export function shuffleArray<T>(arr: readonly T[]): T[] {
-	const shuffled = [...arr];
-	for (let i = shuffled.length - 1; i > 0; i--) {
-		const j = Math.floor(Math.random() * (i + 1));
-		const current = shuffled[i] as T;
-		shuffled[i] = shuffled[j] as T;
-		shuffled[j] = current;
-	}
-	return shuffled;
+  const shuffled = [...arr];
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    const current = shuffled[i] as T;
+    shuffled[i] = shuffled[j] as T;
+    shuffled[j] = current;
+  }
+  return shuffled;
 }
 
 /**
@@ -214,7 +214,7 @@ export function shuffleArray<T>(arr: readonly T[]): T[] {
  * @returns Formatted time string (e.g., "3:45")
  */
 export function formatTime(seconds: number): string {
-	const mins = Math.floor(seconds / 60);
-	const secs = Math.floor(seconds % 60);
-	return `${String(mins)}:${String(secs).padStart(2, "0")}`;
+  const mins = Math.floor(seconds / 60);
+  const secs = Math.floor(seconds % 60);
+  return `${String(mins)}:${String(secs).padStart(2, "0")}`;
 }

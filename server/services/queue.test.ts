@@ -5,468 +5,468 @@
 
 import { beforeEach, describe, expect, it } from "bun:test";
 import {
-	addTracks,
-	appendTracks,
-	clear,
-	currentTrack,
-	getState,
-	jumpTo,
-	next,
-	nextTrack,
-	previous,
-	type QueueContext,
-	type QueueState,
-	type QueueTrack,
-	removeTrack,
-	setAutoFetchHandler,
-	setQueue,
-	shuffle,
-	subscribe,
+  addTracks,
+  appendTracks,
+  clear,
+  currentTrack,
+  getState,
+  jumpTo,
+  next,
+  nextTrack,
+  previous,
+  type QueueContext,
+  type QueueState,
+  type QueueTrack,
+  removeTrack,
+  setAutoFetchHandler,
+  setQueue,
+  shuffle,
+  subscribe,
 } from "./queue.js";
 
 function createTrack(id: string, title = "Test Track"): QueueTrack {
-	return {
-		id,
-		title,
-		artist: "Test Artist",
-		album: "Test Album",
-		duration: 180,
-		artworkUrl: null,
-		source: "ytmusic",
-	};
+  return {
+    id,
+    title,
+    artist: "Test Artist",
+    album: "Test Album",
+    duration: 180,
+    artworkUrl: null,
+    source: "ytmusic",
+  };
 }
 
 describe("getState", () => {
-	beforeEach(() => {
-		clear();
-	});
+  beforeEach(() => {
+    clear();
+  });
 
-	it("returns empty state after clear", () => {
-		const state = getState();
-		expect(state.items).toEqual([]);
-		expect(state.currentIndex).toBe(0);
-		expect(state.context.type).toBe("manual");
-	});
+  it("returns empty state after clear", () => {
+    const state = getState();
+    expect(state.items).toEqual([]);
+    expect(state.currentIndex).toBe(0);
+    expect(state.context.type).toBe("manual");
+  });
 });
 
 describe("setQueue", () => {
-	beforeEach(() => {
-		clear();
-	});
+  beforeEach(() => {
+    clear();
+  });
 
-	it("sets tracks and context", () => {
-		const tracks = [createTrack("1"), createTrack("2"), createTrack("3")];
-		const context: QueueContext = { type: "album", albumId: "test-album" };
+  it("sets tracks and context", () => {
+    const tracks = [createTrack("1"), createTrack("2"), createTrack("3")];
+    const context: QueueContext = { type: "album", albumId: "test-album" };
 
-		setQueue(tracks, context);
+    setQueue(tracks, context);
 
-		const state = getState();
-		expect(state.items.length).toBe(3);
-		expect(state.currentIndex).toBe(0);
-		expect(state.context).toEqual(context);
-	});
+    const state = getState();
+    expect(state.items.length).toBe(3);
+    expect(state.currentIndex).toBe(0);
+    expect(state.context).toEqual(context);
+  });
 
-	it("sets starting index", () => {
-		const tracks = [createTrack("1"), createTrack("2"), createTrack("3")];
+  it("sets starting index", () => {
+    const tracks = [createTrack("1"), createTrack("2"), createTrack("3")];
 
-		setQueue(tracks, { type: "manual" }, 2);
+    setQueue(tracks, { type: "manual" }, 2);
 
-		const state = getState();
-		expect(state.currentIndex).toBe(2);
-	});
+    const state = getState();
+    expect(state.currentIndex).toBe(2);
+  });
 
-	it("replaces existing queue", () => {
-		setQueue([createTrack("1"), createTrack("2")], { type: "manual" });
-		setQueue([createTrack("3")], { type: "radio", seedId: "station1" });
+  it("replaces existing queue", () => {
+    setQueue([createTrack("1"), createTrack("2")], { type: "manual" });
+    setQueue([createTrack("3")], { type: "radio", seedId: "station1" });
 
-		const state = getState();
-		expect(state.items.length).toBe(1);
-		expect(state.items[0]?.id).toBe("3");
-		expect(state.context.type).toBe("radio");
-	});
+    const state = getState();
+    expect(state.items.length).toBe(1);
+    expect(state.items[0]?.id).toBe("3");
+    expect(state.context.type).toBe("radio");
+  });
 });
 
 describe("addTracks", () => {
-	beforeEach(() => {
-		clear();
-	});
+  beforeEach(() => {
+    clear();
+  });
 
-	it("appends to end by default", () => {
-		setQueue([createTrack("1")], { type: "manual" });
-		addTracks([createTrack("2"), createTrack("3")]);
+  it("appends to end by default", () => {
+    setQueue([createTrack("1")], { type: "manual" });
+    addTracks([createTrack("2"), createTrack("3")]);
 
-		const state = getState();
-		expect(state.items.length).toBe(3);
-		expect(state.items[1]?.id).toBe("2");
-		expect(state.items[2]?.id).toBe("3");
-	});
+    const state = getState();
+    expect(state.items.length).toBe(3);
+    expect(state.items[1]?.id).toBe("2");
+    expect(state.items[2]?.id).toBe("3");
+  });
 
-	it("inserts after current when insertNext is true", () => {
-		setQueue(
-			[createTrack("1"), createTrack("2"), createTrack("3")],
-			{ type: "manual" },
-			0,
-		);
-		addTracks([createTrack("new1"), createTrack("new2")], true);
+  it("inserts after current when insertNext is true", () => {
+    setQueue(
+      [createTrack("1"), createTrack("2"), createTrack("3")],
+      { type: "manual" },
+      0,
+    );
+    addTracks([createTrack("new1"), createTrack("new2")], true);
 
-		const state = getState();
-		expect(state.items.length).toBe(5);
-		expect(state.items[0]?.id).toBe("1");
-		expect(state.items[1]?.id).toBe("new1");
-		expect(state.items[2]?.id).toBe("new2");
-		expect(state.items[3]?.id).toBe("2");
-	});
+    const state = getState();
+    expect(state.items.length).toBe(5);
+    expect(state.items[0]?.id).toBe("1");
+    expect(state.items[1]?.id).toBe("new1");
+    expect(state.items[2]?.id).toBe("new2");
+    expect(state.items[3]?.id).toBe("2");
+  });
 });
 
 describe("removeTrack", () => {
-	beforeEach(() => {
-		clear();
-	});
+  beforeEach(() => {
+    clear();
+  });
 
-	it("removes track at index", () => {
-		setQueue([createTrack("1"), createTrack("2"), createTrack("3")], {
-			type: "manual",
-		});
-		removeTrack(1);
+  it("removes track at index", () => {
+    setQueue([createTrack("1"), createTrack("2"), createTrack("3")], {
+      type: "manual",
+    });
+    removeTrack(1);
 
-		const state = getState();
-		expect(state.items.length).toBe(2);
-		expect(state.items[0]?.id).toBe("1");
-		expect(state.items[1]?.id).toBe("3");
-	});
+    const state = getState();
+    expect(state.items.length).toBe(2);
+    expect(state.items[0]?.id).toBe("1");
+    expect(state.items[1]?.id).toBe("3");
+  });
 
-	it("adjusts currentIndex when removing before current", () => {
-		setQueue(
-			[createTrack("1"), createTrack("2"), createTrack("3")],
-			{ type: "manual" },
-			2,
-		);
-		removeTrack(0);
+  it("adjusts currentIndex when removing before current", () => {
+    setQueue(
+      [createTrack("1"), createTrack("2"), createTrack("3")],
+      { type: "manual" },
+      2,
+    );
+    removeTrack(0);
 
-		const state = getState();
-		expect(state.currentIndex).toBe(1);
-	});
+    const state = getState();
+    expect(state.currentIndex).toBe(1);
+  });
 
-	it("adjusts currentIndex when removing current at end", () => {
-		setQueue([createTrack("1"), createTrack("2")], { type: "manual" }, 1);
-		removeTrack(1);
+  it("adjusts currentIndex when removing current at end", () => {
+    setQueue([createTrack("1"), createTrack("2")], { type: "manual" }, 1);
+    removeTrack(1);
 
-		const state = getState();
-		expect(state.currentIndex).toBe(0);
-	});
+    const state = getState();
+    expect(state.currentIndex).toBe(0);
+  });
 
-	it("ignores invalid indices", () => {
-		setQueue([createTrack("1")], { type: "manual" });
-		removeTrack(-1);
-		removeTrack(5);
+  it("ignores invalid indices", () => {
+    setQueue([createTrack("1")], { type: "manual" });
+    removeTrack(-1);
+    removeTrack(5);
 
-		const state = getState();
-		expect(state.items.length).toBe(1);
-	});
+    const state = getState();
+    expect(state.items.length).toBe(1);
+  });
 });
 
 describe("jumpTo", () => {
-	beforeEach(() => {
-		clear();
-	});
+  beforeEach(() => {
+    clear();
+  });
 
-	it("jumps to valid index and returns track", () => {
-		setQueue([createTrack("1"), createTrack("2"), createTrack("3")], {
-			type: "manual",
-		});
-		const track = jumpTo(2);
+  it("jumps to valid index and returns track", () => {
+    setQueue([createTrack("1"), createTrack("2"), createTrack("3")], {
+      type: "manual",
+    });
+    const track = jumpTo(2);
 
-		expect(track?.id).toBe("3");
-		expect(getState().currentIndex).toBe(2);
-	});
+    expect(track?.id).toBe("3");
+    expect(getState().currentIndex).toBe(2);
+  });
 
-	it("returns undefined for invalid index", () => {
-		setQueue([createTrack("1")], { type: "manual" });
+  it("returns undefined for invalid index", () => {
+    setQueue([createTrack("1")], { type: "manual" });
 
-		expect(jumpTo(-1)).toBeUndefined();
-		expect(jumpTo(5)).toBeUndefined();
-	});
+    expect(jumpTo(-1)).toBeUndefined();
+    expect(jumpTo(5)).toBeUndefined();
+  });
 });
 
 describe("next", () => {
-	beforeEach(() => {
-		clear();
-	});
+  beforeEach(() => {
+    clear();
+  });
 
-	it("advances and returns next track", () => {
-		setQueue([createTrack("1"), createTrack("2")], { type: "manual" });
-		const track = next();
+  it("advances and returns next track", () => {
+    setQueue([createTrack("1"), createTrack("2")], { type: "manual" });
+    const track = next();
 
-		expect(track?.id).toBe("2");
-		expect(getState().currentIndex).toBe(1);
-	});
+    expect(track?.id).toBe("2");
+    expect(getState().currentIndex).toBe(1);
+  });
 
-	it("returns undefined at end of queue", () => {
-		setQueue([createTrack("1")], { type: "manual" });
-		const track = next();
+  it("returns undefined at end of queue", () => {
+    setQueue([createTrack("1")], { type: "manual" });
+    const track = next();
 
-		expect(track).toBeUndefined();
-		expect(getState().currentIndex).toBe(0);
-	});
+    expect(track).toBeUndefined();
+    expect(getState().currentIndex).toBe(0);
+  });
 });
 
 describe("previous", () => {
-	beforeEach(() => {
-		clear();
-	});
+  beforeEach(() => {
+    clear();
+  });
 
-	it("goes back and returns previous track", () => {
-		setQueue([createTrack("1"), createTrack("2")], { type: "manual" }, 1);
-		const track = previous();
+  it("goes back and returns previous track", () => {
+    setQueue([createTrack("1"), createTrack("2")], { type: "manual" }, 1);
+    const track = previous();
 
-		expect(track?.id).toBe("1");
-		expect(getState().currentIndex).toBe(0);
-	});
+    expect(track?.id).toBe("1");
+    expect(getState().currentIndex).toBe(0);
+  });
 
-	it("returns undefined at start of queue", () => {
-		setQueue([createTrack("1")], { type: "manual" });
-		const track = previous();
+  it("returns undefined at start of queue", () => {
+    setQueue([createTrack("1")], { type: "manual" });
+    const track = previous();
 
-		expect(track).toBeUndefined();
-		expect(getState().currentIndex).toBe(0);
-	});
+    expect(track).toBeUndefined();
+    expect(getState().currentIndex).toBe(0);
+  });
 });
 
 describe("currentTrack", () => {
-	beforeEach(() => {
-		clear();
-	});
+  beforeEach(() => {
+    clear();
+  });
 
-	it("returns current track", () => {
-		setQueue([createTrack("1"), createTrack("2")], { type: "manual" }, 1);
+  it("returns current track", () => {
+    setQueue([createTrack("1"), createTrack("2")], { type: "manual" }, 1);
 
-		const track = currentTrack();
-		expect(track?.id).toBe("2");
-	});
+    const track = currentTrack();
+    expect(track?.id).toBe("2");
+  });
 
-	it("returns undefined when empty", () => {
-		const track = currentTrack();
-		expect(track).toBeUndefined();
-	});
+  it("returns undefined when empty", () => {
+    const track = currentTrack();
+    expect(track).toBeUndefined();
+  });
 });
 
 describe("nextTrack", () => {
-	beforeEach(() => {
-		clear();
-	});
+  beforeEach(() => {
+    clear();
+  });
 
-	it("returns next track without advancing", () => {
-		setQueue([createTrack("1"), createTrack("2")], { type: "manual" });
+  it("returns next track without advancing", () => {
+    setQueue([createTrack("1"), createTrack("2")], { type: "manual" });
 
-		const track = nextTrack();
-		expect(track?.id).toBe("2");
-		expect(getState().currentIndex).toBe(0);
-	});
+    const track = nextTrack();
+    expect(track?.id).toBe("2");
+    expect(getState().currentIndex).toBe(0);
+  });
 
-	it("returns undefined at end", () => {
-		setQueue([createTrack("1")], { type: "manual" });
+  it("returns undefined at end", () => {
+    setQueue([createTrack("1")], { type: "manual" });
 
-		const track = nextTrack();
-		expect(track).toBeUndefined();
-	});
+    const track = nextTrack();
+    expect(track).toBeUndefined();
+  });
 });
 
 describe("clear", () => {
-	it("clears all tracks and resets context", () => {
-		setQueue([createTrack("1")], { type: "album", albumId: "test" });
-		clear();
+  it("clears all tracks and resets context", () => {
+    setQueue([createTrack("1")], { type: "album", albumId: "test" });
+    clear();
 
-		const state = getState();
-		expect(state.items).toEqual([]);
-		expect(state.currentIndex).toBe(0);
-		expect(state.context.type).toBe("manual");
-	});
+    const state = getState();
+    expect(state.items).toEqual([]);
+    expect(state.currentIndex).toBe(0);
+    expect(state.context.type).toBe("manual");
+  });
 });
 
 describe("shuffle", () => {
-	beforeEach(() => {
-		clear();
-	});
+  beforeEach(() => {
+    clear();
+  });
 
-	it("keeps current track at index 0", () => {
-		setQueue(
-			[createTrack("1"), createTrack("2"), createTrack("3"), createTrack("4")],
-			{ type: "manual" },
-			2,
-		);
+  it("keeps current track at index 0", () => {
+    setQueue(
+      [createTrack("1"), createTrack("2"), createTrack("3"), createTrack("4")],
+      { type: "manual" },
+      2,
+    );
 
-		shuffle();
+    shuffle();
 
-		const state = getState();
-		expect(state.items[0]?.id).toBe("3"); // Was at index 2
-		expect(state.currentIndex).toBe(0);
-		expect(state.items.length).toBe(4);
-	});
+    const state = getState();
+    expect(state.items[0]?.id).toBe("3"); // Was at index 2
+    expect(state.currentIndex).toBe(0);
+    expect(state.items.length).toBe(4);
+  });
 
-	it("does nothing for single track", () => {
-		setQueue([createTrack("1")], { type: "manual" });
-		shuffle();
+  it("does nothing for single track", () => {
+    setQueue([createTrack("1")], { type: "manual" });
+    shuffle();
 
-		const state = getState();
-		expect(state.items.length).toBe(1);
-	});
+    const state = getState();
+    expect(state.items.length).toBe(1);
+  });
 
-	it("does nothing for empty queue", () => {
-		shuffle();
-		const state = getState();
-		expect(state.items).toEqual([]);
-	});
+  it("does nothing for empty queue", () => {
+    shuffle();
+    const state = getState();
+    expect(state.items).toEqual([]);
+  });
 });
 
 describe("appendTracks", () => {
-	beforeEach(() => {
-		clear();
-	});
+  beforeEach(() => {
+    clear();
+  });
 
-	it("appends tracks to end", () => {
-		setQueue([createTrack("1")], { type: "manual" });
-		appendTracks([createTrack("2"), createTrack("3")]);
+  it("appends tracks to end", () => {
+    setQueue([createTrack("1")], { type: "manual" });
+    appendTracks([createTrack("2"), createTrack("3")]);
 
-		const state = getState();
-		expect(state.items.length).toBe(3);
-		expect(state.items[2]?.id).toBe("3");
-	});
+    const state = getState();
+    expect(state.items.length).toBe(3);
+    expect(state.items[2]?.id).toBe("3");
+  });
 });
 
 describe("cutover characterization", () => {
-	beforeEach(() => {
-		clear();
-	});
+  beforeEach(() => {
+    clear();
+  });
 
-	it("keeps invalid remove and jump commands as no-op transitions without subscriber updates", () => {
-		setQueue([createTrack("1")], { type: "manual" });
-		const states: QueueState[] = [];
-		const unsubscribe = subscribe((state) => states.push(state));
+  it("keeps invalid remove and jump commands as no-op transitions without subscriber updates", () => {
+    setQueue([createTrack("1")], { type: "manual" });
+    const states: QueueState[] = [];
+    const unsubscribe = subscribe((state) => states.push(state));
 
-		try {
-			removeTrack(99);
-			expect(jumpTo(-1)).toBeUndefined();
+    try {
+      removeTrack(99);
+      expect(jumpTo(-1)).toBeUndefined();
 
-			expect(states).toEqual([]);
-			expect(getState().items.map((track) => track.id)).toEqual(["1"]);
-			expect(getState().currentIndex).toBe(0);
-		} finally {
-			unsubscribe();
-		}
-	});
+      expect(states).toEqual([]);
+      expect(getState().items.map((track) => track.id)).toEqual(["1"]);
+      expect(getState().currentIndex).toBe(0);
+    } finally {
+      unsubscribe();
+    }
+  });
 
-	it("auto-fetches and appends radio tracks when the queue is near the end", async () => {
-		let calls = 0;
-		setAutoFetchHandler(async (ctx) => {
-			calls += 1;
-			expect(ctx).toEqual({ type: "radio", seedId: "station1" });
-			return [createTrack("2")];
-		});
+  it("auto-fetches and appends radio tracks when the queue is near the end", async () => {
+    let calls = 0;
+    setAutoFetchHandler(async (ctx) => {
+      calls += 1;
+      expect(ctx).toEqual({ type: "radio", seedId: "station1" });
+      return [createTrack("2")];
+    });
 
-		setQueue([createTrack("1")], { type: "radio", seedId: "station1" });
+    setQueue([createTrack("1")], { type: "radio", seedId: "station1" });
 
-		for (
-			let attempt = 0;
-			attempt < 10 && getState().items.length === 1;
-			attempt += 1
-		) {
-			await new Promise((resolve) => setTimeout(resolve, 0));
-		}
+    for (
+      let attempt = 0;
+      attempt < 10 && getState().items.length === 1;
+      attempt += 1
+    ) {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    }
 
-		expect(calls).toBe(1);
-		expect(getState().items.map((track) => track.id)).toEqual(["1", "2"]);
-		expect(getState().context).toEqual({ type: "radio", seedId: "station1" });
-	});
+    expect(calls).toBe(1);
+    expect(getState().items.map((track) => track.id)).toEqual(["1", "2"]);
+    expect(getState().context).toEqual({ type: "radio", seedId: "station1" });
+  });
 });
 
 describe("subscribe", () => {
-	beforeEach(() => {
-		clear();
-	});
+  beforeEach(() => {
+    clear();
+  });
 
-	it("notifies on state changes", () => {
-		const states: QueueState[] = [];
-		const unsubscribe = subscribe((state) => states.push(state));
+  it("notifies on state changes", () => {
+    const states: QueueState[] = [];
+    const unsubscribe = subscribe((state) => states.push(state));
 
-		setQueue([createTrack("1")], { type: "manual" });
+    setQueue([createTrack("1")], { type: "manual" });
 
-		expect(states.length).toBe(1);
-		expect(states[0]?.items.length).toBe(1);
+    expect(states.length).toBe(1);
+    expect(states[0]?.items.length).toBe(1);
 
-		unsubscribe();
-	});
+    unsubscribe();
+  });
 
-	it("stops notifying after unsubscribe", () => {
-		const states: QueueState[] = [];
-		const unsubscribe = subscribe((state) => states.push(state));
+  it("stops notifying after unsubscribe", () => {
+    const states: QueueState[] = [];
+    const unsubscribe = subscribe((state) => states.push(state));
 
-		setQueue([createTrack("1")], { type: "manual" });
-		unsubscribe();
-		setQueue([createTrack("2")], { type: "manual" });
+    setQueue([createTrack("1")], { type: "manual" });
+    unsubscribe();
+    setQueue([createTrack("2")], { type: "manual" });
 
-		expect(states.length).toBe(1);
-	});
+    expect(states.length).toBe(1);
+  });
 });
 
 describe("QueueTrack type", () => {
-	it("has correct shape", () => {
-		const track: QueueTrack = {
-			id: "ytmusic:abc123",
-			title: "Test Song",
-			artist: "Test Artist",
-			album: "Test Album",
-			duration: 240,
-			artworkUrl: "https://example.com/art.jpg",
-			source: "ytmusic",
-		};
+  it("has correct shape", () => {
+    const track: QueueTrack = {
+      id: "ytmusic:abc123",
+      title: "Test Song",
+      artist: "Test Artist",
+      album: "Test Album",
+      duration: 240,
+      artworkUrl: "https://example.com/art.jpg",
+      source: "ytmusic",
+    };
 
-		expect(track.id).toBe("ytmusic:abc123");
-		expect(track.source).toBe("ytmusic");
-	});
+    expect(track.id).toBe("ytmusic:abc123");
+    expect(track.source).toBe("ytmusic");
+  });
 
-	it("allows null duration and artwork", () => {
-		const track: QueueTrack = {
-			id: "pandora:xyz",
-			title: "Track",
-			artist: "Artist",
-			album: "Album",
-			duration: null,
-			artworkUrl: null,
-			source: "pandora",
-		};
+  it("allows null duration and artwork", () => {
+    const track: QueueTrack = {
+      id: "pandora:xyz",
+      title: "Track",
+      artist: "Artist",
+      album: "Album",
+      duration: null,
+      artworkUrl: null,
+      source: "pandora",
+    };
 
-		expect(track.duration).toBeNull();
-		expect(track.artworkUrl).toBeNull();
-	});
+    expect(track.duration).toBeNull();
+    expect(track.artworkUrl).toBeNull();
+  });
 });
 
 describe("QueueContext type", () => {
-	it("supports radio context", () => {
-		const ctx: QueueContext = { type: "radio", seedId: "station123" };
-		expect(ctx.type).toBe("radio");
-		if (ctx.type === "radio") {
-			expect(ctx.seedId).toBe("station123");
-		}
-	});
+  it("supports radio context", () => {
+    const ctx: QueueContext = { type: "radio", seedId: "station123" };
+    expect(ctx.type).toBe("radio");
+    if (ctx.type === "radio") {
+      expect(ctx.seedId).toBe("station123");
+    }
+  });
 
-	it("supports album context", () => {
-		const ctx: QueueContext = { type: "album", albumId: "album456" };
-		expect(ctx.type).toBe("album");
-		if (ctx.type === "album") {
-			expect(ctx.albumId).toBe("album456");
-		}
-	});
+  it("supports album context", () => {
+    const ctx: QueueContext = { type: "album", albumId: "album456" };
+    expect(ctx.type).toBe("album");
+    if (ctx.type === "album") {
+      expect(ctx.albumId).toBe("album456");
+    }
+  });
 
-	it("supports playlist context", () => {
-		const ctx: QueueContext = { type: "playlist", playlistId: "playlist789" };
-		expect(ctx.type).toBe("playlist");
-		if (ctx.type === "playlist") {
-			expect(ctx.playlistId).toBe("playlist789");
-		}
-	});
+  it("supports playlist context", () => {
+    const ctx: QueueContext = { type: "playlist", playlistId: "playlist789" };
+    expect(ctx.type).toBe("playlist");
+    if (ctx.type === "playlist") {
+      expect(ctx.playlistId).toBe("playlist789");
+    }
+  });
 
-	it("supports manual context", () => {
-		const ctx: QueueContext = { type: "manual" };
-		expect(ctx.type).toBe("manual");
-	});
+  it("supports manual context", () => {
+    const ctx: QueueContext = { type: "manual" };
+    expect(ctx.type).toBe("manual");
+  });
 });

@@ -38,7 +38,7 @@ export const LIBRARY_ALBUM_STATES_TAG = "library.albumStates" as const;
  * refreshes in step with the legacy `utils.library.album.invalidate({ id })`.
  */
 export function libraryAlbumTag(id: string): string {
-	return `library.album:${id}`;
+  return `library.album:${id}`;
 }
 
 /**
@@ -48,5 +48,5 @@ export function libraryAlbumTag(id: string): string {
  * with the legacy `utils.library.albumTracks.invalidate({ albumId })`.
  */
 export function libraryAlbumTracksTag(albumId: string): string {
-	return `library.albumTracks:${albumId}`;
+  return `library.albumTracks:${albumId}`;
 }

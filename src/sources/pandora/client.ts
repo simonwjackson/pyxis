@@ -5,51 +5,49 @@
  * This module wraps lower-level API modules and exposes typed Effect-based functions
  * for authentication, station management, playlist retrieval, bookmarks, and user settings.
  */
-import { Effect } from "effect"
-import * as Auth from "./api/auth.js"
-import * as User from "./api/user.js"
-import * as Station from "./api/station.js"
-import * as Bookmark from "./api/bookmark.js"
-import * as Music from "./api/music.js"
-import * as Track from "./api/track.js"
-import { getAudioFormat, DEFAULT_QUALITY } from "./quality.js"
-import type { Quality } from "./quality.js"
+import { Effect } from "effect";
+import * as Auth from "./api/auth.js";
+import * as Bookmark from "./api/bookmark.js";
+import * as Music from "./api/music.js";
+import * as Station from "./api/station.js";
+import * as Track from "./api/track.js";
+import * as User from "./api/user.js";
+import type { Quality } from "./quality.js";
+import { DEFAULT_QUALITY, getAudioFormat } from "./quality.js";
 import type {
-  StationListResponse,
-  PlaylistRequest,
-  PlaylistResponse,
-  GetStationRequest,
-  GetStationResponse,
-  GetGenreStationsResponse,
-  MusicSearchResponse,
-  GetBookmarksResponse,
-  GetSettingsResponse,
-  GetUsageInfoResponse,
-  GetStationListChecksumResponse,
-  AddFeedbackResponse,
   AddArtistBookmarkRequest,
   AddArtistBookmarkResponse,
-  AddSongBookmarkRequest,
-  AddSongBookmarkResponse,
-  DeleteBookmarkRequest,
-  SetQuickMixRequest,
-  ChangeSettingsRequest,
-  SetExplicitContentFilterRequest,
+  AddFeedbackResponse,
   AddMusicRequest,
   AddMusicResponse,
-  DeleteMusicRequest,
-  ShareStationRequest,
-  TransformSharedStationRequest,
-  TransformSharedStationResponse,
+  AddSongBookmarkRequest,
+  AddSongBookmarkResponse,
+  ChangeSettingsRequest,
   CreateStationRequest,
   CreateStationResponse,
+  DeleteBookmarkRequest,
+  DeleteMusicRequest,
   DeleteStationRequest,
+  ExplainTrackResponse,
+  GetBookmarksResponse,
+  GetGenreStationsResponse,
+  GetSettingsResponse,
+  GetStationListChecksumResponse,
+  GetStationRequest,
+  GetStationResponse,
+  GetTrackResponse,
+  GetUsageInfoResponse,
+  MusicSearchResponse,
+  PlaylistRequest,
+  PlaylistResponse,
   RenameStationRequest,
   RenameStationResponse,
-  ExplainTrackResponse,
-  GetTrackResponse
-} from "./types/api.js"
-import type { PandoraError } from "./types/errors.js"
+  ShareStationRequest,
+  StationListResponse,
+  TransformSharedStationRequest,
+  TransformSharedStationResponse,
+} from "./types/api.js";
+import type { PandoraError } from "./types/errors.js";
 
 /**
  * Represents an authenticated Pandora session containing all tokens and timing data
@@ -62,12 +60,12 @@ import type { PandoraError } from "./types/errors.js"
  * @property userAuthToken - Authentication token for user-level operations
  */
 export type PandoraSession = {
-  readonly syncTime: number
-  readonly partnerId: string
-  readonly partnerAuthToken: string
-  readonly userId: string
-  readonly userAuthToken: string
-}
+  readonly syncTime: number;
+  readonly partnerId: string;
+  readonly partnerAuthToken: string;
+  readonly userId: string;
+  readonly userAuthToken: string;
+};
 
 /**
  * Authenticates a user with Pandora and establishes a session.
@@ -84,25 +82,25 @@ export type PandoraSession = {
  */
 export const login = (
   username: string,
-  password: string
+  password: string,
 ): Effect.Effect<PandoraSession, PandoraError> =>
   Effect.gen(function* () {
-    const partner = yield* Auth.partnerLogin()
+    const partner = yield* Auth.partnerLogin();
 
     const user = yield* Auth.userLogin(
       partner.partnerId,
       partner.partnerAuthToken,
-      partner.syncTimeOffset
-    )(username, password)
+      partner.syncTimeOffset,
+    )(username, password);
 
     return {
       syncTime: partner.syncTimeOffset,
       partnerId: partner.partnerId,
       partnerAuthToken: partner.partnerAuthToken,
       userId: user.userId,
-      userAuthToken: user.userAuthToken
-    }
-  })
+      userAuthToken: user.userAuthToken,
+    };
+  });
 
 /**
  * Retrieves the list of stations for the authenticated user.
@@ -115,9 +113,9 @@ export const login = (
  * - Error: ApiCallError - when the API request fails
  */
 export const getStationList = (
-  session: PandoraSession
+  session: PandoraSession,
 ): Effect.Effect<StationListResponse, PandoraError> =>
-  User.getStationList(session)
+  User.getStationList(session);
 
 /**
  * Retrieves a playlist of tracks from a station.
@@ -132,9 +130,9 @@ export const getStationList = (
  */
 export const getPlaylist = (
   session: PandoraSession,
-  request: PlaylistRequest
+  request: PlaylistRequest,
 ): Effect.Effect<PlaylistResponse, PandoraError> =>
-  Station.getPlaylist(session, request)
+  Station.getPlaylist(session, request);
 
 /**
  * Retrieves a playlist with a specific audio quality preference.
@@ -152,16 +150,21 @@ export const getPlaylist = (
 export const getPlaylistWithQuality = (
   session: PandoraSession,
   stationToken: string,
-  quality: Quality = DEFAULT_QUALITY
+  quality: Quality = DEFAULT_QUALITY,
 ): Effect.Effect<PlaylistResponse, PandoraError> => {
-  const audioFormat = getAudioFormat(quality)
-  return Station.getPlaylist(session, audioFormat ? {
-    stationToken,
-    additionalAudioUrl: audioFormat
-  } : {
-    stationToken
-  })
-}
+  const audioFormat = getAudioFormat(quality);
+  return Station.getPlaylist(
+    session,
+    audioFormat
+      ? {
+          stationToken,
+          additionalAudioUrl: audioFormat,
+        }
+      : {
+          stationToken,
+        },
+  );
+};
 
 /**
  * Retrieves the list of available genre stations (pre-defined stations by category).
@@ -174,9 +177,9 @@ export const getPlaylistWithQuality = (
  * - Error: ApiCallError - when the API request fails
  */
 export const getGenreStations = (
-  session: PandoraSession
+  session: PandoraSession,
 ): Effect.Effect<GetGenreStationsResponse, PandoraError> =>
-  Station.getGenreStations(session)
+  Station.getGenreStations(session);
 
 /**
  * Searches Pandora's catalog for artists, songs, and composers.
@@ -191,9 +194,9 @@ export const getGenreStations = (
  */
 export const search = (
   session: PandoraSession,
-  searchText: string
+  searchText: string,
 ): Effect.Effect<MusicSearchResponse, PandoraError> =>
-  Music.search(session, { searchText })
+  Music.search(session, { searchText });
 
 /**
  * Retrieves the user's bookmarked artists and songs.
@@ -206,9 +209,9 @@ export const search = (
  * - Error: ApiCallError - when the API request fails
  */
 export const getBookmarks = (
-  session: PandoraSession
+  session: PandoraSession,
 ): Effect.Effect<GetBookmarksResponse, PandoraError> =>
-  User.getBookmarks(session)
+  User.getBookmarks(session);
 
 /**
  * Retrieves the user's account settings.
@@ -221,9 +224,9 @@ export const getBookmarks = (
  * - Error: ApiCallError - when the API request fails
  */
 export const getSettings = (
-  session: PandoraSession
+  session: PandoraSession,
 ): Effect.Effect<GetSettingsResponse, PandoraError> =>
-  User.getSettings(session)
+  User.getSettings(session);
 
 /**
  * Retrieves usage information for the authenticated user's account.
@@ -236,9 +239,9 @@ export const getSettings = (
  * - Error: ApiCallError - when the API request fails
  */
 export const getUsageInfo = (
-  session: PandoraSession
+  session: PandoraSession,
 ): Effect.Effect<GetUsageInfoResponse, PandoraError> =>
-  User.getUsageInfo(session)
+  User.getUsageInfo(session);
 
 /**
  * Retrieves a checksum of the user's station list for change detection.
@@ -252,9 +255,9 @@ export const getUsageInfo = (
  * - Error: ApiCallError - when the API request fails
  */
 export const getStationListChecksum = (
-  session: PandoraSession
+  session: PandoraSession,
 ): Effect.Effect<GetStationListChecksumResponse, PandoraError> =>
-  User.getStationListChecksum(session)
+  User.getStationListChecksum(session);
 
 /**
  * Retrieves detailed information about a specific station.
@@ -269,9 +272,9 @@ export const getStationListChecksum = (
  */
 export const getStation = (
   session: PandoraSession,
-  request: GetStationRequest
+  request: GetStationRequest,
 ): Effect.Effect<GetStationResponse, PandoraError> =>
-  Station.getStation(session, request)
+  Station.getStation(session, request);
 
 /**
  * Adds feedback (thumbs up/down) for a track on a station.
@@ -291,9 +294,9 @@ export const addFeedback = (
   session: PandoraSession,
   stationToken: string,
   trackToken: string,
-  isPositive: boolean
+  isPositive: boolean,
 ): Effect.Effect<AddFeedbackResponse, PandoraError> =>
-  Station.addFeedback(session, { stationToken, trackToken, isPositive })
+  Station.addFeedback(session, { stationToken, trackToken, isPositive });
 
 /**
  * Removes previously submitted feedback from a station.
@@ -308,9 +311,9 @@ export const addFeedback = (
  */
 export const deleteFeedback = (
   session: PandoraSession,
-  feedbackId: string
+  feedbackId: string,
 ): Effect.Effect<Record<string, never>, PandoraError> =>
-  Station.deleteFeedback(session, { feedbackId })
+  Station.deleteFeedback(session, { feedbackId });
 
 /**
  * Temporarily hides a song from playback for 30 days ("I'm tired of this song").
@@ -325,9 +328,9 @@ export const deleteFeedback = (
  */
 export const sleepSong = (
   session: PandoraSession,
-  trackToken: string
+  trackToken: string,
 ): Effect.Effect<Record<string, never>, PandoraError> =>
-  User.sleepSong(session, { trackToken })
+  User.sleepSong(session, { trackToken });
 
 /**
  * Adds a seed (artist, track, or genre) to a station to influence its music selection.
@@ -342,9 +345,9 @@ export const sleepSong = (
  */
 export const addMusic = (
   session: PandoraSession,
-  request: AddMusicRequest
+  request: AddMusicRequest,
 ): Effect.Effect<AddMusicResponse, PandoraError> =>
-  Station.addMusic(session, request)
+  Station.addMusic(session, request);
 
 /**
  * Removes a seed from a station.
@@ -359,9 +362,9 @@ export const addMusic = (
  */
 export const deleteMusic = (
   session: PandoraSession,
-  request: DeleteMusicRequest
+  request: DeleteMusicRequest,
 ): Effect.Effect<Record<string, never>, PandoraError> =>
-  Station.deleteMusic(session, request)
+  Station.deleteMusic(session, request);
 
 /**
  * Bookmarks an artist for the user.
@@ -376,9 +379,9 @@ export const deleteMusic = (
  */
 export const addArtistBookmark = (
   session: PandoraSession,
-  request: AddArtistBookmarkRequest
+  request: AddArtistBookmarkRequest,
 ): Effect.Effect<AddArtistBookmarkResponse, PandoraError> =>
-  Bookmark.addArtistBookmark(session, request)
+  Bookmark.addArtistBookmark(session, request);
 
 /**
  * Bookmarks a song for the user.
@@ -393,9 +396,9 @@ export const addArtistBookmark = (
  */
 export const addSongBookmark = (
   session: PandoraSession,
-  request: AddSongBookmarkRequest
+  request: AddSongBookmarkRequest,
 ): Effect.Effect<AddSongBookmarkResponse, PandoraError> =>
-  Bookmark.addSongBookmark(session, request)
+  Bookmark.addSongBookmark(session, request);
 
 /**
  * Removes an artist bookmark.
@@ -410,9 +413,9 @@ export const addSongBookmark = (
  */
 export const deleteArtistBookmark = (
   session: PandoraSession,
-  request: DeleteBookmarkRequest
+  request: DeleteBookmarkRequest,
 ): Effect.Effect<Record<string, never>, PandoraError> =>
-  Bookmark.deleteArtistBookmark(session, request)
+  Bookmark.deleteArtistBookmark(session, request);
 
 /**
  * Removes a song bookmark.
@@ -427,9 +430,9 @@ export const deleteArtistBookmark = (
  */
 export const deleteSongBookmark = (
   session: PandoraSession,
-  request: DeleteBookmarkRequest
+  request: DeleteBookmarkRequest,
 ): Effect.Effect<Record<string, never>, PandoraError> =>
-  Bookmark.deleteSongBookmark(session, request)
+  Bookmark.deleteSongBookmark(session, request);
 
 /**
  * Shares a station with another user via email.
@@ -444,9 +447,9 @@ export const deleteSongBookmark = (
  */
 export const shareStation = (
   session: PandoraSession,
-  request: ShareStationRequest
+  request: ShareStationRequest,
 ): Effect.Effect<Record<string, never>, PandoraError> =>
-  Station.shareStation(session, request)
+  Station.shareStation(session, request);
 
 /**
  * Converts a shared station into a personal station for the user.
@@ -461,9 +464,9 @@ export const shareStation = (
  */
 export const transformSharedStation = (
   session: PandoraSession,
-  request: TransformSharedStationRequest
+  request: TransformSharedStationRequest,
 ): Effect.Effect<TransformSharedStationResponse, PandoraError> =>
-  Station.transformSharedStation(session, request)
+  Station.transformSharedStation(session, request);
 
 /**
  * Configures which stations are included in the QuickMix (Shuffle) station.
@@ -478,9 +481,9 @@ export const transformSharedStation = (
  */
 export const setQuickMix = (
   session: PandoraSession,
-  quickMixStationIds: readonly string[]
+  quickMixStationIds: readonly string[],
 ): Effect.Effect<Record<string, never>, PandoraError> =>
-  User.setQuickMix(session, { quickMixStationIds })
+  User.setQuickMix(session, { quickMixStationIds });
 
 /**
  * Updates user account settings.
@@ -495,9 +498,9 @@ export const setQuickMix = (
  */
 export const changeSettings = (
   session: PandoraSession,
-  settings: ChangeSettingsRequest
+  settings: ChangeSettingsRequest,
 ): Effect.Effect<Record<string, never>, PandoraError> =>
-  User.changeSettings(session, settings)
+  User.changeSettings(session, settings);
 
 /**
  * Enables or disables the explicit content filter for the user.
@@ -512,9 +515,9 @@ export const changeSettings = (
  */
 export const setExplicitContentFilter = (
   session: PandoraSession,
-  isExplicitContentFilterEnabled: boolean
+  isExplicitContentFilterEnabled: boolean,
 ): Effect.Effect<Record<string, never>, PandoraError> =>
-  User.setExplicitContentFilter(session, { isExplicitContentFilterEnabled })
+  User.setExplicitContentFilter(session, { isExplicitContentFilterEnabled });
 
 /**
  * Creates a new station based on a music token (artist, track, or genre).
@@ -529,9 +532,9 @@ export const setExplicitContentFilter = (
  */
 export const createStation = (
   session: PandoraSession,
-  request: CreateStationRequest
+  request: CreateStationRequest,
 ): Effect.Effect<CreateStationResponse, PandoraError> =>
-  Station.createStation(session, request)
+  Station.createStation(session, request);
 
 /**
  * Permanently deletes a station from the user's account.
@@ -546,9 +549,9 @@ export const createStation = (
  */
 export const deleteStation = (
   session: PandoraSession,
-  request: DeleteStationRequest
+  request: DeleteStationRequest,
 ): Effect.Effect<Record<string, never>, PandoraError> =>
-  Station.deleteStation(session, request)
+  Station.deleteStation(session, request);
 
 /**
  * Renames an existing station.
@@ -563,9 +566,9 @@ export const deleteStation = (
  */
 export const renameStation = (
   session: PandoraSession,
-  request: RenameStationRequest
+  request: RenameStationRequest,
 ): Effect.Effect<RenameStationResponse, PandoraError> =>
-  Station.renameStation(session, request)
+  Station.renameStation(session, request);
 
 /**
  * Retrieves the musical explanation for why a track was played on a station.
@@ -581,9 +584,9 @@ export const renameStation = (
  */
 export const explainTrack = (
   session: PandoraSession,
-  trackToken: string
+  trackToken: string,
 ): Effect.Effect<ExplainTrackResponse, PandoraError> =>
-  Track.explainTrack(session, { trackToken })
+  Track.explainTrack(session, { trackToken });
 
 /**
  * Retrieves detailed information about a specific track.
@@ -598,9 +601,9 @@ export const explainTrack = (
  */
 export const getTrack = (
   session: PandoraSession,
-  trackToken: string
+  trackToken: string,
 ): Effect.Effect<GetTrackResponse, PandoraError> =>
-  Music.getTrack(session, { trackToken })
+  Music.getTrack(session, { trackToken });
 
 /**
  * Shares a track or artist with another user via email.
@@ -617,6 +620,6 @@ export const getTrack = (
 export const shareMusic = (
   session: PandoraSession,
   musicToken: string,
-  email: string
+  email: string,
 ): Effect.Effect<Record<string, never>, PandoraError> =>
-  Music.shareMusic(session, { musicToken, email })
+  Music.shareMusic(session, { musicToken, email });

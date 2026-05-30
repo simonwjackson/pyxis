@@ -1,8 +1,8 @@
 import { Schema } from "effect";
 
 export const AuthStatusSchema = Schema.Struct({
-	authenticated: Schema.Boolean,
-	hasPandora: Schema.Boolean,
+  authenticated: Schema.Boolean,
+  hasPandora: Schema.Boolean,
 });
 export type ApiAuthStatus = Schema.Schema.Type<typeof AuthStatusSchema>;
 
@@ -14,31 +14,31 @@ export type ApiAuthStatus = Schema.Schema.Type<typeof AuthStatusSchema>;
  * UI-facing surface even when the upstream payload carries more.
  */
 export const SettingsSchema = Schema.Struct({
-	isExplicitContentFilterEnabled: Schema.optionalKey(Schema.Boolean),
-	isExplicitContentFilterPINProtected: Schema.optionalKey(Schema.Boolean),
-	isProfilePrivate: Schema.optionalKey(Schema.Boolean),
-	zipCode: Schema.optionalKey(Schema.String.check(Schema.isMaxLength(16))),
-	birthYear: Schema.optionalKey(Schema.Number),
-	gender: Schema.optionalKey(Schema.String.check(Schema.isMaxLength(32))),
-	username: Schema.optionalKey(Schema.String.check(Schema.isMaxLength(256))),
-	emailOptIn: Schema.optionalKey(Schema.Boolean),
+  isExplicitContentFilterEnabled: Schema.optionalKey(Schema.Boolean),
+  isExplicitContentFilterPINProtected: Schema.optionalKey(Schema.Boolean),
+  isProfilePrivate: Schema.optionalKey(Schema.Boolean),
+  zipCode: Schema.optionalKey(Schema.String.check(Schema.isMaxLength(16))),
+  birthYear: Schema.optionalKey(Schema.Number),
+  gender: Schema.optionalKey(Schema.String.check(Schema.isMaxLength(32))),
+  username: Schema.optionalKey(Schema.String.check(Schema.isMaxLength(256))),
+  emailOptIn: Schema.optionalKey(Schema.Boolean),
 });
 export type ApiSettings = Schema.Schema.Type<typeof SettingsSchema>;
 
 export const ChangeSettingsInputSchema = Schema.Struct({
-	isExplicitContentFilterEnabled: Schema.optionalKey(Schema.Boolean),
-	isProfilePrivate: Schema.optionalKey(Schema.Boolean),
-	zipCode: Schema.optionalKey(Schema.String.check(Schema.isMaxLength(16))),
+  isExplicitContentFilterEnabled: Schema.optionalKey(Schema.Boolean),
+  isProfilePrivate: Schema.optionalKey(Schema.Boolean),
+  zipCode: Schema.optionalKey(Schema.String.check(Schema.isMaxLength(16))),
 });
 export type ApiChangeSettingsInput = Schema.Schema.Type<
-	typeof ChangeSettingsInputSchema
+  typeof ChangeSettingsInputSchema
 >;
 
 export const SetExplicitFilterInputSchema = Schema.Struct({
-	enabled: Schema.Boolean,
+  enabled: Schema.Boolean,
 });
 export type ApiSetExplicitFilterInput = Schema.Schema.Type<
-	typeof SetExplicitFilterInputSchema
+  typeof SetExplicitFilterInputSchema
 >;
 
 /**
@@ -47,7 +47,7 @@ export type ApiSetExplicitFilterInput = Schema.Schema.Type<
  * primitive values rather than encoding every upstream field.
  */
 export const UsageInfoSchema = Schema.Record(
-	Schema.String,
-	Schema.Union([Schema.String, Schema.Number, Schema.Boolean, Schema.Null]),
+  Schema.String,
+  Schema.Union([Schema.String, Schema.Number, Schema.Boolean, Schema.Null]),
 );
 export type ApiUsageInfo = Schema.Schema.Type<typeof UsageInfoSchema>;

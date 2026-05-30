@@ -18,9 +18,9 @@ import { createLogger } from "../../../src/logger.js";
 const log = createLogger("playback").child({ component: "client" });
 
 export const logHandlers = () => ({
-	"log.client.write": (payload: ApiClientLogInput) =>
-		Effect.sync(() => {
-			log.info({ clientMsg: payload.message }, "client log");
-			return { ok: true as const };
-		}),
+  "log.client.write": (payload: ApiClientLogInput) =>
+    Effect.sync(() => {
+      log.info({ clientMsg: payload.message }, "client log");
+      return { ok: true as const };
+    }),
 });

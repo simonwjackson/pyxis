@@ -3,26 +3,29 @@
  * Track-specific API for Pandora.
  * Provides functions for getting Music Genome explanations of why tracks were played.
  */
-import { Effect } from "effect"
-import { callPandoraMethod } from "./call.js"
-import type { ExplainTrackRequest, ExplainTrackResponse } from "../types/api.js"
-import type { ApiCallError } from "../types/errors.js"
+import type { Effect } from "effect";
+import type {
+  ExplainTrackRequest,
+  ExplainTrackResponse,
+} from "../types/api.js";
+import type { ApiCallError } from "../types/errors.js";
+import { callPandoraMethod } from "./call.js";
 
 /**
  * Authentication state required for authenticated Pandora API calls.
  */
 type AuthState = {
   /** Time offset between client and Pandora server (seconds) */
-  readonly syncTime: number
+  readonly syncTime: number;
   /** Unique identifier for the partner (device type) */
-  readonly partnerId: string
+  readonly partnerId: string;
   /** Authentication token for partner-level operations */
-  readonly partnerAuthToken: string
+  readonly partnerAuthToken: string;
   /** Authentication token for user-level operations */
-  readonly userAuthToken: string
+  readonly userAuthToken: string;
   /** Unique identifier for the authenticated user */
-  readonly userId: string
-}
+  readonly userId: string;
+};
 
 /**
  * Retrieves the Music Genome explanation for why a track was played on a station.
@@ -38,11 +41,11 @@ type AuthState = {
  */
 export const explainTrack = (
   state: AuthState,
-  request: ExplainTrackRequest
+  request: ExplainTrackRequest,
 ): Effect.Effect<ExplainTrackResponse, ApiCallError> =>
   callPandoraMethod<ExplainTrackResponse>(
     state,
     "track.explainTrack",
     request,
-    { encrypted: true }
-  )
+    { encrypted: true },
+  );

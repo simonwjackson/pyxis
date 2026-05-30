@@ -32,80 +32,80 @@ import type { AlbumPlacement } from "@/web/shared/lib/library-placement";
 import type { ApiSourceAlbumWithTracks } from "../../../api/contracts/album.js";
 import type { ApiPublicError } from "../../../api/contracts/common.js";
 import type {
-	ApiLibraryAlbum,
-	ApiLibraryAlbumState,
-	ApiLibraryAlbumTrack,
+  ApiLibraryAlbum,
+  ApiLibraryAlbumState,
+  ApiLibraryAlbumTrack,
 } from "../../../api/contracts/library.js";
 
 /** Library-detail ADT: `library.album.get` + `library.albumTracks.list`. */
 export type LibraryAlbumDetailState =
-	| { readonly _tag: "Loading" }
-	| { readonly _tag: "NotFound" }
-	| {
-			readonly _tag: "Ready";
-			readonly album: ApiLibraryAlbum;
-			readonly tracks: readonly ApiLibraryAlbumTrack[];
-	  }
-	| { readonly _tag: "LoadError"; readonly error: ApiPublicError }
-	| { readonly _tag: "Defect"; readonly defect: unknown };
+  | { readonly _tag: "Loading" }
+  | { readonly _tag: "NotFound" }
+  | {
+      readonly _tag: "Ready";
+      readonly album: ApiLibraryAlbum;
+      readonly tracks: readonly ApiLibraryAlbumTrack[];
+    }
+  | { readonly _tag: "LoadError"; readonly error: ApiPublicError }
+  | { readonly _tag: "Defect"; readonly defect: unknown };
 
 export const LibraryAlbumDetailState = {
-	fromResults(
-		albumResult: AsyncResult.AsyncResult<
-			ApiLibraryAlbum | null,
-			ApiPublicError
-		>,
-		tracksResult: AsyncResult.AsyncResult<
-			readonly ApiLibraryAlbumTrack[],
-			ApiPublicError
-		>,
-	): LibraryAlbumDetailState {
-		const albumState = AsyncResult.matchWithWaiting(albumResult, {
-			onWaiting: (): LibraryAlbumDetailState => ({ _tag: "Loading" }),
-			onError: (error): LibraryAlbumDetailState => ({
-				_tag: "LoadError",
-				error,
-			}),
-			onDefect: (defect): LibraryAlbumDetailState => ({
-				_tag: "Defect",
-				defect,
-			}),
-			onSuccess: (success): LibraryAlbumDetailState | ApiLibraryAlbum => {
-				if (success.value === null) return { _tag: "NotFound" };
-				return success.value;
-			},
-		});
+  fromResults(
+    albumResult: AsyncResult.AsyncResult<
+      ApiLibraryAlbum | null,
+      ApiPublicError
+    >,
+    tracksResult: AsyncResult.AsyncResult<
+      readonly ApiLibraryAlbumTrack[],
+      ApiPublicError
+    >,
+  ): LibraryAlbumDetailState {
+    const albumState = AsyncResult.matchWithWaiting(albumResult, {
+      onWaiting: (): LibraryAlbumDetailState => ({ _tag: "Loading" }),
+      onError: (error): LibraryAlbumDetailState => ({
+        _tag: "LoadError",
+        error,
+      }),
+      onDefect: (defect): LibraryAlbumDetailState => ({
+        _tag: "Defect",
+        defect,
+      }),
+      onSuccess: (success): LibraryAlbumDetailState | ApiLibraryAlbum => {
+        if (success.value === null) return { _tag: "NotFound" };
+        return success.value;
+      },
+    });
 
-		if (isLibraryState(albumState)) return albumState;
+    if (isLibraryState(albumState)) return albumState;
 
-		return AsyncResult.matchWithWaiting(tracksResult, {
-			onWaiting: (): LibraryAlbumDetailState => ({ _tag: "Loading" }),
-			onError: (error): LibraryAlbumDetailState => ({
-				_tag: "LoadError",
-				error,
-			}),
-			onDefect: (defect): LibraryAlbumDetailState => ({
-				_tag: "Defect",
-				defect,
-			}),
-			onSuccess: (success): LibraryAlbumDetailState => ({
-				_tag: "Ready",
-				album: albumState,
-				tracks: success.value,
-			}),
-		});
-	},
+    return AsyncResult.matchWithWaiting(tracksResult, {
+      onWaiting: (): LibraryAlbumDetailState => ({ _tag: "Loading" }),
+      onError: (error): LibraryAlbumDetailState => ({
+        _tag: "LoadError",
+        error,
+      }),
+      onDefect: (defect): LibraryAlbumDetailState => ({
+        _tag: "Defect",
+        defect,
+      }),
+      onSuccess: (success): LibraryAlbumDetailState => ({
+        _tag: "Ready",
+        album: albumState,
+        tracks: success.value,
+      }),
+    });
+  },
 };
 
 function isLibraryState(
-	value: LibraryAlbumDetailState | ApiLibraryAlbum,
+  value: LibraryAlbumDetailState | ApiLibraryAlbum,
 ): value is LibraryAlbumDetailState {
-	return (
-		typeof value === "object" &&
-		value !== null &&
-		"_tag" in value &&
-		typeof (value as { _tag: unknown })._tag === "string"
-	);
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "_tag" in value &&
+    typeof (value as { _tag: unknown })._tag === "string"
+  );
 }
 
 /**
@@ -114,89 +114,89 @@ function isLibraryState(
  * page used it to decide whether placement controls were available.
  */
 export type SourceAlbumLibraryState = {
-	readonly albumId?: string | undefined;
-	readonly placement?: AlbumPlacement | undefined;
-	readonly isHot: boolean;
+  readonly albumId?: string | undefined;
+  readonly placement?: AlbumPlacement | undefined;
+  readonly isHot: boolean;
 };
 
 /** Source-detail ADT: `album.withTracks.get` + `library.albumStates.resolve`. */
 export type SourceAlbumDetailState =
-	| { readonly _tag: "Loading" }
-	| {
-			readonly _tag: "Ready";
-			readonly album: ApiSourceAlbumWithTracks["album"];
-			readonly tracks: ApiSourceAlbumWithTracks["tracks"];
-			readonly libraryState: SourceAlbumLibraryState | null;
-	  }
-	| { readonly _tag: "LoadError"; readonly error: ApiPublicError }
-	| { readonly _tag: "Defect"; readonly defect: unknown };
+  | { readonly _tag: "Loading" }
+  | {
+      readonly _tag: "Ready";
+      readonly album: ApiSourceAlbumWithTracks["album"];
+      readonly tracks: ApiSourceAlbumWithTracks["tracks"];
+      readonly libraryState: SourceAlbumLibraryState | null;
+    }
+  | { readonly _tag: "LoadError"; readonly error: ApiPublicError }
+  | { readonly _tag: "Defect"; readonly defect: unknown };
 
 export const SourceAlbumDetailState = {
-	fromResults(
-		withTracksResult: AsyncResult.AsyncResult<
-			ApiSourceAlbumWithTracks,
-			ApiPublicError
-		>,
-		statesResult: AsyncResult.AsyncResult<
-			readonly ApiLibraryAlbumState[],
-			ApiPublicError
-		>,
-	): SourceAlbumDetailState {
-		const sourceState = AsyncResult.matchWithWaiting(withTracksResult, {
-			onWaiting: (): SourceAlbumDetailState => ({ _tag: "Loading" }),
-			onError: (error): SourceAlbumDetailState => ({
-				_tag: "LoadError",
-				error,
-			}),
-			onDefect: (defect): SourceAlbumDetailState => ({
-				_tag: "Defect",
-				defect,
-			}),
-			onSuccess: (success): SourceAlbumDetailState | ApiSourceAlbumWithTracks =>
-				success.value,
-		});
+  fromResults(
+    withTracksResult: AsyncResult.AsyncResult<
+      ApiSourceAlbumWithTracks,
+      ApiPublicError
+    >,
+    statesResult: AsyncResult.AsyncResult<
+      readonly ApiLibraryAlbumState[],
+      ApiPublicError
+    >,
+  ): SourceAlbumDetailState {
+    const sourceState = AsyncResult.matchWithWaiting(withTracksResult, {
+      onWaiting: (): SourceAlbumDetailState => ({ _tag: "Loading" }),
+      onError: (error): SourceAlbumDetailState => ({
+        _tag: "LoadError",
+        error,
+      }),
+      onDefect: (defect): SourceAlbumDetailState => ({
+        _tag: "Defect",
+        defect,
+      }),
+      onSuccess: (success): SourceAlbumDetailState | ApiSourceAlbumWithTracks =>
+        success.value,
+    });
 
-		if (isSourceState(sourceState)) return sourceState;
+    if (isSourceState(sourceState)) return sourceState;
 
-		// Preserve the legacy "wait for both queries" behavior: while the
-		// library-states resolver is still loading, keep the page in `Loading`
-		// so placement controls do not flash empty.
-		if (AsyncResult.isWaiting(statesResult)) {
-			return { _tag: "Loading" };
-		}
+    // Preserve the legacy "wait for both queries" behavior: while the
+    // library-states resolver is still loading, keep the page in `Loading`
+    // so placement controls do not flash empty.
+    if (AsyncResult.isWaiting(statesResult)) {
+      return { _tag: "Loading" };
+    }
 
-		return {
-			_tag: "Ready",
-			album: sourceState.album,
-			tracks: sourceState.tracks,
-			libraryState: projectLibraryState(statesResult),
-		};
-	},
+    return {
+      _tag: "Ready",
+      album: sourceState.album,
+      tracks: sourceState.tracks,
+      libraryState: projectLibraryState(statesResult),
+    };
+  },
 };
 
 function isSourceState(
-	value: SourceAlbumDetailState | ApiSourceAlbumWithTracks,
+  value: SourceAlbumDetailState | ApiSourceAlbumWithTracks,
 ): value is SourceAlbumDetailState {
-	return (
-		typeof value === "object" &&
-		value !== null &&
-		"_tag" in value &&
-		typeof (value as { _tag: unknown })._tag === "string"
-	);
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "_tag" in value &&
+    typeof (value as { _tag: unknown })._tag === "string"
+  );
 }
 
 function projectLibraryState(
-	statesResult: AsyncResult.AsyncResult<
-		readonly ApiLibraryAlbumState[],
-		ApiPublicError
-	>,
+  statesResult: AsyncResult.AsyncResult<
+    readonly ApiLibraryAlbumState[],
+    ApiPublicError
+  >,
 ): SourceAlbumLibraryState | null {
-	if (!AsyncResult.isSuccess(statesResult)) return null;
-	const first = statesResult.value[0];
-	if (first === undefined) return null;
-	return {
-		...(first.albumId !== undefined ? { albumId: first.albumId } : {}),
-		...(first.placement !== undefined ? { placement: first.placement } : {}),
-		isHot: first.isHot ?? false,
-	};
+  if (!AsyncResult.isSuccess(statesResult)) return null;
+  const first = statesResult.value[0];
+  if (first === undefined) return null;
+  return {
+    ...(first.albumId !== undefined ? { albumId: first.albumId } : {}),
+    ...(first.placement !== undefined ? { placement: first.placement } : {}),
+    isHot: first.isHot ?? false,
+  };
 }

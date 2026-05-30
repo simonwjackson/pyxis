@@ -17,29 +17,29 @@ import type { ApiPublicError } from "../../../api/contracts/common.js";
 import type { ApiStationDetail } from "../../../api/contracts/radio.js";
 
 export type StationDetailState =
-	| { readonly _tag: "Loading" }
-	| { readonly _tag: "NotFound" }
-	| { readonly _tag: "Ready"; readonly station: ApiStationDetail }
-	| { readonly _tag: "LoadError"; readonly error: ApiPublicError }
-	| { readonly _tag: "Defect"; readonly defect: unknown };
+  | { readonly _tag: "Loading" }
+  | { readonly _tag: "NotFound" }
+  | { readonly _tag: "Ready"; readonly station: ApiStationDetail }
+  | { readonly _tag: "LoadError"; readonly error: ApiPublicError }
+  | { readonly _tag: "Defect"; readonly defect: unknown };
 
 export const StationDetailState = {
-	fromResult(
-		result: AsyncResult.AsyncResult<ApiStationDetail, ApiPublicError>,
-	): StationDetailState {
-		return AsyncResult.matchWithWaiting(result, {
-			onWaiting: (): StationDetailState => ({ _tag: "Loading" }),
-			onError: (error): StationDetailState => {
-				if (error._tag === "NotFound") {
-					return { _tag: "NotFound" };
-				}
-				return { _tag: "LoadError", error };
-			},
-			onDefect: (defect): StationDetailState => ({ _tag: "Defect", defect }),
-			onSuccess: (success): StationDetailState => ({
-				_tag: "Ready",
-				station: success.value,
-			}),
-		});
-	},
+  fromResult(
+    result: AsyncResult.AsyncResult<ApiStationDetail, ApiPublicError>,
+  ): StationDetailState {
+    return AsyncResult.matchWithWaiting(result, {
+      onWaiting: (): StationDetailState => ({ _tag: "Loading" }),
+      onError: (error): StationDetailState => {
+        if (error._tag === "NotFound") {
+          return { _tag: "NotFound" };
+        }
+        return { _tag: "LoadError", error };
+      },
+      onDefect: (defect): StationDetailState => ({ _tag: "Defect", defect }),
+      onSuccess: (success): StationDetailState => ({
+        _tag: "Ready",
+        station: success.value,
+      }),
+    });
+  },
 };

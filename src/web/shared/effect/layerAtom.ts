@@ -27,12 +27,12 @@ import type { Protocol } from "effect/unstable/rpc/RpcClient";
  * mounted by U7 (`server/index.ts`); this layer only names it.
  */
 export const liveRpcProtocolLayer: Layer.Layer<Protocol> =
-	RpcClient.layerProtocolHttp({
-		url: "/rpc",
-	}).pipe(
-		Layer.provide(RpcSerialization.layerNdjson),
-		Layer.provide(FetchHttpClient.layer),
-	);
+  RpcClient.layerProtocolHttp({
+    url: "/rpc",
+  }).pipe(
+    Layer.provide(RpcSerialization.layerNdjson),
+    Layer.provide(FetchHttpClient.layer),
+  );
 
 /**
  * Override-able protocol layer atom. Default value is {@link liveRpcProtocolLayer}.
@@ -44,4 +44,4 @@ export const liveRpcProtocolLayer: Layer.Layer<Protocol> =
  * ```
  */
 export const rpcProtocolLayerAtom: Atom.Writable<Layer.Layer<Protocol>> =
-	Atom.make<Layer.Layer<Protocol>>(liveRpcProtocolLayer);
+  Atom.make<Layer.Layer<Protocol>>(liveRpcProtocolLayer);

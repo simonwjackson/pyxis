@@ -26,10 +26,10 @@ import { rpcProtocolLayerAtom } from "../effect/layerAtom.js";
  *   such as the player/queue snapshot streams.
  */
 export class PyxisRpcClient extends AtomRpc.Service<PyxisRpcClient>()(
-	"@app/web/PyxisRpcClient",
-	{
-		group: PyxisRpc,
-		protocol: (get) => get(rpcProtocolLayerAtom),
-		spanPrefix: "rpc.client",
-	},
+  "@app/web/PyxisRpcClient",
+  {
+    group: PyxisRpc,
+    protocol: (get) => get(rpcProtocolLayerAtom),
+    spanPrefix: "rpc.client",
+  },
 ) {}

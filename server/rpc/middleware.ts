@@ -17,11 +17,11 @@ import { Effect } from "effect";
 import { createLogger } from "../../src/logger.js";
 import type { RpcSessionContext } from "./context.js";
 import {
-	type AuthRefreshFailed,
-	type Defect,
-	internalDefect,
-	type PublicError,
-	type Unauthorized,
+  type AuthRefreshFailed,
+  type Defect,
+  internalDefect,
+  type PublicError,
+  type Unauthorized,
 } from "./errors.js";
 import { AuthSession } from "./services/authSession.js";
 import { mapUnknownError } from "./sourceErrorMap.js";
@@ -34,12 +34,12 @@ const log = createLogger("server").child({ component: "rpc.middleware" });
  * propagate unchanged.
  */
 export const withPandoraSession =
-	<A, E, R>(handler: (ctx: RpcSessionContext) => Effect.Effect<A, E, R>) =>
-	(): Effect.Effect<A, E | Unauthorized | AuthRefreshFailed, R | AuthSession> =>
-		Effect.gen(function* () {
-			const auth = yield* AuthSession;
-			return yield* auth.withAuthRetry(handler);
-		});
+  <A, E, R>(handler: (ctx: RpcSessionContext) => Effect.Effect<A, E, R>) =>
+  (): Effect.Effect<A, E | Unauthorized | AuthRefreshFailed, R | AuthSession> =>
+    Effect.gen(function* () {
+      const auth = yield* AuthSession;
+      return yield* auth.withAuthRetry(handler);
+    });
 
 /**
  * Redact-and-log unexpected throws. Use as the outer wrapper for any
@@ -48,14 +48,14 @@ export const withPandoraSession =
  * {@link Defect} is returned to the client.
  */
 export const redactDefects = <A, E extends PublicError, R>(
-	effect: Effect.Effect<A, E, R>,
+  effect: Effect.Effect<A, E, R>,
 ): Effect.Effect<A, E | Defect, R> =>
-	effect.pipe(
-		Effect.catchDefect((cause) => {
-			log.error({ err: cause }, "unexpected handler defect");
-			return Effect.fail(internalDefect());
-		}),
-	);
+  effect.pipe(
+    Effect.catchDefect((cause) => {
+      log.error({ err: cause }, "unexpected handler defect");
+      return Effect.fail(internalDefect());
+    }),
+  );
 
 /** Re-export for handler convenience. */
 export { mapUnknownError };

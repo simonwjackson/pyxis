@@ -24,18 +24,18 @@ import { PyxisRpcClient } from "../api/rpcClient.js";
  * Payload: `{ id: trackToken, radioId: stationToken, positive: boolean }`.
  */
 export const trackFeedbackAddMutationAtom =
-	PyxisRpcClient.mutation("track.feedback.add");
+  PyxisRpcClient.mutation("track.feedback.add");
 
 /**
  * Tell Pandora to skip a track for 30 days. Payload: `{ id: trackToken }`.
  */
 export const trackSleepSetMutationAtom =
-	PyxisRpcClient.mutation("track.sleep.set");
+  PyxisRpcClient.mutation("track.sleep.set");
 
 /**
  * Bookmark the currently playing song (or artist) in the user's library.
  * Payload: `{ id: trackToken, type: "song" | "artist" }`.
  */
 export const libraryBookmarkAddMutationAtom = PyxisRpcClient.mutation(
-	"library.bookmark.add",
+  "library.bookmark.add",
 );

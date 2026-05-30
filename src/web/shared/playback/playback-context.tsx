@@ -4,7 +4,7 @@
  * Provides playback controls to all components in the app.
  */
 
-import { createContext, useContext, type ReactNode } from "react";
+import { createContext, type ReactNode, useContext } from "react";
 import type { PlaybackContextValue } from "./types";
 import { usePlayback } from "./use-playback";
 
@@ -17,13 +17,13 @@ const PlaybackContext = createContext<PlaybackContextValue | null>(null);
  * @param children - Child components that can access playback context
  */
 export function PlaybackProvider({ children }: { children: ReactNode }) {
-	const playback = usePlayback();
+  const playback = usePlayback();
 
-	return (
-		<PlaybackContext.Provider value={playback}>
-			{children}
-		</PlaybackContext.Provider>
-	);
+  return (
+    <PlaybackContext.Provider value={playback}>
+      {children}
+    </PlaybackContext.Provider>
+  );
 }
 
 /**
@@ -39,11 +39,11 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
  * ```
  */
 export function usePlaybackContext() {
-	const context = useContext(PlaybackContext);
-	if (!context) {
-		throw new Error(
-			"usePlaybackContext must be used within a PlaybackProvider",
-		);
-	}
-	return context;
+  const context = useContext(PlaybackContext);
+  if (!context) {
+    throw new Error(
+      "usePlaybackContext must be used within a PlaybackProvider",
+    );
+  }
+  return context;
 }

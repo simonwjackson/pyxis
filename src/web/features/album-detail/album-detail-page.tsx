@@ -8,9 +8,9 @@ import { SourceAlbumDetailRoot } from "./source-album-detail-root";
 import type { AlbumDetailPageProps } from "./types";
 
 export function AlbumDetailPage(props: AlbumDetailPageProps) {
-	return props.albumId.includes(":") ? (
-		<SourceAlbumDetailRoot {...props} />
-	) : (
-		<LibraryAlbumDetailRoot {...props} />
-	);
+  return props.albumId.includes(":") ? (
+    <SourceAlbumDetailRoot {...props} />
+  ) : (
+    <LibraryAlbumDetailRoot {...props} />
+  );
 }

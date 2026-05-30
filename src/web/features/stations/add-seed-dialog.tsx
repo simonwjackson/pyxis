@@ -37,7 +37,7 @@ const addSeedMutationAtom = PyxisRpcClient.mutation("radio.seed.add");
  * avoiding a real `search.pandora` request for an empty payload.
  */
 const idleSearchAtom = Atom.make<
-	AsyncResult.AsyncResult<ApiPandoraSearchResponse, ApiPublicError>
+  AsyncResult.AsyncResult<ApiPandoraSearchResponse, ApiPublicError>
 >(() => AsyncResult.initial(false));
 
 /**
@@ -45,119 +45,119 @@ const idleSearchAtom = Atom.make<
  * Includes search with debounced input and results display.
  */
 export function AddSeedDialog({ radioId, onClose }: AddSeedDialogProps) {
-	const [query, setQuery] = useState("");
-	const [debouncedQuery, setDebouncedQuery] = useState("");
-	const inputRef = useRef<HTMLInputElement>(null);
+  const [query, setQuery] = useState("");
+  const [debouncedQuery, setDebouncedQuery] = useState("");
+  const inputRef = useRef<HTMLInputElement>(null);
 
-	useEffect(() => {
-		inputRef.current?.focus();
-	}, []);
+  useEffect(() => {
+    inputRef.current?.focus();
+  }, []);
 
-	useEffect(() => {
-		const timer = setTimeout(() => {
-			setDebouncedQuery(query.trim());
-		}, 300);
-		return () => clearTimeout(timer);
-	}, [query]);
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedQuery(query.trim());
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [query]);
 
-	const searchAtom = useMemo(
-		() =>
-			debouncedQuery.length > 0
-				? PyxisRpcClient.query("search.pandora", {
-						searchText: debouncedQuery,
-					})
-				: idleSearchAtom,
-		[debouncedQuery],
-	);
+  const searchAtom = useMemo(
+    () =>
+      debouncedQuery.length > 0
+        ? PyxisRpcClient.query("search.pandora", {
+            searchText: debouncedQuery,
+          })
+        : idleSearchAtom,
+    [debouncedQuery],
+  );
 
-	const searchResult = useAtomValue(searchAtom);
-	const projected = projectQueryResult(searchResult);
-	const state = AddSeedDialogState.fromResult(debouncedQuery, projected);
+  const searchResult = useAtomValue(searchAtom);
+  const projected = projectQueryResult(searchResult);
+  const state = AddSeedDialogState.fromResult(debouncedQuery, projected);
 
-	const mutationResult = projectQueryResult(useAtomValue(addSeedMutationAtom));
-	const commandState = StationCommandState.fromResult(mutationResult);
-	const submit = useAtomSet(addSeedMutationAtom, { mode: "promiseExit" });
-	const isMutating = StationCommandState.isSubmitting(commandState);
+  const mutationResult = projectQueryResult(useAtomValue(addSeedMutationAtom));
+  const commandState = StationCommandState.fromResult(mutationResult);
+  const submit = useAtomSet(addSeedMutationAtom, { mode: "promiseExit" });
+  const isMutating = StationCommandState.isSubmitting(commandState);
 
-	const handleAdd = (musicToken: string) => {
-		void submit({
-			payload: { radioId, musicToken },
-			reactivityKeys: [radioStationTag(radioId)],
-		}).then((exit) => {
-			if (exit._tag === "Success") {
-				toast.success(`Added "${seedToastName(exit.value)}" as a seed`);
-			} else {
-				toast.error("Failed to add seed");
-			}
-		});
-	};
+  const handleAdd = (musicToken: string) => {
+    void submit({
+      payload: { radioId, musicToken },
+      reactivityKeys: [radioStationTag(radioId)],
+    }).then((exit) => {
+      if (exit._tag === "Success") {
+        toast.success(`Added "${seedToastName(exit.value)}" as a seed`);
+      } else {
+        toast.error("Failed to add seed");
+      }
+    });
+  };
 
-	return (
-		<div
-			className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-50"
-			onClick={onClose}
-			onKeyDown={(event) => {
-				if (event.key === "Escape") onClose();
-			}}
-			role="dialog"
-			aria-modal="true"
-			aria-labelledby="add-seed-dialog-title"
-		>
-			{/* biome-ignore lint/a11y/noStaticElementInteractions: dialog content stops backdrop click/keydown propagation; outer div carries the dialog role. */}
-			<div
-				className="bg-[var(--color-bg)] border border-[var(--color-border)] w-full max-w-md max-h-[70vh] flex flex-col shadow-2xl"
-				onClick={(event) => event.stopPropagation()}
-				onKeyDown={() => {}}
-			>
-				<AddSeedDialogHeader
-					inputRef={inputRef}
-					query={query}
-					onQueryChange={setQuery}
-				/>
+  return (
+    <div
+      className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-50"
+      onClick={onClose}
+      onKeyDown={(event) => {
+        if (event.key === "Escape") onClose();
+      }}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="add-seed-dialog-title"
+    >
+      {/* biome-ignore lint/a11y/noStaticElementInteractions: dialog content stops backdrop click/keydown propagation; outer div carries the dialog role. */}
+      <div
+        className="bg-[var(--color-bg)] border border-[var(--color-border)] w-full max-w-md max-h-[70vh] flex flex-col shadow-2xl"
+        onClick={(event) => event.stopPropagation()}
+        onKeyDown={() => {}}
+      >
+        <AddSeedDialogHeader
+          inputRef={inputRef}
+          query={query}
+          onQueryChange={setQuery}
+        />
 
-				<div className="flex-1 overflow-y-auto p-2">
-					<AddSeedDialogBody
-						state={state}
-						isMutating={isMutating}
-						onAdd={handleAdd}
-					/>
-				</div>
+        <div className="flex-1 overflow-y-auto p-2">
+          <AddSeedDialogBody
+            state={state}
+            isMutating={isMutating}
+            onAdd={handleAdd}
+          />
+        </div>
 
-				<AddSeedDialogFooter onClose={onClose} />
-			</div>
-		</div>
-	);
+        <AddSeedDialogFooter onClose={onClose} />
+      </div>
+    </div>
+  );
 }
 
 function AddSeedDialogBody({
-	state,
-	isMutating,
-	onAdd,
+  state,
+  isMutating,
+  onAdd,
 }: {
-	readonly state: AddSeedDialogState;
-	readonly isMutating: boolean;
-	readonly onAdd: (musicToken: string) => void;
+  readonly state: AddSeedDialogState;
+  readonly isMutating: boolean;
+  readonly onAdd: (musicToken: string) => void;
 }) {
-	switch (state._tag) {
-		case "Prompt":
-			return <AddSeedDialogPrompt />;
-		case "Searching":
-			return <AddSeedDialogSearching />;
-		case "Empty":
-			return <AddSeedDialogEmpty query={state.query} />;
-		case "Results":
-			return (
-				<AddSeedDialogResults
-					artists={state.artists}
-					songs={state.songs}
-					isMutating={isMutating}
-					onAdd={onAdd}
-				/>
-			);
-		case "LoadError":
-		case "Defect":
-			return <AddSeedDialogEmpty query="search" />;
-	}
+  switch (state._tag) {
+    case "Prompt":
+      return <AddSeedDialogPrompt />;
+    case "Searching":
+      return <AddSeedDialogSearching />;
+    case "Empty":
+      return <AddSeedDialogEmpty query={state.query} />;
+    case "Results":
+      return (
+        <AddSeedDialogResults
+          artists={state.artists}
+          songs={state.songs}
+          isMutating={isMutating}
+          onAdd={onAdd}
+        />
+      );
+    case "LoadError":
+    case "Defect":
+      return <AddSeedDialogEmpty query="search" />;
+  }
 }
 
 /**
@@ -168,10 +168,10 @@ function AddSeedDialogBody({
  * "Seed" when neither is present.
  */
 function seedToastName(value: unknown): string {
-	if (typeof value !== "object" || value === null) return "Seed";
-	const song = (value as { songName?: unknown }).songName;
-	if (typeof song === "string" && song.length > 0) return song;
-	const artist = (value as { artistName?: unknown }).artistName;
-	if (typeof artist === "string" && artist.length > 0) return artist;
-	return "Seed";
+  if (typeof value !== "object" || value === null) return "Seed";
+  const song = (value as { songName?: unknown }).songName;
+  if (typeof song === "string" && song.length > 0) return song;
+  const artist = (value as { artistName?: unknown }).artistName;
+  if (typeof artist === "string" && artist.length > 0) return artist;
+  return "Seed";
 }

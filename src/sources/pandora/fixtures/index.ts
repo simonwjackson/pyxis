@@ -6,9 +6,10 @@
  * - "record": Make real requests and save responses as fixtures
  * - "replay": Load responses from previously recorded fixtures
  */
-import { Effect } from "effect"
-import * as fs from "node:fs/promises"
-import * as path from "node:path"
+
+import * as fs from "node:fs/promises";
+import * as path from "node:path";
+import { Effect } from "effect";
 
 /**
  * Fixture mode controlling HTTP request behavior.
@@ -16,10 +17,10 @@ import * as path from "node:path"
  * - "record": Make real requests and save responses
  * - "replay": Load responses from fixtures
  */
-export type FixtureMode = "record" | "replay" | "live"
+export type FixtureMode = "record" | "replay" | "live";
 
 /** Directory where fixture files are stored */
-const FIXTURES_DIR = "./fixtures"
+const FIXTURES_DIR = "./fixtures";
 
 /**
  * Gets the current fixture mode from PYXIS_FIXTURE_MODE environment variable.
@@ -29,10 +30,10 @@ const FIXTURES_DIR = "./fixtures"
  */
 export const getFixtureMode = (): Effect.Effect<FixtureMode, never> =>
   Effect.sync(() => {
-    const mode = process.env.PYXIS_FIXTURE_MODE
-    if (mode === "record" || mode === "replay") return mode
-    return "live"
-  })
+    const mode = process.env.PYXIS_FIXTURE_MODE;
+    if (mode === "record" || mode === "replay") return mode;
+    return "live";
+  });
 
 /**
  * Saves API response data as a fixture file.
@@ -48,16 +49,16 @@ export const getFixtureMode = (): Effect.Effect<FixtureMode, never> =>
  */
 export const saveFixture = (
   method: string,
-  data: unknown
+  data: unknown,
 ): Effect.Effect<void, Error> =>
   Effect.tryPromise({
     try: async () => {
-      await fs.mkdir(FIXTURES_DIR, { recursive: true })
-      const filePath = path.join(FIXTURES_DIR, `${method}.json`)
-      await fs.writeFile(filePath, JSON.stringify(data, null, 2))
+      await fs.mkdir(FIXTURES_DIR, { recursive: true });
+      const filePath = path.join(FIXTURES_DIR, `${method}.json`);
+      await fs.writeFile(filePath, JSON.stringify(data, null, 2));
     },
-    catch: (e) => new Error(`Failed to save fixture: ${e}`)
-  })
+    catch: (e) => new Error(`Failed to save fixture: ${e}`),
+  });
 
 /**
  * Loads a previously saved fixture file.
@@ -70,17 +71,15 @@ export const saveFixture = (
  * - Success: T - parsed fixture data
  * - Error: Error - file not found or parse error
  */
-export const loadFixture = <T>(
-  method: string
-): Effect.Effect<T, Error> =>
+export const loadFixture = <T>(method: string): Effect.Effect<T, Error> =>
   Effect.tryPromise({
     try: async () => {
-      const filePath = path.join(FIXTURES_DIR, `${method}.json`)
-      const content = await fs.readFile(filePath, "utf-8")
-      return JSON.parse(content) as T
+      const filePath = path.join(FIXTURES_DIR, `${method}.json`);
+      const content = await fs.readFile(filePath, "utf-8");
+      return JSON.parse(content) as T;
     },
-    catch: (e) => new Error(`Failed to load fixture for ${method}: ${e}`)
-  })
+    catch: (e) => new Error(`Failed to load fixture for ${method}: ${e}`),
+  });
 
 /**
  * Checks if a fixture file exists for the given API method.
@@ -91,9 +90,9 @@ export const loadFixture = <T>(
 export const fixtureExists = (method: string): Effect.Effect<boolean, never> =>
   Effect.tryPromise({
     try: async () => {
-      const filePath = path.join(FIXTURES_DIR, `${method}.json`)
-      await fs.access(filePath)
-      return true
+      const filePath = path.join(FIXTURES_DIR, `${method}.json`);
+      await fs.access(filePath);
+      return true;
     },
-    catch: () => false
-  }).pipe(Effect.orElseSucceed(() => false))
+    catch: () => false,
+  }).pipe(Effect.orElseSucceed(() => false));

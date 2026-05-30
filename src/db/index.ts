@@ -5,17 +5,17 @@
  */
 
 import {
-	existsSync,
-	mkdirSync,
-	readFileSync,
-	renameSync,
-	unlinkSync,
-	writeFileSync,
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  renameSync,
+  unlinkSync,
+  writeFileSync,
 } from "node:fs";
 import { basename, dirname, join } from "node:path";
 import {
-	createNodeDatabase,
-	type GenerateDatabaseWithPersistence,
+  createNodeDatabase,
+  type GenerateDatabaseWithPersistence,
 } from "@proseql/node";
 import { Effect, Exit, Scope } from "effect";
 import { parse as parseYaml, stringify as stringifyYaml } from "yaml";
@@ -28,128 +28,128 @@ const LISTEN_LOG_PATH = join(DB_DIR, "listen-log.jsonl");
  * Backfill first-slice album placement fields for existing YAML libraries.
  */
 export function backfillAlbumPlacementFile(filePath: string): boolean {
-	if (!existsSync(filePath)) return false;
+  if (!existsSync(filePath)) return false;
 
-	const content = readFileSync(filePath, "utf-8");
-	if (content.trim().length === 0) return false;
+  const content = readFileSync(filePath, "utf-8");
+  if (content.trim().length === 0) return false;
 
-	const parsed = parseYaml(content);
-	if (parsed == null || typeof parsed !== "object" || Array.isArray(parsed)) {
-		return false;
-	}
+  const parsed = parseYaml(content);
+  if (parsed == null || typeof parsed !== "object" || Array.isArray(parsed)) {
+    return false;
+  }
 
-	let changed = false;
-	for (const entity of Object.values(parsed as Record<string, unknown>)) {
-		if (entity == null || typeof entity !== "object" || Array.isArray(entity)) {
-			continue;
-		}
+  let changed = false;
+  for (const entity of Object.values(parsed as Record<string, unknown>)) {
+    if (entity == null || typeof entity !== "object" || Array.isArray(entity)) {
+      continue;
+    }
 
-		const album = entity as Record<string, unknown>;
-		if (album.placement === undefined) {
-			album.placement = "collection";
-			changed = true;
-		}
-		if (album.placementUpdatedAt === undefined) {
-			album.placementUpdatedAt =
-				typeof album.createdAt === "number" && Number.isFinite(album.createdAt)
-					? album.createdAt
-					: Date.now();
-			changed = true;
-		}
-	}
+    const album = entity as Record<string, unknown>;
+    if (album.placement === undefined) {
+      album.placement = "collection";
+      changed = true;
+    }
+    if (album.placementUpdatedAt === undefined) {
+      album.placementUpdatedAt =
+        typeof album.createdAt === "number" && Number.isFinite(album.createdAt)
+          ? album.createdAt
+          : Date.now();
+      changed = true;
+    }
+  }
 
-	if (!changed) return false;
+  if (!changed) return false;
 
-	writeFileSync(filePath, stringifyYaml(parsed, { lineWidth: 0 }), "utf-8");
-	return true;
+  writeFileSync(filePath, stringifyYaml(parsed, { lineWidth: 0 }), "utf-8");
+  return true;
 }
 
 function splitConcatenatedJsonObjects(line: string): string[] {
-	const parts: string[] = [];
-	let start = 0;
-	let depth = 0;
-	let inString = false;
-	let escaped = false;
+  const parts: string[] = [];
+  let start = 0;
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
 
-	for (let i = 0; i < line.length; i += 1) {
-		const ch = line[i];
-		if (escaped) {
-			escaped = false;
-			continue;
-		}
-		if (ch === "\\") {
-			escaped = true;
-			continue;
-		}
-		if (ch === '"') {
-			inString = !inString;
-			continue;
-		}
-		if (inString) continue;
-		if (ch === "{") depth += 1;
-		if (ch === "}") {
-			depth -= 1;
-			if (depth === 0) {
-				parts.push(line.slice(start, i + 1));
-				start = i + 1;
-			}
-		}
-	}
+  for (let i = 0; i < line.length; i += 1) {
+    const ch = line[i];
+    if (escaped) {
+      escaped = false;
+      continue;
+    }
+    if (ch === "\\") {
+      escaped = true;
+      continue;
+    }
+    if (ch === '"') {
+      inString = !inString;
+      continue;
+    }
+    if (inString) continue;
+    if (ch === "{") depth += 1;
+    if (ch === "}") {
+      depth -= 1;
+      if (depth === 0) {
+        parts.push(line.slice(start, i + 1));
+        start = i + 1;
+      }
+    }
+  }
 
-	if (start < line.length) {
-		parts.push(line.slice(start));
-	}
+  if (start < line.length) {
+    parts.push(line.slice(start));
+  }
 
-	return parts.map((part) => part.trim()).filter((part) => part.length > 0);
+  return parts.map((part) => part.trim()).filter((part) => part.length > 0);
 }
 
 export function repairJsonlFile(filePath: string): boolean {
-	if (!existsSync(filePath)) return false;
+  if (!existsSync(filePath)) return false;
 
-	const content = readFileSync(filePath, "utf-8");
-	if (content.trim().length === 0) return false;
+  const content = readFileSync(filePath, "utf-8");
+  if (content.trim().length === 0) return false;
 
-	const repairedLines: string[] = [];
-	let changed = false;
+  const repairedLines: string[] = [];
+  let changed = false;
 
-	for (const line of content.split(/\r?\n/)) {
-		if (line.trim().length === 0) continue;
-		try {
-			JSON.parse(line);
-			repairedLines.push(line);
-		} catch {
-			const parts = splitConcatenatedJsonObjects(line);
-			if (parts.length <= 1) {
-				throw new Error(`Malformed JSONL line in ${filePath}`);
-			}
-			for (const part of parts) {
-				JSON.parse(part);
-				repairedLines.push(part);
-			}
-			changed = true;
-		}
-	}
+  for (const line of content.split(/\r?\n/)) {
+    if (line.trim().length === 0) continue;
+    try {
+      JSON.parse(line);
+      repairedLines.push(line);
+    } catch {
+      const parts = splitConcatenatedJsonObjects(line);
+      if (parts.length <= 1) {
+        throw new Error(`Malformed JSONL line in ${filePath}`);
+      }
+      for (const part of parts) {
+        JSON.parse(part);
+        repairedLines.push(part);
+      }
+      changed = true;
+    }
+  }
 
-	if (!changed) return false;
+  if (!changed) return false;
 
-	const repairedContent = `${repairedLines.join("\n")}\n`;
-	const tempPath = join(
-		dirname(filePath),
-		`.${basename(filePath)}.${process.pid}.${Date.now()}.tmp`,
-	);
+  const repairedContent = `${repairedLines.join("\n")}\n`;
+  const tempPath = join(
+    dirname(filePath),
+    `.${basename(filePath)}.${process.pid}.${Date.now()}.tmp`,
+  );
 
-	try {
-		writeFileSync(tempPath, repairedContent, { encoding: "utf-8", flag: "wx" });
-		renameSync(tempPath, filePath);
-	} catch (error) {
-		try {
-			if (existsSync(tempPath)) unlinkSync(tempPath);
-		} catch {
-			// Preserve the original repair error if temp cleanup fails.
-		}
-		throw error;
-	}
-	return true;
+  try {
+    writeFileSync(tempPath, repairedContent, { encoding: "utf-8", flag: "wx" });
+    renameSync(tempPath, filePath);
+  } catch (error) {
+    try {
+      if (existsSync(tempPath)) unlinkSync(tempPath);
+    } catch {
+      // Preserve the original repair error if temp cleanup fails.
+    }
+    throw error;
+  }
+  return true;
 }
 
 export type DbInstance = GenerateDatabaseWithPersistence<DbConfig>;
@@ -161,35 +161,35 @@ let dbScope: Scope.Closeable | undefined;
  * Gets the singleton database instance, creating it if needed.
  */
 export async function getDb(): Promise<DbInstance> {
-	if (dbInstance) return dbInstance;
+  if (dbInstance) return dbInstance;
 
-	mkdirSync(DB_DIR, { recursive: true, mode: 0o700 });
+  mkdirSync(DB_DIR, { recursive: true, mode: 0o700 });
 
-	// Backfill first-slice album placement fields for existing YAML libraries.
-	backfillAlbumPlacementFile(ALBUMS_PATH);
+  // Backfill first-slice album placement fields for existing YAML libraries.
+  backfillAlbumPlacementFile(ALBUMS_PATH);
 
-	// Repair append-only JSONL files if a partial write glued multiple objects together.
-	repairJsonlFile(LISTEN_LOG_PATH);
+  // Repair append-only JSONL files if a partial write glued multiple objects together.
+  repairJsonlFile(LISTEN_LOG_PATH);
 
-	dbScope = await Effect.runPromise(Scope.make());
-	const program = createNodeDatabase(dbConfig);
-	dbInstance = await Effect.runPromise(Scope.provide(dbScope)(program));
+  dbScope = await Effect.runPromise(Scope.make());
+  const program = createNodeDatabase(dbConfig);
+  dbInstance = await Effect.runPromise(Scope.provide(dbScope)(program));
 
-	return dbInstance;
+  return dbInstance;
 }
 
 /**
  * Closes the database and releases resources.
  */
 export async function closeDb(): Promise<void> {
-	if (dbInstance) {
-		await dbInstance.flush();
-	}
-	if (dbScope) {
-		await Effect.runPromise(Scope.close(dbScope, Exit.void));
-		dbScope = undefined;
-	}
-	dbInstance = undefined;
+  if (dbInstance) {
+    await dbInstance.flush();
+  }
+  if (dbScope) {
+    await Effect.runPromise(Scope.close(dbScope, Exit.void));
+    dbScope = undefined;
+  }
+  dbInstance = undefined;
 }
 
 /**
@@ -200,7 +200,7 @@ export async function closeDb(): Promise<void> {
  * (e.g. an in-memory or temp-directory database created in a test fixture).
  */
 export function setDbForTesting(db: DbInstance | null): void {
-	dbInstance = db ?? undefined;
+  dbInstance = db ?? undefined;
 }
 
 export * from "./config.js";

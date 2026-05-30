@@ -10,35 +10,35 @@ import { PyxisRpcClient } from "../api/rpcClient.js";
 import { pyxisRpcRuntime } from "../effect/runtime.js";
 
 export const playerStateStreamAtom = pyxisRpcRuntime.atom(() =>
-	Stream.unwrap(
-		Effect.gen(function* () {
-			const client = yield* PyxisRpcClient;
-			return client("player.state.stream", undefined);
-		}),
-	),
+  Stream.unwrap(
+    Effect.gen(function* () {
+      const client = yield* PyxisRpcClient;
+      return client("player.state.stream", undefined);
+    }),
+  ),
 );
 
 export const playerProgressReportMutationAtom = PyxisRpcClient.mutation(
-	"player.progress.report",
+  "player.progress.report",
 );
 export const playerDurationReportMutationAtom = PyxisRpcClient.mutation(
-	"player.duration.report",
+  "player.duration.report",
 );
 export const playerAudioErrorReportMutationAtom = PyxisRpcClient.mutation(
-	"player.audioError.report",
+  "player.audioError.report",
 );
 export const playerTrackEndedMutationAtom =
-	PyxisRpcClient.mutation("player.trackEnded");
+  PyxisRpcClient.mutation("player.trackEnded");
 export const playerPauseMutationAtom = PyxisRpcClient.mutation("player.pause");
 export const playerResumeMutationAtom =
-	PyxisRpcClient.mutation("player.resume");
+  PyxisRpcClient.mutation("player.resume");
 export const playerSeekMutationAtom = PyxisRpcClient.mutation("player.seek");
 export const playerSkipMutationAtom = PyxisRpcClient.mutation("player.skip");
 export const playerPreviousMutationAtom =
-	PyxisRpcClient.mutation("player.previous");
+  PyxisRpcClient.mutation("player.previous");
 export const playerStopMutationAtom = PyxisRpcClient.mutation("player.stop");
 export const playerPlayMutationAtom = PyxisRpcClient.mutation("player.play");
 export const playerJumpToMutationAtom =
-	PyxisRpcClient.mutation("player.jumpTo");
+  PyxisRpcClient.mutation("player.jumpTo");
 export const clientLogWriteMutationAtom =
-	PyxisRpcClient.mutation("log.client.write");
+  PyxisRpcClient.mutation("log.client.write");

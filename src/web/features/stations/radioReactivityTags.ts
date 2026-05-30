@@ -20,5 +20,5 @@ export const RADIO_STATIONS_TAG = "radio.stations" as const;
  * `id` is the same opaque station identifier passed to `radio.station.get`.
  */
 export function radioStationTag(id: string): string {
-	return `radio.station:${id}`;
+  return `radio.station:${id}`;
 }

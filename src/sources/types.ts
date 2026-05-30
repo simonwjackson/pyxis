@@ -8,29 +8,39 @@
  * Identifier for a music source backend.
  * Used to route requests and identify where data originated.
  */
-export type SourceType = "pandora" | "ytmusic" | "youtube" | "local" | "musicbrainz" | "discogs" | "deezer" | "bandcamp" | "soundcloud" | "soulseek";
+export type SourceType =
+  | "pandora"
+  | "ytmusic"
+  | "youtube"
+  | "local"
+  | "musicbrainz"
+  | "discogs"
+  | "deezer"
+  | "bandcamp"
+  | "soundcloud"
+  | "soulseek";
 
 /**
  * Classification of a music release.
  * Used by metadata sources to categorize albums.
  */
 export type ReleaseType =
-	| "album"
-	| "ep"
-	| "single"
-	| "compilation"
-	| "soundtrack"
-	| "live"
-	| "remix"
-	| "other";
+  | "album"
+  | "ep"
+  | "single"
+  | "compilation"
+  | "soundtrack"
+  | "live"
+  | "remix"
+  | "other";
 
 /**
  * Unique identifier for an item within a specific source.
  * Combines source type with source-specific ID for disambiguation.
  */
 export type SourceId = {
-	readonly source: SourceType;
-	readonly id: string;
+  readonly source: SourceType;
+  readonly id: string;
 };
 
 /**
@@ -38,17 +48,17 @@ export type SourceId = {
  * All music sources convert their native track format to this type.
  */
 export type CanonicalTrack = {
-	/** Unique identifier (source-specific, may be track token or video ID) */
-	readonly id: string;
-	readonly title: string;
-	readonly artist: string;
-	readonly album: string;
-	/** Duration in seconds */
-	readonly duration?: number;
-	/** Source identifier for routing stream requests */
-	readonly sourceId: SourceId;
-	/** URL to album/track artwork image */
-	readonly artworkUrl?: string;
+  /** Unique identifier (source-specific, may be track token or video ID) */
+  readonly id: string;
+  readonly title: string;
+  readonly artist: string;
+  readonly album: string;
+  /** Duration in seconds */
+  readonly duration?: number;
+  /** Source identifier for routing stream requests */
+  readonly sourceId: SourceId;
+  /** URL to album/track artwork image */
+  readonly artworkUrl?: string;
 };
 
 /**
@@ -56,17 +66,17 @@ export type CanonicalTrack = {
  * May have multiple sourceIds when aggregated from multiple metadata providers.
  */
 export type CanonicalAlbum = {
-	/** Primary identifier (from highest-priority source) */
-	readonly id: string;
-	readonly title: string;
-	readonly artist: string;
-	readonly year?: number;
-	readonly tracks: readonly CanonicalTrack[];
-	readonly artworkUrl?: string;
-	/** All source references, sorted by quality priority (best first) */
-	readonly sourceIds: readonly SourceId[];
-	readonly genres?: readonly string[];
-	readonly releaseType?: ReleaseType;
+  /** Primary identifier (from highest-priority source) */
+  readonly id: string;
+  readonly title: string;
+  readonly artist: string;
+  readonly year?: number;
+  readonly tracks: readonly CanonicalTrack[];
+  readonly artworkUrl?: string;
+  /** All source references, sorted by quality priority (best first) */
+  readonly sourceIds: readonly SourceId[];
+  readonly genres?: readonly string[];
+  readonly releaseType?: ReleaseType;
 };
 
 /**
@@ -74,13 +84,13 @@ export type CanonicalAlbum = {
  * For Pandora, playlists are radio stations.
  */
 export type CanonicalPlaylist = {
-	/** Source-specific playlist identifier */
-	readonly id: string;
-	readonly name: string;
-	readonly source: SourceType;
-	/** Additional context (e.g., "Shuffle" for QuickMix, "Radio" for auto-generated) */
-	readonly description?: string;
-	readonly artworkUrl?: string;
+  /** Source-specific playlist identifier */
+  readonly id: string;
+  readonly name: string;
+  readonly source: SourceType;
+  /** Additional context (e.g., "Shuffle" for QuickMix, "Radio" for auto-generated) */
+  readonly description?: string;
+  readonly artworkUrl?: string;
 };
 
 // --- Capability interfaces ---
@@ -90,15 +100,15 @@ export type CanonicalPlaylist = {
  * Search results containing tracks and albums.
  */
 export type SearchResult = {
-	readonly tracks: readonly CanonicalTrack[];
-	readonly albums: readonly CanonicalAlbum[];
+  readonly tracks: readonly CanonicalTrack[];
+  readonly albums: readonly CanonicalAlbum[];
 };
 
 /**
  * Capability for searching tracks and albums.
  */
 export type SearchCapability = {
-	readonly search: (query: string) => Promise<SearchResult>;
+  readonly search: (query: string) => Promise<SearchResult>;
 };
 
 /**
@@ -106,29 +116,27 @@ export type SearchCapability = {
  * For Pandora, "playlists" are radio stations.
  */
 export type PlaylistCapability = {
-	readonly listPlaylists: () => Promise<readonly CanonicalPlaylist[]>;
-	readonly getPlaylistTracks: (
-		playlistId: string,
-	) => Promise<readonly CanonicalTrack[]>;
+  readonly listPlaylists: () => Promise<readonly CanonicalPlaylist[]>;
+  readonly getPlaylistTracks: (
+    playlistId: string,
+  ) => Promise<readonly CanonicalTrack[]>;
 };
 
 /**
  * Capability for resolving stream URLs for playback.
  */
 export type StreamCapability = {
-	readonly getStreamUrl: (trackId: string) => Promise<string>;
+  readonly getStreamUrl: (trackId: string) => Promise<string>;
 };
 
 /**
  * Capability for fetching album details and track listings.
  */
 export type AlbumCapability = {
-	readonly getAlbumTracks: (
-		albumId: string,
-	) => Promise<{
-		readonly album: CanonicalAlbum;
-		readonly tracks: readonly CanonicalTrack[];
-	}>;
+  readonly getAlbumTracks: (albumId: string) => Promise<{
+    readonly album: CanonicalAlbum;
+    readonly tracks: readonly CanonicalTrack[];
+  }>;
 };
 
 /**
@@ -143,14 +151,11 @@ export type AlbumCapability = {
  * ```
  */
 export type Source = {
-	readonly type: SourceType;
-	/** Human-readable source name for display */
-	readonly name: string;
+  readonly type: SourceType;
+  /** Human-readable source name for display */
+  readonly name: string;
 } & Partial<
-	SearchCapability &
-		PlaylistCapability &
-		StreamCapability &
-		AlbumCapability
+  SearchCapability & PlaylistCapability & StreamCapability & AlbumCapability
 >;
 
 // --- Type guards for capability checking ---
@@ -161,9 +166,9 @@ export type Source = {
  * @returns True if source implements SearchCapability
  */
 export function hasSearchCapability(
-	source: Source,
+  source: Source,
 ): source is Source & SearchCapability {
-	return typeof source.search === "function";
+  return typeof source.search === "function";
 }
 
 /**
@@ -172,12 +177,12 @@ export function hasSearchCapability(
  * @returns True if source implements PlaylistCapability
  */
 export function hasPlaylistCapability(
-	source: Source,
+  source: Source,
 ): source is Source & PlaylistCapability {
-	return (
-		typeof source.listPlaylists === "function" &&
-		typeof source.getPlaylistTracks === "function"
-	);
+  return (
+    typeof source.listPlaylists === "function" &&
+    typeof source.getPlaylistTracks === "function"
+  );
 }
 
 /**
@@ -186,9 +191,9 @@ export function hasPlaylistCapability(
  * @returns True if source implements StreamCapability
  */
 export function hasStreamCapability(
-	source: Source,
+  source: Source,
 ): source is Source & StreamCapability {
-	return typeof source.getStreamUrl === "function";
+  return typeof source.getStreamUrl === "function";
 }
 
 /**
@@ -197,9 +202,9 @@ export function hasStreamCapability(
  * @returns True if source implements AlbumCapability
  */
 export function hasAlbumCapability(
-	source: Source,
+  source: Source,
 ): source is Source & AlbumCapability {
-	return typeof source.getAlbumTracks === "function";
+  return typeof source.getAlbumTracks === "function";
 }
 
 // --- Metadata source types (for enrichment-only sources like MusicBrainz, Discogs) ---
@@ -208,10 +213,10 @@ export function hasAlbumCapability(
  * Normalized artist information from metadata sources.
  */
 export type NormalizedArtist = {
-	readonly name: string;
-	/** Name formatted for alphabetical sorting (e.g., "Beatles, The") */
-	readonly sortName?: string;
-	readonly ids: readonly SourceId[];
+  readonly name: string;
+  /** Name formatted for alphabetical sorting (e.g., "Beatles, The") */
+  readonly sortName?: string;
+  readonly ids: readonly SourceId[];
 };
 
 /**
@@ -219,20 +224,20 @@ export type NormalizedArtist = {
  * Used for album matching and enrichment across multiple providers.
  */
 export type NormalizedRelease = {
-	/** Computed fingerprint for exact matching (artist::title::year) */
-	readonly fingerprint: string;
-	readonly title: string;
-	readonly artists: readonly NormalizedArtist[];
-	readonly releaseType: ReleaseType;
-	readonly year?: number;
-	/** All source references for this release */
-	readonly ids: readonly SourceId[];
-	/** Match confidence score (0-1) */
-	readonly confidence: number;
-	readonly genres: readonly string[];
-	readonly artworkUrl?: string;
-	/** Per-source relevance scores for ranking */
-	readonly sourceScores?: Partial<Record<SourceType, number>>;
+  /** Computed fingerprint for exact matching (artist::title::year) */
+  readonly fingerprint: string;
+  readonly title: string;
+  readonly artists: readonly NormalizedArtist[];
+  readonly releaseType: ReleaseType;
+  readonly year?: number;
+  /** All source references for this release */
+  readonly ids: readonly SourceId[];
+  /** Match confidence score (0-1) */
+  readonly confidence: number;
+  readonly genres: readonly string[];
+  readonly artworkUrl?: string;
+  /** Per-source relevance scores for ranking */
+  readonly sourceScores?: Partial<Record<SourceType, number>>;
 };
 
 /**
@@ -240,18 +245,22 @@ export type NormalizedRelease = {
  * Structured queries are more precise but require title/artist separation.
  */
 export type MetadataSearchQuery =
-	| { readonly kind: "text"; readonly query: string }
-	| { readonly kind: "structured"; readonly title: string; readonly artist: string };
+  | { readonly kind: "text"; readonly query: string }
+  | {
+      readonly kind: "structured";
+      readonly title: string;
+      readonly artist: string;
+    };
 
 /**
  * Capability for searching release metadata.
  * Used by enrichment-only sources (MusicBrainz, Discogs, Deezer).
  */
 export type MetadataSearchCapability = {
-	readonly searchReleases: (
-		query: MetadataSearchQuery,
-		limit?: number,
-	) => Promise<readonly NormalizedRelease[]>;
+  readonly searchReleases: (
+    query: MetadataSearchQuery,
+    limit?: number,
+  ) => Promise<readonly NormalizedRelease[]>;
 };
 
 /**
@@ -259,8 +268,8 @@ export type MetadataSearchCapability = {
  * These sources cannot stream audio but provide metadata for matching.
  */
 export type MetadataSource = {
-	readonly type: SourceType;
-	readonly name: string;
+  readonly type: SourceType;
+  readonly name: string;
 } & MetadataSearchCapability;
 
 /**
@@ -269,9 +278,11 @@ export type MetadataSource = {
  * @returns True if source implements MetadataSearchCapability
  */
 export function hasMetadataSearchCapability(
-	source: Source | MetadataSource,
+  source: Source | MetadataSource,
 ): source is MetadataSource {
-	return "searchReleases" in source && typeof source.searchReleases === "function";
+  return (
+    "searchReleases" in source && typeof source.searchReleases === "function"
+  );
 }
 
 // --- Source priority for multi-source album selection ---
@@ -284,15 +295,15 @@ export function hasMetadataSearchCapability(
  * Metadata-only sources have priority 99 (never used for streaming).
  */
 export const SOURCE_PRIORITY: Readonly<Record<SourceType, number>> = {
-	ytmusic: 1,     // opus/m4a ~128-256 kbps variable
-	youtube: 1,     // same quality tier as ytmusic (both use yt-dlp)
-	soulseek: 2,    // user-sourced files, often higher bitrate than stream services
-	soundcloud: 2,  // mp3/opus ~128-256 kbps progressive
-	bandcamp: 3,    // mp3 128 kbps fixed
-	pandora: 4,     // aac/mp3 64-192 kbps, radio-only (not album-capable)
-	// Metadata-only sources (no streaming)
-	deezer: 99,
-	discogs: 99,
-	musicbrainz: 99,
-	local: 99,
+  ytmusic: 1, // opus/m4a ~128-256 kbps variable
+  youtube: 1, // same quality tier as ytmusic (both use yt-dlp)
+  soulseek: 2, // user-sourced files, often higher bitrate than stream services
+  soundcloud: 2, // mp3/opus ~128-256 kbps progressive
+  bandcamp: 3, // mp3 128 kbps fixed
+  pandora: 4, // aac/mp3 64-192 kbps, radio-only (not album-capable)
+  // Metadata-only sources (no streaming)
+  deezer: 99,
+  discogs: 99,
+  musicbrainz: 99,
+  local: 99,
 };

@@ -14,26 +14,26 @@ import type { ApiTrackExplainResponse } from "../../../api/contracts/track.js";
 type TrackTrait = ApiTrackExplainResponse["explanations"][number];
 
 export type TrackInfoState =
-	| { readonly _tag: "Loading" }
-	| { readonly _tag: "Empty" }
-	| { readonly _tag: "Ready"; readonly traits: readonly TrackTrait[] }
-	| { readonly _tag: "LoadError" }
-	| { readonly _tag: "Defect" };
+  | { readonly _tag: "Loading" }
+  | { readonly _tag: "Empty" }
+  | { readonly _tag: "Ready"; readonly traits: readonly TrackTrait[] }
+  | { readonly _tag: "LoadError" }
+  | { readonly _tag: "Defect" };
 
 export const TrackInfoState = {
-	fromResult(
-		result: AsyncResult.AsyncResult<ApiTrackExplainResponse, ApiPublicError>,
-	): TrackInfoState {
-		return AsyncResult.matchWithWaiting(result, {
-			onWaiting: (): TrackInfoState => ({ _tag: "Loading" }),
-			onError: (): TrackInfoState => ({ _tag: "LoadError" }),
-			onDefect: (): TrackInfoState => ({ _tag: "Defect" }),
-			onSuccess: (success): TrackInfoState => {
-				if (success.value.explanations.length === 0) {
-					return { _tag: "Empty" };
-				}
-				return { _tag: "Ready", traits: success.value.explanations };
-			},
-		});
-	},
+  fromResult(
+    result: AsyncResult.AsyncResult<ApiTrackExplainResponse, ApiPublicError>,
+  ): TrackInfoState {
+    return AsyncResult.matchWithWaiting(result, {
+      onWaiting: (): TrackInfoState => ({ _tag: "Loading" }),
+      onError: (): TrackInfoState => ({ _tag: "LoadError" }),
+      onDefect: (): TrackInfoState => ({ _tag: "Defect" }),
+      onSuccess: (success): TrackInfoState => {
+        if (success.value.explanations.length === 0) {
+          return { _tag: "Empty" };
+        }
+        return { _tag: "Ready", traits: success.value.explanations };
+      },
+    });
+  },
 };

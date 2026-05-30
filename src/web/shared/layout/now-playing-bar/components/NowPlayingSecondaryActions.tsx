@@ -1,11 +1,11 @@
 import type { ReactNode } from "react";
 
 type NowPlayingSecondaryActionsProps = {
-	readonly children?: ReactNode;
+  readonly children?: ReactNode;
 };
 
 export function NowPlayingSecondaryActions({
-	children,
+  children,
 }: NowPlayingSecondaryActionsProps) {
-	return <div className="flex items-center gap-0.5">{children}</div>;
+  return <div className="flex items-center gap-0.5">{children}</div>;
 }

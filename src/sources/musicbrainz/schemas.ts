@@ -12,19 +12,19 @@ import { z } from "zod";
  * Represents how an artist is credited on a release or recording.
  */
 export const ArtistCreditSchema = z.object({
-	/** Artist information */
-	artist: z.object({
-		/** MusicBrainz artist ID (UUID) */
-		id: z.string(),
-		/** Artist name */
-		name: z.string(),
-		/** Sort name (e.g., "Beatles, The") */
-		"sort-name": z.string().optional(),
-	}),
-	/** Credited name (may differ from artist name) */
-	name: z.string().optional(),
-	/** Join phrase between multiple artists (e.g., " & ", " feat. ") */
-	joinphrase: z.string().optional(),
+  /** Artist information */
+  artist: z.object({
+    /** MusicBrainz artist ID (UUID) */
+    id: z.string(),
+    /** Artist name */
+    name: z.string(),
+    /** Sort name (e.g., "Beatles, The") */
+    "sort-name": z.string().optional(),
+  }),
+  /** Credited name (may differ from artist name) */
+  name: z.string().optional(),
+  /** Join phrase between multiple artists (e.g., " & ", " feat. ") */
+  joinphrase: z.string().optional(),
 });
 
 /**
@@ -32,12 +32,12 @@ export const ArtistCreditSchema = z.object({
  * Used for artists, groups, and other entities with temporal bounds.
  */
 export const LifeSpanSchema = z.object({
-	/** Begin date (YYYY, YYYY-MM, or YYYY-MM-DD) */
-	begin: z.string().nullish(),
-	/** End date (YYYY, YYYY-MM, or YYYY-MM-DD) */
-	end: z.string().nullish(),
-	/** Whether the entity has ended (disbanded, died, etc.) */
-	ended: z.boolean().nullish(),
+  /** Begin date (YYYY, YYYY-MM, or YYYY-MM-DD) */
+  begin: z.string().nullish(),
+  /** End date (YYYY, YYYY-MM, or YYYY-MM-DD) */
+  end: z.string().nullish(),
+  /** Whether the entity has ended (disbanded, died, etc.) */
+  ended: z.boolean().nullish(),
 });
 
 /**
@@ -45,22 +45,22 @@ export const LifeSpanSchema = z.object({
  * Contains basic artist metadata and search score.
  */
 export const ArtistSchema = z.object({
-	/** MusicBrainz artist ID (UUID) */
-	id: z.string(),
-	/** Artist name */
-	name: z.string(),
-	/** Sort name for alphabetical ordering */
-	"sort-name": z.string().optional(),
-	/** Disambiguation comment (for artists with same name) */
-	disambiguation: z.string().optional(),
-	/** Country code (ISO 3166-1 alpha-2) */
-	country: z.string().optional(),
-	/** Search relevance score (0-100) */
-	score: z.number().optional(),
-	/** Artist type (Person, Group, Orchestra, etc.) */
-	type: z.string().optional(),
-	/** Active period information */
-	"life-span": LifeSpanSchema.optional(),
+  /** MusicBrainz artist ID (UUID) */
+  id: z.string(),
+  /** Artist name */
+  name: z.string(),
+  /** Sort name for alphabetical ordering */
+  "sort-name": z.string().optional(),
+  /** Disambiguation comment (for artists with same name) */
+  disambiguation: z.string().optional(),
+  /** Country code (ISO 3166-1 alpha-2) */
+  country: z.string().optional(),
+  /** Search relevance score (0-100) */
+  score: z.number().optional(),
+  /** Artist type (Person, Group, Orchestra, etc.) */
+  type: z.string().optional(),
+  /** Active period information */
+  "life-span": LifeSpanSchema.optional(),
 });
 
 /**
@@ -68,10 +68,10 @@ export const ArtistSchema = z.object({
  * Contains tag name and vote count.
  */
 export const TagSchema = z.object({
-	/** Number of users who tagged with this value */
-	count: z.number(),
-	/** Tag/genre name */
-	name: z.string(),
+  /** Number of users who tagged with this value */
+  count: z.number(),
+  /** Tag/genre name */
+  name: z.string(),
 });
 
 /**
@@ -79,22 +79,22 @@ export const TagSchema = z.object({
  * Represents a collection of related releases.
  */
 export const ReleaseGroupSchema = z.object({
-	/** MusicBrainz release group ID (UUID) */
-	id: z.string(),
-	/** Release group title */
-	title: z.string().optional(),
-	/** Primary type (Album, EP, Single, etc.) */
-	"primary-type": z.string().optional(),
-	/** Secondary types (Compilation, Live, Remix, etc.) */
-	"secondary-types": z.array(z.string()).optional(),
-	/** First release date (YYYY, YYYY-MM, or YYYY-MM-DD) */
-	"first-release-date": z.string().optional(),
-	/** Artist credits for this release group */
-	"artist-credit": z.array(ArtistCreditSchema).optional(),
-	/** Search relevance score (0-100) */
-	score: z.number().optional(),
-	/** User-submitted tags/genres */
-	tags: z.array(TagSchema).optional(),
+  /** MusicBrainz release group ID (UUID) */
+  id: z.string(),
+  /** Release group title */
+  title: z.string().optional(),
+  /** Primary type (Album, EP, Single, etc.) */
+  "primary-type": z.string().optional(),
+  /** Secondary types (Compilation, Live, Remix, etc.) */
+  "secondary-types": z.array(z.string()).optional(),
+  /** First release date (YYYY, YYYY-MM, or YYYY-MM-DD) */
+  "first-release-date": z.string().optional(),
+  /** Artist credits for this release group */
+  "artist-credit": z.array(ArtistCreditSchema).optional(),
+  /** Search relevance score (0-100) */
+  score: z.number().optional(),
+  /** User-submitted tags/genres */
+  tags: z.array(TagSchema).optional(),
 });
 
 /**
@@ -102,14 +102,14 @@ export const ReleaseGroupSchema = z.object({
  * Contains pagination info and array of release groups.
  */
 export const ReleaseGroupSearchResultSchema = z.object({
-	/** ISO timestamp of when search was created */
-	created: z.string().optional(),
-	/** Total number of matching results */
-	count: z.number(),
-	/** Offset into results (for pagination) */
-	offset: z.number(),
-	/** Array of matching release groups */
-	"release-groups": z.array(ReleaseGroupSchema),
+  /** ISO timestamp of when search was created */
+  created: z.string().optional(),
+  /** Total number of matching results */
+  count: z.number(),
+  /** Offset into results (for pagination) */
+  offset: z.number(),
+  /** Array of matching release groups */
+  "release-groups": z.array(ReleaseGroupSchema),
 });
 
 /**
@@ -117,22 +117,22 @@ export const ReleaseGroupSearchResultSchema = z.object({
  * Represents a particular pressing/edition.
  */
 export const ReleaseSchema = z.object({
-	/** MusicBrainz release ID (UUID) */
-	id: z.string(),
-	/** Release title */
-	title: z.string(),
-	/** Release status (Official, Bootleg, Promotion, etc.) */
-	status: z.string().optional(),
-	/** Release date (YYYY, YYYY-MM, or YYYY-MM-DD) */
-	date: z.string().optional(),
-	/** Country code (ISO 3166-1 alpha-2) */
-	country: z.string().optional(),
-	/** Parent release group */
-	"release-group": ReleaseGroupSchema.optional(),
-	/** Artist credits */
-	"artist-credit": z.array(ArtistCreditSchema).optional(),
-	/** Search relevance score (0-100) */
-	score: z.number().optional(),
+  /** MusicBrainz release ID (UUID) */
+  id: z.string(),
+  /** Release title */
+  title: z.string(),
+  /** Release status (Official, Bootleg, Promotion, etc.) */
+  status: z.string().optional(),
+  /** Release date (YYYY, YYYY-MM, or YYYY-MM-DD) */
+  date: z.string().optional(),
+  /** Country code (ISO 3166-1 alpha-2) */
+  country: z.string().optional(),
+  /** Parent release group */
+  "release-group": ReleaseGroupSchema.optional(),
+  /** Artist credits */
+  "artist-credit": z.array(ArtistCreditSchema).optional(),
+  /** Search relevance score (0-100) */
+  score: z.number().optional(),
 });
 
 /**
@@ -140,18 +140,18 @@ export const ReleaseSchema = z.object({
  * Represents a unique audio recording.
  */
 export const RecordingSchema = z.object({
-	/** MusicBrainz recording ID (UUID) */
-	id: z.string(),
-	/** Recording title */
-	title: z.string(),
-	/** Duration in milliseconds */
-	length: z.number().optional(),
-	/** Artist credits */
-	"artist-credit": z.array(ArtistCreditSchema).optional(),
-	/** Releases this recording appears on */
-	releases: z.array(ReleaseSchema).optional(),
-	/** Search relevance score (0-100) */
-	score: z.number().optional(),
+  /** MusicBrainz recording ID (UUID) */
+  id: z.string(),
+  /** Recording title */
+  title: z.string(),
+  /** Duration in milliseconds */
+  length: z.number().optional(),
+  /** Artist credits */
+  "artist-credit": z.array(ArtistCreditSchema).optional(),
+  /** Releases this recording appears on */
+  releases: z.array(ReleaseSchema).optional(),
+  /** Search relevance score (0-100) */
+  score: z.number().optional(),
 });
 
 /**
@@ -159,14 +159,14 @@ export const RecordingSchema = z.object({
  * Contains pagination info and array of artists.
  */
 export const ArtistSearchResultSchema = z.object({
-	/** ISO timestamp of when search was created */
-	created: z.string().optional(),
-	/** Total number of matching results */
-	count: z.number(),
-	/** Offset into results (for pagination) */
-	offset: z.number(),
-	/** Array of matching artists */
-	artists: z.array(ArtistSchema),
+  /** ISO timestamp of when search was created */
+  created: z.string().optional(),
+  /** Total number of matching results */
+  count: z.number(),
+  /** Offset into results (for pagination) */
+  offset: z.number(),
+  /** Array of matching artists */
+  artists: z.array(ArtistSchema),
 });
 
 /**
@@ -174,14 +174,14 @@ export const ArtistSearchResultSchema = z.object({
  * Contains pagination info and array of releases.
  */
 export const ReleaseSearchResultSchema = z.object({
-	/** ISO timestamp of when search was created */
-	created: z.string().optional(),
-	/** Total number of matching results */
-	count: z.number(),
-	/** Offset into results (for pagination) */
-	offset: z.number(),
-	/** Array of matching releases */
-	releases: z.array(ReleaseSchema),
+  /** ISO timestamp of when search was created */
+  created: z.string().optional(),
+  /** Total number of matching results */
+  count: z.number(),
+  /** Offset into results (for pagination) */
+  offset: z.number(),
+  /** Array of matching releases */
+  releases: z.array(ReleaseSchema),
 });
 
 /**
@@ -189,14 +189,14 @@ export const ReleaseSearchResultSchema = z.object({
  * Contains pagination info and array of recordings.
  */
 export const RecordingSearchResultSchema = z.object({
-	/** ISO timestamp of when search was created */
-	created: z.string().optional(),
-	/** Total number of matching results */
-	count: z.number(),
-	/** Offset into results (for pagination) */
-	offset: z.number(),
-	/** Array of matching recordings */
-	recordings: z.array(RecordingSchema),
+  /** ISO timestamp of when search was created */
+  created: z.string().optional(),
+  /** Total number of matching results */
+  count: z.number(),
+  /** Offset into results (for pagination) */
+  offset: z.number(),
+  /** Array of matching recordings */
+  recordings: z.array(RecordingSchema),
 });
 
 /**
@@ -246,7 +246,7 @@ export type ReleaseSearchResult = z.infer<typeof ReleaseSearchResultSchema>;
  * Derived from ReleaseGroupSearchResultSchema.
  */
 export type ReleaseGroupSearchResult = z.infer<
-	typeof ReleaseGroupSearchResultSchema
+  typeof ReleaseGroupSearchResultSchema
 >;
 
 /**

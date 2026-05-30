@@ -1,12 +1,11 @@
-import { describe, it, expect, beforeEach, afterEach } from "bun:test";
-
-import { partnerLogin, userLogin } from "./auth.js";
+import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import {
   expectEffectSuccess,
-  setFixtureMode,
   resetFixtureMode,
+  setFixtureMode,
 } from "../test-utils.js";
 import { PartnerLoginError, UserLoginError } from "../types/errors.js";
+import { partnerLogin, userLogin } from "./auth.js";
 
 describe("auth", () => {
   beforeEach(() => {

@@ -5,15 +5,22 @@
  * and supports HTTP range requests for seeking.
  */
 
-import { mkdirSync, existsSync, readFileSync, writeFileSync, renameSync, unlinkSync } from "node:fs";
-import { join } from "node:path";
 import { spawn } from "node:child_process";
 import { once } from "node:events";
+import {
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  renameSync,
+  unlinkSync,
+  writeFileSync,
+} from "node:fs";
+import { join } from "node:path";
 import envPaths from "env-paths";
+import { createLogger } from "../../src/logger.js";
 import type { SourceManager } from "../../src/sources/index.js";
 import type { SourceType } from "../../src/sources/types.js";
 import { decodeChapterTrackId } from "../../src/sources/youtube/index.js";
-import { createLogger } from "../../src/logger.js";
 
 const log = createLogger("stream").child({ component: "stream" });
 
@@ -24,9 +31,9 @@ const log = createLogger("stream").child({ component: "stream" });
  * Used to serve correct Content-Type and Content-Length headers on cache hits.
  */
 type CacheMeta = {
-	readonly contentType: string;
-	readonly contentLength: number;
-	readonly cachedAt: string;
+  readonly contentType: string;
+  readonly contentLength: number;
+  readonly cachedAt: string;
 };
 
 const CACHE_BASE = join(envPaths("pyxis", { suffix: "" }).cache, "audio");
@@ -38,11 +45,11 @@ const CACHE_BASE = join(envPaths("pyxis", { suffix: "" }).cache, "audio");
  * @returns File extension including dot (e.g., ".webm", ".mp3")
  */
 function extensionForContentType(contentType: string): string {
-	if (contentType.includes("webm")) return ".webm";
-	if (contentType.includes("mp4") || contentType.includes("m4a")) return ".m4a";
-	if (contentType.includes("ogg")) return ".ogg";
-	if (contentType.includes("mpeg")) return ".mp3";
-	return ".audio";
+  if (contentType.includes("webm")) return ".webm";
+  if (contentType.includes("mp4") || contentType.includes("m4a")) return ".m4a";
+  if (contentType.includes("ogg")) return ".ogg";
+  if (contentType.includes("mpeg")) return ".mp3";
+  return ".audio";
 }
 
 /**
@@ -52,7 +59,7 @@ function extensionForContentType(contentType: string): string {
  * @returns Absolute path to the source's cache directory
  */
 function cacheDirForSource(source: SourceType): string {
-	return join(CACHE_BASE, source);
+  return join(CACHE_BASE, source);
 }
 
 const KNOWN_EXTENSIONS = [".webm", ".m4a", ".ogg", ".mp3", ".audio"] as const;
@@ -64,17 +71,20 @@ const KNOWN_EXTENSIONS = [".webm", ".m4a", ".ogg", ".mp3", ".audio"] as const;
  * @param trackId - Track identifier (used as filename without extension)
  * @returns Object with filePath and metaPath if found, null otherwise
  */
-function findCachedFile(source: SourceType, trackId: string): { filePath: string; metaPath: string } | null {
-	const dir = cacheDirForSource(source);
-	if (!existsSync(dir)) return null;
-	for (const ext of KNOWN_EXTENSIONS) {
-		const filePath = join(dir, `${trackId}${ext}`);
-		const metaPath = `${filePath}.meta`;
-		if (existsSync(filePath) && existsSync(metaPath)) {
-			return { filePath, metaPath };
-		}
-	}
-	return null;
+function findCachedFile(
+  source: SourceType,
+  trackId: string,
+): { filePath: string; metaPath: string } | null {
+  const dir = cacheDirForSource(source);
+  if (!existsSync(dir)) return null;
+  for (const ext of KNOWN_EXTENSIONS) {
+    const filePath = join(dir, `${trackId}${ext}`);
+    const metaPath = `${filePath}.meta`;
+    if (existsSync(filePath) && existsSync(metaPath)) {
+      return { filePath, metaPath };
+    }
+  }
+  return null;
 }
 
 /**
@@ -84,7 +94,7 @@ function findCachedFile(source: SourceType, trackId: string): { filePath: string
  * @returns Parsed CacheMeta object
  */
 function readMeta(metaPath: string): CacheMeta {
-	return JSON.parse(readFileSync(metaPath, "utf-8")) as CacheMeta;
+  return JSON.parse(readFileSync(metaPath, "utf-8")) as CacheMeta;
 }
 
 /**
@@ -93,7 +103,7 @@ function readMeta(metaPath: string): CacheMeta {
  * @param source - Source type for cache directory
  */
 function ensureCacheDir(source: SourceType): void {
-	mkdirSync(cacheDirForSource(source), { recursive: true });
+  mkdirSync(cacheDirForSource(source), { recursive: true });
 }
 
 // Active prefetches to avoid duplicate work
@@ -105,17 +115,17 @@ const activePrefetches = new Set<string>();
  * Parsed stream request containing source and track identifier.
  */
 export type StreamRequest = {
-	/** Source backend identifier */
-	readonly source: SourceType;
-	/** Source-specific track identifier */
-	readonly trackId: string;
+  /** Source backend identifier */
+  readonly source: SourceType;
+  /** Source-specific track identifier */
+  readonly trackId: string;
 };
 
 export type StreamFormat = "mp3";
 
 export type HandleStreamRequestOptions = {
-	readonly requestedFormat?: StreamFormat;
-	readonly abortSignal?: AbortSignal;
+  readonly requestedFormat?: StreamFormat;
+  readonly abortSignal?: AbortSignal;
 };
 
 /**
@@ -126,14 +136,14 @@ export type HandleStreamRequestOptions = {
  * @returns Parsed source type and track ID
  */
 export function parseTrackId(compositeId: string): StreamRequest {
-	const separatorIndex = compositeId.indexOf(":");
-	if (separatorIndex === -1) {
-		// Default to pandora for backwards compatibility
-		return { source: "pandora", trackId: compositeId };
-	}
-	const source = compositeId.slice(0, separatorIndex) as SourceType;
-	const trackId = compositeId.slice(separatorIndex + 1);
-	return { source, trackId };
+  const separatorIndex = compositeId.indexOf(":");
+  if (separatorIndex === -1) {
+    // Default to pandora for backwards compatibility
+    return { source: "pandora", trackId: compositeId };
+  }
+  const source = compositeId.slice(0, separatorIndex) as SourceType;
+  const trackId = compositeId.slice(separatorIndex + 1);
+  return { source, trackId };
 }
 
 /**
@@ -144,7 +154,7 @@ export function parseTrackId(compositeId: string): StreamRequest {
  * @returns Composite ID in "source:trackId" format
  */
 export function encodeTrackId(source: SourceType, trackId: string): string {
-	return `${source}:${trackId}`;
+  return `${source}:${trackId}`;
 }
 
 /**
@@ -155,272 +165,338 @@ export function encodeTrackId(source: SourceType, trackId: string): string {
  * @returns Direct audio stream URL
  */
 export async function resolveStreamUrl(
-	sourceManager: SourceManager,
-	compositeId: string,
+  sourceManager: SourceManager,
+  compositeId: string,
 ): Promise<string> {
-	const { source, trackId } = parseTrackId(compositeId);
-	return sourceManager.getStreamUrl(source, trackId);
+  const { source, trackId } = parseTrackId(compositeId);
+  return sourceManager.getStreamUrl(source, trackId);
 }
 
 function normalizeContentType(contentType: string | null): string {
-	return contentType?.split(";")[0]?.trim().toLowerCase() ?? "";
+  return contentType?.split(";")[0]?.trim().toLowerCase() ?? "";
 }
 
 type ParsedByteRange = {
-	readonly start: number;
-	readonly end: number | null;
+  readonly start: number;
+  readonly end: number | null;
 };
 
 type ParsedContentRange = {
-	readonly start: number;
-	readonly end: number;
-	readonly size: number;
+  readonly start: number;
+  readonly end: number;
+  readonly size: number;
 };
 
-function parseByteRangeHeader(rangeHeader: string | null): ParsedByteRange | null {
-	if (!rangeHeader) return null;
-	const match = rangeHeader.match(/^bytes=(\d+)-(\d*)$/);
-	if (!match?.[1]) return null;
-	return {
-		start: Number.parseInt(match[1], 10),
-		end: match[2] ? Number.parseInt(match[2], 10) : null,
-	};
+function parseByteRangeHeader(
+  rangeHeader: string | null,
+): ParsedByteRange | null {
+  if (!rangeHeader) return null;
+  const match = rangeHeader.match(/^bytes=(\d+)-(\d*)$/);
+  if (!match?.[1]) return null;
+  return {
+    start: Number.parseInt(match[1], 10),
+    end: match[2] ? Number.parseInt(match[2], 10) : null,
+  };
 }
 
-function parseContentRangeHeader(contentRange: string | null): ParsedContentRange | null {
-	if (!contentRange) return null;
-	const match = contentRange.match(/^bytes (\d+)-(\d+)\/(\d+)$/);
-	if (!match?.[1] || !match[2] || !match[3]) return null;
-	return {
-		start: Number.parseInt(match[1], 10),
-		end: Number.parseInt(match[2], 10),
-		size: Number.parseInt(match[3], 10),
-	};
+function parseContentRangeHeader(
+  contentRange: string | null,
+): ParsedContentRange | null {
+  if (!contentRange) return null;
+  const match = contentRange.match(/^bytes (\d+)-(\d+)\/(\d+)$/);
+  if (!match?.[1] || !match[2] || !match[3]) return null;
+  return {
+    start: Number.parseInt(match[1], 10),
+    end: Number.parseInt(match[2], 10),
+    size: Number.parseInt(match[3], 10),
+  };
 }
 
-function shouldCacheUpstreamResponse(rangeHeader: string | null, upstream: globalThis.Response): boolean {
-	const parsedRange = parseByteRangeHeader(rangeHeader);
-	if (!parsedRange) return true;
-	if (parsedRange.start !== 0 || parsedRange.end !== null) return false;
-	if (upstream.status === 200) return true;
-	if (upstream.status !== 206) return false;
-	const parsedContentRange = parseContentRangeHeader(upstream.headers.get("content-range"));
-	if (!parsedContentRange) return false;
-	return parsedContentRange.start === 0 && parsedContentRange.end + 1 === parsedContentRange.size;
+function shouldCacheUpstreamResponse(
+  rangeHeader: string | null,
+  upstream: globalThis.Response,
+): boolean {
+  const parsedRange = parseByteRangeHeader(rangeHeader);
+  if (!parsedRange) return true;
+  if (parsedRange.start !== 0 || parsedRange.end !== null) return false;
+  if (upstream.status === 200) return true;
+  if (upstream.status !== 206) return false;
+  const parsedContentRange = parseContentRangeHeader(
+    upstream.headers.get("content-range"),
+  );
+  if (!parsedContentRange) return false;
+  return (
+    parsedContentRange.start === 0 &&
+    parsedContentRange.end + 1 === parsedContentRange.size
+  );
 }
 
 function isMp3ContentType(contentType: string | null): boolean {
-	const normalized = normalizeContentType(contentType);
-	return normalized === "audio/mpeg" || normalized === "audio/mp3" || normalized === "audio/x-mp3";
+  const normalized = normalizeContentType(contentType);
+  return (
+    normalized === "audio/mpeg" ||
+    normalized === "audio/mp3" ||
+    normalized === "audio/x-mp3"
+  );
 }
 
-function shouldTranscodeToMp3(requestedFormat: StreamFormat | undefined, contentType: string | null): boolean {
-	return requestedFormat === "mp3" && !isMp3ContentType(contentType);
+function shouldTranscodeToMp3(
+  requestedFormat: StreamFormat | undefined,
+  contentType: string | null,
+): boolean {
+  return requestedFormat === "mp3" && !isMp3ContentType(contentType);
 }
 
 function createRangeNotSupportedResponse(): Response {
-	const headers = new Headers();
-	headers.set("Content-Type", "text/plain");
-	headers.set("Accept-Ranges", "none");
-	headers.set("Access-Control-Allow-Origin", "*");
-	return new Response("Range requests are not supported for transcoded streams", {
-		status: 416,
-		headers,
-	});
+  const headers = new Headers();
+  headers.set("Content-Type", "text/plain");
+  headers.set("Accept-Ranges", "none");
+  headers.set("Access-Control-Allow-Origin", "*");
+  return new Response(
+    "Range requests are not supported for transcoded streams",
+    {
+      status: 416,
+      headers,
+    },
+  );
 }
 
 function createMp3ResponseHeaders(): Headers {
-	const headers = new Headers();
-	headers.set("Content-Type", "audio/mpeg");
-	headers.set("Accept-Ranges", "none");
-	headers.set("Access-Control-Allow-Origin", "*");
-	headers.set("Access-Control-Expose-Headers", "Content-Type");
-	return headers;
+  const headers = new Headers();
+  headers.set("Content-Type", "audio/mpeg");
+  headers.set("Accept-Ranges", "none");
+  headers.set("Access-Control-Allow-Origin", "*");
+  headers.set("Access-Control-Expose-Headers", "Content-Type");
+  return headers;
 }
 
 function createMp3TranscodeOutputStream(
-	proc: ReturnType<typeof spawn>,
-	abortSignal: AbortSignal | undefined,
-	logContext: Record<string, string>,
+  proc: ReturnType<typeof spawn>,
+  abortSignal: AbortSignal | undefined,
+  logContext: Record<string, string>,
 ): ReadableStream<Uint8Array> {
-	const stdout = proc.stdout;
-	const stderrStream = proc.stderr;
-	if (!stdout || !stderrStream) {
-		throw new Error("ffmpeg stdio not available");
-	}
+  const stdout = proc.stdout;
+  const stderrStream = proc.stderr;
+  if (!stdout || !stderrStream) {
+    throw new Error("ffmpeg stdio not available");
+  }
 
-	let stderr = "";
-	let aborted = false;
-	let cleanupDone = false;
-	let onAbort: (() => void) | undefined;
-	const removeAbortListener = (): void => {
-		if (onAbort && abortSignal) {
-			abortSignal.removeEventListener("abort", onAbort);
-		}
-	};
+  let stderr = "";
+  let aborted = false;
+  let cleanupDone = false;
+  let onAbort: (() => void) | undefined;
+  const removeAbortListener = (): void => {
+    if (onAbort && abortSignal) {
+      abortSignal.removeEventListener("abort", onAbort);
+    }
+  };
 
-	const cleanup = (reason: string): void => {
-		if (cleanupDone) return;
-		cleanupDone = true;
-		removeAbortListener();
-		if (!proc.killed) {
-			proc.kill("SIGTERM");
-			log.debug({ ...logContext, reason }, "terminated ffmpeg process");
-		}
-	};
+  const cleanup = (reason: string): void => {
+    if (cleanupDone) return;
+    cleanupDone = true;
+    removeAbortListener();
+    if (!proc.killed) {
+      proc.kill("SIGTERM");
+      log.debug({ ...logContext, reason }, "terminated ffmpeg process");
+    }
+  };
 
-	stderrStream.on("data", (chunk: Buffer) => {
-		const next = `${stderr}${chunk.toString()}`;
-		stderr = next.length > 4096 ? next.slice(-4096) : next;
-	});
+  stderrStream.on("data", (chunk: Buffer) => {
+    const next = `${stderr}${chunk.toString()}`;
+    stderr = next.length > 4096 ? next.slice(-4096) : next;
+  });
 
-	if (abortSignal) {
-		onAbort = () => {
-			aborted = true;
-			cleanup("abort");
-		};
-		abortSignal.addEventListener("abort", onAbort, { once: true });
-	}
+  if (abortSignal) {
+    onAbort = () => {
+      aborted = true;
+      cleanup("abort");
+    };
+    abortSignal.addEventListener("abort", onAbort, { once: true });
+  }
 
-	return new ReadableStream<Uint8Array>({
-		start(controller) {
-			let settled = false;
+  return new ReadableStream<Uint8Array>({
+    start(controller) {
+      let settled = false;
 
-			const onStdoutData = (chunk: Buffer) => {
-				if (settled) return;
-				try {
-					controller.enqueue(new Uint8Array(chunk));
-				} catch (err) {
-					const error = err instanceof Error ? err : new Error(String(err));
-					log.warn({ ...logContext, err: error.message }, "mp3 transcode stream enqueue after close; terminating ffmpeg stream");
-					errorOnce(error, "enqueue-failed");
-				}
-			};
-			const onStdoutError = (err: unknown) => {
-				errorOnce(err instanceof Error ? err : new Error(String(err)), "stdout-error");
-			};
-			const onProcError = (err: unknown) => {
-				errorOnce(err instanceof Error ? err : new Error(String(err)), "proc-error");
-			};
-			const onProcClose = (code: number | null, signal: NodeJS.Signals | null) => {
-				removeAbortListener();
-				if (aborted) {
-					closeOnce();
-					return;
-				}
-				if (code === 0) {
-					closeOnce();
-					return;
-				}
-				const stderrMessage = stderr.trim();
-				const message = `ffmpeg exited with code ${String(code)}${signal ? ` signal ${signal}` : ""}`;
-				log.error({ ...logContext, code, signal, stderr: stderrMessage || "none" }, "mp3 transcode failed");
-				errorOnce(stderrMessage ? new Error(`${message}: ${stderrMessage}`) : new Error(message), "proc-close");
-			};
-			const removeListeners = () => {
-				stdout.removeListener("data", onStdoutData);
-				stdout.removeListener("error", onStdoutError);
-				proc.removeListener("error", onProcError);
-				proc.removeListener("close", onProcClose);
-			};
-			const closeOnce = () => {
-				if (settled) return;
-				settled = true;
-				removeListeners();
-				controller.close();
-			};
-			const errorOnce = (err: Error, reason: string) => {
-				if (settled) return;
-				settled = true;
-				removeListeners();
-				cleanup(reason);
-				controller.error(err);
-			};
+      const onStdoutData = (chunk: Buffer) => {
+        if (settled) return;
+        try {
+          controller.enqueue(new Uint8Array(chunk));
+        } catch (err) {
+          const error = err instanceof Error ? err : new Error(String(err));
+          log.warn(
+            { ...logContext, err: error.message },
+            "mp3 transcode stream enqueue after close; terminating ffmpeg stream",
+          );
+          errorOnce(error, "enqueue-failed");
+        }
+      };
+      const onStdoutError = (err: unknown) => {
+        errorOnce(
+          err instanceof Error ? err : new Error(String(err)),
+          "stdout-error",
+        );
+      };
+      const onProcError = (err: unknown) => {
+        errorOnce(
+          err instanceof Error ? err : new Error(String(err)),
+          "proc-error",
+        );
+      };
+      const onProcClose = (
+        code: number | null,
+        signal: NodeJS.Signals | null,
+      ) => {
+        removeAbortListener();
+        if (aborted) {
+          closeOnce();
+          return;
+        }
+        if (code === 0) {
+          closeOnce();
+          return;
+        }
+        const stderrMessage = stderr.trim();
+        const message = `ffmpeg exited with code ${String(code)}${signal ? ` signal ${signal}` : ""}`;
+        log.error(
+          { ...logContext, code, signal, stderr: stderrMessage || "none" },
+          "mp3 transcode failed",
+        );
+        errorOnce(
+          stderrMessage
+            ? new Error(`${message}: ${stderrMessage}`)
+            : new Error(message),
+          "proc-close",
+        );
+      };
+      const removeListeners = () => {
+        stdout.removeListener("data", onStdoutData);
+        stdout.removeListener("error", onStdoutError);
+        proc.removeListener("error", onProcError);
+        proc.removeListener("close", onProcClose);
+      };
+      const closeOnce = () => {
+        if (settled) return;
+        settled = true;
+        removeListeners();
+        controller.close();
+      };
+      const errorOnce = (err: Error, reason: string) => {
+        if (settled) return;
+        settled = true;
+        removeListeners();
+        cleanup(reason);
+        controller.error(err);
+      };
 
-			stdout.on("data", onStdoutData);
-			stdout.on("error", onStdoutError);
-			proc.on("error", onProcError);
-			proc.on("close", onProcClose);
-		},
-		cancel() {
-			aborted = true;
-			cleanup("cancel");
-		},
-	});
+      stdout.on("data", onStdoutData);
+      stdout.on("error", onStdoutError);
+      proc.on("error", onProcError);
+      proc.on("close", onProcClose);
+    },
+    cancel() {
+      aborted = true;
+      cleanup("cancel");
+    },
+  });
 }
 
 async function pumpReadableStreamToFfmpegStdin(
-	input: ReadableStream<Uint8Array>,
-	proc: ReturnType<typeof spawn>,
-	logContext: Record<string, string>,
+  input: ReadableStream<Uint8Array>,
+  proc: ReturnType<typeof spawn>,
+  logContext: Record<string, string>,
 ): Promise<void> {
-	const stdin = proc.stdin;
-	if (!stdin) {
-		log.error(logContext, "ffmpeg stdin not available");
-		return;
-	}
+  const stdin = proc.stdin;
+  if (!stdin) {
+    log.error(logContext, "ffmpeg stdin not available");
+    return;
+  }
 
-	const reader = input.getReader();
-	try {
-		for (;;) {
-			const { done, value } = await reader.read();
-			if (done) break;
-			if (!stdin.write(Buffer.from(value))) {
-				await once(stdin, "drain");
-			}
-		}
-		stdin.end();
-	} catch (err) {
-		const message = err instanceof Error ? err.message : String(err);
-		log.warn({ ...logContext, err: message }, "failed piping input to ffmpeg");
-		try { stdin.destroy(err instanceof Error ? err : new Error(message)); } catch { /* ignore */ }
-		if (!proc.killed) proc.kill("SIGTERM");
-	}
+  const reader = input.getReader();
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (!stdin.write(Buffer.from(value))) {
+        await once(stdin, "drain");
+      }
+    }
+    stdin.end();
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    log.warn({ ...logContext, err: message }, "failed piping input to ffmpeg");
+    try {
+      stdin.destroy(err instanceof Error ? err : new Error(message));
+    } catch {
+      /* ignore */
+    }
+    if (!proc.killed) proc.kill("SIGTERM");
+  }
 }
 
 function transcodeReadableStreamToMp3Response(
-	input: ReadableStream<Uint8Array>,
-	abortSignal: AbortSignal | undefined,
-	logContext: Record<string, string>,
+  input: ReadableStream<Uint8Array>,
+  abortSignal: AbortSignal | undefined,
+  logContext: Record<string, string>,
 ): Response {
-	const proc = spawn("ffmpeg", [
-		"-i", "pipe:0",
-		"-vn",
-		"-codec:a", "libmp3lame",
-		"-ab", "192k",
-		"-ar", "44100",
-		"-ac", "2",
-		"-f", "mp3",
-		"pipe:1",
-	], { stdio: ["pipe", "pipe", "pipe"] });
-	void pumpReadableStreamToFfmpegStdin(input, proc, logContext);
-	const stream = createMp3TranscodeOutputStream(proc, abortSignal, logContext);
-	return new Response(stream, {
-		status: 200,
-		headers: createMp3ResponseHeaders(),
-	});
+  const proc = spawn(
+    "ffmpeg",
+    [
+      "-i",
+      "pipe:0",
+      "-vn",
+      "-codec:a",
+      "libmp3lame",
+      "-ab",
+      "192k",
+      "-ar",
+      "44100",
+      "-ac",
+      "2",
+      "-f",
+      "mp3",
+      "pipe:1",
+    ],
+    { stdio: ["pipe", "pipe", "pipe"] },
+  );
+  void pumpReadableStreamToFfmpegStdin(input, proc, logContext);
+  const stream = createMp3TranscodeOutputStream(proc, abortSignal, logContext);
+  return new Response(stream, {
+    status: 200,
+    headers: createMp3ResponseHeaders(),
+  });
 }
 
 function transcodePathToMp3Response(
-	inputPath: string,
-	abortSignal: AbortSignal | undefined,
-	logContext: Record<string, string>,
+  inputPath: string,
+  abortSignal: AbortSignal | undefined,
+  logContext: Record<string, string>,
 ): Response {
-	const proc = spawn("ffmpeg", [
-		"-i", inputPath,
-		"-vn",
-		"-codec:a", "libmp3lame",
-		"-ab", "192k",
-		"-ar", "44100",
-		"-ac", "2",
-		"-f", "mp3",
-		"pipe:1",
-	], { stdio: ["ignore", "pipe", "pipe"] });
-	const stream = createMp3TranscodeOutputStream(proc, abortSignal, logContext);
-	return new Response(stream, {
-		status: 200,
-		headers: createMp3ResponseHeaders(),
-	});
+  const proc = spawn(
+    "ffmpeg",
+    [
+      "-i",
+      inputPath,
+      "-vn",
+      "-codec:a",
+      "libmp3lame",
+      "-ab",
+      "192k",
+      "-ar",
+      "44100",
+      "-ac",
+      "2",
+      "-f",
+      "mp3",
+      "pipe:1",
+    ],
+    { stdio: ["ignore", "pipe", "pipe"] },
+  );
+  const stream = createMp3TranscodeOutputStream(proc, abortSignal, logContext);
+  return new Response(stream, {
+    status: 200,
+    headers: createMp3ResponseHeaders(),
+  });
 }
 
 // --- Cache hit: serve from disk ---
@@ -435,34 +511,43 @@ function transcodePathToMp3Response(
  * @returns HTTP Response with full file or partial content (206)
  */
 function serveCachedFile(
-	filePath: string,
-	meta: CacheMeta,
-	rangeHeader: string | null,
+  filePath: string,
+  meta: CacheMeta,
+  rangeHeader: string | null,
 ): Response {
-	const responseHeaders = new Headers();
-	responseHeaders.set("Content-Type", meta.contentType);
-	responseHeaders.set("Accept-Ranges", "bytes");
-	responseHeaders.set("Access-Control-Allow-Origin", "*");
-	responseHeaders.set("Access-Control-Expose-Headers", "Content-Range, Accept-Ranges, Content-Length");
+  const responseHeaders = new Headers();
+  responseHeaders.set("Content-Type", meta.contentType);
+  responseHeaders.set("Accept-Ranges", "bytes");
+  responseHeaders.set("Access-Control-Allow-Origin", "*");
+  responseHeaders.set(
+    "Access-Control-Expose-Headers",
+    "Content-Range, Accept-Ranges, Content-Length",
+  );
 
-	const fileSize = meta.contentLength;
+  const fileSize = meta.contentLength;
 
-	const parsedRange = parseByteRangeHeader(rangeHeader);
-	if (parsedRange) {
-		const start = parsedRange.start;
-		const end = parsedRange.end ?? fileSize - 1;
-		const chunkSize = end - start + 1;
+  const parsedRange = parseByteRangeHeader(rangeHeader);
+  if (parsedRange) {
+    const start = parsedRange.start;
+    const end = parsedRange.end ?? fileSize - 1;
+    const chunkSize = end - start + 1;
 
-		responseHeaders.set("Content-Length", String(chunkSize));
-		responseHeaders.set("Content-Range", `bytes ${String(start)}-${String(end)}/${String(fileSize)}`);
+    responseHeaders.set("Content-Length", String(chunkSize));
+    responseHeaders.set(
+      "Content-Range",
+      `bytes ${String(start)}-${String(end)}/${String(fileSize)}`,
+    );
 
-		const file = Bun.file(filePath);
-		const slice = file.slice(start, end + 1);
-		return new Response(slice, { status: 206, headers: responseHeaders });
-	}
+    const file = Bun.file(filePath);
+    const slice = file.slice(start, end + 1);
+    return new Response(slice, { status: 206, headers: responseHeaders });
+  }
 
-	responseHeaders.set("Content-Length", String(fileSize));
-	return new Response(Bun.file(filePath), { status: 200, headers: responseHeaders });
+  responseHeaders.set("Content-Length", String(fileSize));
+  return new Response(Bun.file(filePath), {
+    status: 200,
+    headers: responseHeaders,
+  });
 }
 
 // --- Cache miss: stream-through (tee to client + cache file) ---
@@ -480,71 +565,86 @@ function serveCachedFile(
  * @returns HTTP Response streaming the audio to the client
  */
 async function streamThroughAndCache(
-	upstream: globalThis.Response,
-	source: SourceType,
-	trackId: string,
-	contentType: string,
-	contentLength: number | null,
+  upstream: globalThis.Response,
+  source: SourceType,
+  trackId: string,
+  contentType: string,
+  contentLength: number | null,
 ): Promise<Response> {
-	ensureCacheDir(source);
-	const ext = extensionForContentType(contentType);
-	const finalPath = join(cacheDirForSource(source), `${trackId}${ext}`);
-	const partialPath = `${finalPath}.partial`;
-	const metaPath = `${finalPath}.meta`;
+  ensureCacheDir(source);
+  const ext = extensionForContentType(contentType);
+  const finalPath = join(cacheDirForSource(source), `${trackId}${ext}`);
+  const partialPath = `${finalPath}.partial`;
+  const metaPath = `${finalPath}.meta`;
 
-	const upstreamBody = upstream.body;
-	if (!upstreamBody) {
-		return new Response(null, { status: upstream.status, headers: upstream.headers });
-	}
+  const upstreamBody = upstream.body;
+  if (!upstreamBody) {
+    return new Response(null, {
+      status: upstream.status,
+      headers: upstream.headers,
+    });
+  }
 
-	const writer = Bun.file(partialPath).writer();
-	let totalWritten = 0;
+  const writer = Bun.file(partialPath).writer();
+  let totalWritten = 0;
 
-	const teeStream = new ReadableStream({
-		async start(controller) {
-			const reader = upstreamBody.getReader();
-			try {
-				for (;;) {
-					const { done, value } = await reader.read();
-					if (done) break;
-					controller.enqueue(value);
-					writer.write(value);
-					totalWritten += value.byteLength;
-				}
-				controller.close();
-				await writer.end();
+  const teeStream = new ReadableStream({
+    async start(controller) {
+      const reader = upstreamBody.getReader();
+      try {
+        for (;;) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          controller.enqueue(value);
+          writer.write(value);
+          totalWritten += value.byteLength;
+        }
+        controller.close();
+        await writer.end();
 
-				renameSync(partialPath, finalPath);
-				const meta: CacheMeta = {
-					contentType,
-					contentLength: totalWritten,
-					cachedAt: new Date().toISOString(),
-				};
-				writeFileSync(metaPath, JSON.stringify(meta));
-				log.info({ trackId, size: totalWritten }, "cached");
-			} catch (err) {
-				controller.error(err);
-				try { await writer.end(); } catch { /* ignore cleanup failure */ }
-				try { unlinkSync(partialPath); } catch { /* ignore cleanup failure */ }
-			}
-		},
-	});
+        renameSync(partialPath, finalPath);
+        const meta: CacheMeta = {
+          contentType,
+          contentLength: totalWritten,
+          cachedAt: new Date().toISOString(),
+        };
+        writeFileSync(metaPath, JSON.stringify(meta));
+        log.info({ trackId, size: totalWritten }, "cached");
+      } catch (err) {
+        controller.error(err);
+        try {
+          await writer.end();
+        } catch {
+          /* ignore cleanup failure */
+        }
+        try {
+          unlinkSync(partialPath);
+        } catch {
+          /* ignore cleanup failure */
+        }
+      }
+    },
+  });
 
-	const responseHeaders = new Headers();
-	responseHeaders.set("Content-Type", contentType);
-	if (contentLength !== null) responseHeaders.set("Content-Length", String(contentLength));
+  const responseHeaders = new Headers();
+  responseHeaders.set("Content-Type", contentType);
+  if (contentLength !== null)
+    responseHeaders.set("Content-Length", String(contentLength));
 
-	const contentRange = upstream.headers.get("content-range");
-	if (contentRange) responseHeaders.set("Content-Range", contentRange);
+  const contentRange = upstream.headers.get("content-range");
+  if (contentRange) responseHeaders.set("Content-Range", contentRange);
 
-	responseHeaders.set("Accept-Ranges", "bytes");
-	responseHeaders.set("Access-Control-Allow-Origin", "*");
-	responseHeaders.set("Access-Control-Expose-Headers", "Content-Range, Accept-Ranges, Content-Length");
+  responseHeaders.set("Accept-Ranges", "bytes");
+  responseHeaders.set("Access-Control-Allow-Origin", "*");
+  responseHeaders.set(
+    "Access-Control-Expose-Headers",
+    "Content-Range, Accept-Ranges, Content-Length",
+  );
 
-	return new Response(teeStream, {
-		status: upstream.status,
-		headers: responseHeaders,
-	});
+  return new Response(teeStream, {
+    status: upstream.status,
+    headers: responseHeaders,
+  });
 }
 
 // --- Prefetch ---
@@ -558,110 +658,119 @@ async function streamThroughAndCache(
  * @param compositeId - Composite ID of track to prefetch
  */
 export async function prefetchToCache(
-	sourceManager: SourceManager,
-	compositeId: string,
+  sourceManager: SourceManager,
+  compositeId: string,
 ): Promise<void> {
-	const { source, trackId } = parseTrackId(compositeId);
+  const { source, trackId } = parseTrackId(compositeId);
 
-	// Skip Pandora (short-lived URLs)
-	if (source === "pandora") return;
+  // Skip Pandora (short-lived URLs)
+  if (source === "pandora") return;
 
-	// YouTube chapter tracks: prefetch by extracting the chapter
-	if (source === "youtube" && trackId.includes("@")) {
-		if (findCachedFile(source, trackId)) {
-			log.info({ compositeId }, "prefetch skip (cached)");
-			return;
-		}
-		if (activePrefetches.has(compositeId)) {
-			log.info({ compositeId }, "prefetch skip (in-flight)");
-			return;
-		}
-		activePrefetches.add(compositeId);
-		try {
-			const decoded = decodeChapterTrackId(trackId);
-			if (!decoded) return;
-			const { videoId, startTime, endTime } = decoded;
-			const fullVideoCached = findCachedFile(source, videoId);
-			const ffmpegInput = fullVideoCached
-				? fullVideoCached.filePath
-				: await sourceManager.getStreamUrl(source, trackId);
-			ensureCacheDir(source);
-			const chapterFinalPath = join(cacheDirForSource(source), `${trackId}.webm`);
-			const chapterPartialPath = `${chapterFinalPath}.partial`;
-			const chapterMetaPath = `${chapterFinalPath}.meta`;
-			await extractChapter(ffmpegInput, startTime, endTime, chapterPartialPath);
-			renameSync(chapterPartialPath, chapterFinalPath);
-			const { size } = Bun.file(chapterFinalPath);
-			writeFileSync(chapterMetaPath, JSON.stringify({
-				contentType: "audio/webm",
-				contentLength: size,
-				cachedAt: new Date().toISOString(),
-			}));
-			log.info({ compositeId, size }, "prefetch chapter complete");
-		} catch (err) {
-			const message = err instanceof Error ? err.message : String(err);
-			log.error({ compositeId, err: message }, "prefetch chapter failed");
-		} finally {
-			activePrefetches.delete(compositeId);
-		}
-		return;
-	}
+  // YouTube chapter tracks: prefetch by extracting the chapter
+  if (source === "youtube" && trackId.includes("@")) {
+    if (findCachedFile(source, trackId)) {
+      log.info({ compositeId }, "prefetch skip (cached)");
+      return;
+    }
+    if (activePrefetches.has(compositeId)) {
+      log.info({ compositeId }, "prefetch skip (in-flight)");
+      return;
+    }
+    activePrefetches.add(compositeId);
+    try {
+      const decoded = decodeChapterTrackId(trackId);
+      if (!decoded) return;
+      const { videoId, startTime, endTime } = decoded;
+      const fullVideoCached = findCachedFile(source, videoId);
+      const ffmpegInput = fullVideoCached
+        ? fullVideoCached.filePath
+        : await sourceManager.getStreamUrl(source, trackId);
+      ensureCacheDir(source);
+      const chapterFinalPath = join(
+        cacheDirForSource(source),
+        `${trackId}.webm`,
+      );
+      const chapterPartialPath = `${chapterFinalPath}.partial`;
+      const chapterMetaPath = `${chapterFinalPath}.meta`;
+      await extractChapter(ffmpegInput, startTime, endTime, chapterPartialPath);
+      renameSync(chapterPartialPath, chapterFinalPath);
+      const { size } = Bun.file(chapterFinalPath);
+      writeFileSync(
+        chapterMetaPath,
+        JSON.stringify({
+          contentType: "audio/webm",
+          contentLength: size,
+          cachedAt: new Date().toISOString(),
+        }),
+      );
+      log.info({ compositeId, size }, "prefetch chapter complete");
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      log.error({ compositeId, err: message }, "prefetch chapter failed");
+    } finally {
+      activePrefetches.delete(compositeId);
+    }
+    return;
+  }
 
-	if (findCachedFile(source, trackId)) {
-		log.info({ compositeId }, "prefetch skip (cached)");
-		return;
-	}
+  if (findCachedFile(source, trackId)) {
+    log.info({ compositeId }, "prefetch skip (cached)");
+    return;
+  }
 
-	if (activePrefetches.has(compositeId)) {
-		log.info({ compositeId }, "prefetch skip (in-flight)");
-		return;
-	}
+  if (activePrefetches.has(compositeId)) {
+    log.info({ compositeId }, "prefetch skip (in-flight)");
+    return;
+  }
 
-	activePrefetches.add(compositeId);
-	log.info({ compositeId }, "prefetch start");
+  activePrefetches.add(compositeId);
+  log.info({ compositeId }, "prefetch start");
 
-	try {
-		const url = await resolveStreamUrl(sourceManager, compositeId);
-		const upstream = await fetch(url);
+  try {
+    const url = await resolveStreamUrl(sourceManager, compositeId);
+    const upstream = await fetch(url);
 
-		if (!upstream.ok || !upstream.body) {
-			log.error({ status: upstream.status, compositeId }, "prefetch upstream error");
-			return;
-		}
+    if (!upstream.ok || !upstream.body) {
+      log.error(
+        { status: upstream.status, compositeId },
+        "prefetch upstream error",
+      );
+      return;
+    }
 
-		const contentType = upstream.headers.get("content-type") ?? "audio/webm";
-		ensureCacheDir(source);
-		const ext = extensionForContentType(contentType);
-		const finalPath = join(cacheDirForSource(source), `${trackId}${ext}`);
-		const partialPath = `${finalPath}.partial`;
-		const metaPath = `${finalPath}.meta`;
+    const contentType = upstream.headers.get("content-type") ?? "audio/webm";
+    ensureCacheDir(source);
+    const ext = extensionForContentType(contentType);
+    const finalPath = join(cacheDirForSource(source), `${trackId}${ext}`);
+    const partialPath = `${finalPath}.partial`;
+    const metaPath = `${finalPath}.meta`;
 
-		const writer = Bun.file(partialPath).writer();
-		const reader = upstream.body.getReader();
-		let totalWritten = 0;
+    const writer = Bun.file(partialPath).writer();
+    const reader = upstream.body.getReader();
+    let totalWritten = 0;
 
-		for (;;) {
-			const { done, value } = await reader.read();
-			if (done) break;
-			writer.write(value);
-			totalWritten += value.byteLength;
-		}
-		await writer.end();
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      writer.write(value);
+      totalWritten += value.byteLength;
+    }
+    await writer.end();
 
-		renameSync(partialPath, finalPath);
-		const meta: CacheMeta = {
-			contentType,
-			contentLength: totalWritten,
-			cachedAt: new Date().toISOString(),
-		};
-		writeFileSync(metaPath, JSON.stringify(meta));
-		log.info({ compositeId, size: totalWritten }, "prefetch complete");
-	} catch (err) {
-		const message = err instanceof Error ? err.message : String(err);
-		log.error({ compositeId, err: message }, "prefetch failed");
-	} finally {
-		activePrefetches.delete(compositeId);
-	}
+    renameSync(partialPath, finalPath);
+    const meta: CacheMeta = {
+      contentType,
+      contentLength: totalWritten,
+      cachedAt: new Date().toISOString(),
+    };
+    writeFileSync(metaPath, JSON.stringify(meta));
+    log.info({ compositeId, size: totalWritten }, "prefetch complete");
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    log.error({ compositeId, err: message }, "prefetch failed");
+  } finally {
+    activePrefetches.delete(compositeId);
+  }
 }
 
 /**
@@ -675,37 +784,50 @@ export async function prefetchToCache(
  * @param outputPath - Path to write the extracted segment
  */
 export function extractChapter(
-	input: string,
-	startTime: number,
-	endTime: number,
-	outputPath: string,
+  input: string,
+  startTime: number,
+  endTime: number,
+  outputPath: string,
 ): Promise<void> {
-	const duration = endTime - startTime;
-	return new Promise((resolve, reject) => {
-		const proc = spawn("ffmpeg", [
-			"-ss", String(startTime),
-			"-i", input,
-			"-t", String(duration),
-			"-vn",
-			"-c:a", "copy",
-			"-f", "webm",
-			"-y",
-			outputPath,
-		], { stdio: ["ignore", "pipe", "pipe"] });
+  const duration = endTime - startTime;
+  return new Promise((resolve, reject) => {
+    const proc = spawn(
+      "ffmpeg",
+      [
+        "-ss",
+        String(startTime),
+        "-i",
+        input,
+        "-t",
+        String(duration),
+        "-vn",
+        "-c:a",
+        "copy",
+        "-f",
+        "webm",
+        "-y",
+        outputPath,
+      ],
+      { stdio: ["ignore", "pipe", "pipe"] },
+    );
 
-		let stderr = "";
-		proc.stderr.on("data", (chunk: Buffer) => {
-			stderr += chunk.toString();
-		});
-		proc.on("close", (code) => {
-			if (code === 0) {
-				resolve();
-			} else {
-				reject(new Error(`ffmpeg exited with code ${String(code)}: ${stderr.trim()}`));
-			}
-		});
-		proc.on("error", reject);
-	});
+    let stderr = "";
+    proc.stderr.on("data", (chunk: Buffer) => {
+      stderr += chunk.toString();
+    });
+    proc.on("close", (code) => {
+      if (code === 0) {
+        resolve();
+      } else {
+        reject(
+          new Error(
+            `ffmpeg exited with code ${String(code)}: ${stderr.trim()}`,
+          ),
+        );
+      }
+    });
+    proc.on("error", reject);
+  });
 }
 
 /**
@@ -715,204 +837,263 @@ export function extractChapter(
  * If the chapter is already cached, serves from disk with range request support.
  */
 async function handleChapterStreamRequest(
-	sourceManager: SourceManager,
-	source: SourceType,
-	trackId: string,
-	rangeHeader: string | null,
-	options?: HandleStreamRequestOptions,
+  sourceManager: SourceManager,
+  source: SourceType,
+  trackId: string,
+  rangeHeader: string | null,
+  options?: HandleStreamRequestOptions,
 ): Promise<Response> {
-	const decoded = decodeChapterTrackId(trackId);
-	if (!decoded) {
-		return new Response("Invalid chapter track ID", { status: 400 });
-	}
+  const decoded = decodeChapterTrackId(trackId);
+  if (!decoded) {
+    return new Response("Invalid chapter track ID", { status: 400 });
+  }
 
-	const { videoId, startTime, endTime } = decoded;
-	const duration = endTime - startTime;
-	const requestedFormat = options?.requestedFormat;
+  const { videoId, startTime, endTime } = decoded;
+  const duration = endTime - startTime;
+  const requestedFormat = options?.requestedFormat;
 
-	if (requestedFormat === "mp3") {
-		if (rangeHeader) {
-			return createRangeNotSupportedResponse();
-		}
+  if (requestedFormat === "mp3") {
+    if (rangeHeader) {
+      return createRangeNotSupportedResponse();
+    }
 
-		let ffmpegInput: string;
-		const fullVideoCached = findCachedFile(source, videoId);
-		if (fullVideoCached) {
-			ffmpegInput = fullVideoCached.filePath;
-			log.info({ videoId, source }, "transcoding chapter from cached full video");
-		} else {
-			ffmpegInput = await sourceManager.getStreamUrl(source, trackId);
-			log.info({ videoId, source }, "transcoding chapter from remote URL");
-		}
+    let ffmpegInput: string;
+    const fullVideoCached = findCachedFile(source, videoId);
+    if (fullVideoCached) {
+      ffmpegInput = fullVideoCached.filePath;
+      log.info(
+        { videoId, source },
+        "transcoding chapter from cached full video",
+      );
+    } else {
+      ffmpegInput = await sourceManager.getStreamUrl(source, trackId);
+      log.info({ videoId, source }, "transcoding chapter from remote URL");
+    }
 
-		log.info({ trackId, startTime, endTime, duration }, "streaming chapter transcoded to mp3");
-		const proc = spawn("ffmpeg", [
-			"-ss", String(startTime),
-			"-i", ffmpegInput,
-			"-t", String(duration),
-			"-vn",
-			"-codec:a", "libmp3lame",
-			"-ab", "192k",
-			"-ar", "44100",
-			"-ac", "2",
-			"-f", "mp3",
-			"pipe:1",
-		], { stdio: ["ignore", "pipe", "pipe"] });
-		const stream = createMp3TranscodeOutputStream(proc, options?.abortSignal, {
-			trackId,
-			mode: "chapter-mp3",
-		});
-		return new Response(stream, { status: 200, headers: createMp3ResponseHeaders() });
-	}
+    log.info(
+      { trackId, startTime, endTime, duration },
+      "streaming chapter transcoded to mp3",
+    );
+    const proc = spawn(
+      "ffmpeg",
+      [
+        "-ss",
+        String(startTime),
+        "-i",
+        ffmpegInput,
+        "-t",
+        String(duration),
+        "-vn",
+        "-codec:a",
+        "libmp3lame",
+        "-ab",
+        "192k",
+        "-ar",
+        "44100",
+        "-ac",
+        "2",
+        "-f",
+        "mp3",
+        "pipe:1",
+      ],
+      { stdio: ["ignore", "pipe", "pipe"] },
+    );
+    const stream = createMp3TranscodeOutputStream(proc, options?.abortSignal, {
+      trackId,
+      mode: "chapter-mp3",
+    });
+    return new Response(stream, {
+      status: 200,
+      headers: createMp3ResponseHeaders(),
+    });
+  }
 
-	// 1. Check chapter-specific cache
-	const chapterCached = findCachedFile(source, trackId);
-	if (chapterCached) {
-		const meta = readMeta(chapterCached.metaPath);
-		log.info({ trackId, source }, "chapter cache hit");
-		return serveCachedFile(chapterCached.filePath, meta, rangeHeader);
-	}
+  // 1. Check chapter-specific cache
+  const chapterCached = findCachedFile(source, trackId);
+  if (chapterCached) {
+    const meta = readMeta(chapterCached.metaPath);
+    log.info({ trackId, source }, "chapter cache hit");
+    return serveCachedFile(chapterCached.filePath, meta, rangeHeader);
+  }
 
-	// 2. Determine ffmpeg input: cached full video (fast) or remote URL
-	let ffmpegInput: string;
-	const fullVideoCached = findCachedFile(source, videoId);
-	if (fullVideoCached) {
-		ffmpegInput = fullVideoCached.filePath;
-		log.info({ videoId, source }, "extracting chapter from cached full video");
-	} else {
-		ffmpegInput = await sourceManager.getStreamUrl(source, trackId);
-		log.info({ videoId, source }, "extracting chapter from remote URL");
-	}
+  // 2. Determine ffmpeg input: cached full video (fast) or remote URL
+  let ffmpegInput: string;
+  const fullVideoCached = findCachedFile(source, videoId);
+  if (fullVideoCached) {
+    ffmpegInput = fullVideoCached.filePath;
+    log.info({ videoId, source }, "extracting chapter from cached full video");
+  } else {
+    ffmpegInput = await sourceManager.getStreamUrl(source, trackId);
+    log.info({ videoId, source }, "extracting chapter from remote URL");
+  }
 
-	// 3. Stream ffmpeg output directly to client, tee to cache
-	ensureCacheDir(source);
-	const chapterFinalPath = join(cacheDirForSource(source), `${trackId}.webm`);
-	const chapterPartialPath = `${chapterFinalPath}.partial`;
-	const chapterMetaPath = `${chapterFinalPath}.meta`;
+  // 3. Stream ffmpeg output directly to client, tee to cache
+  ensureCacheDir(source);
+  const chapterFinalPath = join(cacheDirForSource(source), `${trackId}.webm`);
+  const chapterPartialPath = `${chapterFinalPath}.partial`;
+  const chapterMetaPath = `${chapterFinalPath}.meta`;
 
-	log.info({ trackId, startTime, endTime, duration }, "streaming chapter via ffmpeg");
+  log.info(
+    { trackId, startTime, endTime, duration },
+    "streaming chapter via ffmpeg",
+  );
 
-	const proc = spawn("ffmpeg", [
-		"-ss", String(startTime),
-		"-i", ffmpegInput,
-		"-t", String(duration),
-		"-vn",
-		"-c:a", "copy",
-		"-f", "webm",
-		"pipe:1",
-	], { stdio: ["ignore", "pipe", "pipe"] });
+  const proc = spawn(
+    "ffmpeg",
+    [
+      "-ss",
+      String(startTime),
+      "-i",
+      ffmpegInput,
+      "-t",
+      String(duration),
+      "-vn",
+      "-c:a",
+      "copy",
+      "-f",
+      "webm",
+      "pipe:1",
+    ],
+    { stdio: ["ignore", "pipe", "pipe"] },
+  );
 
-	const cacheWriter = Bun.file(chapterPartialPath).writer();
-	let totalWritten = 0;
-	let chapterStderr = "";
+  const cacheWriter = Bun.file(chapterPartialPath).writer();
+  let totalWritten = 0;
+  let chapterStderr = "";
 
-	const stream = new ReadableStream({
-		start(controller) {
-			let settled = false;
-			let writerClosed = false;
+  const stream = new ReadableStream({
+    start(controller) {
+      let settled = false;
+      let writerClosed = false;
 
-			const closeWriterOnce = async () => {
-				if (writerClosed) return;
-				writerClosed = true;
-				await cacheWriter.end();
-			};
-			const cleanupPartialFile = () => {
-				try { unlinkSync(chapterPartialPath); } catch { /* ignore */ }
-			};
-			const finalizeCacheWrite = async () => {
-				try {
-					await closeWriterOnce();
-					if (totalWritten <= 0) {
-						cleanupPartialFile();
-						return;
-					}
-					renameSync(chapterPartialPath, chapterFinalPath);
-					const meta: CacheMeta = {
-						contentType: "audio/webm",
-						contentLength: totalWritten,
-						cachedAt: new Date().toISOString(),
-					};
-					writeFileSync(chapterMetaPath, JSON.stringify(meta));
-					log.info({ trackId, size: totalWritten }, "chapter cached");
-				} catch (err) {
-					log.error({ trackId, err: String(err) }, "chapter cache write failed");
-					cleanupPartialFile();
-				}
-			};
-			const removeListeners = () => {
-				proc.stdout.removeListener("data", onStdoutData);
-				proc.stdout.removeListener("end", onStdoutEnd);
-				proc.removeListener("error", onProcError);
-				proc.removeListener("close", onProcClose);
-				proc.stderr.removeListener("data", onStderrData);
-			};
-			const closeOnce = () => {
-				if (settled) return;
-				settled = true;
-				removeListeners();
-				controller.close();
-				void finalizeCacheWrite();
-			};
-			const errorOnce = (err: Error, reason: string) => {
-				if (settled) return;
-				settled = true;
-				removeListeners();
-				if (!proc.killed) proc.kill("SIGTERM");
-				controller.error(err);
-				void closeWriterOnce().catch(() => {}).finally(() => {
-					cleanupPartialFile();
-					log.warn({ trackId, reason, err: err.message }, "chapter stream terminated before cache completion");
-				});
-			};
-			const onStdoutData = (chunk: Buffer) => {
-				if (settled) return;
-				try {
-					controller.enqueue(new Uint8Array(chunk));
-					cacheWriter.write(chunk);
-					totalWritten += chunk.byteLength;
-				} catch (err) {
-					errorOnce(err instanceof Error ? err : new Error(String(err)), "enqueue-failed");
-				}
-			};
-			const onStdoutEnd = () => {
-				closeOnce();
-			};
-			const onProcError = (err: unknown) => {
-				errorOnce(err instanceof Error ? err : new Error(String(err)), "proc-error");
-			};
-			const onProcClose = (code: number | null, signal: NodeJS.Signals | null) => {
-				if (settled) return;
-				if (code === 0) {
-					closeOnce();
-					return;
-				}
-				const stderrMessage = chapterStderr.trim();
-				const message = `ffmpeg exited with code ${String(code)}${signal ? ` signal ${signal}` : ""}`;
-				errorOnce(stderrMessage ? new Error(`${message}: ${stderrMessage}`) : new Error(message), "proc-close");
-			};
-			const onStderrData = (chunk: Buffer) => {
-				const next = `${chapterStderr}${chunk.toString()}`;
-				chapterStderr = next.length > 4096 ? next.slice(-4096) : next;
-			};
+      const closeWriterOnce = async () => {
+        if (writerClosed) return;
+        writerClosed = true;
+        await cacheWriter.end();
+      };
+      const cleanupPartialFile = () => {
+        try {
+          unlinkSync(chapterPartialPath);
+        } catch {
+          /* ignore */
+        }
+      };
+      const finalizeCacheWrite = async () => {
+        try {
+          await closeWriterOnce();
+          if (totalWritten <= 0) {
+            cleanupPartialFile();
+            return;
+          }
+          renameSync(chapterPartialPath, chapterFinalPath);
+          const meta: CacheMeta = {
+            contentType: "audio/webm",
+            contentLength: totalWritten,
+            cachedAt: new Date().toISOString(),
+          };
+          writeFileSync(chapterMetaPath, JSON.stringify(meta));
+          log.info({ trackId, size: totalWritten }, "chapter cached");
+        } catch (err) {
+          log.error(
+            { trackId, err: String(err) },
+            "chapter cache write failed",
+          );
+          cleanupPartialFile();
+        }
+      };
+      const removeListeners = () => {
+        proc.stdout.removeListener("data", onStdoutData);
+        proc.stdout.removeListener("end", onStdoutEnd);
+        proc.removeListener("error", onProcError);
+        proc.removeListener("close", onProcClose);
+        proc.stderr.removeListener("data", onStderrData);
+      };
+      const closeOnce = () => {
+        if (settled) return;
+        settled = true;
+        removeListeners();
+        controller.close();
+        void finalizeCacheWrite();
+      };
+      const errorOnce = (err: Error, reason: string) => {
+        if (settled) return;
+        settled = true;
+        removeListeners();
+        if (!proc.killed) proc.kill("SIGTERM");
+        controller.error(err);
+        void closeWriterOnce()
+          .catch(() => {})
+          .finally(() => {
+            cleanupPartialFile();
+            log.warn(
+              { trackId, reason, err: err.message },
+              "chapter stream terminated before cache completion",
+            );
+          });
+      };
+      const onStdoutData = (chunk: Buffer) => {
+        if (settled) return;
+        try {
+          controller.enqueue(new Uint8Array(chunk));
+          cacheWriter.write(chunk);
+          totalWritten += chunk.byteLength;
+        } catch (err) {
+          errorOnce(
+            err instanceof Error ? err : new Error(String(err)),
+            "enqueue-failed",
+          );
+        }
+      };
+      const onStdoutEnd = () => {
+        closeOnce();
+      };
+      const onProcError = (err: unknown) => {
+        errorOnce(
+          err instanceof Error ? err : new Error(String(err)),
+          "proc-error",
+        );
+      };
+      const onProcClose = (
+        code: number | null,
+        signal: NodeJS.Signals | null,
+      ) => {
+        if (settled) return;
+        if (code === 0) {
+          closeOnce();
+          return;
+        }
+        const stderrMessage = chapterStderr.trim();
+        const message = `ffmpeg exited with code ${String(code)}${signal ? ` signal ${signal}` : ""}`;
+        errorOnce(
+          stderrMessage
+            ? new Error(`${message}: ${stderrMessage}`)
+            : new Error(message),
+          "proc-close",
+        );
+      };
+      const onStderrData = (chunk: Buffer) => {
+        const next = `${chapterStderr}${chunk.toString()}`;
+        chapterStderr = next.length > 4096 ? next.slice(-4096) : next;
+      };
 
-			proc.stdout.on("data", onStdoutData);
-			proc.stdout.on("end", onStdoutEnd);
-			proc.on("error", onProcError);
-			proc.on("close", onProcClose);
-			proc.stderr.on("data", onStderrData);
-		},
-		cancel() {
-			if (!proc.killed) proc.kill("SIGTERM");
-		},
-	});
+      proc.stdout.on("data", onStdoutData);
+      proc.stdout.on("end", onStdoutEnd);
+      proc.on("error", onProcError);
+      proc.on("close", onProcClose);
+      proc.stderr.on("data", onStderrData);
+    },
+    cancel() {
+      if (!proc.killed) proc.kill("SIGTERM");
+    },
+  });
 
-	const responseHeaders = new Headers();
-	responseHeaders.set("Content-Type", "audio/webm");
-	responseHeaders.set("Accept-Ranges", "none");
-	responseHeaders.set("Access-Control-Allow-Origin", "*");
-	responseHeaders.set("Access-Control-Expose-Headers", "Content-Type");
+  const responseHeaders = new Headers();
+  responseHeaders.set("Content-Type", "audio/webm");
+  responseHeaders.set("Accept-Ranges", "none");
+  responseHeaders.set("Access-Control-Allow-Origin", "*");
+  responseHeaders.set("Access-Control-Expose-Headers", "Content-Type");
 
-	return new Response(stream, { status: 200, headers: responseHeaders });
+  return new Response(stream, { status: 200, headers: responseHeaders });
 }
 
 /**
@@ -926,140 +1107,181 @@ async function handleChapterStreamRequest(
  * @returns HTTP Response with audio stream
  */
 export async function handleStreamRequest(
-	sourceManager: SourceManager,
-	compositeId: string,
-	rangeHeader: string | null,
-	options?: HandleStreamRequestOptions,
+  sourceManager: SourceManager,
+  compositeId: string,
+  rangeHeader: string | null,
+  options?: HandleStreamRequestOptions,
 ): Promise<Response> {
-	const startTime = Date.now();
-	const { source, trackId } = parseTrackId(compositeId);
-	const requestedFormat = options?.requestedFormat;
-	log.info({ compositeId, range: rangeHeader ?? "none", format: requestedFormat ?? "none" }, "request");
+  const startTime = Date.now();
+  const { source, trackId } = parseTrackId(compositeId);
+  const requestedFormat = options?.requestedFormat;
+  log.info(
+    {
+      compositeId,
+      range: rangeHeader ?? "none",
+      format: requestedFormat ?? "none",
+    },
+    "request",
+  );
 
-	// Delegate chapter-based YouTube tracks to specialized handler
-	if (source === "youtube" && trackId.includes("@")) {
-		return handleChapterStreamRequest(sourceManager, source, trackId, rangeHeader, options);
-	}
+  // Delegate chapter-based YouTube tracks to specialized handler
+  if (source === "youtube" && trackId.includes("@")) {
+    return handleChapterStreamRequest(
+      sourceManager,
+      source,
+      trackId,
+      rangeHeader,
+      options,
+    );
+  }
 
-	// Only cache non-Pandora sources (Pandora URLs are short-lived)
-	if (source !== "pandora") {
-		const cached = findCachedFile(source, trackId);
-		if (cached) {
-			const meta = readMeta(cached.metaPath);
-			const elapsedMs = Date.now() - startTime;
-			log.info({ compositeId, elapsedMs, contentType: meta.contentType }, "cache hit");
-			if (shouldTranscodeToMp3(requestedFormat, meta.contentType)) {
-				if (rangeHeader) {
-					return createRangeNotSupportedResponse();
-				}
-				return transcodePathToMp3Response(cached.filePath, options?.abortSignal, {
-					compositeId,
-					source: "cache",
-				});
-			}
-			return serveCachedFile(cached.filePath, meta, rangeHeader);
-		}
-	}
+  // Only cache non-Pandora sources (Pandora URLs are short-lived)
+  if (source !== "pandora") {
+    const cached = findCachedFile(source, trackId);
+    if (cached) {
+      const meta = readMeta(cached.metaPath);
+      const elapsedMs = Date.now() - startTime;
+      log.info(
+        { compositeId, elapsedMs, contentType: meta.contentType },
+        "cache hit",
+      );
+      if (shouldTranscodeToMp3(requestedFormat, meta.contentType)) {
+        if (rangeHeader) {
+          return createRangeNotSupportedResponse();
+        }
+        return transcodePathToMp3Response(
+          cached.filePath,
+          options?.abortSignal,
+          {
+            compositeId,
+            source: "cache",
+          },
+        );
+      }
+      return serveCachedFile(cached.filePath, meta, rangeHeader);
+    }
+  }
 
-	// Cache miss (or Pandora) — resolve URL and fetch upstream
-	log.info({ compositeId }, "cache miss");
+  // Cache miss (or Pandora) — resolve URL and fetch upstream
+  log.info({ compositeId }, "cache miss");
 
-	let url: string;
-	try {
-		url = await resolveStreamUrl(sourceManager, compositeId);
-	} catch (err) {
-		const message = err instanceof Error ? err.message : String(err);
-		log.error({ compositeId, err: message }, "resolve failed");
-		throw err;
-	}
+  let url: string;
+  try {
+    url = await resolveStreamUrl(sourceManager, compositeId);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    log.error({ compositeId, err: message }, "resolve failed");
+    throw err;
+  }
 
-	try {
-		const parsedUrl = new URL(url);
-		log.info({ host: parsedUrl.host, path: parsedUrl.pathname.slice(0, 40) }, "upstream");
-	} catch {
-		log.info("upstream url non-parseable");
-	}
+  try {
+    const parsedUrl = new URL(url);
+    log.info(
+      { host: parsedUrl.host, path: parsedUrl.pathname.slice(0, 40) },
+      "upstream",
+    );
+  } catch {
+    log.info("upstream url non-parseable");
+  }
 
-	const headers: Record<string, string> = {};
-	if (rangeHeader) {
-		headers["Range"] = rangeHeader;
-	}
+  const headers: Record<string, string> = {};
+  if (rangeHeader) {
+    headers.Range = rangeHeader;
+  }
 
-	const upstream = await fetch(url, { headers });
+  const upstream = await fetch(url, { headers });
 
-	const contentType = upstream.headers.get("content-type");
-	const contentLength = upstream.headers.get("content-length");
-	const elapsedMs = Date.now() - startTime;
+  const contentType = upstream.headers.get("content-type");
+  const contentLength = upstream.headers.get("content-length");
+  const elapsedMs = Date.now() - startTime;
 
-	log.info(
-		{
-			status: upstream.status,
-			contentType: contentType ?? "unknown",
-			contentLength: contentLength ?? "unknown",
-			elapsedMs,
-			format: requestedFormat ?? "none",
-		},
-		"upstream response",
-	);
+  log.info(
+    {
+      status: upstream.status,
+      contentType: contentType ?? "unknown",
+      contentLength: contentLength ?? "unknown",
+      elapsedMs,
+      format: requestedFormat ?? "none",
+    },
+    "upstream response",
+  );
 
-	if (!upstream.ok) {
-		log.error({ status: upstream.status, compositeId }, "upstream error");
-		const responseHeaders = new Headers();
-		if (contentType) responseHeaders.set("Content-Type", contentType);
-		responseHeaders.set("Access-Control-Allow-Origin", "*");
-		return new Response(upstream.body, { status: upstream.status, headers: responseHeaders });
-	}
+  if (!upstream.ok) {
+    log.error({ status: upstream.status, compositeId }, "upstream error");
+    const responseHeaders = new Headers();
+    if (contentType) responseHeaders.set("Content-Type", contentType);
+    responseHeaders.set("Access-Control-Allow-Origin", "*");
+    return new Response(upstream.body, {
+      status: upstream.status,
+      headers: responseHeaders,
+    });
+  }
 
-	if (shouldTranscodeToMp3(requestedFormat, contentType)) {
-		if (rangeHeader) {
-			try { await upstream.body?.cancel(); } catch { /* ignore cleanup failure */ }
-			return createRangeNotSupportedResponse();
-		}
+  if (shouldTranscodeToMp3(requestedFormat, contentType)) {
+    if (rangeHeader) {
+      try {
+        await upstream.body?.cancel();
+      } catch {
+        /* ignore cleanup failure */
+      }
+      return createRangeNotSupportedResponse();
+    }
 
-		if (!upstream.body) {
-			return new Response("Upstream response has no body", {
-				status: 502,
-				headers: { "Access-Control-Allow-Origin": "*" },
-			});
-		}
+    if (!upstream.body) {
+      return new Response("Upstream response has no body", {
+        status: 502,
+        headers: { "Access-Control-Allow-Origin": "*" },
+      });
+    }
 
-		return transcodeReadableStreamToMp3Response(upstream.body, options?.abortSignal, {
-			compositeId,
-			source: "upstream",
-		});
-	}
+    return transcodeReadableStreamToMp3Response(
+      upstream.body,
+      options?.abortSignal,
+      {
+        compositeId,
+        source: "upstream",
+      },
+    );
+  }
 
-	// For non-Pandora sources, cache full-body responses, including initial bytes=0-
-	// requests that upstream fulfills with the complete file. Browsers commonly start
-	// media playback with Range: bytes=0-, and skipping cache for those requests
-	// causes later mid-track range fetches to hit upstream again and stall playback.
-	if (source !== "pandora" && contentType && shouldCacheUpstreamResponse(rangeHeader, upstream)) {
-		return streamThroughAndCache(
-			upstream,
-			source,
-			trackId,
-			contentType,
-			contentLength ? Number.parseInt(contentLength, 10) : null,
-		);
-	}
+  // For non-Pandora sources, cache full-body responses, including initial bytes=0-
+  // requests that upstream fulfills with the complete file. Browsers commonly start
+  // media playback with Range: bytes=0-, and skipping cache for those requests
+  // causes later mid-track range fetches to hit upstream again and stall playback.
+  if (
+    source !== "pandora" &&
+    contentType &&
+    shouldCacheUpstreamResponse(rangeHeader, upstream)
+  ) {
+    return streamThroughAndCache(
+      upstream,
+      source,
+      trackId,
+      contentType,
+      contentLength ? Number.parseInt(contentLength, 10) : null,
+    );
+  }
 
-	// Pandora or non-cacheable range requests on uncached files: pass through directly
-	const responseHeaders = new Headers();
-	if (contentType) responseHeaders.set("Content-Type", contentType);
-	if (contentLength) responseHeaders.set("Content-Length", contentLength);
+  // Pandora or non-cacheable range requests on uncached files: pass through directly
+  const responseHeaders = new Headers();
+  if (contentType) responseHeaders.set("Content-Type", contentType);
+  if (contentLength) responseHeaders.set("Content-Length", contentLength);
 
-	const contentRange = upstream.headers.get("content-range");
-	if (contentRange) responseHeaders.set("Content-Range", contentRange);
+  const contentRange = upstream.headers.get("content-range");
+  if (contentRange) responseHeaders.set("Content-Range", contentRange);
 
-	const acceptRanges = upstream.headers.get("accept-ranges");
-	if (acceptRanges) responseHeaders.set("Accept-Ranges", acceptRanges);
-	else responseHeaders.set("Accept-Ranges", "bytes");
+  const acceptRanges = upstream.headers.get("accept-ranges");
+  if (acceptRanges) responseHeaders.set("Accept-Ranges", acceptRanges);
+  else responseHeaders.set("Accept-Ranges", "bytes");
 
-	responseHeaders.set("Access-Control-Allow-Origin", "*");
-	responseHeaders.set("Access-Control-Expose-Headers", "Content-Range, Accept-Ranges, Content-Length");
+  responseHeaders.set("Access-Control-Allow-Origin", "*");
+  responseHeaders.set(
+    "Access-Control-Expose-Headers",
+    "Content-Range, Accept-Ranges, Content-Length",
+  );
 
-	return new Response(upstream.body, {
-		status: upstream.status,
-		headers: responseHeaders,
-	});
+  return new Response(upstream.body, {
+    status: upstream.status,
+    headers: responseHeaders,
+  });
 }

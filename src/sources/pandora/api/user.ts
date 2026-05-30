@@ -3,36 +3,36 @@
  * User account API for Pandora.
  * Provides functions for station list, bookmarks, settings, usage info, and song management.
  */
-import { Effect } from "effect"
-import { callPandoraMethod } from "./call.js"
+import type { Effect } from "effect";
 import type {
-  StationListResponse,
+  ChangeSettingsRequest,
   GetBookmarksResponse,
   GetSettingsResponse,
-  GetUsageInfoResponse,
   GetStationListChecksumResponse,
-  SetQuickMixRequest,
-  ChangeSettingsRequest,
+  GetUsageInfoResponse,
   SetExplicitContentFilterRequest,
-  SleepSongRequest
-} from "../types/api.js"
-import type { ApiCallError } from "../types/errors.js"
+  SetQuickMixRequest,
+  SleepSongRequest,
+  StationListResponse,
+} from "../types/api.js";
+import type { ApiCallError } from "../types/errors.js";
+import { callPandoraMethod } from "./call.js";
 
 /**
  * Authentication state required for authenticated Pandora API calls.
  */
 type AuthState = {
   /** Time offset between client and Pandora server (seconds) */
-  readonly syncTime: number
+  readonly syncTime: number;
   /** Unique identifier for the partner (device type) */
-  readonly partnerId: string
+  readonly partnerId: string;
   /** Authentication token for partner-level operations */
-  readonly partnerAuthToken: string
+  readonly partnerAuthToken: string;
   /** Authentication token for user-level operations */
-  readonly userAuthToken: string
+  readonly userAuthToken: string;
   /** Unique identifier for the authenticated user */
-  readonly userId: string
-}
+  readonly userId: string;
+};
 
 /**
  * Retrieves the list of stations for the authenticated user.
@@ -45,14 +45,14 @@ type AuthState = {
  * - Error: ApiCallError - when the API request fails
  */
 export const getStationList = (
-  state: AuthState
+  state: AuthState,
 ): Effect.Effect<StationListResponse, ApiCallError> =>
   callPandoraMethod<StationListResponse>(
     state,
     "user.getStationList",
     {},
-    { encrypted: true }
-  )
+    { encrypted: true },
+  );
 
 /**
  * Retrieves the user's bookmarked artists and songs.
@@ -65,14 +65,14 @@ export const getStationList = (
  * - Error: ApiCallError - when the API request fails
  */
 export const getBookmarks = (
-  state: AuthState
+  state: AuthState,
 ): Effect.Effect<GetBookmarksResponse, ApiCallError> =>
   callPandoraMethod<GetBookmarksResponse>(
     state,
     "user.getBookmarks",
     {},
-    { encrypted: true }
-  )
+    { encrypted: true },
+  );
 
 /**
  * Retrieves the user's account settings.
@@ -85,14 +85,14 @@ export const getBookmarks = (
  * - Error: ApiCallError - when the API request fails
  */
 export const getSettings = (
-  state: AuthState
+  state: AuthState,
 ): Effect.Effect<GetSettingsResponse, ApiCallError> =>
   callPandoraMethod<GetSettingsResponse>(
     state,
     "user.getSettings",
     {},
-    { encrypted: true }
-  )
+    { encrypted: true },
+  );
 
 /**
  * Retrieves usage information for the authenticated user's account.
@@ -105,14 +105,14 @@ export const getSettings = (
  * - Error: ApiCallError - when the API request fails
  */
 export const getUsageInfo = (
-  state: AuthState
+  state: AuthState,
 ): Effect.Effect<GetUsageInfoResponse, ApiCallError> =>
   callPandoraMethod<GetUsageInfoResponse>(
     state,
     "user.getUsageInfo",
     {},
-    { encrypted: true }
-  )
+    { encrypted: true },
+  );
 
 /**
  * Retrieves a checksum of the user's station list for change detection.
@@ -126,14 +126,14 @@ export const getUsageInfo = (
  * - Error: ApiCallError - when the API request fails
  */
 export const getStationListChecksum = (
-  state: AuthState
+  state: AuthState,
 ): Effect.Effect<GetStationListChecksumResponse, ApiCallError> =>
   callPandoraMethod<GetStationListChecksumResponse>(
     state,
     "user.getStationListChecksum",
     {},
-    { encrypted: true }
-  )
+    { encrypted: true },
+  );
 
 /**
  * Configures which stations are included in the QuickMix (Shuffle) station.
@@ -148,14 +148,11 @@ export const getStationListChecksum = (
  */
 export const setQuickMix = (
   state: AuthState,
-  request: SetQuickMixRequest
+  request: SetQuickMixRequest,
 ): Effect.Effect<Record<string, never>, ApiCallError> =>
-  callPandoraMethod<Record<string, never>>(
-    state,
-    "user.setQuickMix",
-    request,
-    { encrypted: true }
-  )
+  callPandoraMethod<Record<string, never>>(state, "user.setQuickMix", request, {
+    encrypted: true,
+  });
 
 /**
  * Updates user account settings.
@@ -170,14 +167,14 @@ export const setQuickMix = (
  */
 export const changeSettings = (
   state: AuthState,
-  request: ChangeSettingsRequest
+  request: ChangeSettingsRequest,
 ): Effect.Effect<Record<string, never>, ApiCallError> =>
   callPandoraMethod<Record<string, never>>(
     state,
     "user.changeSettings",
     request,
-    { encrypted: true }
-  )
+    { encrypted: true },
+  );
 
 /**
  * Enables or disables the explicit content filter for the user.
@@ -192,14 +189,14 @@ export const changeSettings = (
  */
 export const setExplicitContentFilter = (
   state: AuthState,
-  request: SetExplicitContentFilterRequest
+  request: SetExplicitContentFilterRequest,
 ): Effect.Effect<Record<string, never>, ApiCallError> =>
   callPandoraMethod<Record<string, never>>(
     state,
     "user.setExplicitContentFilter",
     request,
-    { encrypted: true }
-  )
+    { encrypted: true },
+  );
 
 /**
  * Temporarily hides a song from playback for 30 days ("I'm tired of this song").
@@ -214,11 +211,8 @@ export const setExplicitContentFilter = (
  */
 export const sleepSong = (
   state: AuthState,
-  request: SleepSongRequest
+  request: SleepSongRequest,
 ): Effect.Effect<Record<string, never>, ApiCallError> =>
-  callPandoraMethod<Record<string, never>>(
-    state,
-    "user.sleepSong",
-    request,
-    { encrypted: true }
-  )
+  callPandoraMethod<Record<string, never>>(state, "user.sleepSong", request, {
+    encrypted: true,
+  });

@@ -8,10 +8,30 @@
  * All functions require an authenticated session (AuthState) and use
  * encrypted API calls via callPandoraMethod.
  */
-import { Effect } from "effect"
-import { callPandoraMethod } from "./call.js"
-import type { PlaylistRequest, PlaylistResponse, GetGenreStationsResponse, GetStationRequest, GetStationResponse, ShareStationRequest, TransformSharedStationRequest, TransformSharedStationResponse, AddMusicRequest, AddMusicResponse, DeleteMusicRequest, AddFeedbackRequest, AddFeedbackResponse, DeleteFeedbackRequest, CreateStationRequest, CreateStationResponse, DeleteStationRequest, RenameStationRequest, RenameStationResponse } from "../types/api.js"
-import type { ApiCallError } from "../types/errors.js"
+import type { Effect } from "effect";
+import type {
+  AddFeedbackRequest,
+  AddFeedbackResponse,
+  AddMusicRequest,
+  AddMusicResponse,
+  CreateStationRequest,
+  CreateStationResponse,
+  DeleteFeedbackRequest,
+  DeleteMusicRequest,
+  DeleteStationRequest,
+  GetGenreStationsResponse,
+  GetStationRequest,
+  GetStationResponse,
+  PlaylistRequest,
+  PlaylistResponse,
+  RenameStationRequest,
+  RenameStationResponse,
+  ShareStationRequest,
+  TransformSharedStationRequest,
+  TransformSharedStationResponse,
+} from "../types/api.js";
+import type { ApiCallError } from "../types/errors.js";
+import { callPandoraMethod } from "./call.js";
 
 /**
  * Authentication state required for authenticated Pandora API calls.
@@ -19,16 +39,16 @@ import type { ApiCallError } from "../types/errors.js"
  */
 type AuthState = {
   /** Time offset between client and Pandora server (seconds) */
-  readonly syncTime: number
+  readonly syncTime: number;
   /** Unique identifier for the partner (device type) */
-  readonly partnerId: string
+  readonly partnerId: string;
   /** Authentication token for partner-level operations */
-  readonly partnerAuthToken: string
+  readonly partnerAuthToken: string;
   /** Authentication token for user-level operations */
-  readonly userAuthToken: string
+  readonly userAuthToken: string;
   /** Unique identifier for the authenticated user */
-  readonly userId: string
-}
+  readonly userId: string;
+};
 
 /**
  * Retrieves a playlist of tracks from a station.
@@ -43,14 +63,11 @@ type AuthState = {
  */
 export const getPlaylist = (
   state: AuthState,
-  request: PlaylistRequest
+  request: PlaylistRequest,
 ): Effect.Effect<PlaylistResponse, ApiCallError> =>
-  callPandoraMethod<PlaylistResponse>(
-    state,
-    "station.getPlaylist",
-    request,
-    { encrypted: true }
-  )
+  callPandoraMethod<PlaylistResponse>(state, "station.getPlaylist", request, {
+    encrypted: true,
+  });
 
 /**
  * Retrieves available genre stations organized by category.
@@ -64,14 +81,14 @@ export const getPlaylist = (
  * - Error: ApiCallError - when the API request fails
  */
 export const getGenreStations = (
-  state: AuthState
+  state: AuthState,
 ): Effect.Effect<GetGenreStationsResponse, ApiCallError> =>
   callPandoraMethod<GetGenreStationsResponse>(
     state,
     "station.getGenreStations",
     {},
-    { encrypted: true }
-  )
+    { encrypted: true },
+  );
 
 /**
  * Retrieves detailed information about a specific station.
@@ -86,14 +103,11 @@ export const getGenreStations = (
  */
 export const getStation = (
   state: AuthState,
-  request: GetStationRequest
+  request: GetStationRequest,
 ): Effect.Effect<GetStationResponse, ApiCallError> =>
-  callPandoraMethod<GetStationResponse>(
-    state,
-    "station.getStation",
-    request,
-    { encrypted: true }
-  )
+  callPandoraMethod<GetStationResponse>(state, "station.getStation", request, {
+    encrypted: true,
+  });
 
 /**
  * Shares a station with other users via email.
@@ -108,14 +122,14 @@ export const getStation = (
  */
 export const shareStation = (
   state: AuthState,
-  request: ShareStationRequest
+  request: ShareStationRequest,
 ): Effect.Effect<Record<string, never>, ApiCallError> =>
   callPandoraMethod<Record<string, never>>(
     state,
     "station.shareStation",
     request,
-    { encrypted: true }
-  )
+    { encrypted: true },
+  );
 
 /**
  * Converts a shared station into a personal station for the user.
@@ -130,14 +144,14 @@ export const shareStation = (
  */
 export const transformSharedStation = (
   state: AuthState,
-  request: TransformSharedStationRequest
+  request: TransformSharedStationRequest,
 ): Effect.Effect<TransformSharedStationResponse, ApiCallError> =>
   callPandoraMethod<TransformSharedStationResponse>(
     state,
     "station.transformSharedStation",
     request,
-    { encrypted: true }
-  )
+    { encrypted: true },
+  );
 
 /**
  * Adds feedback (thumbs up/down) for a track on a station.
@@ -153,14 +167,14 @@ export const transformSharedStation = (
  */
 export const addFeedback = (
   state: AuthState,
-  request: AddFeedbackRequest
+  request: AddFeedbackRequest,
 ): Effect.Effect<AddFeedbackResponse, ApiCallError> =>
   callPandoraMethod<AddFeedbackResponse>(
     state,
     "station.addFeedback",
     request,
-    { encrypted: true }
-  )
+    { encrypted: true },
+  );
 
 /**
  * Removes previously submitted feedback from a station.
@@ -175,14 +189,14 @@ export const addFeedback = (
  */
 export const deleteFeedback = (
   state: AuthState,
-  request: DeleteFeedbackRequest
+  request: DeleteFeedbackRequest,
 ): Effect.Effect<Record<string, never>, ApiCallError> =>
   callPandoraMethod<Record<string, never>>(
     state,
     "station.deleteFeedback",
     request,
-    { encrypted: true }
-  )
+    { encrypted: true },
+  );
 
 /**
  * Creates a new station based on a music token (artist, track, or genre).
@@ -197,14 +211,14 @@ export const deleteFeedback = (
  */
 export const createStation = (
   state: AuthState,
-  request: CreateStationRequest
+  request: CreateStationRequest,
 ): Effect.Effect<CreateStationResponse, ApiCallError> =>
   callPandoraMethod<CreateStationResponse>(
     state,
     "station.createStation",
     request,
-    { encrypted: true }
-  )
+    { encrypted: true },
+  );
 
 /**
  * Permanently deletes a station from the user's account.
@@ -219,14 +233,14 @@ export const createStation = (
  */
 export const deleteStation = (
   state: AuthState,
-  request: DeleteStationRequest
+  request: DeleteStationRequest,
 ): Effect.Effect<Record<string, never>, ApiCallError> =>
   callPandoraMethod<Record<string, never>>(
     state,
     "station.deleteStation",
     request,
-    { encrypted: true }
-  )
+    { encrypted: true },
+  );
 
 /**
  * Renames an existing station.
@@ -241,14 +255,14 @@ export const deleteStation = (
  */
 export const renameStation = (
   state: AuthState,
-  request: RenameStationRequest
+  request: RenameStationRequest,
 ): Effect.Effect<RenameStationResponse, ApiCallError> =>
   callPandoraMethod<RenameStationResponse>(
     state,
     "station.renameStation",
     request,
-    { encrypted: true }
-  )
+    { encrypted: true },
+  );
 
 /**
  * Adds a seed (artist, track, or genre) to a station to influence its music selection.
@@ -263,14 +277,11 @@ export const renameStation = (
  */
 export const addMusic = (
   state: AuthState,
-  request: AddMusicRequest
+  request: AddMusicRequest,
 ): Effect.Effect<AddMusicResponse, ApiCallError> =>
-  callPandoraMethod<AddMusicResponse>(
-    state,
-    "station.addMusic",
-    request,
-    { encrypted: true }
-  )
+  callPandoraMethod<AddMusicResponse>(state, "station.addMusic", request, {
+    encrypted: true,
+  });
 
 /**
  * Removes a seed from a station.
@@ -285,11 +296,11 @@ export const addMusic = (
  */
 export const deleteMusic = (
   state: AuthState,
-  request: DeleteMusicRequest
+  request: DeleteMusicRequest,
 ): Effect.Effect<Record<string, never>, ApiCallError> =>
   callPandoraMethod<Record<string, never>>(
     state,
     "station.deleteMusic",
     request,
-    { encrypted: true }
-  )
+    { encrypted: true },
+  );

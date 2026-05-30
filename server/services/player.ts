@@ -26,22 +26,22 @@ export type PlayerStatus = "playing" | "paused" | "stopped";
  * Contains current track info, playback position, and queue context.
  */
 export type PlayerState = {
-	/** Current playback status */
-	readonly status: PlayerStatus;
-	/** Currently playing track, or null if stopped */
-	readonly currentTrack: Queue.QueueTrack | null;
-	/** Next track in queue for prefetching, or null if none */
-	readonly nextTrack: Queue.QueueTrack | null;
-	/** Current playback position in seconds */
-	readonly progress: number;
-	/** Total track duration in seconds */
-	readonly duration: number;
-	/** Volume level from 0-100 */
-	readonly volume: number;
-	/** Unix timestamp (ms) of last state update, used for progress calculation */
-	readonly updatedAt: number;
-	/** Context describing what is being played (radio, album, playlist, manual) */
-	readonly queueContext: Queue.QueueContext;
+  /** Current playback status */
+  readonly status: PlayerStatus;
+  /** Currently playing track, or null if stopped */
+  readonly currentTrack: Queue.QueueTrack | null;
+  /** Next track in queue for prefetching, or null if none */
+  readonly nextTrack: Queue.QueueTrack | null;
+  /** Current playback position in seconds */
+  readonly progress: number;
+  /** Total track duration in seconds */
+  readonly duration: number;
+  /** Volume level from 0-100 */
+  readonly volume: number;
+  /** Unix timestamp (ms) of last state update, used for progress calculation */
+  readonly updatedAt: number;
+  /** Context describing what is being played (radio, album, playlist, manual) */
+  readonly queueContext: Queue.QueueContext;
 };
 
 /**
@@ -63,54 +63,54 @@ const listeners = new Set<PlayerListener>();
 let listenLogWriteQueue: Promise<void> = Promise.resolve();
 
 export type AudioRealizationState = {
-	readonly observedAt: number | null;
-	readonly failed: boolean;
-	readonly error: string | null;
+  readonly observedAt: number | null;
+  readonly failed: boolean;
+  readonly error: string | null;
 };
 
 export function getAudioRealization(): AudioRealizationState {
-	return {
-		observedAt: audioObservedAt,
-		failed: audioFailed,
-		error: audioError,
-	};
+  return {
+    observedAt: audioObservedAt,
+    failed: audioFailed,
+    error: audioError,
+  };
 }
 
 function resetAudioRealization(): void {
-	audioObservedAt = null;
-	audioFailed = false;
-	audioError = null;
+  audioObservedAt = null;
+  audioFailed = false;
+  audioError = null;
 }
 
 function markAudioObserved(): void {
-	audioObservedAt = Date.now();
-	audioFailed = false;
-	audioError = null;
+  audioObservedAt = Date.now();
+  audioFailed = false;
+  audioError = null;
 }
 
 function notify(): void {
-	const state = getState();
-	const trackId = state.currentTrack?.id ?? "none";
-	const nextId = state.nextTrack?.id ?? "none";
-	log.info(
-		{
-			status: state.status,
-			track: trackId,
-			next: nextId,
-			listeners: listeners.size,
-		},
-		"notify",
-	);
-	schedulePlayerSave({
-		status: state.status,
-		progress: state.progress,
-		duration: state.duration,
-		volume: state.volume,
-		updatedAt: state.updatedAt,
-	});
-	for (const listener of listeners) {
-		listener(state);
-	}
+  const state = getState();
+  const trackId = state.currentTrack?.id ?? "none";
+  const nextId = state.nextTrack?.id ?? "none";
+  log.info(
+    {
+      status: state.status,
+      track: trackId,
+      next: nextId,
+      listeners: listeners.size,
+    },
+    "notify",
+  );
+  schedulePlayerSave({
+    status: state.status,
+    progress: state.progress,
+    duration: state.duration,
+    volume: state.volume,
+    updatedAt: state.updatedAt,
+  });
+  for (const listener of listeners) {
+    listener(state);
+  }
 }
 
 /**
@@ -126,16 +126,16 @@ function notify(): void {
  * ```
  */
 export function getState(): PlayerState {
-	return {
-		status,
-		currentTrack: Queue.currentTrack() ?? null,
-		nextTrack: Queue.nextTrack() ?? null,
-		progress: getProgress(),
-		duration,
-		volume,
-		updatedAt,
-		queueContext: Queue.getState().context,
-	};
+  return {
+    status,
+    currentTrack: Queue.currentTrack() ?? null,
+    nextTrack: Queue.nextTrack() ?? null,
+    progress: getProgress(),
+    duration,
+    volume,
+    updatedAt,
+    queueContext: Queue.getState().context,
+  };
 }
 
 /**
@@ -144,11 +144,11 @@ export function getState(): PlayerState {
  * When paused/stopped, return stored progress.
  */
 function getProgress(): number {
-	if (status === "playing") {
-		const elapsed = (Date.now() - updatedAt) / 1000;
-		return Math.min(progress + elapsed, duration || Number.MAX_SAFE_INTEGER);
-	}
-	return progress;
+  if (status === "playing") {
+    const elapsed = (Date.now() - updatedAt) / 1000;
+    return Math.min(progress + elapsed, duration || Number.MAX_SAFE_INTEGER);
+  }
+  return progress;
 }
 
 const LISTEN_THRESHOLD_SECONDS = 30;
@@ -158,44 +158,44 @@ const LISTEN_THRESHOLD_SECONDS = 30;
  * Must be called BEFORE state is overwritten in transition functions.
  */
 function maybeLogListen(): void {
-	const currentTrack = Queue.currentTrack();
-	if (!currentTrack) return;
+  const currentTrack = Queue.currentTrack();
+  if (!currentTrack) return;
 
-	const currentProgress = getProgress();
-	if (currentProgress < LISTEN_THRESHOLD_SECONDS) return;
+  const currentProgress = getProgress();
+  if (currentProgress < LISTEN_THRESHOLD_SECONDS) return;
 
-	const listenEntry = {
-		id: generateId(),
-		compositeId: currentTrack.id,
-		title: currentTrack.title,
-		artist: currentTrack.artist,
-		album: currentTrack.album,
-		source: currentTrack.source,
-		listenedAt: Date.now(),
-	};
+  const listenEntry = {
+    id: generateId(),
+    compositeId: currentTrack.id,
+    title: currentTrack.title,
+    artist: currentTrack.artist,
+    album: currentTrack.album,
+    source: currentTrack.source,
+    listenedAt: Date.now(),
+  };
 
-	listenLogWriteQueue = listenLogWriteQueue
-		.catch(() => {
-			// Previous write failure already logged; keep queue alive.
-		})
-		.then(async () => {
-			try {
-				const db = await getDb();
-				// ProseQL appendOnly collection: create appends a line to JSONL.
-				// Serialize writes because concurrent appends can corrupt the JSONL file.
-				await db.listenLog.create(listenEntry).runPromise;
-				log.info(
-					{ track: listenEntry.compositeId, progress: currentProgress },
-					"listen logged",
-				);
-			} catch (err) {
-				log.error(
-					{ err, track: listenEntry.compositeId },
-					"failed to log listen",
-				);
-				throw err;
-			}
-		});
+  listenLogWriteQueue = listenLogWriteQueue
+    .catch(() => {
+      // Previous write failure already logged; keep queue alive.
+    })
+    .then(async () => {
+      try {
+        const db = await getDb();
+        // ProseQL appendOnly collection: create appends a line to JSONL.
+        // Serialize writes because concurrent appends can corrupt the JSONL file.
+        await db.listenLog.create(listenEntry).runPromise;
+        log.info(
+          { track: listenEntry.compositeId, progress: currentProgress },
+          "listen logged",
+        );
+      } catch (err) {
+        log.error(
+          { err, track: listenEntry.compositeId },
+          "failed to log listen",
+        );
+        throw err;
+      }
+    });
 }
 
 /**
@@ -214,10 +214,10 @@ function maybeLogListen(): void {
  * ```
  */
 export function subscribe(listener: PlayerListener): () => void {
-	listeners.add(listener);
-	return () => {
-		listeners.delete(listener);
-	};
+  listeners.add(listener);
+  return () => {
+    listeners.delete(listener);
+  };
 }
 
 /**
@@ -242,36 +242,36 @@ export function subscribe(listener: PlayerListener): () => void {
  * ```
  */
 export function play(
-	tracks?: readonly Queue.QueueTrack[],
-	context?: Queue.QueueContext,
-	startIndex?: number,
+  tracks?: readonly Queue.QueueTrack[],
+  context?: Queue.QueueContext,
+  startIndex?: number,
 ): void {
-	log.info(
-		{ tracks: tracks?.length ?? "none", startIndex: startIndex ?? "none" },
-		"play() called",
-	);
-	if (tracks && context) {
-		maybeLogListen();
-		Queue.setQueue(tracks, context, startIndex);
-	}
+  log.info(
+    { tracks: tracks?.length ?? "none", startIndex: startIndex ?? "none" },
+    "play() called",
+  );
+  if (tracks && context) {
+    maybeLogListen();
+    Queue.setQueue(tracks, context, startIndex);
+  }
 
-	const track = Queue.currentTrack();
-	if (!track) {
-		status = "stopped";
-		progress = 0;
-		duration = 0;
-		resetAudioRealization();
-		updatedAt = Date.now();
-		notify();
-		return;
-	}
+  const track = Queue.currentTrack();
+  if (!track) {
+    status = "stopped";
+    progress = 0;
+    duration = 0;
+    resetAudioRealization();
+    updatedAt = Date.now();
+    notify();
+    return;
+  }
 
-	status = "playing";
-	progress = 0;
-	duration = track.duration ?? 0;
-	resetAudioRealization();
-	updatedAt = Date.now();
-	notify();
+  status = "playing";
+  progress = 0;
+  duration = track.duration ?? 0;
+  resetAudioRealization();
+  updatedAt = Date.now();
+  notify();
 }
 
 /**
@@ -279,12 +279,12 @@ export function play(
  * No-op if not currently playing.
  */
 export function pause(): void {
-	log.info({ current: status }, "pause() called");
-	if (status !== "playing") return;
-	progress = getProgress();
-	status = "paused";
-	updatedAt = Date.now();
-	notify();
+  log.info({ current: status }, "pause() called");
+  if (status !== "playing") return;
+  progress = getProgress();
+  status = "paused";
+  updatedAt = Date.now();
+  notify();
 }
 
 /**
@@ -292,11 +292,11 @@ export function pause(): void {
  * No-op if not currently paused.
  */
 export function resume(): void {
-	log.info({ current: status }, "resume() called");
-	if (status !== "paused") return;
-	status = "playing";
-	updatedAt = Date.now();
-	notify();
+  log.info({ current: status }, "resume() called");
+  if (status !== "paused") return;
+  status = "playing";
+  updatedAt = Date.now();
+  notify();
 }
 
 /**
@@ -304,14 +304,14 @@ export function resume(): void {
  * Resets progress and duration to zero.
  */
 export function stop(): void {
-	maybeLogListen();
-	progress = 0;
-	duration = 0;
-	status = "stopped";
-	resetAudioRealization();
-	updatedAt = Date.now();
-	Queue.clear();
-	notify();
+  maybeLogListen();
+  progress = 0;
+  duration = 0;
+  status = "stopped";
+  resetAudioRealization();
+  updatedAt = Date.now();
+  Queue.clear();
+  notify();
 }
 
 /**
@@ -321,32 +321,32 @@ export function stop(): void {
  * @returns The new current track, or undefined if the queue ended
  */
 export function skip(): Queue.QueueTrack | undefined {
-	log.info(
-		{
-			currentIndex: Queue.getState().currentIndex,
-			queueLen: Queue.getState().items.length,
-		},
-		"skip() called",
-	);
-	maybeLogListen();
-	const nextTrack = Queue.next();
-	if (!nextTrack) {
-		status = "stopped";
-		progress = 0;
-		duration = 0;
-		resetAudioRealization();
-		updatedAt = Date.now();
-		notify();
-		return undefined;
-	}
+  log.info(
+    {
+      currentIndex: Queue.getState().currentIndex,
+      queueLen: Queue.getState().items.length,
+    },
+    "skip() called",
+  );
+  maybeLogListen();
+  const nextTrack = Queue.next();
+  if (!nextTrack) {
+    status = "stopped";
+    progress = 0;
+    duration = 0;
+    resetAudioRealization();
+    updatedAt = Date.now();
+    notify();
+    return undefined;
+  }
 
-	status = "playing";
-	progress = 0;
-	duration = nextTrack.duration ?? 0;
-	resetAudioRealization();
-	updatedAt = Date.now();
-	notify();
-	return nextTrack;
+  status = "playing";
+  progress = 0;
+  duration = nextTrack.duration ?? 0;
+  resetAudioRealization();
+  updatedAt = Date.now();
+  notify();
+  return nextTrack;
 }
 
 /**
@@ -356,21 +356,21 @@ export function skip(): Queue.QueueTrack | undefined {
  * @returns The new current track, or undefined if at queue start
  */
 export function previousTrack(): Queue.QueueTrack | undefined {
-	log.info(
-		{ currentIndex: Queue.getState().currentIndex },
-		"previous() called",
-	);
-	maybeLogListen();
-	const prev = Queue.previous();
-	if (!prev) return undefined;
+  log.info(
+    { currentIndex: Queue.getState().currentIndex },
+    "previous() called",
+  );
+  maybeLogListen();
+  const prev = Queue.previous();
+  if (!prev) return undefined;
 
-	status = "playing";
-	progress = 0;
-	duration = prev.duration ?? 0;
-	resetAudioRealization();
-	updatedAt = Date.now();
-	notify();
-	return prev;
+  status = "playing";
+  progress = 0;
+  duration = prev.duration ?? 0;
+  resetAudioRealization();
+  updatedAt = Date.now();
+  notify();
+  return prev;
 }
 
 /**
@@ -388,21 +388,21 @@ export function previousTrack(): Queue.QueueTrack | undefined {
  * ```
  */
 export function jumpToIndex(index: number): Queue.QueueTrack | undefined {
-	log.info(
-		{ index, currentIndex: Queue.getState().currentIndex },
-		"jumpTo() called",
-	);
-	maybeLogListen();
-	const track = Queue.jumpTo(index);
-	if (!track) return undefined;
+  log.info(
+    { index, currentIndex: Queue.getState().currentIndex },
+    "jumpTo() called",
+  );
+  maybeLogListen();
+  const track = Queue.jumpTo(index);
+  if (!track) return undefined;
 
-	status = "playing";
-	progress = 0;
-	duration = track.duration ?? 0;
-	resetAudioRealization();
-	updatedAt = Date.now();
-	notify();
-	return track;
+  status = "playing";
+  progress = 0;
+  duration = track.duration ?? 0;
+  resetAudioRealization();
+  updatedAt = Date.now();
+  notify();
+  return track;
 }
 
 /**
@@ -412,9 +412,9 @@ export function jumpToIndex(index: number): Queue.QueueTrack | undefined {
  * @param position - Target position in seconds
  */
 export function seek(position: number): void {
-	progress = Math.max(0, Math.min(position, duration));
-	updatedAt = Date.now();
-	notify();
+  progress = Math.max(0, Math.min(position, duration));
+  updatedAt = Date.now();
+  notify();
 }
 
 /**
@@ -424,8 +424,8 @@ export function seek(position: number): void {
  * @param level - Volume level from 0 (mute) to 100 (max)
  */
 export function setVolume(level: number): void {
-	volume = Math.max(0, Math.min(100, level));
-	notify();
+  volume = Math.max(0, Math.min(100, level));
+  notify();
 }
 
 /**
@@ -435,10 +435,10 @@ export function setVolume(level: number): void {
  * overwrite progress, duration, audio realization, or advance the queue.
  */
 function isStaleReport(appliesToTrackId: string | undefined): boolean {
-	if (appliesToTrackId === undefined) return false;
-	const current = Queue.currentTrack();
-	if (!current) return true;
-	return current.id !== appliesToTrackId;
+  if (appliesToTrackId === undefined) return false;
+  const current = Queue.currentTrack();
+  if (!current) return true;
+  return current.id !== appliesToTrackId;
 }
 
 /**
@@ -452,18 +452,18 @@ function isStaleReport(appliesToTrackId: string | undefined): boolean {
  *   as stale.
  */
 export function setDuration(d: number, appliesToTrackId?: string): boolean {
-	if (isStaleReport(appliesToTrackId)) {
-		log.debug(
-			{ appliesToTrackId, current: Queue.currentTrack()?.id ?? "none" },
-			"stale duration report ignored",
-		);
-		return false;
-	}
-	duration = d;
-	markAudioObserved();
-	updatedAt = Date.now();
-	notify();
-	return true;
+  if (isStaleReport(appliesToTrackId)) {
+    log.debug(
+      { appliesToTrackId, current: Queue.currentTrack()?.id ?? "none" },
+      "stale duration report ignored",
+    );
+    return false;
+  }
+  duration = d;
+  markAudioObserved();
+  updatedAt = Date.now();
+  notify();
+  return true;
 }
 
 /**
@@ -477,37 +477,37 @@ export function setDuration(d: number, appliesToTrackId?: string): boolean {
  *   as stale.
  */
 export function reportProgress(p: number, appliesToTrackId?: string): boolean {
-	if (isStaleReport(appliesToTrackId)) {
-		log.debug(
-			{ appliesToTrackId, current: Queue.currentTrack()?.id ?? "none" },
-			"stale progress report ignored",
-		);
-		return false;
-	}
-	progress = p;
-	markAudioObserved();
-	updatedAt = Date.now();
-	// No notify — this is a silent update from client to keep server in sync
-	return true;
+  if (isStaleReport(appliesToTrackId)) {
+    log.debug(
+      { appliesToTrackId, current: Queue.currentTrack()?.id ?? "none" },
+      "stale progress report ignored",
+    );
+    return false;
+  }
+  progress = p;
+  markAudioObserved();
+  updatedAt = Date.now();
+  // No notify — this is a silent update from client to keep server in sync
+  return true;
 }
 
 export function reportAudioError(
-	message: string,
-	appliesToTrackId?: string,
+  message: string,
+  appliesToTrackId?: string,
 ): boolean {
-	if (isStaleReport(appliesToTrackId)) {
-		log.debug(
-			{ appliesToTrackId, current: Queue.currentTrack()?.id ?? "none" },
-			"stale audio error report ignored",
-		);
-		return false;
-	}
-	audioFailed = true;
-	audioError = message.slice(0, 500);
-	audioObservedAt = null;
-	updatedAt = Date.now();
-	notify();
-	return true;
+  if (isStaleReport(appliesToTrackId)) {
+    log.debug(
+      { appliesToTrackId, current: Queue.currentTrack()?.id ?? "none" },
+      "stale audio error report ignored",
+    );
+    return false;
+  }
+  audioFailed = true;
+  audioError = message.slice(0, 500);
+  audioObservedAt = null;
+  updatedAt = Date.now();
+  notify();
+  return true;
 }
 
 /**
@@ -521,16 +521,16 @@ export function reportAudioError(
  *   stopped, the queue ended, or the report was dropped as stale.
  */
 export function trackEnded(
-	appliesToTrackId?: string,
+  appliesToTrackId?: string,
 ): Queue.QueueTrack | undefined {
-	if (isStaleReport(appliesToTrackId)) {
-		log.debug(
-			{ appliesToTrackId, current: Queue.currentTrack()?.id ?? "none" },
-			"stale trackEnded ignored",
-		);
-		return undefined;
-	}
-	return skip();
+  if (isStaleReport(appliesToTrackId)) {
+    log.debug(
+      { appliesToTrackId, current: Queue.currentTrack()?.id ?? "none" },
+      "stale trackEnded ignored",
+    );
+    return undefined;
+  }
+  return skip();
 }
 
 /**
@@ -550,27 +550,27 @@ export function trackEnded(
  * ```
  */
 export async function restoreFromDb(): Promise<boolean> {
-	const queueRestored = await Queue.restoreFromDb();
-	if (!queueRestored) return false;
+  const queueRestored = await Queue.restoreFromDb();
+  if (!queueRestored) return false;
 
-	const saved = await loadPlayerState();
-	if (saved) {
-		// Restore to paused — server can't play audio
-		status = "paused";
-		progress = saved.progress;
-		duration = saved.duration;
-		volume = saved.volume;
-		updatedAt = Date.now();
-	} else {
-		// Queue was restored but no player state — set defaults
-		const track = Queue.currentTrack();
-		status = "paused";
-		progress = 0;
-		duration = track?.duration ?? 0;
-		volume = 100;
-		updatedAt = Date.now();
-	}
+  const saved = await loadPlayerState();
+  if (saved) {
+    // Restore to paused — server can't play audio
+    status = "paused";
+    progress = saved.progress;
+    duration = saved.duration;
+    volume = saved.volume;
+    updatedAt = Date.now();
+  } else {
+    // Queue was restored but no player state — set defaults
+    const track = Queue.currentTrack();
+    status = "paused";
+    progress = 0;
+    duration = track?.duration ?? 0;
+    volume = 100;
+    updatedAt = Date.now();
+  }
 
-	notify();
-	return true;
+  notify();
+  return true;
 }

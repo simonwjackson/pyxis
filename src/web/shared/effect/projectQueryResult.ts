@@ -24,34 +24,34 @@ import type { ApiPublicError } from "../../../api/contracts/common.js";
  * domain errors.
  */
 export function projectQueryResult<A>(
-	result: AsyncResult.AsyncResult<A, ApiPublicError | RpcClientError>,
+  result: AsyncResult.AsyncResult<A, ApiPublicError | RpcClientError>,
 ): AsyncResult.AsyncResult<A, ApiPublicError> {
-	if (result._tag !== "Failure") {
-		return result as AsyncResult.AsyncResult<A, ApiPublicError>;
-	}
-	const found = Cause.findErrorOption(result.cause);
-	if (found._tag === "Some" && isApiPublicError(found.value)) {
-		return result as AsyncResult.AsyncResult<A, ApiPublicError>;
-	}
-	const defect = found._tag === "Some" ? found.value : result.cause;
-	return AsyncResult.failure<A, ApiPublicError>(Cause.die(defect));
+  if (result._tag !== "Failure") {
+    return result as AsyncResult.AsyncResult<A, ApiPublicError>;
+  }
+  const found = Cause.findErrorOption(result.cause);
+  if (found._tag === "Some" && isApiPublicError(found.value)) {
+    return result as AsyncResult.AsyncResult<A, ApiPublicError>;
+  }
+  const defect = found._tag === "Some" ? found.value : result.cause;
+  return AsyncResult.failure<A, ApiPublicError>(Cause.die(defect));
 }
 
 const PUBLIC_ERROR_TAGS = new Set<string>([
-	"ValidationError",
-	"Unauthorized",
-	"AuthRefreshFailed",
-	"NotFound",
-	"SourceUnavailable",
-	"PersistenceError",
-	"UpstreamProviderError",
-	"StaleCommand",
-	"StaleReport",
-	"Defect",
+  "ValidationError",
+  "Unauthorized",
+  "AuthRefreshFailed",
+  "NotFound",
+  "SourceUnavailable",
+  "PersistenceError",
+  "UpstreamProviderError",
+  "StaleCommand",
+  "StaleReport",
+  "Defect",
 ]);
 
 function isApiPublicError(value: unknown): value is ApiPublicError {
-	if (typeof value !== "object" || value === null) return false;
-	const tag = (value as { _tag?: unknown })._tag;
-	return typeof tag === "string" && PUBLIC_ERROR_TAGS.has(tag);
+  if (typeof value !== "object" || value === null) return false;
+  const tag = (value as { _tag?: unknown })._tag;
+  return typeof tag === "string" && PUBLIC_ERROR_TAGS.has(tag);
 }

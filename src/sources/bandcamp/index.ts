@@ -4,6 +4,23 @@
  * Provides search, album details, and streaming capabilities via Bandcamp's API.
  */
 
-export { createBandcampClient, type BandcampClient, type BandcampClientConfig } from "./client.js";
-export type { AutocompleteItem, AutocompleteResult, SearchItemType, TralbumDetails, Track, BandInfo, Tag } from "./schemas.js";
-export { createBandcampSource, createBandcampFullSource, type BandcampSourceConfig, type BandcampFullSource } from "./source.js";
+export {
+  type BandcampClient,
+  type BandcampClientConfig,
+  createBandcampClient,
+} from "./client.js";
+export type {
+  AutocompleteItem,
+  AutocompleteResult,
+  BandInfo,
+  SearchItemType,
+  Tag,
+  Track,
+  TralbumDetails,
+} from "./schemas.js";
+export {
+  type BandcampFullSource,
+  type BandcampSourceConfig,
+  createBandcampFullSource,
+  createBandcampSource,
+} from "./source.js";

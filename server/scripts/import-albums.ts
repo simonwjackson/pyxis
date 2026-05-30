@@ -25,18 +25,18 @@
  */
 
 import { readFileSync } from "node:fs";
-import { parse } from "yaml";
 import { Effect } from "effect";
-import { getDb } from "../../src/db/index.js";
-import { createSourceManager } from "../../src/sources/index.js";
-import { createYtMusicSource } from "../../src/sources/ytmusic/index.js";
 import { nanoid } from "nanoid";
+import { parse } from "yaml";
+import { getDb } from "../../src/db/index.js";
 import { createLogger } from "../../src/logger.js";
+import { createSourceManager } from "../../src/sources/index.js";
 import type { SourceType } from "../../src/sources/types.js";
+import { createYtMusicSource } from "../../src/sources/ytmusic/index.js";
 
 const YAML_PATH =
-	process.argv[2] ??
-	"/home/simonwjackson/.claude-accounts/personal/albums.yaml";
+  process.argv[2] ??
+  "/home/simonwjackson/.claude-accounts/personal/albums.yaml";
 const DELAY_MS = 1500;
 const MAX_RETRIES = 3;
 const RETRY_DELAY_MS = 5000;
@@ -47,26 +47,26 @@ const logger = createLogger("import");
  * Source reference within an album YAML entry.
  */
 type AlbumSource = {
-	readonly type: string;
-	readonly id: string;
+  readonly type: string;
+  readonly id: string;
 };
 
 /**
  * Album entry structure from the YAML import file.
  */
 type AlbumEntry = {
-	readonly title: string;
-	readonly artist: string;
-	readonly year?: number;
-	readonly artworkUrl?: string;
-	readonly sources: readonly AlbumSource[];
+  readonly title: string;
+  readonly artist: string;
+  readonly year?: number;
+  readonly artworkUrl?: string;
+  readonly sources: readonly AlbumSource[];
 };
 
 /**
  * Root structure of the albums YAML file.
  */
 type YamlData = {
-	readonly albums: readonly AlbumEntry[];
+  readonly albums: readonly AlbumEntry[];
 };
 
 /**
@@ -76,7 +76,7 @@ type YamlData = {
  * @returns Promise that resolves after the delay
  */
 function sleep(ms: number): Promise<void> {
-	return new Promise((resolve) => setTimeout(resolve, ms));
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 /**
@@ -85,7 +85,7 @@ function sleep(ms: number): Promise<void> {
  * @returns 10-character nanoid string
  */
 function generateId(): string {
-	return nanoid(10);
+  return nanoid(10);
 }
 
 /**
@@ -95,169 +95,169 @@ function generateId(): string {
  * Includes retry logic for transient failures.
  */
 async function main(): Promise<void> {
-	const raw = readFileSync(YAML_PATH, "utf-8");
-	const data = parse(raw) as YamlData;
-	const albums = data.albums;
+  const raw = readFileSync(YAML_PATH, "utf-8");
+  const data = parse(raw) as YamlData;
+  const albums = data.albums;
 
-	console.log(`Found ${albums.length} albums in ${YAML_PATH}`);
-	console.log("Mode: direct in-process (no HTTP server needed)");
-	console.log("---");
+  console.log(`Found ${albums.length} albums in ${YAML_PATH}`);
+  console.log("Mode: direct in-process (no HTTP server needed)");
+  console.log("---");
 
-	// Initialize DB and source manager directly
-	const db = await getDb();
-	const ytmusic = createYtMusicSource({ playlists: [] });
-	const sourceManager = createSourceManager([ytmusic], [], logger);
+  // Initialize DB and source manager directly
+  const db = await getDb();
+  const ytmusic = createYtMusicSource({ playlists: [] });
+  const sourceManager = createSourceManager([ytmusic], [], logger);
 
-	let succeeded = 0;
-	let skipped = 0;
-	let failed = 0;
-	const failures: Array<{
-		readonly index: number;
-		readonly title: string;
-		readonly artist: string;
-		readonly error: string;
-	}> = [];
+  let succeeded = 0;
+  let skipped = 0;
+  let failed = 0;
+  const failures: Array<{
+    readonly index: number;
+    readonly title: string;
+    readonly artist: string;
+    readonly error: string;
+  }> = [];
 
-	for (let i = 0; i < albums.length; i++) {
-		const album = albums[i];
-		if (!album) continue;
+  for (let i = 0; i < albums.length; i++) {
+    const album = albums[i];
+    if (!album) continue;
 
-		const source = album.sources[0];
-		if (!source) {
-			console.log(
-				`[${i + 1}/${albums.length}] SKIP (no source): ${album.title} - ${album.artist}`,
-			);
-			skipped++;
-			continue;
-		}
+    const source = album.sources[0];
+    if (!source) {
+      console.log(
+        `[${i + 1}/${albums.length}] SKIP (no source): ${album.title} - ${album.artist}`,
+      );
+      skipped++;
+      continue;
+    }
 
-		const sourceType = source.type as SourceType;
-		const albumId = source.id;
+    const sourceType = source.type as SourceType;
+    const albumId = source.id;
 
-		// Check if already exists using indexed [source, sourceId] query
-		const existing = await db.albumSourceRefs.query({
-			where: { source: sourceType, sourceId: albumId },
-		}).runPromise;
-		if (existing[0]) {
-			console.log(
-				`[${i + 1}/${albums.length}] EXISTS: ${album.title} - ${album.artist}`,
-			);
-			skipped++;
-			continue;
-		}
+    // Check if already exists using indexed [source, sourceId] query
+    const existing = await db.albumSourceRefs.query({
+      where: { source: sourceType, sourceId: albumId },
+    }).runPromise;
+    if (existing[0]) {
+      console.log(
+        `[${i + 1}/${albums.length}] EXISTS: ${album.title} - ${album.artist}`,
+      );
+      skipped++;
+      continue;
+    }
 
-		let lastError = "";
-		for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
-			try {
-				const { album: fetchedAlbum, tracks } =
-					await sourceManager.getAlbumTracks(sourceType, albumId);
+    let lastError = "";
+    for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+      try {
+        const { album: fetchedAlbum, tracks } =
+          await sourceManager.getAlbumTracks(sourceType, albumId);
 
-				const newAlbumId = generateId();
-				const now = Date.now();
+        const newAlbumId = generateId();
+        const now = Date.now();
 
-				// Use Effect.gen for the transaction
-				await Effect.runPromise(
-					db.$transaction((tx) =>
-						Effect.gen(function* () {
-							yield* tx.albums.create({
-								id: newAlbumId,
-								title: fetchedAlbum.title,
-								artist: fetchedAlbum.artist,
-								...(fetchedAlbum.year != null
-									? { year: fetchedAlbum.year }
-									: {}),
-								...(fetchedAlbum.artworkUrl != null
-									? { artworkUrl: fetchedAlbum.artworkUrl }
-									: {}),
-								placement: "collection",
-								placementUpdatedAt: now,
-								createdAt: now,
-							} as never);
+        // Use Effect.gen for the transaction
+        await Effect.runPromise(
+          db.$transaction((tx) =>
+            Effect.gen(function* () {
+              yield* tx.albums.create({
+                id: newAlbumId,
+                title: fetchedAlbum.title,
+                artist: fetchedAlbum.artist,
+                ...(fetchedAlbum.year != null
+                  ? { year: fetchedAlbum.year }
+                  : {}),
+                ...(fetchedAlbum.artworkUrl != null
+                  ? { artworkUrl: fetchedAlbum.artworkUrl }
+                  : {}),
+                placement: "collection",
+                placementUpdatedAt: now,
+                createdAt: now,
+              } as never);
 
-							for (const sid of fetchedAlbum.sourceIds) {
-								yield* tx.albumSourceRefs.create({
-									id: `${newAlbumId}-${sid.source}-${sid.id}`,
-									albumId: newAlbumId,
-									source: sid.source,
-									sourceId: sid.id,
-								});
-							}
+              for (const sid of fetchedAlbum.sourceIds) {
+                yield* tx.albumSourceRefs.create({
+                  id: `${newAlbumId}-${sid.source}-${sid.id}`,
+                  albumId: newAlbumId,
+                  source: sid.source,
+                  sourceId: sid.id,
+                });
+              }
 
-							for (const [index, track] of tracks.entries()) {
-								yield* tx.albumTracks.create({
-									id: generateId(),
-									albumId: newAlbumId,
-									trackIndex: index,
-									title: track.title,
-									artist: track.artist,
-									source: track.sourceId.source,
-									sourceTrackId: track.sourceId.id,
-									...(track.duration != null
-										? { duration: Math.round(track.duration) }
-										: {}),
-									...(track.artworkUrl != null
-										? { artworkUrl: track.artworkUrl }
-										: {}),
-								});
-							}
-						})
-					)
-				);
+              for (const [index, track] of tracks.entries()) {
+                yield* tx.albumTracks.create({
+                  id: generateId(),
+                  albumId: newAlbumId,
+                  trackIndex: index,
+                  title: track.title,
+                  artist: track.artist,
+                  source: track.sourceId.source,
+                  sourceTrackId: track.sourceId.id,
+                  ...(track.duration != null
+                    ? { duration: Math.round(track.duration) }
+                    : {}),
+                  ...(track.artworkUrl != null
+                    ? { artworkUrl: track.artworkUrl }
+                    : {}),
+                });
+              }
+            }),
+          ),
+        );
 
-				// Flush to disk after each album for immediate persistence
-				await db.flush();
+        // Flush to disk after each album for immediate persistence
+        await db.flush();
 
-				console.log(
-					`[${i + 1}/${albums.length}] SAVED: ${fetchedAlbum.title} - ${fetchedAlbum.artist} (${newAlbumId}, ${tracks.length} tracks)`,
-				);
-				succeeded++;
-				lastError = "";
-				break;
-			} catch (err) {
-				lastError = err instanceof Error ? err.message : String(err);
-				if (attempt < MAX_RETRIES) {
-					console.warn(
-						`  Retry ${attempt + 1}/${MAX_RETRIES} for ${album.title}: ${lastError.slice(0, 120)}`,
-					);
-					await sleep(RETRY_DELAY_MS);
-				}
-			}
-		}
+        console.log(
+          `[${i + 1}/${albums.length}] SAVED: ${fetchedAlbum.title} - ${fetchedAlbum.artist} (${newAlbumId}, ${tracks.length} tracks)`,
+        );
+        succeeded++;
+        lastError = "";
+        break;
+      } catch (err) {
+        lastError = err instanceof Error ? err.message : String(err);
+        if (attempt < MAX_RETRIES) {
+          console.warn(
+            `  Retry ${attempt + 1}/${MAX_RETRIES} for ${album.title}: ${lastError.slice(0, 120)}`,
+          );
+          await sleep(RETRY_DELAY_MS);
+        }
+      }
+    }
 
-		if (lastError) {
-			console.error(
-				`[${i + 1}/${albums.length}] FAILED: ${album.title} - ${album.artist} (${lastError})`,
-			);
-			failures.push({
-				index: i + 1,
-				title: album.title,
-				artist: album.artist,
-				error: lastError,
-			});
-			failed++;
-		}
+    if (lastError) {
+      console.error(
+        `[${i + 1}/${albums.length}] FAILED: ${album.title} - ${album.artist} (${lastError})`,
+      );
+      failures.push({
+        index: i + 1,
+        title: album.title,
+        artist: album.artist,
+        error: lastError,
+      });
+      failed++;
+    }
 
-		if (i < albums.length - 1) {
-			await sleep(DELAY_MS);
-		}
-	}
+    if (i < albums.length - 1) {
+      await sleep(DELAY_MS);
+    }
+  }
 
-	console.log("---");
-	console.log(
-		`Done. Imported ${succeeded}/${albums.length} albums (${skipped} skipped, ${failed} failed)`,
-	);
+  console.log("---");
+  console.log(
+    `Done. Imported ${succeeded}/${albums.length} albums (${skipped} skipped, ${failed} failed)`,
+  );
 
-	if (failures.length > 0) {
-		console.log("\nFailed albums:");
-		for (const f of failures) {
-			console.log(`  [${f.index}] ${f.title} - ${f.artist}: ${f.error}`);
-		}
-	}
+  if (failures.length > 0) {
+    console.log("\nFailed albums:");
+    for (const f of failures) {
+      console.log(`  [${f.index}] ${f.title} - ${f.artist}: ${f.error}`);
+    }
+  }
 
-	process.exit(0);
+  process.exit(0);
 }
 
 main().catch((err) => {
-	console.error("Fatal error:", err);
-	process.exit(1);
+  console.error("Fatal error:", err);
+  process.exit(1);
 });

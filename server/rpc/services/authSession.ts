@@ -23,19 +23,19 @@ import { createLogger } from "../../../src/logger.js";
 import type { SourceManager } from "../../../src/sources/index.js";
 import type { PandoraSession } from "../../../src/sources/pandora/client.js";
 import {
-	getPandoraSessionFromCredentials,
-	refreshPandoraSession as runRefreshPandoraSession,
-	setPandoraSession,
+  getPandoraSessionFromCredentials,
+  refreshPandoraSession as runRefreshPandoraSession,
+  setPandoraSession,
 } from "../../services/credentials.js";
 import {
-	ensureSourceManager,
-	getSourceManager as resolveSourceManagerForSession,
+  ensureSourceManager,
+  getSourceManager as resolveSourceManagerForSession,
 } from "../../services/sourceManager.js";
 import type { RpcSessionContext } from "../context.js";
 import {
-	AuthRefreshFailed,
-	SourceUnavailable,
-	Unauthorized,
+  AuthRefreshFailed,
+  SourceUnavailable,
+  Unauthorized,
 } from "../errors.js";
 import { isPandoraAuthError, mapUnknownError } from "../sourceErrorMap.js";
 
@@ -48,35 +48,35 @@ export const DEFAULT_REFRESH_COOLDOWN_MS = 30_000;
  * Surface exposed by the AuthSession service.
  */
 export type AuthSessionShape = {
-	/** Current Pandora session, undefined when not logged in. */
-	readonly getSession: Effect.Effect<PandoraSession | undefined>;
+  /** Current Pandora session, undefined when not logged in. */
+  readonly getSession: Effect.Effect<PandoraSession | undefined>;
 
-	/**
-	 * Require a Pandora session for the current request. Fails with
-	 * {@link Unauthorized} when no credentials are configured.
-	 */
-	readonly requireSession: Effect.Effect<RpcSessionContext, Unauthorized>;
+  /**
+   * Require a Pandora session for the current request. Fails with
+   * {@link Unauthorized} when no credentials are configured.
+   */
+  readonly requireSession: Effect.Effect<RpcSessionContext, Unauthorized>;
 
-	/**
-	 * Resolve a source manager. Uses the authenticated manager when a session
-	 * exists; otherwise falls back to the YTMusic-only manager.
-	 */
-	readonly getSourceManager: Effect.Effect<SourceManager, SourceUnavailable>;
+  /**
+   * Resolve a source manager. Uses the authenticated manager when a session
+   * exists; otherwise falls back to the YTMusic-only manager.
+   */
+  readonly getSourceManager: Effect.Effect<SourceManager, SourceUnavailable>;
 
-	/**
-	 * Refresh the Pandora session. Concurrent callers share one in-flight
-	 * attempt. Repeated failures are rate-capped to {@link DEFAULT_REFRESH_COOLDOWN_MS}.
-	 */
-	readonly refresh: Effect.Effect<PandoraSession, AuthRefreshFailed>;
+  /**
+   * Refresh the Pandora session. Concurrent callers share one in-flight
+   * attempt. Repeated failures are rate-capped to {@link DEFAULT_REFRESH_COOLDOWN_MS}.
+   */
+  readonly refresh: Effect.Effect<PandoraSession, AuthRefreshFailed>;
 
-	/**
-	 * Convenience wrapper: run an effect that may fail with a known Pandora
-	 * auth error and, if it does, refresh once and retry with a fresh session
-	 * and source manager. Non-auth errors propagate unchanged.
-	 */
-	readonly withAuthRetry: <A, E, R>(
-		f: (ctx: RpcSessionContext) => Effect.Effect<A, E, R>,
-	) => Effect.Effect<A, E | Unauthorized | AuthRefreshFailed, R>;
+  /**
+   * Convenience wrapper: run an effect that may fail with a known Pandora
+   * auth error and, if it does, refresh once and retry with a fresh session
+   * and source manager. Non-auth errors propagate unchanged.
+   */
+  readonly withAuthRetry: <A, E, R>(
+    f: (ctx: RpcSessionContext) => Effect.Effect<A, E, R>,
+  ) => Effect.Effect<A, E | Unauthorized | AuthRefreshFailed, R>;
 };
 
 /**
@@ -84,8 +84,8 @@ export type AuthSessionShape = {
  * `yield* AuthSession` to access the shape inside an effect.
  */
 export class AuthSession extends Context.Service<
-	AuthSession,
-	AuthSessionShape
+  AuthSession,
+  AuthSessionShape
 >()("Pyxis/AuthSession") {}
 
 /**
@@ -94,27 +94,27 @@ export class AuthSession extends Context.Service<
  * mocking individual helpers.
  */
 export type AuthSessionBehavior = {
-	/** Current session accessor; called fresh on every observation. */
-	readonly getSession: () => PandoraSession | undefined;
-	/** Replace the current session after a successful refresh. */
-	readonly setSession: (session: PandoraSession) => void;
-	/** Resolve the source manager bound to an authenticated session. */
-	readonly sourceManagerForSession: (
-		session: PandoraSession,
-	) => Promise<SourceManager>;
-	/** Resolve the fallback source manager when no session is configured. */
-	readonly sourceManagerFallback: () => Promise<SourceManager>;
-	/** Run a refresh attempt; returns the fresh session or undefined on failure. */
-	readonly refresh: () => Promise<PandoraSession | undefined>;
-	/** Rate-cap window. */
-	readonly cooldownMs?: number;
-	/** Time source for the rate cap. */
-	readonly now?: () => number;
+  /** Current session accessor; called fresh on every observation. */
+  readonly getSession: () => PandoraSession | undefined;
+  /** Replace the current session after a successful refresh. */
+  readonly setSession: (session: PandoraSession) => void;
+  /** Resolve the source manager bound to an authenticated session. */
+  readonly sourceManagerForSession: (
+    session: PandoraSession,
+  ) => Promise<SourceManager>;
+  /** Resolve the fallback source manager when no session is configured. */
+  readonly sourceManagerFallback: () => Promise<SourceManager>;
+  /** Run a refresh attempt; returns the fresh session or undefined on failure. */
+  readonly refresh: () => Promise<PandoraSession | undefined>;
+  /** Rate-cap window. */
+  readonly cooldownMs?: number;
+  /** Time source for the rate cap. */
+  readonly now?: () => number;
 };
 
 type RefreshState = {
-	inFlight: Promise<PandoraSession | undefined> | undefined;
-	lastFailureAt: number;
+  inFlight: Promise<PandoraSession | undefined> | undefined;
+  lastFailureAt: number;
 };
 
 /**
@@ -122,165 +122,165 @@ type RefreshState = {
  * layers; keeps coalescing + rate-cap logic in one place.
  */
 function makeShape(behavior: AuthSessionBehavior): AuthSessionShape {
-	const cooldownMs = behavior.cooldownMs ?? DEFAULT_REFRESH_COOLDOWN_MS;
-	const now = behavior.now ?? Date.now;
-	const state: RefreshState = {
-		inFlight: undefined,
-		lastFailureAt: 0,
-	};
+  const cooldownMs = behavior.cooldownMs ?? DEFAULT_REFRESH_COOLDOWN_MS;
+  const now = behavior.now ?? Date.now;
+  const state: RefreshState = {
+    inFlight: undefined,
+    lastFailureAt: 0,
+  };
 
-	const getSession = Effect.sync(() => behavior.getSession());
+  const getSession = Effect.sync(() => behavior.getSession());
 
-	const resolveManagerForSession = (session: PandoraSession) =>
-		Effect.tryPromise({
-			try: () => behavior.sourceManagerForSession(session),
-			catch: (cause) => {
-				log.error(
-					{ err: cause },
-					"failed to resolve source manager for session",
-				);
-				return new SourceUnavailable({
-					code: "source_manager_unavailable",
-				});
-			},
-		});
+  const resolveManagerForSession = (session: PandoraSession) =>
+    Effect.tryPromise({
+      try: () => behavior.sourceManagerForSession(session),
+      catch: (cause) => {
+        log.error(
+          { err: cause },
+          "failed to resolve source manager for session",
+        );
+        return new SourceUnavailable({
+          code: "source_manager_unavailable",
+        });
+      },
+    });
 
-	const requireSession = Effect.gen(function* () {
-		const session = behavior.getSession();
-		if (!session) {
-			return yield* Effect.fail(
-				new Unauthorized({ code: "pandora_credentials_required" }),
-			);
-		}
-		const manager = yield* Effect.catch(resolveManagerForSession(session), () =>
-			Effect.fail(
-				new Unauthorized({ code: "pandora_source_manager_unavailable" }),
-			),
-		);
-		return {
-			pandoraSession: session,
-			sourceManager: manager,
-		} satisfies RpcSessionContext;
-	});
+  const requireSession = Effect.gen(function* () {
+    const session = behavior.getSession();
+    if (!session) {
+      return yield* Effect.fail(
+        new Unauthorized({ code: "pandora_credentials_required" }),
+      );
+    }
+    const manager = yield* Effect.catch(resolveManagerForSession(session), () =>
+      Effect.fail(
+        new Unauthorized({ code: "pandora_source_manager_unavailable" }),
+      ),
+    );
+    return {
+      pandoraSession: session,
+      sourceManager: manager,
+    } satisfies RpcSessionContext;
+  });
 
-	const getSourceManager = Effect.gen(function* () {
-		const session = behavior.getSession();
-		if (session) {
-			return yield* resolveManagerForSession(session);
-		}
-		return yield* Effect.tryPromise({
-			try: () => behavior.sourceManagerFallback(),
-			catch: (cause) => {
-				log.error({ err: cause }, "failed to resolve fallback source manager");
-				return new SourceUnavailable({
-					code: "source_manager_unavailable",
-				});
-			},
-		});
-	});
+  const getSourceManager = Effect.gen(function* () {
+    const session = behavior.getSession();
+    if (session) {
+      return yield* resolveManagerForSession(session);
+    }
+    return yield* Effect.tryPromise({
+      try: () => behavior.sourceManagerFallback(),
+      catch: (cause) => {
+        log.error({ err: cause }, "failed to resolve fallback source manager");
+        return new SourceUnavailable({
+          code: "source_manager_unavailable",
+        });
+      },
+    });
+  });
 
-	const refresh = Effect.gen(function* () {
-		// Rate-cap: do not retry within the cooldown after a failure.
-		const since = now() - state.lastFailureAt;
-		if (state.lastFailureAt !== 0 && since < cooldownMs) {
-			return yield* Effect.fail(
-				new AuthRefreshFailed({ code: "refresh_rate_capped" }),
-			);
-		}
+  const refresh = Effect.gen(function* () {
+    // Rate-cap: do not retry within the cooldown after a failure.
+    const since = now() - state.lastFailureAt;
+    if (state.lastFailureAt !== 0 && since < cooldownMs) {
+      return yield* Effect.fail(
+        new AuthRefreshFailed({ code: "refresh_rate_capped" }),
+      );
+    }
 
-		// Coalesce concurrent refresh attempts onto a single in-flight promise.
-		if (!state.inFlight) {
-			state.inFlight = behavior
-				.refresh()
-				.then((session) => {
-					if (session) {
-						behavior.setSession(session);
-						state.lastFailureAt = 0;
-					} else {
-						state.lastFailureAt = now();
-					}
-					return session;
-				})
-				.catch((cause) => {
-					state.lastFailureAt = now();
-					log.warn({ err: cause }, "pandora session refresh threw");
-					return undefined;
-				})
-				.finally(() => {
-					state.inFlight = undefined;
-				});
-		}
+    // Coalesce concurrent refresh attempts onto a single in-flight promise.
+    if (!state.inFlight) {
+      state.inFlight = behavior
+        .refresh()
+        .then((session) => {
+          if (session) {
+            behavior.setSession(session);
+            state.lastFailureAt = 0;
+          } else {
+            state.lastFailureAt = now();
+          }
+          return session;
+        })
+        .catch((cause) => {
+          state.lastFailureAt = now();
+          log.warn({ err: cause }, "pandora session refresh threw");
+          return undefined;
+        })
+        .finally(() => {
+          state.inFlight = undefined;
+        });
+    }
 
-		const inFlight = state.inFlight;
-		if (!inFlight) {
-			return yield* Effect.fail(
-				new AuthRefreshFailed({ code: "refresh_failed" }),
-			);
-		}
-		const session = yield* Effect.promise(() => inFlight);
-		if (!session) {
-			return yield* Effect.fail(
-				new AuthRefreshFailed({ code: "refresh_failed" }),
-			);
-		}
-		return session;
-	});
+    const inFlight = state.inFlight;
+    if (!inFlight) {
+      return yield* Effect.fail(
+        new AuthRefreshFailed({ code: "refresh_failed" }),
+      );
+    }
+    const session = yield* Effect.promise(() => inFlight);
+    if (!session) {
+      return yield* Effect.fail(
+        new AuthRefreshFailed({ code: "refresh_failed" }),
+      );
+    }
+    return session;
+  });
 
-	const withAuthRetry = <A, E, R>(
-		f: (ctx: RpcSessionContext) => Effect.Effect<A, E, R>,
-	): Effect.Effect<A, E | Unauthorized | AuthRefreshFailed, R> =>
-		Effect.gen(function* () {
-			const session = behavior.getSession();
-			if (!session) {
-				return yield* Effect.fail(
-					new Unauthorized({ code: "pandora_credentials_required" }),
-				);
-			}
-			const initialManager = yield* Effect.catch(
-				resolveManagerForSession(session),
-				() =>
-					Effect.fail(
-						new Unauthorized({ code: "pandora_source_manager_unavailable" }),
-					),
-			);
+  const withAuthRetry = <A, E, R>(
+    f: (ctx: RpcSessionContext) => Effect.Effect<A, E, R>,
+  ): Effect.Effect<A, E | Unauthorized | AuthRefreshFailed, R> =>
+    Effect.gen(function* () {
+      const session = behavior.getSession();
+      if (!session) {
+        return yield* Effect.fail(
+          new Unauthorized({ code: "pandora_credentials_required" }),
+        );
+      }
+      const initialManager = yield* Effect.catch(
+        resolveManagerForSession(session),
+        () =>
+          Effect.fail(
+            new Unauthorized({ code: "pandora_source_manager_unavailable" }),
+          ),
+      );
 
-			return yield* Effect.catch(
-				f({ pandoraSession: session, sourceManager: initialManager }),
-				(err) => {
-					if (!isPandoraAuthError(err)) {
-						return Effect.fail(err as E);
-					}
-					log.warn(
-						{ code: (err as { code?: number }).code },
-						"pandora auth error; refreshing session",
-					);
-					return Effect.gen(function* () {
-						const fresh = yield* refresh;
-						const freshManager = yield* Effect.catch(
-							resolveManagerForSession(fresh),
-							() =>
-								Effect.fail(
-									new AuthRefreshFailed({
-										code: "refresh_source_manager_failed",
-									}),
-								),
-						);
-						return yield* f({
-							pandoraSession: fresh,
-							sourceManager: freshManager,
-						});
-					});
-				},
-			);
-		});
+      return yield* Effect.catch(
+        f({ pandoraSession: session, sourceManager: initialManager }),
+        (err) => {
+          if (!isPandoraAuthError(err)) {
+            return Effect.fail(err as E);
+          }
+          log.warn(
+            { code: (err as { code?: number }).code },
+            "pandora auth error; refreshing session",
+          );
+          return Effect.gen(function* () {
+            const fresh = yield* refresh;
+            const freshManager = yield* Effect.catch(
+              resolveManagerForSession(fresh),
+              () =>
+                Effect.fail(
+                  new AuthRefreshFailed({
+                    code: "refresh_source_manager_failed",
+                  }),
+                ),
+            );
+            return yield* f({
+              pandoraSession: fresh,
+              sourceManager: freshManager,
+            });
+          });
+        },
+      );
+    });
 
-	return {
-		getSession,
-		requireSession,
-		getSourceManager,
-		refresh,
-		withAuthRetry,
-	};
+  return {
+    getSession,
+    requireSession,
+    getSourceManager,
+    refresh,
+    withAuthRetry,
+  };
 }
 
 /**
@@ -289,9 +289,9 @@ function makeShape(behavior: AuthSessionBehavior): AuthSessionShape {
  * the production module-level helpers.
  */
 export function AuthSessionLayerFromBehavior(
-	behavior: AuthSessionBehavior,
+  behavior: AuthSessionBehavior,
 ): Layer.Layer<AuthSession> {
-	return Layer.sync(AuthSession)(() => makeShape(behavior));
+  return Layer.sync(AuthSession)(() => makeShape(behavior));
 }
 
 /**
@@ -300,21 +300,21 @@ export function AuthSessionLayerFromBehavior(
  * existing auto-login / restored playback flows.
  */
 export const AuthSessionLayerLive: Layer.Layer<AuthSession> = Layer.sync(
-	AuthSession,
+  AuthSession,
 )(() =>
-	makeShape({
-		getSession: () => getPandoraSessionFromCredentials(),
-		setSession: (session) => {
-			// The credentials module already updates the session inside
-			// `runRefreshPandoraSession`; this is the path for refreshers
-			// that bypass that helper (test layers don't reach here).
-			setPandoraSession(session);
-		},
-		sourceManagerForSession: (session) =>
-			resolveSourceManagerForSession(session),
-		sourceManagerFallback: () => ensureSourceManager(),
-		refresh: () => runRefreshPandoraSession(),
-	}),
+  makeShape({
+    getSession: () => getPandoraSessionFromCredentials(),
+    setSession: (session) => {
+      // The credentials module already updates the session inside
+      // `runRefreshPandoraSession`; this is the path for refreshers
+      // that bypass that helper (test layers don't reach here).
+      setPandoraSession(session);
+    },
+    sourceManagerForSession: (session) =>
+      resolveSourceManagerForSession(session),
+    sourceManagerFallback: () => ensureSourceManager(),
+    refresh: () => runRefreshPandoraSession(),
+  }),
 );
 
 /**

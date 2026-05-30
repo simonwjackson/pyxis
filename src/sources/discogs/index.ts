@@ -4,7 +4,7 @@
  * Provides release search capabilities via the official Discogs API.
  */
 
-export { createDiscogsSource } from "./source.js";
-export type { DiscogsSourceConfig } from "./source.js";
-export { createDiscogsClient } from "./client.js";
 export type { DiscogsClient, DiscogsClientConfig } from "./client.js";
+export { createDiscogsClient } from "./client.js";
+export type { DiscogsSourceConfig } from "./source.js";
+export { createDiscogsSource } from "./source.js";

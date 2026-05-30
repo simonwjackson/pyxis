@@ -11,20 +11,20 @@ import type { PandoraSession } from "../../src/sources/pandora/client.js";
  * Contains the user's identity and optional Pandora authentication state.
  */
 type SessionData = {
-	/** Authenticated Pandora session, if the user has linked their Pandora account */
-	pandoraSession: PandoraSession | undefined;
-	/** Username of the authenticated user */
-	username: string;
-	/** Unix timestamp (ms) when the session was created */
-	createdAt: number;
+  /** Authenticated Pandora session, if the user has linked their Pandora account */
+  pandoraSession: PandoraSession | undefined;
+  /** Username of the authenticated user */
+  username: string;
+  /** Unix timestamp (ms) when the session was created */
+  createdAt: number;
 };
 
 const sessions = new Map<string, SessionData>();
 
 function generateSessionId(): string {
-	const bytes = new Uint8Array(32);
-	crypto.getRandomValues(bytes);
-	return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
+  const bytes = new Uint8Array(32);
+  crypto.getRandomValues(bytes);
+  return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
 }
 
 /**
@@ -41,16 +41,16 @@ function generateSessionId(): string {
  * ```
  */
 export function createSession(
-	username: string,
-	pandoraSession?: PandoraSession,
+  username: string,
+  pandoraSession?: PandoraSession,
 ): string {
-	const sessionId = generateSessionId();
-	sessions.set(sessionId, {
-		pandoraSession,
-		username,
-		createdAt: Date.now(),
-	});
-	return sessionId;
+  const sessionId = generateSessionId();
+  sessions.set(sessionId, {
+    pandoraSession,
+    username,
+    createdAt: Date.now(),
+  });
+  return sessionId;
 }
 
 /**
@@ -67,15 +67,15 @@ export function createSession(
  * ```
  */
 export function createSessionWithId(
-	sessionId: string,
-	username: string,
-	pandoraSession?: PandoraSession,
+  sessionId: string,
+  username: string,
+  pandoraSession?: PandoraSession,
 ): void {
-	sessions.set(sessionId, {
-		pandoraSession,
-		username,
-		createdAt: Date.now(),
-	});
+  sessions.set(sessionId, {
+    pandoraSession,
+    username,
+    createdAt: Date.now(),
+  });
 }
 
 /**
@@ -92,13 +92,13 @@ export function createSessionWithId(
  * ```
  */
 export function updateSessionPandora(
-	sessionId: string,
-	pandoraSession: PandoraSession,
+  sessionId: string,
+  pandoraSession: PandoraSession,
 ): void {
-	const existing = sessions.get(sessionId);
-	if (existing) {
-		existing.pandoraSession = pandoraSession;
-	}
+  const existing = sessions.get(sessionId);
+  if (existing) {
+    existing.pandoraSession = pandoraSession;
+  }
 }
 
 /**
@@ -116,7 +116,7 @@ export function updateSessionPandora(
  * ```
  */
 export function getSession(sessionId: string): SessionData | undefined {
-	return sessions.get(sessionId);
+  return sessions.get(sessionId);
 }
 
 /**
@@ -133,7 +133,7 @@ export function getSession(sessionId: string): SessionData | undefined {
  * ```
  */
 export function deleteSession(sessionId: string): boolean {
-	return sessions.delete(sessionId);
+  return sessions.delete(sessionId);
 }
 
 /**
@@ -152,7 +152,7 @@ export function deleteSession(sessionId: string): boolean {
  * ```
  */
 export function getPandoraSession(
-	sessionId: string,
+  sessionId: string,
 ): PandoraSession | undefined {
-	return sessions.get(sessionId)?.pandoraSession;
+  return sessions.get(sessionId)?.pandoraSession;
 }

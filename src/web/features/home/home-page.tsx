@@ -24,221 +24,221 @@ import { CollectionGridSkeleton } from "@/web/shared/ui/collection-grid/Collecti
 import { AlbumShelf, HOT_SORT_OPTIONS } from "./album-shelf";
 import { HomeState } from "./HomeState";
 import {
-	LIBRARY_ALBUMS_TAG,
-	LIBRARY_HOT_ALBUMS_TAG,
-	PLAYLIST_LIST_TAG,
+  LIBRARY_ALBUMS_TAG,
+  LIBRARY_HOT_ALBUMS_TAG,
+  PLAYLIST_LIST_TAG,
 } from "./libraryReactivityTags";
 import { PlaylistShelf } from "./playlist-shelf";
 import type { PlaylistData } from "./types";
 
 const playlistsQueryAtom = PyxisRpcClient.query("playlist.list", undefined, {
-	reactivityKeys: [PLAYLIST_LIST_TAG] as const,
+  reactivityKeys: [PLAYLIST_LIST_TAG] as const,
 });
 
 const hotAlbumsQueryAtom = PyxisRpcClient.query(
-	"library.hotAlbums.list",
-	{ includeDismissed: true, limit: 10 },
-	{ reactivityKeys: [LIBRARY_HOT_ALBUMS_TAG, LIBRARY_ALBUMS_TAG] as const },
+  "library.hotAlbums.list",
+  { includeDismissed: true, limit: 10 },
+  { reactivityKeys: [LIBRARY_HOT_ALBUMS_TAG, LIBRARY_ALBUMS_TAG] as const },
 );
 
 const discoveryAlbumsQueryAtom = PyxisRpcClient.query(
-	"library.albums.list",
-	{ placements: ["discovery"] as const },
-	{ reactivityKeys: [LIBRARY_ALBUMS_TAG] as const },
+  "library.albums.list",
+  { placements: ["discovery"] as const },
+  { reactivityKeys: [LIBRARY_ALBUMS_TAG] as const },
 );
 
 const collectionAlbumsQueryAtom = PyxisRpcClient.query(
-	"library.albums.list",
-	{ placements: ["collection"] as const },
-	{ reactivityKeys: [LIBRARY_ALBUMS_TAG] as const },
+  "library.albums.list",
+  { placements: ["collection"] as const },
+  { reactivityKeys: [LIBRARY_ALBUMS_TAG] as const },
 );
 
 const archiveAlbumsQueryAtom = PyxisRpcClient.query(
-	"library.albums.list",
-	{ placements: ["archive"] as const },
-	{ reactivityKeys: [LIBRARY_ALBUMS_TAG] as const },
+  "library.albums.list",
+  { placements: ["archive"] as const },
+  { reactivityKeys: [LIBRARY_ALBUMS_TAG] as const },
 );
 
 export function HomePage() {
-	const navigate = useNavigate();
-	const [showArchive, setShowArchive] = useState(false);
+  const navigate = useNavigate();
+  const [showArchive, setShowArchive] = useState(false);
 
-	const handleOpenPlaylist = useCallback(
-		(playlist: PlaylistData) => {
-			if (playlist.id.startsWith("pandora:")) {
-				navigate({
-					to: "/station/$token",
-					params: { token: playlist.id },
-					search: { play: undefined },
-				});
-			} else {
-				navigate({
-					to: "/playlist/$playlistId",
-					params: { playlistId: playlist.id },
-					search: {
-						play: undefined,
-						startIndex: undefined,
-						shuffle: undefined,
-					},
-				});
-			}
-		},
-		[navigate],
-	);
+  const handleOpenPlaylist = useCallback(
+    (playlist: PlaylistData) => {
+      if (playlist.id.startsWith("pandora:")) {
+        navigate({
+          to: "/station/$token",
+          params: { token: playlist.id },
+          search: { play: undefined },
+        });
+      } else {
+        navigate({
+          to: "/playlist/$playlistId",
+          params: { playlistId: playlist.id },
+          search: {
+            play: undefined,
+            startIndex: undefined,
+            shuffle: undefined,
+          },
+        });
+      }
+    },
+    [navigate],
+  );
 
-	return (
-		<div className="flex-1 px-4 sm:px-8 py-10 space-y-16">
-			<HomePlaylistShelfSection
-				onOpenPlaylist={handleOpenPlaylist}
-				onSeeAll={() => navigate({ to: "/stations" })}
-			/>
+  return (
+    <div className="flex-1 px-4 sm:px-8 py-10 space-y-16">
+      <HomePlaylistShelfSection
+        onOpenPlaylist={handleOpenPlaylist}
+        onSeeAll={() => navigate({ to: "/stations" })}
+      />
 
-			<HomeHotShelfSection />
+      <HomeHotShelfSection />
 
-			<HomeDiscoveryShelfSection
-				onAddAlbum={() => navigate({ to: "/search" })}
-			/>
+      <HomeDiscoveryShelfSection
+        onAddAlbum={() => navigate({ to: "/search" })}
+      />
 
-			<HomeCollectionShelfSection
-				showArchive={showArchive}
-				onToggleArchive={() => setShowArchive((value) => !value)}
-			/>
+      <HomeCollectionShelfSection
+        showArchive={showArchive}
+        onToggleArchive={() => setShowArchive((value) => !value)}
+      />
 
-			{showArchive ? <HomeArchiveShelfSection /> : null}
-		</div>
-	);
+      {showArchive ? <HomeArchiveShelfSection /> : null}
+    </div>
+  );
 }
 
 function HomePlaylistShelfSection({
-	onOpenPlaylist,
-	onSeeAll,
+  onOpenPlaylist,
+  onSeeAll,
 }: {
-	readonly onOpenPlaylist: (playlist: PlaylistData) => void;
-	readonly onSeeAll: () => void;
+  readonly onOpenPlaylist: (playlist: PlaylistData) => void;
+  readonly onSeeAll: () => void;
 }) {
-	const result = projectQueryResult(useAtomValue(playlistsQueryAtom));
-	const state = HomeState.playlistShelfFromResult(result);
-	const playlists = state._tag === "Ready" ? state.items : [];
+  const result = projectQueryResult(useAtomValue(playlistsQueryAtom));
+  const state = HomeState.playlistShelfFromResult(result);
+  const playlists = state._tag === "Ready" ? state.items : [];
 
-	return (
-		<PlaylistShelf
-			playlists={playlists}
-			isLoading={state._tag === "Loading"}
-			onOpenPlaylist={onOpenPlaylist}
-			onSeeAll={onSeeAll}
-		/>
-	);
+  return (
+    <PlaylistShelf
+      playlists={playlists}
+      isLoading={state._tag === "Loading"}
+      onOpenPlaylist={onOpenPlaylist}
+      onSeeAll={onSeeAll}
+    />
+  );
 }
 
 function HomeHotShelfSection() {
-	const result = projectQueryResult(useAtomValue(hotAlbumsQueryAtom));
-	const state = HomeState.albumShelfFromResult(result);
+  const result = projectQueryResult(useAtomValue(hotAlbumsQueryAtom));
+  const state = HomeState.albumShelfFromResult(result);
 
-	if (state._tag === "Loading") {
-		return <CollectionGridSkeleton title="Hot" />;
-	}
+  if (state._tag === "Loading") {
+    return <CollectionGridSkeleton title="Hot" />;
+  }
 
-	const albums = state._tag === "Ready" ? state.items : [];
+  const albums = state._tag === "Ready" ? state.items : [];
 
-	return (
-		<AlbumShelf
-			title="Hot"
-			albums={albums}
-			emptyMessage="Nothing hot yet. Listen to an album a few times and it will surface here."
-			sortOptions={HOT_SORT_OPTIONS}
-			defaultSort="hot"
-		/>
-	);
+  return (
+    <AlbumShelf
+      title="Hot"
+      albums={albums}
+      emptyMessage="Nothing hot yet. Listen to an album a few times and it will surface here."
+      sortOptions={HOT_SORT_OPTIONS}
+      defaultSort="hot"
+    />
+  );
 }
 
 function HomeDiscoveryShelfSection({
-	onAddAlbum,
+  onAddAlbum,
 }: {
-	readonly onAddAlbum: () => void;
+  readonly onAddAlbum: () => void;
 }) {
-	const result = projectQueryResult(useAtomValue(discoveryAlbumsQueryAtom));
-	const state = HomeState.albumShelfFromResult(result);
+  const result = projectQueryResult(useAtomValue(discoveryAlbumsQueryAtom));
+  const state = HomeState.albumShelfFromResult(result);
 
-	if (state._tag === "Loading") {
-		return <CollectionGridSkeleton title="Discovery" />;
-	}
+  if (state._tag === "Loading") {
+    return <CollectionGridSkeleton title="Discovery" />;
+  }
 
-	const albums = state._tag === "Ready" ? state.items : [];
+  const albums = state._tag === "Ready" ? state.items : [];
 
-	return (
-		<AlbumShelf
-			title="Discovery"
-			albums={albums}
-			emptyMessage="Nothing in discovery yet. Add an album to get started."
-			trailing={
-				<button
-					type="button"
-					className="aspect-square border border-dashed border-[var(--color-border)] flex flex-col items-center justify-center cursor-pointer hover:border-[var(--color-text-dim)] transition-colors"
-					onClick={onAddAlbum}
-					aria-label="Add album"
-				>
-					<Plus
-						className="w-8 h-8 text-[var(--color-text-dim)] mb-1"
-						aria-hidden="true"
-					/>
-					<span className="zune-meta text-[var(--color-text-dim)]">
-						add album
-					</span>
-				</button>
-			}
-		/>
-	);
+  return (
+    <AlbumShelf
+      title="Discovery"
+      albums={albums}
+      emptyMessage="Nothing in discovery yet. Add an album to get started."
+      trailing={
+        <button
+          type="button"
+          className="aspect-square border border-dashed border-[var(--color-border)] flex flex-col items-center justify-center cursor-pointer hover:border-[var(--color-text-dim)] transition-colors"
+          onClick={onAddAlbum}
+          aria-label="Add album"
+        >
+          <Plus
+            className="w-8 h-8 text-[var(--color-text-dim)] mb-1"
+            aria-hidden="true"
+          />
+          <span className="zune-meta text-[var(--color-text-dim)]">
+            add album
+          </span>
+        </button>
+      }
+    />
+  );
 }
 
 function HomeCollectionShelfSection({
-	showArchive,
-	onToggleArchive,
+  showArchive,
+  onToggleArchive,
 }: {
-	readonly showArchive: boolean;
-	readonly onToggleArchive: () => void;
+  readonly showArchive: boolean;
+  readonly onToggleArchive: () => void;
 }) {
-	const result = projectQueryResult(useAtomValue(collectionAlbumsQueryAtom));
-	const state = HomeState.albumShelfFromResult(result);
+  const result = projectQueryResult(useAtomValue(collectionAlbumsQueryAtom));
+  const state = HomeState.albumShelfFromResult(result);
 
-	if (state._tag === "Loading") {
-		return <CollectionGridSkeleton title="Collection" />;
-	}
+  if (state._tag === "Loading") {
+    return <CollectionGridSkeleton title="Collection" />;
+  }
 
-	const albums = state._tag === "Ready" ? state.items : [];
+  const albums = state._tag === "Ready" ? state.items : [];
 
-	return (
-		<AlbumShelf
-			title="Collection"
-			albums={albums}
-			emptyMessage="Nothing in collection yet. Move albums here when they become keepers."
-			headerAction={
-				<button
-					type="button"
-					onClick={onToggleArchive}
-					className="zune-label text-[var(--color-text-dim)] hover:text-[var(--color-text)] transition-colors"
-				>
-					{showArchive ? "hide archive" : "show archive"}
-				</button>
-			}
-		/>
-	);
+  return (
+    <AlbumShelf
+      title="Collection"
+      albums={albums}
+      emptyMessage="Nothing in collection yet. Move albums here when they become keepers."
+      headerAction={
+        <button
+          type="button"
+          onClick={onToggleArchive}
+          className="zune-label text-[var(--color-text-dim)] hover:text-[var(--color-text)] transition-colors"
+        >
+          {showArchive ? "hide archive" : "show archive"}
+        </button>
+      }
+    />
+  );
 }
 
 function HomeArchiveShelfSection() {
-	const result = projectQueryResult(useAtomValue(archiveAlbumsQueryAtom));
-	const state = HomeState.albumShelfFromResult(result);
+  const result = projectQueryResult(useAtomValue(archiveAlbumsQueryAtom));
+  const state = HomeState.albumShelfFromResult(result);
 
-	if (state._tag === "Loading") {
-		return <CollectionGridSkeleton title="Archive" />;
-	}
+  if (state._tag === "Loading") {
+    return <CollectionGridSkeleton title="Archive" />;
+  }
 
-	const albums = state._tag === "Ready" ? state.items : [];
+  const albums = state._tag === "Ready" ? state.items : [];
 
-	return (
-		<AlbumShelf
-			title="Archive"
-			albums={albums}
-			emptyMessage="Archive is empty."
-		/>
-	);
+  return (
+    <AlbumShelf
+      title="Archive"
+      albums={albums}
+      emptyMessage="Archive is empty."
+    />
+  );
 }

@@ -10,16 +10,16 @@ import { Data } from "effect";
  * Error during Blowfish encryption of API request payload.
  */
 export class EncryptionError extends Data.TaggedError("EncryptionError")<{
-	readonly message: string;
-	readonly cause?: unknown;
+  readonly message: string;
+  readonly cause?: unknown;
 }> {}
 
 /**
  * Error during Blowfish decryption of API response data (e.g., syncTime).
  */
 export class DecryptionError extends Data.TaggedError("DecryptionError")<{
-	readonly message: string;
-	readonly cause?: unknown;
+  readonly message: string;
+  readonly cause?: unknown;
 }> {}
 
 /**
@@ -27,8 +27,8 @@ export class DecryptionError extends Data.TaggedError("DecryptionError")<{
  * Indicates invalid device credentials or Pandora API unavailability.
  */
 export class PartnerLoginError extends Data.TaggedError("PartnerLoginError")<{
-	readonly message: string;
-	readonly cause?: unknown;
+  readonly message: string;
+  readonly cause?: unknown;
 }> {}
 
 /**
@@ -36,8 +36,8 @@ export class PartnerLoginError extends Data.TaggedError("PartnerLoginError")<{
  * Indicates invalid username/password or account issues.
  */
 export class UserLoginError extends Data.TaggedError("UserLoginError")<{
-	readonly message: string;
-	readonly cause?: unknown;
+  readonly message: string;
+  readonly cause?: unknown;
 }> {}
 
 /**
@@ -45,33 +45,33 @@ export class UserLoginError extends Data.TaggedError("UserLoginError")<{
  * Contains the API method name and error code for debugging.
  */
 export class ApiCallError extends Data.TaggedError("ApiCallError")<{
-	/** The Pandora API method that failed (e.g., "user.getStationList") */
-	readonly method: string;
-	readonly message: string;
-	/** Pandora error code (e.g., 1001 for invalid auth token) */
-	readonly code?: number;
-	readonly cause?: unknown;
+  /** The Pandora API method that failed (e.g., "user.getStationList") */
+  readonly method: string;
+  readonly message: string;
+  /** Pandora error code (e.g., 1001 for invalid auth token) */
+  readonly code?: number;
+  readonly cause?: unknown;
 }> {}
 
 /**
  * Error in configuration (missing credentials, invalid settings).
  */
 export class ConfigError extends Data.TaggedError("ConfigError")<{
-	readonly message: string;
+  readonly message: string;
 }> {}
 
 /**
  * Resource not found error (station, track, bookmark doesn't exist).
  */
 export class NotFoundError extends Data.TaggedError("NotFoundError")<{
-	readonly message: string;
+  readonly message: string;
 }> {}
 
 /**
  * Session-related error (expired token, invalid session state).
  */
 export class SessionError extends Data.TaggedError("SessionError")<{
-	readonly message: string;
+  readonly message: string;
 }> {}
 
 /**
@@ -84,11 +84,11 @@ export class SessionError extends Data.TaggedError("SessionError")<{
  * ```
  */
 export type PandoraError =
-	| EncryptionError
-	| DecryptionError
-	| PartnerLoginError
-	| UserLoginError
-	| ApiCallError
-	| ConfigError
-	| NotFoundError
-	| SessionError;
+  | EncryptionError
+  | DecryptionError
+  | PartnerLoginError
+  | UserLoginError
+  | ApiCallError
+  | ConfigError
+  | NotFoundError
+  | SessionError;

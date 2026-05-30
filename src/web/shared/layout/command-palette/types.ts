@@ -1,5 +1,5 @@
 export type CommandPaletteProps = {
-	readonly onClose: () => void;
+  readonly onClose: () => void;
 };
 
 export type CommandPaletteActivePanel = "commands" | "themes";

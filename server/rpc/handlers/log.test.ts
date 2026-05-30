@@ -15,24 +15,24 @@ import { logHandlers } from "./log.js";
 const handlers = logHandlers();
 
 describe("log.client.write handler", () => {
-	it("returns ok: true for a valid payload", async () => {
-		const result = await Effect.runPromise(
-			handlers["log.client.write"]({ message: "hello world" }),
-		);
-		expect(result).toEqual({ ok: true });
-	});
+  it("returns ok: true for a valid payload", async () => {
+    const result = await Effect.runPromise(
+      handlers["log.client.write"]({ message: "hello world" }),
+    );
+    expect(result).toEqual({ ok: true });
+  });
 
-	it("rejects empty messages at the contract boundary", () => {
-		const exit = Schema.decodeUnknownExit(ClientLogInputSchema)({
-			message: "",
-		});
-		expect(Exit.isFailure(exit)).toBe(true);
-	});
+  it("rejects empty messages at the contract boundary", () => {
+    const exit = Schema.decodeUnknownExit(ClientLogInputSchema)({
+      message: "",
+    });
+    expect(Exit.isFailure(exit)).toBe(true);
+  });
 
-	it("rejects messages that exceed the configured size cap", () => {
-		const exit = Schema.decodeUnknownExit(ClientLogInputSchema)({
-			message: "a".repeat(4097),
-		});
-		expect(Exit.isFailure(exit)).toBe(true);
-	});
+  it("rejects messages that exceed the configured size cap", () => {
+    const exit = Schema.decodeUnknownExit(ClientLogInputSchema)({
+      message: "a".repeat(4097),
+    });
+    expect(Exit.isFailure(exit)).toBe(true);
+  });
 });

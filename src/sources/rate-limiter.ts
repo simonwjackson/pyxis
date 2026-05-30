@@ -8,38 +8,38 @@
  * Configuration for the rate limiter.
  */
 export type RateLimiterConfig = {
-	/** Target requests per second */
-	readonly requestsPerSecond: number;
-	/** Maximum tokens in bucket (allows bursting) */
-	readonly burstSize: number;
-	/** Maximum retry attempts on rate limit */
-	readonly maxRetries: number;
-	/** Base delay in ms for exponential backoff */
-	readonly baseBackoffMs: number;
+  /** Target requests per second */
+  readonly requestsPerSecond: number;
+  /** Maximum tokens in bucket (allows bursting) */
+  readonly burstSize: number;
+  /** Maximum retry attempts on rate limit */
+  readonly maxRetries: number;
+  /** Base delay in ms for exponential backoff */
+  readonly baseBackoffMs: number;
 };
 
 /**
  * Current rate limiter statistics.
  */
 export type RateLimiterStats = {
-	/** Current token count (fractional) */
-	readonly tokens: number;
-	/** Total requests processed */
-	readonly totalRequests: number;
-	/** Total retries due to rate limiting */
-	readonly totalRetries: number;
+  /** Current token count (fractional) */
+  readonly tokens: number;
+  /** Total requests processed */
+  readonly totalRequests: number;
+  /** Total retries due to rate limiting */
+  readonly totalRetries: number;
 };
 
 /**
  * Rate limiter interface using token bucket algorithm.
  */
 export type RateLimiter = {
-	/** Wait for a token before making a request */
-	readonly acquire: () => Promise<void>;
-	/** Signal that a request was rate-limited (resets tokens) */
-	readonly onRateLimited: () => void;
-	/** Get current statistics */
-	readonly getStats: () => RateLimiterStats;
+  /** Wait for a token before making a request */
+  readonly acquire: () => Promise<void>;
+  /** Signal that a request was rate-limited (resets tokens) */
+  readonly onRateLimited: () => void;
+  /** Get current statistics */
+  readonly getStats: () => RateLimiterStats;
 };
 
 /**
@@ -64,45 +64,45 @@ export type RateLimiter = {
  * ```
  */
 export const createRateLimiter = (config: RateLimiterConfig): RateLimiter => {
-	const { requestsPerSecond, burstSize } = config;
-	const refillIntervalMs = 1000 / requestsPerSecond;
+  const { requestsPerSecond, burstSize } = config;
+  const refillIntervalMs = 1000 / requestsPerSecond;
 
-	let tokens = burstSize;
-	let lastRefill = Date.now();
-	let totalRequests = 0;
-	let totalRetries = 0;
+  let tokens = burstSize;
+  let lastRefill = Date.now();
+  let totalRequests = 0;
+  let totalRetries = 0;
 
-	const refillTokens = (): void => {
-		const now = Date.now();
-		const elapsed = now - lastRefill;
-		const tokensToAdd = elapsed / refillIntervalMs;
-		tokens = Math.min(burstSize, tokens + tokensToAdd);
-		lastRefill = now;
-	};
+  const refillTokens = (): void => {
+    const now = Date.now();
+    const elapsed = now - lastRefill;
+    const tokensToAdd = elapsed / refillIntervalMs;
+    tokens = Math.min(burstSize, tokens + tokensToAdd);
+    lastRefill = now;
+  };
 
-	const acquire = async (): Promise<void> => {
-		refillTokens();
+  const acquire = async (): Promise<void> => {
+    refillTokens();
 
-		if (tokens < 1) {
-			const waitMs = (1 - tokens) * refillIntervalMs;
-			await new Promise((r) => setTimeout(r, waitMs));
-			refillTokens();
-		}
+    if (tokens < 1) {
+      const waitMs = (1 - tokens) * refillIntervalMs;
+      await new Promise((r) => setTimeout(r, waitMs));
+      refillTokens();
+    }
 
-		tokens -= 1;
-		totalRequests += 1;
-	};
+    tokens -= 1;
+    totalRequests += 1;
+  };
 
-	const onRateLimited = (): void => {
-		tokens = 0;
-		totalRetries += 1;
-	};
+  const onRateLimited = (): void => {
+    tokens = 0;
+    totalRetries += 1;
+  };
 
-	const getStats = (): RateLimiterStats => ({
-		tokens: Math.floor(tokens * 100) / 100,
-		totalRequests,
-		totalRetries,
-	});
+  const getStats = (): RateLimiterStats => ({
+    tokens: Math.floor(tokens * 100) / 100,
+    totalRequests,
+    totalRetries,
+  });
 
-	return { acquire, onRateLimited, getStats };
+  return { acquire, onRateLimited, getStats };
 };

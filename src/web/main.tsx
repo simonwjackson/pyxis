@@ -23,10 +23,10 @@ const router = createRouter({ routeTree });
  * Registers the router instance for type inference in route hooks.
  */
 declare module "@tanstack/react-router" {
-	// eslint-disable-next-line @typescript-eslint/consistent-type-definitions
-	interface Register {
-		router: typeof router;
-	}
+  // eslint-disable-next-line @typescript-eslint/consistent-type-definitions
+  interface Register {
+    router: typeof router;
+  }
 }
 
 /**
@@ -35,35 +35,35 @@ declare module "@tanstack/react-router" {
  * Includes toast notifications styled to match the theme.
  */
 function App() {
-	return (
-		<ErrorBoundary>
-			<ThemeProvider>
-				<RegistryProvider>
-					<PlaybackProvider>
-						<RouterProvider router={router} />
-						<Toaster
-							theme="dark"
-							position="bottom-right"
-							toastOptions={{
-								style: {
-									background: "var(--color-bg)",
-									border: "1px solid var(--color-border)",
-									color: "var(--color-text)",
-								},
-							}}
-						/>
-					</PlaybackProvider>
-				</RegistryProvider>
-			</ThemeProvider>
-		</ErrorBoundary>
-	);
+  return (
+    <ErrorBoundary>
+      <ThemeProvider>
+        <RegistryProvider>
+          <PlaybackProvider>
+            <RouterProvider router={router} />
+            <Toaster
+              theme="dark"
+              position="bottom-right"
+              toastOptions={{
+                style: {
+                  background: "var(--color-bg)",
+                  border: "1px solid var(--color-border)",
+                  color: "var(--color-text)",
+                },
+              }}
+            />
+          </PlaybackProvider>
+        </RegistryProvider>
+      </ThemeProvider>
+    </ErrorBoundary>
+  );
 }
 
 const rootElement = document.getElementById("root");
 if (!rootElement) throw new Error("Root element not found");
 
 createRoot(rootElement).render(
-	<StrictMode>
-		<App />
-	</StrictMode>,
+  <StrictMode>
+    <App />
+  </StrictMode>,
 );

@@ -17,7 +17,7 @@ import { Cause, Effect, Exit } from "effect";
  * @throws When the Effect fails
  */
 export const runEffectTest = <A, E>(effect: Effect.Effect<A, E>): Promise<A> =>
-	Effect.runPromise(effect);
+  Effect.runPromise(effect);
 
 /**
  * Runs an Effect and returns the Exit, allowing inspection of both success and failure.
@@ -29,7 +29,7 @@ export const runEffectTest = <A, E>(effect: Effect.Effect<A, E>): Promise<A> =>
  * @returns Promise resolving to Exit containing either success value or failure cause
  */
 export const runEffectExit = <A, E>(
-	effect: Effect.Effect<A, E>,
+  effect: Effect.Effect<A, E>,
 ): Promise<Exit.Exit<A, E>> => Effect.runPromiseExit(effect);
 
 /**
@@ -42,19 +42,19 @@ export const runEffectExit = <A, E>(
  * @throws When the Effect succeeds instead of failing
  */
 export const expectEffectFailure = async <E>(
-	effect: Effect.Effect<unknown, E>,
+  effect: Effect.Effect<unknown, E>,
 ): Promise<E> => {
-	const exit = await runEffectExit(effect);
-	if (Exit.isSuccess(exit)) {
-		throw new Error(
-			`Expected Effect to fail, but it succeeded with: ${JSON.stringify(exit.value)}`,
-		);
-	}
-	const typedFailure = exit.cause.reasons.find(Cause.isFailReason);
-	if (typedFailure) {
-		return typedFailure.error;
-	}
-	throw Cause.squash(exit.cause);
+  const exit = await runEffectExit(effect);
+  if (Exit.isSuccess(exit)) {
+    throw new Error(
+      `Expected Effect to fail, but it succeeded with: ${JSON.stringify(exit.value)}`,
+    );
+  }
+  const typedFailure = exit.cause.reasons.find(Cause.isFailReason);
+  if (typedFailure) {
+    return typedFailure.error;
+  }
+  throw Cause.squash(exit.cause);
 };
 
 /**
@@ -68,15 +68,15 @@ export const expectEffectFailure = async <E>(
  * @throws When the Effect fails instead of succeeding
  */
 export const expectEffectSuccess = async <A, E>(
-	effect: Effect.Effect<A, E>,
+  effect: Effect.Effect<A, E>,
 ): Promise<A> => {
-	const exit = await runEffectExit(effect);
-	if (Exit.isFailure(exit)) {
-		throw new Error(
-			`Expected Effect to succeed, but it failed with: ${JSON.stringify(exit.cause)}`,
-		);
-	}
-	return exit.value;
+  const exit = await runEffectExit(effect);
+  if (Exit.isFailure(exit)) {
+    throw new Error(
+      `Expected Effect to succeed, but it failed with: ${JSON.stringify(exit.cause)}`,
+    );
+  }
+  return exit.value;
 };
 
 /**
@@ -86,14 +86,14 @@ export const expectEffectSuccess = async <A, E>(
  * @param mode - Fixture mode: "record" saves responses, "replay" loads fixtures, "live" makes real requests
  */
 export const setFixtureMode = (mode: "record" | "replay" | "live"): void => {
-	process.env.PYXIS_FIXTURE_MODE = mode;
+  process.env.PYXIS_FIXTURE_MODE = mode;
 };
 
 /**
  * Resets fixture mode to default (live) by clearing the environment variable.
  */
 export const resetFixtureMode = (): void => {
-	delete process.env.PYXIS_FIXTURE_MODE;
+  delete process.env.PYXIS_FIXTURE_MODE;
 };
 
 /**
@@ -114,19 +114,19 @@ export const resetFixtureMode = (): void => {
  * ```
  */
 export const withFixtureMode = async <T>(
-	mode: "record" | "replay" | "live",
-	fn: () => T | Promise<T>,
+  mode: "record" | "replay" | "live",
+  fn: () => T | Promise<T>,
 ): Promise<T> => {
-	setFixtureMode(mode);
-	try {
-		const result = fn();
-		if (result instanceof Promise) {
-			return await result.finally(() => resetFixtureMode());
-		}
-		resetFixtureMode();
-		return result;
-	} catch (e) {
-		resetFixtureMode();
-		throw e;
-	}
+  setFixtureMode(mode);
+  try {
+    const result = fn();
+    if (result instanceof Promise) {
+      return await result.finally(() => resetFixtureMode());
+    }
+    resetFixtureMode();
+    return result;
+  } catch (e) {
+    resetFixtureMode();
+    throw e;
+  }
 };

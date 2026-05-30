@@ -17,7 +17,7 @@
     <title>Pyxis</title>
     <script>
       // Prevent theme flash: apply saved theme CSS vars before React renders
-      (function() {
+      (() => {
         try {
           var t = localStorage.getItem('pyxis-theme');
           if (!t || t === 'magenta') return;
@@ -33,7 +33,7 @@
             document.documentElement.style.setProperty('--color-bg-panel', c.panel);
             document.querySelector('meta[name="theme-color"]').setAttribute('content', c.bg);
           }
-        } catch(e) {}
+        } catch(_e) {}
       })();
     </script>
   </head>
@@ -42,7 +42,7 @@
     <script type="module" src="/src/web/main.tsx"></script>
     <script>
       if ('serviceWorker' in navigator) {
-        window.addEventListener('load', function() {
+        window.addEventListener('load', () => {
           navigator.serviceWorker.register('/sw.js');
         });
       }

@@ -11,10 +11,10 @@ import { PyxisRpcClient } from "../api/rpcClient.js";
 import { pyxisRpcRuntime } from "../effect/runtime.js";
 
 export const queueStateStreamAtom = pyxisRpcRuntime.atom(() =>
-	Stream.unwrap(
-		Effect.gen(function* () {
-			const client = yield* PyxisRpcClient;
-			return client("queue.state.stream", undefined);
-		}),
-	),
+  Stream.unwrap(
+    Effect.gen(function* () {
+      const client = yield* PyxisRpcClient;
+      return client("queue.state.stream", undefined);
+    }),
+  ),
 );

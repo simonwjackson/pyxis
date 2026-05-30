@@ -16,35 +16,35 @@ import type { ApiPublicError } from "../../../api/contracts/common.js";
 import type { ApiListenLogEntry } from "../../../api/contracts/listenLog.js";
 
 export type HistoryState =
-	| { readonly _tag: "Loading" }
-	| { readonly _tag: "Empty"; readonly offset: number }
-	| {
-			readonly _tag: "Ready";
-			readonly entries: readonly ApiListenLogEntry[];
-			readonly offset: number;
-	  }
-	| { readonly _tag: "LoadError"; readonly error: ApiPublicError }
-	| { readonly _tag: "Defect"; readonly defect: unknown };
+  | { readonly _tag: "Loading" }
+  | { readonly _tag: "Empty"; readonly offset: number }
+  | {
+      readonly _tag: "Ready";
+      readonly entries: readonly ApiListenLogEntry[];
+      readonly offset: number;
+    }
+  | { readonly _tag: "LoadError"; readonly error: ApiPublicError }
+  | { readonly _tag: "Defect"; readonly defect: unknown };
 
 export const HistoryState = {
-	fromResult(
-		result: AsyncResult.AsyncResult<
-			readonly ApiListenLogEntry[],
-			ApiPublicError
-		>,
-		offset: number,
-	): HistoryState {
-		return AsyncResult.matchWithWaiting(result, {
-			onWaiting: (): HistoryState => ({ _tag: "Loading" }),
-			onError: (error): HistoryState => ({ _tag: "LoadError", error }),
-			onDefect: (defect): HistoryState => ({ _tag: "Defect", defect }),
-			onSuccess: (success): HistoryState => {
-				const entries = success.value;
-				if (entries.length === 0) {
-					return { _tag: "Empty", offset };
-				}
-				return { _tag: "Ready", entries, offset };
-			},
-		});
-	},
+  fromResult(
+    result: AsyncResult.AsyncResult<
+      readonly ApiListenLogEntry[],
+      ApiPublicError
+    >,
+    offset: number,
+  ): HistoryState {
+    return AsyncResult.matchWithWaiting(result, {
+      onWaiting: (): HistoryState => ({ _tag: "Loading" }),
+      onError: (error): HistoryState => ({ _tag: "LoadError", error }),
+      onDefect: (defect): HistoryState => ({ _tag: "Defect", defect }),
+      onSuccess: (success): HistoryState => {
+        const entries = success.value;
+        if (entries.length === 0) {
+          return { _tag: "Empty", offset };
+        }
+        return { _tag: "Ready", entries, offset };
+      },
+    });
+  },
 };

@@ -1,9 +1,9 @@
 {
-	"routesDirectory": "./src/web/routes",
-	"generatedRouteTree": "./src/web/routes/routeTree.gen.ts",
-	"routeFilePrefix": "+",
-	"routeFileIgnorePattern": "routeTree\\.gen\\.ts$",
-	"routeToken": "layout",
-	"quoteStyle": "single",
-	"semicolons": false
+  "routesDirectory": "./src/web/routes",
+  "generatedRouteTree": "./src/web/routes/routeTree.gen.ts",
+  "routeFilePrefix": "+",
+  "routeFileIgnorePattern": "routeTree\\.gen\\.ts$",
+  "routeToken": "layout",
+  "quoteStyle": "single",
+  "semicolons": false
 }

@@ -11,28 +11,28 @@
  */
 
 import {
-	ApiCallError,
-	ConfigError,
-	type PandoraError,
-	NotFoundError as PandoraNotFoundError,
-	PartnerLoginError,
-	SessionError,
-	UserLoginError,
+  ApiCallError,
+  ConfigError,
+  type PandoraError,
+  NotFoundError as PandoraNotFoundError,
+  PartnerLoginError,
+  SessionError,
+  UserLoginError,
 } from "../../src/sources/pandora/types/errors.js";
 import {
-	AuthRefreshFailed,
-	Defect,
-	NotFound,
-	PersistenceError,
-	type PublicError,
-	SourceUnavailable,
-	Unauthorized,
-	UpstreamProviderError,
+  AuthRefreshFailed,
+  Defect,
+  NotFound,
+  PersistenceError,
+  type PublicError,
+  SourceUnavailable,
+  Unauthorized,
+  UpstreamProviderError,
 } from "./errors.js";
 
 /** Pandora error codes that indicate an expired/invalid session. */
 export const PANDORA_AUTH_ERROR_CODES: ReadonlySet<number> = new Set([
-	0, 1001, 1002,
+  0, 1001, 1002,
 ]);
 
 /**
@@ -40,11 +40,11 @@ export const PANDORA_AUTH_ERROR_CODES: ReadonlySet<number> = new Set([
  * a Pandora authentication failure (expired session, invalid auth token).
  */
 export function isPandoraAuthError(err: unknown): err is ApiCallError {
-	return (
-		err instanceof ApiCallError &&
-		err.code != null &&
-		PANDORA_AUTH_ERROR_CODES.has(err.code)
-	);
+  return (
+    err instanceof ApiCallError &&
+    err.code != null &&
+    PANDORA_AUTH_ERROR_CODES.has(err.code)
+  );
 }
 
 /**
@@ -53,32 +53,32 @@ export function isPandoraAuthError(err: unknown): err is ApiCallError {
  * `ApiCallError` instances become {@link UpstreamProviderError}.
  */
 export function mapPandoraError(error: PandoraError): PublicError {
-	if (error instanceof ApiCallError) {
-		if (error.code != null && PANDORA_AUTH_ERROR_CODES.has(error.code)) {
-			return new Unauthorized({ code: "pandora_unauthorized" });
-		}
-		return new UpstreamProviderError({
-			source: "pandora",
-			code:
-				error.code != null ? `pandora_${error.code}` : "pandora_api_call_error",
-		});
-	}
-	if (error instanceof PandoraNotFoundError) {
-		return new NotFound({ resource: "pandora_resource" });
-	}
-	if (error instanceof SessionError) {
-		return new Unauthorized({ code: "pandora_session_invalid" });
-	}
-	if (error instanceof PartnerLoginError || error instanceof UserLoginError) {
-		return new AuthRefreshFailed({ code: "pandora_login_failed" });
-	}
-	if (error instanceof ConfigError) {
-		return new SourceUnavailable({
-			source: "pandora",
-			code: "pandora_config_missing",
-		});
-	}
-	return new UpstreamProviderError({ source: "pandora" });
+  if (error instanceof ApiCallError) {
+    if (error.code != null && PANDORA_AUTH_ERROR_CODES.has(error.code)) {
+      return new Unauthorized({ code: "pandora_unauthorized" });
+    }
+    return new UpstreamProviderError({
+      source: "pandora",
+      code:
+        error.code != null ? `pandora_${error.code}` : "pandora_api_call_error",
+    });
+  }
+  if (error instanceof PandoraNotFoundError) {
+    return new NotFound({ resource: "pandora_resource" });
+  }
+  if (error instanceof SessionError) {
+    return new Unauthorized({ code: "pandora_session_invalid" });
+  }
+  if (error instanceof PartnerLoginError || error instanceof UserLoginError) {
+    return new AuthRefreshFailed({ code: "pandora_login_failed" });
+  }
+  if (error instanceof ConfigError) {
+    return new SourceUnavailable({
+      source: "pandora",
+      code: "pandora_config_missing",
+    });
+  }
+  return new UpstreamProviderError({ source: "pandora" });
 }
 
 /**
@@ -86,7 +86,7 @@ export function mapPandoraError(error: PandoraError): PublicError {
  * underlying error types are intentionally not exposed.
  */
 export function mapPersistenceError(_error: unknown): PublicError {
-	return new PersistenceError({ code: "persistence_failure" });
+  return new PersistenceError({ code: "persistence_failure" });
 }
 
 /**
@@ -96,15 +96,15 @@ export function mapPersistenceError(_error: unknown): PublicError {
  * must log the raw cause server-side before invoking this.
  */
 export function mapUnknownError(error: unknown): PublicError {
-	if (
-		error instanceof ApiCallError ||
-		error instanceof PandoraNotFoundError ||
-		error instanceof SessionError ||
-		error instanceof PartnerLoginError ||
-		error instanceof UserLoginError ||
-		error instanceof ConfigError
-	) {
-		return mapPandoraError(error as PandoraError);
-	}
-	return new Defect({ code: "internal_defect" });
+  if (
+    error instanceof ApiCallError ||
+    error instanceof PandoraNotFoundError ||
+    error instanceof SessionError ||
+    error instanceof PartnerLoginError ||
+    error instanceof UserLoginError ||
+    error instanceof ConfigError
+  ) {
+    return mapPandoraError(error as PandoraError);
+  }
+  return new Defect({ code: "internal_defect" });
 }

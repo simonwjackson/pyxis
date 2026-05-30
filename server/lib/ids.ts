@@ -5,8 +5,8 @@
  */
 
 import { nanoid } from "nanoid";
-import type { SourceType } from "../../src/sources/types.js";
 import { getDb } from "../../src/db/index.js";
+import type { SourceType } from "../../src/sources/types.js";
 
 // --- Capability types ---
 
@@ -15,32 +15,32 @@ import { getDb } from "../../src/db/index.js";
  * Pandora tracks have additional features (feedback, sleep, bookmark, explain).
  */
 export type TrackCapabilities = {
-	/** Can give thumbs up/down */
-	readonly feedback: boolean;
-	/** Can temporarily hide from station */
-	readonly sleep: boolean;
-	/** Can bookmark song/artist */
-	readonly bookmark: boolean;
-	/** Can explain why track was selected */
-	readonly explain: boolean;
-	/** Can create radio station from track */
-	readonly radio: boolean;
+  /** Can give thumbs up/down */
+  readonly feedback: boolean;
+  /** Can temporarily hide from station */
+  readonly sleep: boolean;
+  /** Can bookmark song/artist */
+  readonly bookmark: boolean;
+  /** Can explain why track was selected */
+  readonly explain: boolean;
+  /** Can create radio station from track */
+  readonly radio: boolean;
 };
 
 /**
  * Features available for an album.
  */
 export type AlbumCapabilities = {
-	/** Can create radio station from album */
-	readonly radio: boolean;
+  /** Can create radio station from album */
+  readonly radio: boolean;
 };
 
 /**
  * Features available for a playlist.
  */
 export type PlaylistCapabilities = {
-	/** Can create radio station from playlist */
-	readonly radio: boolean;
+  /** Can create radio station from playlist */
+  readonly radio: boolean;
 };
 
 /**
@@ -49,14 +49,14 @@ export type PlaylistCapabilities = {
  * @returns Capability flags for the track
  */
 export function trackCapabilities(source: SourceType): TrackCapabilities {
-	const isPandora = source === "pandora";
-	return {
-		feedback: isPandora,
-		sleep: isPandora,
-		bookmark: isPandora,
-		explain: isPandora,
-		radio: true,
-	};
+  const isPandora = source === "pandora";
+  return {
+    feedback: isPandora,
+    sleep: isPandora,
+    bookmark: isPandora,
+    explain: isPandora,
+    radio: true,
+  };
 }
 
 /**
@@ -65,7 +65,7 @@ export function trackCapabilities(source: SourceType): TrackCapabilities {
  * @returns Capability flags for the album
  */
 export function albumCapabilities(_source: SourceType): AlbumCapabilities {
-	return { radio: true };
+  return { radio: true };
 }
 
 /**
@@ -73,15 +73,17 @@ export function albumCapabilities(_source: SourceType): AlbumCapabilities {
  * @param _source - The playlist's source type (unused, all sources support radio)
  * @returns Capability flags for the playlist
  */
-export function playlistCapabilities(_source: SourceType): PlaylistCapabilities {
-	return { radio: true };
+export function playlistCapabilities(
+  _source: SourceType,
+): PlaylistCapabilities {
+  return { radio: true };
 }
 
 // --- Source-agnostic ID system ---
 
 /** Generate a short nanoid for library items */
 export function generateId(): string {
-	return nanoid(10);
+  return nanoid(10);
 }
 
 /**
@@ -90,7 +92,7 @@ export function generateId(): string {
  * Example: "ytmusic:OLAK5uy_nUXE..." or "pandora:abc123"
  */
 export function formatSourceId(source: SourceType, id: string): string {
-	return `${source}:${id}`;
+  return `${source}:${id}`;
 }
 
 /**
@@ -99,18 +101,18 @@ export function formatSourceId(source: SourceType, id: string): string {
  * - A bare nanoid: "a3kF9x2abc" -> { source: undefined, id: "a3kF9x2abc" }
  */
 export function parseId(opaqueId: string): {
-	readonly source: SourceType | undefined;
-	readonly id: string;
+  readonly source: SourceType | undefined;
+  readonly id: string;
 } {
-	const idx = opaqueId.indexOf(":");
-	if (idx !== -1) {
-		return {
-			source: opaqueId.slice(0, idx) as SourceType,
-			id: opaqueId.slice(idx + 1),
-		};
-	}
-	// No colon — it's a nanoid (library item)
-	return { source: undefined, id: opaqueId };
+  const idx = opaqueId.indexOf(":");
+  if (idx !== -1) {
+    return {
+      source: opaqueId.slice(0, idx) as SourceType,
+      id: opaqueId.slice(idx + 1),
+    };
+  }
+  // No colon — it's a nanoid (library item)
+  return { source: undefined, id: opaqueId };
 }
 
 /**
@@ -119,19 +121,19 @@ export function parseId(opaqueId: string): {
  * - If bare nanoid: look up albumTracks in DB to get source:sourceTrackId
  */
 export async function resolveTrackForStream(opaqueId: string): Promise<string> {
-	const parsed = parseId(opaqueId);
-	if (parsed.source) {
-		// Already a source-prefixed ID — return as composite "source:trackId"
-		return `${parsed.source}:${parsed.id}`;
-	}
-	// Bare nanoid — look up in DB using ProseQL findById
-	const db = await getDb();
-	try {
-		const track = await db.albumTracks.findById(opaqueId).runPromise;
-		return `${track.source}:${track.sourceTrackId}`;
-	} catch {
-		throw new Error(`Unknown track ID: ${opaqueId}`);
-	}
+  const parsed = parseId(opaqueId);
+  if (parsed.source) {
+    // Already a source-prefixed ID — return as composite "source:trackId"
+    return `${parsed.source}:${parsed.id}`;
+  }
+  // Bare nanoid — look up in DB using ProseQL findById
+  const db = await getDb();
+  try {
+    const track = await db.albumTracks.findById(opaqueId).runPromise;
+    return `${track.source}:${track.sourceTrackId}`;
+  } catch {
+    throw new Error(`Unknown track ID: ${opaqueId}`);
+  }
 }
 
 /**
@@ -139,18 +141,20 @@ export async function resolveTrackForStream(opaqueId: string): Promise<string> {
  * - If colon-prefixed: extract source directly
  * - If bare nanoid: look up in DB
  */
-export async function resolveTrackSource(opaqueId: string): Promise<SourceType> {
-	const parsed = parseId(opaqueId);
-	if (parsed.source) {
-		return parsed.source;
-	}
-	const db = await getDb();
-	try {
-		const track = await db.albumTracks.findById(opaqueId).runPromise;
-		return track.source as SourceType;
-	} catch {
-		throw new Error(`Unknown track ID: ${opaqueId}`);
-	}
+export async function resolveTrackSource(
+  opaqueId: string,
+): Promise<SourceType> {
+  const parsed = parseId(opaqueId);
+  if (parsed.source) {
+    return parsed.source;
+  }
+  const db = await getDb();
+  try {
+    const track = await db.albumTracks.findById(opaqueId).runPromise;
+    return track.source as SourceType;
+  } catch {
+    throw new Error(`Unknown track ID: ${opaqueId}`);
+  }
 }
 
 /**
@@ -158,14 +162,14 @@ export async function resolveTrackSource(opaqueId: string): Promise<SourceType> 
  * Works with both nanoid and source:id formats (both are URL-safe).
  */
 export function buildStreamUrl(
-	opaqueTrackId: string,
-	nextOpaqueId?: string,
-	options?: { readonly format?: "mp3" },
+  opaqueTrackId: string,
+  nextOpaqueId?: string,
+  options?: { readonly format?: "mp3" },
 ): string {
-	const base = `/stream/${encodeURIComponent(opaqueTrackId)}`;
-	const params = new URLSearchParams();
-	if (nextOpaqueId) params.set("next", nextOpaqueId);
-	if (options?.format) params.set("format", options.format);
-	const query = params.toString();
-	return query ? `${base}?${query}` : base;
+  const base = `/stream/${encodeURIComponent(opaqueTrackId)}`;
+  const params = new URLSearchParams();
+  if (nextOpaqueId) params.set("next", nextOpaqueId);
+  if (options?.format) params.set("format", options.format);
+  const query = params.toString();
+  return query ? `${base}?${query}` : base;
 }

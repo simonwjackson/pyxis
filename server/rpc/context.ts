@@ -18,6 +18,6 @@ import type { PandoraSession } from "../../src/sources/pandora/client.js";
  * record so handlers do not need two service calls in the hot path.
  */
 export type RpcSessionContext = {
-	readonly pandoraSession: PandoraSession;
-	readonly sourceManager: SourceManager;
+  readonly pandoraSession: PandoraSession;
+  readonly sourceManager: SourceManager;
 };

@@ -1,48 +1,47 @@
 import { appendFileSync } from "node:fs";
 import path from "node:path";
-import { defineConfig, createLogger as createViteLogger } from "vite";
-import react from "@vitejs/plugin-react";
-import { TanStackRouterVite } from "@tanstack/router-plugin/vite";
 import tailwindcss from "@tailwindcss/vite";
+import { TanStackRouterVite } from "@tanstack/router-plugin/vite";
+import react from "@vitejs/plugin-react";
+import { createLogger as createViteLogger, defineConfig } from "vite";
 import { getLogFile } from "./src/logger";
-
 
 const logFile = getLogFile("web");
 const viteLogger = createViteLogger();
 
 function writeToLog(text: string): void {
-	appendFileSync(logFile, text);
+  appendFileSync(logFile, text);
 }
 
 const customLogger = {
-	...viteLogger,
-	info(msg: string, options?: { timestamp?: boolean }) {
-		const stripped = msg.replace(/\x1b\[[0-9;]*m/g, "");
-		if (/Local:|Network:|ready in|VITE v/.test(stripped)) return;
-		writeToLog(msg + "\n");
-		viteLogger.info(msg, options);
-	},
-	warn(msg: string, options?: { timestamp?: boolean }) {
-		writeToLog(`WARN ${msg}\n`);
-		viteLogger.warn(msg, options);
-	},
-	warnOnce(msg: string, options?: { timestamp?: boolean }) {
-		writeToLog(`WARN ${msg}\n`);
-		viteLogger.warnOnce(msg, options);
-	},
-	error(msg: string, options?: { timestamp?: boolean }) {
-		writeToLog(`ERROR ${msg}\n`);
-		viteLogger.error(msg, options);
-	},
+  ...viteLogger,
+  info(msg: string, options?: { timestamp?: boolean }) {
+    const stripped = msg.replace(/\x1b\[[0-9;]*m/g, "");
+    if (/Local:|Network:|ready in|VITE v/.test(stripped)) return;
+    writeToLog(`${msg}\n`);
+    viteLogger.info(msg, options);
+  },
+  warn(msg: string, options?: { timestamp?: boolean }) {
+    writeToLog(`WARN ${msg}\n`);
+    viteLogger.warn(msg, options);
+  },
+  warnOnce(msg: string, options?: { timestamp?: boolean }) {
+    writeToLog(`WARN ${msg}\n`);
+    viteLogger.warnOnce(msg, options);
+  },
+  error(msg: string, options?: { timestamp?: boolean }) {
+    writeToLog(`ERROR ${msg}\n`);
+    viteLogger.error(msg, options);
+  },
 };
 
 const hmrNoReloadPlugin = {
-	name: "hmr-no-reload-on-disconnect",
-	apply: "serve" as const,
-	transformIndexHtml(html: string) {
-		return html.replace(
-			"</head>",
-			`<script type="module">
+  name: "hmr-no-reload-on-disconnect",
+  apply: "serve" as const,
+  transformIndexHtml(html: string) {
+    return html.replace(
+      "</head>",
+      `<script type="module">
         if (import.meta.hot) {
           const originalReload = location.reload.bind(location);
           let suppressReload = false;
@@ -71,25 +70,25 @@ const hmrNoReloadPlugin = {
           });
         }
       </script></head>`,
-		);
-	},
+    );
+  },
 };
 
 export default defineConfig({
-	plugins: [hmrNoReloadPlugin, TanStackRouterVite(), react(), tailwindcss()],
-	customLogger,
-	server: {
-		allowedHosts: true,
-		watch: {
-			ignored: ["**/.direnv/**"],
-		},
-	},
-	resolve: {
-		alias: {
-			"@": path.resolve(import.meta.dirname, "src"),
-		},
-	},
-	build: {
-		outDir: "dist-web",
-	},
+  plugins: [hmrNoReloadPlugin, TanStackRouterVite(), react(), tailwindcss()],
+  customLogger,
+  server: {
+    allowedHosts: true,
+    watch: {
+      ignored: ["**/.direnv/**"],
+    },
+  },
+  resolve: {
+    alias: {
+      "@": path.resolve(import.meta.dirname, "src"),
+    },
+  },
+  build: {
+    outDir: "dist-web",
+  },
 });

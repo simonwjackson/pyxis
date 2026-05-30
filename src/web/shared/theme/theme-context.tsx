@@ -5,31 +5,31 @@
  */
 
 import {
-	createContext,
-	useContext,
-	useState,
-	useEffect,
-	useCallback,
-	type ReactNode,
+  createContext,
+  type ReactNode,
+  useCallback,
+  useContext,
+  useEffect,
+  useState,
 } from "react";
 import {
-	themes,
-	themeNames,
-	applyTheme,
-	getSavedTheme,
-	saveTheme,
+  applyTheme,
+  getSavedTheme,
+  saveTheme,
+  themeNames,
+  themes,
 } from "../lib/themes";
 
 /**
  * Theme context value providing current theme and setter.
  */
 type ThemeContextValue = {
-	/** Current active theme name */
-	readonly theme: string;
-	/** Sets and persists a new theme */
-	readonly setTheme: (name: string) => void;
-	/** List of available theme names */
-	readonly themes: readonly string[];
+  /** Current active theme name */
+  readonly theme: string;
+  /** Sets and persists a new theme */
+  readonly setTheme: (name: string) => void;
+  /** List of available theme names */
+  readonly themes: readonly string[];
 };
 
 const ThemeContext = createContext<ThemeContextValue | null>(null);
@@ -45,27 +45,25 @@ applyTheme(initialTheme);
  * @param children - Child components that can access theme context
  */
 export function ThemeProvider({ children }: { readonly children: ReactNode }) {
-	const [theme, setThemeState] = useState(initialTheme);
+  const [theme, setThemeState] = useState(initialTheme);
 
-	const setTheme = useCallback((name: string) => {
-		if (!(name in themes)) return;
-		setThemeState(name);
-		applyTheme(name);
-		saveTheme(name);
-	}, []);
+  const setTheme = useCallback((name: string) => {
+    if (!(name in themes)) return;
+    setThemeState(name);
+    applyTheme(name);
+    saveTheme(name);
+  }, []);
 
-	// Apply on mount in case SSR/hydration differs
-	useEffect(() => {
-		applyTheme(theme);
-	}, [theme]);
+  // Apply on mount in case SSR/hydration differs
+  useEffect(() => {
+    applyTheme(theme);
+  }, [theme]);
 
-	return (
-		<ThemeContext.Provider
-			value={{ theme, setTheme, themes: themeNames }}
-		>
-			{children}
-		</ThemeContext.Provider>
-	);
+  return (
+    <ThemeContext.Provider value={{ theme, setTheme, themes: themeNames }}>
+      {children}
+    </ThemeContext.Provider>
+  );
 }
 
 /**
@@ -81,9 +79,9 @@ export function ThemeProvider({ children }: { readonly children: ReactNode }) {
  * ```
  */
 export function useTheme() {
-	const context = useContext(ThemeContext);
-	if (!context) {
-		throw new Error("useTheme must be used within a ThemeProvider");
-	}
-	return context;
+  const context = useContext(ThemeContext);
+  if (!context) {
+    throw new Error("useTheme must be used within a ThemeProvider");
+  }
+  return context;
 }

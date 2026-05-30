@@ -14,11 +14,11 @@ import { PyxisRpc } from "../../src/api/rpc.js";
 import { PyxisRpcLayerLive } from "./handler.js";
 
 const rpcLayer = PyxisRpcLayerLive.pipe(
-	Layer.provide(RpcSerialization.layerNdjson),
+  Layer.provide(RpcSerialization.layerNdjson),
 );
 
 const rpcApp = Effect.flatten(
-	RpcServer.toHttpEffect(PyxisRpc, { spanPrefix: "rpc.server" }),
+  RpcServer.toHttpEffect(PyxisRpc, { spanPrefix: "rpc.server" }),
 );
 
 const rpcHttp = HttpEffect.toWebHandlerLayer(rpcApp, rpcLayer);
@@ -28,5 +28,5 @@ export const disposeRpcHttpHandler = rpcHttp.dispose;
 const rpcWebHandler = rpcHttp.handler as (req: Request) => Promise<Response>;
 
 export function handleRpcRequest(req: Request): Promise<Response> {
-	return rpcWebHandler(req);
+  return rpcWebHandler(req);
 }

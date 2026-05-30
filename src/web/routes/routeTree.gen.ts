@@ -8,250 +8,250 @@
 // You should NOT make any changes in this file as it will be overwritten.
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
-import { Route as rootRouteImport } from './+__root'
-import { Route as StationsRouteImport } from './+stations'
-import { Route as SettingsRouteImport } from './+settings'
-import { Route as SearchRouteImport } from './+search'
-import { Route as HistoryRouteImport } from './+history'
-import { Route as GenresRouteImport } from './+genres'
-import { Route as BookmarksRouteImport } from './+bookmarks'
-import { Route as IndexRouteImport } from './+index'
-import { Route as StationTokenRouteImport } from './+station.$token'
-import { Route as SandboxQueueRouteImport } from './+sandbox.queue'
-import { Route as PlaylistPlaylistIdRouteImport } from './+playlist.$playlistId'
-import { Route as AlbumAlbumIdRouteImport } from './+album.$albumId'
+import { Route as rootRouteImport } from "./+__root";
+import { Route as AlbumAlbumIdRouteImport } from "./+album.$albumId";
+import { Route as BookmarksRouteImport } from "./+bookmarks";
+import { Route as GenresRouteImport } from "./+genres";
+import { Route as HistoryRouteImport } from "./+history";
+import { Route as IndexRouteImport } from "./+index";
+import { Route as PlaylistPlaylistIdRouteImport } from "./+playlist.$playlistId";
+import { Route as SandboxQueueRouteImport } from "./+sandbox.queue";
+import { Route as SearchRouteImport } from "./+search";
+import { Route as SettingsRouteImport } from "./+settings";
+import { Route as StationTokenRouteImport } from "./+station.$token";
+import { Route as StationsRouteImport } from "./+stations";
 
 const StationsRoute = StationsRouteImport.update({
-  id: '/stations',
-  path: '/stations',
+  id: "/stations",
+  path: "/stations",
   getParentRoute: () => rootRouteImport,
-} as any)
+} as any);
 const SettingsRoute = SettingsRouteImport.update({
-  id: '/settings',
-  path: '/settings',
+  id: "/settings",
+  path: "/settings",
   getParentRoute: () => rootRouteImport,
-} as any)
+} as any);
 const SearchRoute = SearchRouteImport.update({
-  id: '/search',
-  path: '/search',
+  id: "/search",
+  path: "/search",
   getParentRoute: () => rootRouteImport,
-} as any)
+} as any);
 const HistoryRoute = HistoryRouteImport.update({
-  id: '/history',
-  path: '/history',
+  id: "/history",
+  path: "/history",
   getParentRoute: () => rootRouteImport,
-} as any)
+} as any);
 const GenresRoute = GenresRouteImport.update({
-  id: '/genres',
-  path: '/genres',
+  id: "/genres",
+  path: "/genres",
   getParentRoute: () => rootRouteImport,
-} as any)
+} as any);
 const BookmarksRoute = BookmarksRouteImport.update({
-  id: '/bookmarks',
-  path: '/bookmarks',
+  id: "/bookmarks",
+  path: "/bookmarks",
   getParentRoute: () => rootRouteImport,
-} as any)
+} as any);
 const IndexRoute = IndexRouteImport.update({
-  id: '/',
-  path: '/',
+  id: "/",
+  path: "/",
   getParentRoute: () => rootRouteImport,
-} as any)
+} as any);
 const StationTokenRoute = StationTokenRouteImport.update({
-  id: '/station/$token',
-  path: '/station/$token',
+  id: "/station/$token",
+  path: "/station/$token",
   getParentRoute: () => rootRouteImport,
-} as any)
+} as any);
 const SandboxQueueRoute = SandboxQueueRouteImport.update({
-  id: '/sandbox/queue',
-  path: '/sandbox/queue',
+  id: "/sandbox/queue",
+  path: "/sandbox/queue",
   getParentRoute: () => rootRouteImport,
-} as any)
+} as any);
 const PlaylistPlaylistIdRoute = PlaylistPlaylistIdRouteImport.update({
-  id: '/playlist/$playlistId',
-  path: '/playlist/$playlistId',
+  id: "/playlist/$playlistId",
+  path: "/playlist/$playlistId",
   getParentRoute: () => rootRouteImport,
-} as any)
+} as any);
 const AlbumAlbumIdRoute = AlbumAlbumIdRouteImport.update({
-  id: '/album/$albumId',
-  path: '/album/$albumId',
+  id: "/album/$albumId",
+  path: "/album/$albumId",
   getParentRoute: () => rootRouteImport,
-} as any)
+} as any);
 
 export interface FileRoutesByFullPath {
-  '/': typeof IndexRoute
-  '/bookmarks': typeof BookmarksRoute
-  '/genres': typeof GenresRoute
-  '/history': typeof HistoryRoute
-  '/search': typeof SearchRoute
-  '/settings': typeof SettingsRoute
-  '/stations': typeof StationsRoute
-  '/album/$albumId': typeof AlbumAlbumIdRoute
-  '/playlist/$playlistId': typeof PlaylistPlaylistIdRoute
-  '/sandbox/queue': typeof SandboxQueueRoute
-  '/station/$token': typeof StationTokenRoute
+  "/": typeof IndexRoute;
+  "/bookmarks": typeof BookmarksRoute;
+  "/genres": typeof GenresRoute;
+  "/history": typeof HistoryRoute;
+  "/search": typeof SearchRoute;
+  "/settings": typeof SettingsRoute;
+  "/stations": typeof StationsRoute;
+  "/album/$albumId": typeof AlbumAlbumIdRoute;
+  "/playlist/$playlistId": typeof PlaylistPlaylistIdRoute;
+  "/sandbox/queue": typeof SandboxQueueRoute;
+  "/station/$token": typeof StationTokenRoute;
 }
 export interface FileRoutesByTo {
-  '/': typeof IndexRoute
-  '/bookmarks': typeof BookmarksRoute
-  '/genres': typeof GenresRoute
-  '/history': typeof HistoryRoute
-  '/search': typeof SearchRoute
-  '/settings': typeof SettingsRoute
-  '/stations': typeof StationsRoute
-  '/album/$albumId': typeof AlbumAlbumIdRoute
-  '/playlist/$playlistId': typeof PlaylistPlaylistIdRoute
-  '/sandbox/queue': typeof SandboxQueueRoute
-  '/station/$token': typeof StationTokenRoute
+  "/": typeof IndexRoute;
+  "/bookmarks": typeof BookmarksRoute;
+  "/genres": typeof GenresRoute;
+  "/history": typeof HistoryRoute;
+  "/search": typeof SearchRoute;
+  "/settings": typeof SettingsRoute;
+  "/stations": typeof StationsRoute;
+  "/album/$albumId": typeof AlbumAlbumIdRoute;
+  "/playlist/$playlistId": typeof PlaylistPlaylistIdRoute;
+  "/sandbox/queue": typeof SandboxQueueRoute;
+  "/station/$token": typeof StationTokenRoute;
 }
 export interface FileRoutesById {
-  __root__: typeof rootRouteImport
-  '/': typeof IndexRoute
-  '/bookmarks': typeof BookmarksRoute
-  '/genres': typeof GenresRoute
-  '/history': typeof HistoryRoute
-  '/search': typeof SearchRoute
-  '/settings': typeof SettingsRoute
-  '/stations': typeof StationsRoute
-  '/album/$albumId': typeof AlbumAlbumIdRoute
-  '/playlist/$playlistId': typeof PlaylistPlaylistIdRoute
-  '/sandbox/queue': typeof SandboxQueueRoute
-  '/station/$token': typeof StationTokenRoute
+  __root__: typeof rootRouteImport;
+  "/": typeof IndexRoute;
+  "/bookmarks": typeof BookmarksRoute;
+  "/genres": typeof GenresRoute;
+  "/history": typeof HistoryRoute;
+  "/search": typeof SearchRoute;
+  "/settings": typeof SettingsRoute;
+  "/stations": typeof StationsRoute;
+  "/album/$albumId": typeof AlbumAlbumIdRoute;
+  "/playlist/$playlistId": typeof PlaylistPlaylistIdRoute;
+  "/sandbox/queue": typeof SandboxQueueRoute;
+  "/station/$token": typeof StationTokenRoute;
 }
 export interface FileRouteTypes {
-  fileRoutesByFullPath: FileRoutesByFullPath
+  fileRoutesByFullPath: FileRoutesByFullPath;
   fullPaths:
-    | '/'
-    | '/bookmarks'
-    | '/genres'
-    | '/history'
-    | '/search'
-    | '/settings'
-    | '/stations'
-    | '/album/$albumId'
-    | '/playlist/$playlistId'
-    | '/sandbox/queue'
-    | '/station/$token'
-  fileRoutesByTo: FileRoutesByTo
+    | "/"
+    | "/bookmarks"
+    | "/genres"
+    | "/history"
+    | "/search"
+    | "/settings"
+    | "/stations"
+    | "/album/$albumId"
+    | "/playlist/$playlistId"
+    | "/sandbox/queue"
+    | "/station/$token";
+  fileRoutesByTo: FileRoutesByTo;
   to:
-    | '/'
-    | '/bookmarks'
-    | '/genres'
-    | '/history'
-    | '/search'
-    | '/settings'
-    | '/stations'
-    | '/album/$albumId'
-    | '/playlist/$playlistId'
-    | '/sandbox/queue'
-    | '/station/$token'
+    | "/"
+    | "/bookmarks"
+    | "/genres"
+    | "/history"
+    | "/search"
+    | "/settings"
+    | "/stations"
+    | "/album/$albumId"
+    | "/playlist/$playlistId"
+    | "/sandbox/queue"
+    | "/station/$token";
   id:
-    | '__root__'
-    | '/'
-    | '/bookmarks'
-    | '/genres'
-    | '/history'
-    | '/search'
-    | '/settings'
-    | '/stations'
-    | '/album/$albumId'
-    | '/playlist/$playlistId'
-    | '/sandbox/queue'
-    | '/station/$token'
-  fileRoutesById: FileRoutesById
+    | "__root__"
+    | "/"
+    | "/bookmarks"
+    | "/genres"
+    | "/history"
+    | "/search"
+    | "/settings"
+    | "/stations"
+    | "/album/$albumId"
+    | "/playlist/$playlistId"
+    | "/sandbox/queue"
+    | "/station/$token";
+  fileRoutesById: FileRoutesById;
 }
 export interface RootRouteChildren {
-  IndexRoute: typeof IndexRoute
-  BookmarksRoute: typeof BookmarksRoute
-  GenresRoute: typeof GenresRoute
-  HistoryRoute: typeof HistoryRoute
-  SearchRoute: typeof SearchRoute
-  SettingsRoute: typeof SettingsRoute
-  StationsRoute: typeof StationsRoute
-  AlbumAlbumIdRoute: typeof AlbumAlbumIdRoute
-  PlaylistPlaylistIdRoute: typeof PlaylistPlaylistIdRoute
-  SandboxQueueRoute: typeof SandboxQueueRoute
-  StationTokenRoute: typeof StationTokenRoute
+  IndexRoute: typeof IndexRoute;
+  BookmarksRoute: typeof BookmarksRoute;
+  GenresRoute: typeof GenresRoute;
+  HistoryRoute: typeof HistoryRoute;
+  SearchRoute: typeof SearchRoute;
+  SettingsRoute: typeof SettingsRoute;
+  StationsRoute: typeof StationsRoute;
+  AlbumAlbumIdRoute: typeof AlbumAlbumIdRoute;
+  PlaylistPlaylistIdRoute: typeof PlaylistPlaylistIdRoute;
+  SandboxQueueRoute: typeof SandboxQueueRoute;
+  StationTokenRoute: typeof StationTokenRoute;
 }
 
-declare module '@tanstack/react-router' {
+declare module "@tanstack/react-router" {
   interface FileRoutesByPath {
-    '/stations': {
-      id: '/stations'
-      path: '/stations'
-      fullPath: '/stations'
-      preLoaderRoute: typeof StationsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/settings': {
-      id: '/settings'
-      path: '/settings'
-      fullPath: '/settings'
-      preLoaderRoute: typeof SettingsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/search': {
-      id: '/search'
-      path: '/search'
-      fullPath: '/search'
-      preLoaderRoute: typeof SearchRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/history': {
-      id: '/history'
-      path: '/history'
-      fullPath: '/history'
-      preLoaderRoute: typeof HistoryRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/genres': {
-      id: '/genres'
-      path: '/genres'
-      fullPath: '/genres'
-      preLoaderRoute: typeof GenresRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/bookmarks': {
-      id: '/bookmarks'
-      path: '/bookmarks'
-      fullPath: '/bookmarks'
-      preLoaderRoute: typeof BookmarksRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/': {
-      id: '/'
-      path: '/'
-      fullPath: '/'
-      preLoaderRoute: typeof IndexRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/station/$token': {
-      id: '/station/$token'
-      path: '/station/$token'
-      fullPath: '/station/$token'
-      preLoaderRoute: typeof StationTokenRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/sandbox/queue': {
-      id: '/sandbox/queue'
-      path: '/sandbox/queue'
-      fullPath: '/sandbox/queue'
-      preLoaderRoute: typeof SandboxQueueRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/playlist/$playlistId': {
-      id: '/playlist/$playlistId'
-      path: '/playlist/$playlistId'
-      fullPath: '/playlist/$playlistId'
-      preLoaderRoute: typeof PlaylistPlaylistIdRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/album/$albumId': {
-      id: '/album/$albumId'
-      path: '/album/$albumId'
-      fullPath: '/album/$albumId'
-      preLoaderRoute: typeof AlbumAlbumIdRouteImport
-      parentRoute: typeof rootRouteImport
-    }
+    "/stations": {
+      id: "/stations";
+      path: "/stations";
+      fullPath: "/stations";
+      preLoaderRoute: typeof StationsRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
+    "/settings": {
+      id: "/settings";
+      path: "/settings";
+      fullPath: "/settings";
+      preLoaderRoute: typeof SettingsRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
+    "/search": {
+      id: "/search";
+      path: "/search";
+      fullPath: "/search";
+      preLoaderRoute: typeof SearchRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
+    "/history": {
+      id: "/history";
+      path: "/history";
+      fullPath: "/history";
+      preLoaderRoute: typeof HistoryRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
+    "/genres": {
+      id: "/genres";
+      path: "/genres";
+      fullPath: "/genres";
+      preLoaderRoute: typeof GenresRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
+    "/bookmarks": {
+      id: "/bookmarks";
+      path: "/bookmarks";
+      fullPath: "/bookmarks";
+      preLoaderRoute: typeof BookmarksRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
+    "/": {
+      id: "/";
+      path: "/";
+      fullPath: "/";
+      preLoaderRoute: typeof IndexRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
+    "/station/$token": {
+      id: "/station/$token";
+      path: "/station/$token";
+      fullPath: "/station/$token";
+      preLoaderRoute: typeof StationTokenRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
+    "/sandbox/queue": {
+      id: "/sandbox/queue";
+      path: "/sandbox/queue";
+      fullPath: "/sandbox/queue";
+      preLoaderRoute: typeof SandboxQueueRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
+    "/playlist/$playlistId": {
+      id: "/playlist/$playlistId";
+      path: "/playlist/$playlistId";
+      fullPath: "/playlist/$playlistId";
+      preLoaderRoute: typeof PlaylistPlaylistIdRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
+    "/album/$albumId": {
+      id: "/album/$albumId";
+      path: "/album/$albumId";
+      fullPath: "/album/$albumId";
+      preLoaderRoute: typeof AlbumAlbumIdRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
   }
 }
 
@@ -267,7 +267,7 @@ const rootRouteChildren: RootRouteChildren = {
   PlaylistPlaylistIdRoute: PlaylistPlaylistIdRoute,
   SandboxQueueRoute: SandboxQueueRoute,
   StationTokenRoute: StationTokenRoute,
-}
+};
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
-  ._addFileTypes<FileRouteTypes>()
+  ._addFileTypes<FileRouteTypes>();

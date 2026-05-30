@@ -15,9 +15,9 @@ import type { ApiPublicError } from "../../src/api/contracts/common.js";
 import { PyxisRpc } from "../../src/api/rpc.js";
 import { createLogger } from "../../src/logger.js";
 import {
-	internalDefect,
-	type PublicError,
-	toApiPublicError,
+  internalDefect,
+  type PublicError,
+  toApiPublicError,
 } from "./errors.js";
 import { albumHandlers } from "./handlers/album.js";
 import { artistHandlers } from "./handlers/artist.js";
@@ -36,8 +36,8 @@ import { Library, LibraryLayerLive } from "./services/library.js";
 import { Player, PlayerLayerLive } from "./services/player.js";
 import { Queue, QueueLayerLive } from "./services/queue.js";
 import {
-	SourceCatalog,
-	SourceCatalogLayerLive,
+  SourceCatalog,
+  SourceCatalogLayerLive,
 } from "./services/sourceCatalog.js";
 import { mapUnknownError } from "./sourceErrorMap.js";
 
@@ -50,28 +50,28 @@ const log = createLogger("server").child({ component: "rpc.handler" });
  * canonical list of realtime tags in one place.
  */
 export const REALTIME_RPC_TAGS = [
-	"player.state.get",
-	"player.play",
-	"player.pause",
-	"player.resume",
-	"player.stop",
-	"player.skip",
-	"player.previous",
-	"player.jumpTo",
-	"player.seek",
-	"player.volume.set",
-	"player.progress.report",
-	"player.duration.report",
-	"player.audioError.report",
-	"player.trackEnded",
-	"player.state.stream",
-	"queue.state.get",
-	"queue.tracks.add",
-	"queue.track.remove",
-	"queue.clear",
-	"queue.jump",
-	"queue.shuffle",
-	"queue.state.stream",
+  "player.state.get",
+  "player.play",
+  "player.pause",
+  "player.resume",
+  "player.stop",
+  "player.skip",
+  "player.previous",
+  "player.jumpTo",
+  "player.seek",
+  "player.volume.set",
+  "player.progress.report",
+  "player.duration.report",
+  "player.audioError.report",
+  "player.trackEnded",
+  "player.state.stream",
+  "queue.state.get",
+  "queue.tracks.add",
+  "queue.track.remove",
+  "queue.clear",
+  "queue.jump",
+  "queue.shuffle",
+  "queue.state.stream",
 ] as const;
 
 /**
@@ -83,22 +83,22 @@ export const REALTIME_RPC_TAGS = [
 export const NonRealtimeRpc = PyxisRpc.omit(...REALTIME_RPC_TAGS);
 
 const PUBLIC_ERROR_TAGS = new Set<string>([
-	"ValidationError",
-	"Unauthorized",
-	"AuthRefreshFailed",
-	"NotFound",
-	"SourceUnavailable",
-	"PersistenceError",
-	"UpstreamProviderError",
-	"StaleCommand",
-	"StaleReport",
-	"Defect",
+  "ValidationError",
+  "Unauthorized",
+  "AuthRefreshFailed",
+  "NotFound",
+  "SourceUnavailable",
+  "PersistenceError",
+  "UpstreamProviderError",
+  "StaleCommand",
+  "StaleReport",
+  "Defect",
 ]);
 
 function isPublicError(err: unknown): err is PublicError {
-	if (typeof err !== "object" || err === null) return false;
-	const tag = (err as { _tag?: unknown })._tag;
-	return typeof tag === "string" && PUBLIC_ERROR_TAGS.has(tag);
+  if (typeof err !== "object" || err === null) return false;
+  const tag = (err as { _tag?: unknown })._tag;
+  return typeof tag === "string" && PUBLIC_ERROR_TAGS.has(tag);
 }
 
 /**
@@ -107,8 +107,8 @@ function isPublicError(err: unknown): err is PublicError {
  * {@link mapUnknownError} so the wire never sees a raw cause.
  */
 export function normalizePublicError(err: unknown): PublicError {
-	if (isPublicError(err)) return err;
-	return mapUnknownError(err);
+  if (isPublicError(err)) return err;
+  return mapUnknownError(err);
 }
 
 /**
@@ -120,15 +120,15 @@ export function normalizePublicError(err: unknown): PublicError {
  * union and trust the wire encoder to see only allow-listed fields.
  */
 export const publicHandler = <A, R>(
-	eff: Effect.Effect<A, unknown, R>,
+  eff: Effect.Effect<A, unknown, R>,
 ): Effect.Effect<A, ApiPublicError, R> =>
-	eff.pipe(
-		Effect.catchDefect((cause) => {
-			log.error({ err: cause }, "unexpected handler defect");
-			return Effect.fail(internalDefect());
-		}),
-		Effect.mapError((err) => toApiPublicError(normalizePublicError(err))),
-	);
+  eff.pipe(
+    Effect.catchDefect((cause) => {
+      log.error({ err: cause }, "unexpected handler defect");
+      return Effect.fail(internalDefect());
+    }),
+    Effect.mapError((err) => toApiPublicError(normalizePublicError(err))),
+  );
 
 /**
  * Build the handler layer for {@link NonRealtimeRpc}. Each per-family
@@ -143,24 +143,24 @@ export const publicHandler = <A, R>(
  * inference on the resulting layer.
  */
 export const NonRealtimeHandlersLayer = NonRealtimeRpc.toLayer(
-	Effect.gen(function* () {
-		const auth = yield* AuthSession;
-		const library = yield* Library;
-		const catalog = yield* SourceCatalog;
-		const handlers = {
-			...authHandlers({ auth }),
-			...libraryHandlers({ auth, library, catalog }),
-			...albumHandlers({ catalog }),
-			...artistHandlers({ catalog }),
-			...searchHandlers({ auth, catalog }),
-			...radioHandlers({ auth }),
-			...playlistHandlers({ auth, catalog }),
-			...trackHandlers({ auth }),
-			...listenLogHandlers(),
-			...logHandlers(),
-		};
-		return handlers as never;
-	}),
+  Effect.gen(function* () {
+    const auth = yield* AuthSession;
+    const library = yield* Library;
+    const catalog = yield* SourceCatalog;
+    const handlers = {
+      ...authHandlers({ auth }),
+      ...libraryHandlers({ auth, library, catalog }),
+      ...albumHandlers({ catalog }),
+      ...artistHandlers({ catalog }),
+      ...searchHandlers({ auth, catalog }),
+      ...radioHandlers({ auth }),
+      ...playlistHandlers({ auth, catalog }),
+      ...trackHandlers({ auth }),
+      ...listenLogHandlers(),
+      ...logHandlers(),
+    };
+    return handlers as never;
+  }),
 );
 
 /**
@@ -169,28 +169,28 @@ export const NonRealtimeHandlersLayer = NonRealtimeRpc.toLayer(
  * families wired through {@link NonRealtimeHandlersLayer}.
  */
 export const HandlersLayer = PyxisRpc.toLayer(
-	Effect.gen(function* () {
-		const auth = yield* AuthSession;
-		const library = yield* Library;
-		const catalog = yield* SourceCatalog;
-		const player = yield* Player;
-		const queue = yield* Queue;
-		const handlers = {
-			...authHandlers({ auth }),
-			...libraryHandlers({ auth, library, catalog }),
-			...albumHandlers({ catalog }),
-			...artistHandlers({ catalog }),
-			...searchHandlers({ auth, catalog }),
-			...radioHandlers({ auth }),
-			...playlistHandlers({ auth, catalog }),
-			...trackHandlers({ auth }),
-			...listenLogHandlers(),
-			...logHandlers(),
-			...playerHandlers({ player, queue }),
-			...queueHandlers({ queue }),
-		};
-		return handlers as never;
-	}),
+  Effect.gen(function* () {
+    const auth = yield* AuthSession;
+    const library = yield* Library;
+    const catalog = yield* SourceCatalog;
+    const player = yield* Player;
+    const queue = yield* Queue;
+    const handlers = {
+      ...authHandlers({ auth }),
+      ...libraryHandlers({ auth, library, catalog }),
+      ...albumHandlers({ catalog }),
+      ...artistHandlers({ catalog }),
+      ...searchHandlers({ auth, catalog }),
+      ...radioHandlers({ auth }),
+      ...playlistHandlers({ auth, catalog }),
+      ...trackHandlers({ auth }),
+      ...listenLogHandlers(),
+      ...logHandlers(),
+      ...playerHandlers({ player, queue }),
+      ...queueHandlers({ queue }),
+    };
+    return handlers as never;
+  }),
 );
 
 /**
@@ -199,9 +199,9 @@ export const HandlersLayer = PyxisRpc.toLayer(
  * route as the application's only RPC runtime.
  */
 export const PyxisRpcLayerLive = HandlersLayer.pipe(
-	Layer.provide(AuthSessionLayerLive),
-	Layer.provide(LibraryLayerLive),
-	Layer.provide(SourceCatalogLayerLive),
-	Layer.provide(PlayerLayerLive),
-	Layer.provide(QueueLayerLive),
+  Layer.provide(AuthSessionLayerLive),
+  Layer.provide(LibraryLayerLive),
+  Layer.provide(SourceCatalogLayerLive),
+  Layer.provide(PlayerLayerLive),
+  Layer.provide(QueueLayerLive),
 );
