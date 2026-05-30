@@ -24,6 +24,58 @@ const sampleStation = (): ApiStationDetail => ({
   },
 });
 
+const sampleFeedback = () => ({
+  feedbackId: "feedback-1",
+  songName: "Liked Song",
+  artistName: "Liked Artist",
+  isPositive: true,
+  dateCreated: { time: 123 },
+});
+
+describe("StationDetailState.seeds", () => {
+  it("returns Empty when the station has no seed arrays", () => {
+    expect(
+      StationDetailState.seeds({ ...sampleStation(), music: undefined }),
+    ).toEqual({ _tag: "Empty" });
+  });
+
+  it("returns Ready with artist and song seeds when present", () => {
+    const station = sampleStation();
+    expect(StationDetailState.seeds(station)).toEqual({
+      _tag: "Ready",
+      artists: station.music?.artists,
+      songs: station.music?.songs,
+    });
+  });
+});
+
+describe("StationDetailState.feedback", () => {
+  it("returns Empty when no feedback exists", () => {
+    expect(StationDetailState.feedback(sampleStation())).toEqual({
+      _tag: "Empty",
+    });
+  });
+
+  it("returns Ready with liked and disliked feedback when present", () => {
+    const liked = sampleFeedback();
+    const disliked = {
+      ...sampleFeedback(),
+      feedbackId: "feedback-2",
+      isPositive: false,
+    };
+    const station = {
+      ...sampleStation(),
+      feedback: { thumbsUp: [liked], thumbsDown: [disliked] },
+    };
+
+    expect(StationDetailState.feedback(station)).toEqual({
+      _tag: "Ready",
+      liked: [liked],
+      disliked: [disliked],
+    });
+  });
+});
+
 describe("StationDetailState.fromResult", () => {
   it("returns Loading while the RPC is initial", () => {
     const state = StationDetailState.fromResult(AsyncResult.initial(true));

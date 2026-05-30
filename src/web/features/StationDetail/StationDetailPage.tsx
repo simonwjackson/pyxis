@@ -32,17 +32,10 @@ import { useNavigate } from "@tanstack/react-router";
 import { AsyncResult } from "effect/unstable/reactivity";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
-import { StationDetailArtistSeedRow } from "./StationDetailArtistSeedRow";
-import { StationDetailFeedbackRow } from "./StationDetailFeedbackRow";
-import {
-  StationDetailDislikedFeedbackGroup,
-  StationDetailFeedbackSection,
-  StationDetailLikedFeedbackGroup,
-} from "./StationDetailFeedbackSection";
+import { StationDetailFeedbackSection } from "./StationDetailFeedbackSection";
 import { StationDetailHeader } from "./StationDetailHeader";
 import { StationDetailSeedsSection } from "./StationDetailSeedsSection";
 import { StationDetailSkeleton } from "./StationDetailSkeleton";
-import { StationDetailSongSeedRow } from "./StationDetailSongSeedRow";
 import { StationDetailState } from "./StationDetailState";
 import type { StationDetailPageProps } from "./types";
 
@@ -175,12 +168,8 @@ export function StationDetailPage({ token, autoPlay }: StationDetailPageProps) {
   }
 
   const station = state.station;
-  const artistSeeds = station.music?.artists ?? [];
-  const songSeeds = station.music?.songs ?? [];
-  const thumbsUp = station.feedback?.thumbsUp ?? [];
-  const thumbsDown = station.feedback?.thumbsDown ?? [];
-  const hasSeeds = artistSeeds.length > 0 || songSeeds.length > 0;
-  const hasFeedback = thumbsUp.length > 0 || thumbsDown.length > 0;
+  const seedsState = StationDetailState.seeds(station);
+  const feedbackState = StationDetailState.feedback(station);
 
   return (
     <div className="page-frame lattice-container space-y-8 max-w-3xl mx-auto">
@@ -203,66 +192,12 @@ export function StationDetailPage({ token, autoPlay }: StationDetailPageProps) {
       />
 
       <StationDetailSeedsSection
-        hasSeeds={hasSeeds}
-        artistSeeds={
-          artistSeeds.length > 0 ? (
-            <div className="space-y-1 mb-4">
-              <p className="text-xs text-pyxis-dim mb-1">Artists</p>
-              {artistSeeds.map((seed) => (
-                <StationDetailArtistSeedRow
-                  key={seed.seedId}
-                  seed={seed}
-                  isRemoving={isRemovingSeed}
-                  onRemove={handleRemoveSeed}
-                />
-              ))}
-            </div>
-          ) : null
-        }
-        songSeeds={
-          songSeeds.length > 0 ? (
-            <div className="space-y-1">
-              <p className="text-xs text-pyxis-dim mb-1">Songs</p>
-              {songSeeds.map((seed) => (
-                <StationDetailSongSeedRow
-                  key={seed.seedId}
-                  seed={seed}
-                  isRemoving={isRemovingSeed}
-                  onRemove={handleRemoveSeed}
-                />
-              ))}
-            </div>
-          ) : null
-        }
+        state={seedsState}
+        isRemoving={isRemovingSeed}
+        onRemove={handleRemoveSeed}
       />
 
-      <StationDetailFeedbackSection
-        hasFeedback={hasFeedback}
-        likedFeedback={
-          thumbsUp.length > 0 ? (
-            <StationDetailLikedFeedbackGroup>
-              {thumbsUp.map((feedback) => (
-                <StationDetailFeedbackRow
-                  key={feedback.feedbackId}
-                  feedback={feedback}
-                />
-              ))}
-            </StationDetailLikedFeedbackGroup>
-          ) : null
-        }
-        dislikedFeedback={
-          thumbsDown.length > 0 ? (
-            <StationDetailDislikedFeedbackGroup>
-              {thumbsDown.map((feedback) => (
-                <StationDetailFeedbackRow
-                  key={feedback.feedbackId}
-                  feedback={feedback}
-                />
-              ))}
-            </StationDetailDislikedFeedbackGroup>
-          ) : null
-        }
-      />
+      <StationDetailFeedbackSection state={feedbackState} />
 
       {showAddSeed ? (
         <AddSeedDialog radioId={token} onClose={() => setShowAddSeed(false)} />

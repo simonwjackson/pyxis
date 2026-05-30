@@ -14,7 +14,11 @@
 
 import { AsyncResult } from "effect/unstable/reactivity";
 import type { ApiPublicError } from "../../../api/contracts/common.js";
-import type { ApiStationDetail } from "../../../api/contracts/radio.js";
+import type {
+  ApiStationDetail,
+  ApiStationFeedbackEntry,
+  ApiStationSeed,
+} from "../../../api/contracts/radio.js";
 
 export type StationDetailState =
   | { readonly _tag: "Loading" }
@@ -23,7 +27,37 @@ export type StationDetailState =
   | { readonly _tag: "LoadError"; readonly error: ApiPublicError }
   | { readonly _tag: "Defect"; readonly defect: unknown };
 
+export type StationDetailSeedsState =
+  | { readonly _tag: "Empty" }
+  | {
+      readonly _tag: "Ready";
+      readonly artists: readonly ApiStationSeed[];
+      readonly songs: readonly ApiStationSeed[];
+    };
+
+export type StationDetailFeedbackState =
+  | { readonly _tag: "Empty" }
+  | {
+      readonly _tag: "Ready";
+      readonly liked: readonly ApiStationFeedbackEntry[];
+      readonly disliked: readonly ApiStationFeedbackEntry[];
+    };
+
 export const StationDetailState = {
+  seeds(station: ApiStationDetail): StationDetailSeedsState {
+    const artists = station.music?.artists ?? [];
+    const songs = station.music?.songs ?? [];
+    if (artists.length === 0 && songs.length === 0) return { _tag: "Empty" };
+    return { _tag: "Ready", artists, songs };
+  },
+
+  feedback(station: ApiStationDetail): StationDetailFeedbackState {
+    const liked = station.feedback?.thumbsUp ?? [];
+    const disliked = station.feedback?.thumbsDown ?? [];
+    if (liked.length === 0 && disliked.length === 0) return { _tag: "Empty" };
+    return { _tag: "Ready", liked, disliked };
+  },
+
   fromResult(
     result: AsyncResult.AsyncResult<ApiStationDetail, ApiPublicError>,
   ): StationDetailState {
