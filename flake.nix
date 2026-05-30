@@ -32,7 +32,38 @@
         inherit system;
         overlays = [yt-dlp-overlay bun2nix.overlays.default];
       };
+      fallowPackage =
+        if pkgs.stdenv.isLinux
+        then
+          pkgs.buildFHSEnv {
+            name = "fallow";
+            targetPkgs = pkgs:
+              with pkgs; [
+                glibc
+                gcc.cc.lib
+                zlib
+              ];
+            # The default FHS auto-mounter tries to bind every host root
+            # directory. On NixOS machines with autofs /net mounts that can
+            # fail before the CLI starts, so keep the wrapper self-contained.
+            extraPreBwrapCmds = ''
+              ignored+=(/net)
+            '';
+            runScript = pkgs.writeShellScript "run-fallow" ''
+              exec ./node_modules/.bin/fallow "$@"
+            '';
+          }
+        else
+          pkgs.writeShellApplication {
+            name = "fallow";
+            text = ''
+              echo "The bundled Fallow binary requires the Linux FHS wrapper; run on Linux/NixOS." >&2
+              exit 1
+            '';
+          };
     in {
+      fallow = fallowPackage;
+
       default = pkgs.stdenv.mkDerivation {
         pname = "pyxis";
         version = "0.1.0";
@@ -73,6 +104,13 @@
           description = "Personal unified music hub";
           mainProgram = "pyxis";
         };
+      };
+    });
+
+    apps = forAllSystems (system: {
+      fallow = {
+        type = "app";
+        program = "${self.packages.${system}.fallow}/bin/fallow";
       };
     });
 

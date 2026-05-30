@@ -1,0 +1,103 @@
+{
+  "$schema": "./node_modules/fallow/schema.json",
+  "entry": [
+    "server/index.ts",
+    "src/web/main.tsx",
+    "src/routeTree.gen.ts",
+    "vite.config.ts"
+  ],
+  "ignorePatterns": [
+    "android/**",
+    "dist-web/**",
+    "node_modules/**",
+    ".worktrees/**",
+    ".storybook/**/storybook-static/**"
+  ],
+  "boundaries": {
+    "zones": [
+      {
+        "name": "web",
+        "patterns": [
+          "src/web/**"
+        ]
+      },
+      {
+        "name": "api",
+        "patterns": [
+          "src/api/**"
+        ]
+      },
+      {
+        "name": "shared-db",
+        "patterns": [
+          "src/db/**"
+        ]
+      },
+      {
+        "name": "shared-sources",
+        "patterns": [
+          "src/sources/**"
+        ]
+      },
+      {
+        "name": "shared-config",
+        "patterns": [
+          "src/config.ts",
+          "src/logger.ts",
+          "src/routeTree.gen.ts"
+        ]
+      },
+      {
+        "name": "server",
+        "patterns": [
+          "server/**"
+        ]
+      }
+    ],
+    "rules": [
+      {
+        "from": "web",
+        "allow": [
+          "api",
+          "shared-sources",
+          "shared-config"
+        ]
+      },
+      {
+        "from": "server",
+        "allow": [
+          "api",
+          "shared-db",
+          "shared-sources",
+          "shared-config"
+        ]
+      },
+      {
+        "from": "api",
+        "allow": [
+          "shared-sources",
+          "shared-config"
+        ]
+      },
+      {
+        "from": "shared-db",
+        "allow": [
+          "shared-config",
+          "shared-sources"
+        ]
+      },
+      {
+        "from": "shared-sources",
+        "allow": [
+          "shared-config"
+        ]
+      }
+    ]
+  },
+  "audit": {
+    "gate": "new-only",
+    "deadCodeBaseline": "fallow-baselines/dead-code.json",
+    "healthBaseline": "fallow-baselines/health.json",
+    "dupesBaseline": "fallow-baselines/dupes.json"
+  }
+}

@@ -28,6 +28,10 @@ format:
 typecheck:
     bun run typecheck
 
+# Run Fallow architecture/dead-code audit through the repo-local Nix FHS wrapper
+fallow-audit:
+    nix run .#fallow -- audit --config .fallowrc.json
+
 # Dev mode (Vite embedded in Bun server)
 dev:
     bun run dev

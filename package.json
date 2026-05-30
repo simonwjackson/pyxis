@@ -13,7 +13,9 @@
     "test-unit": "bun test",
     "test": "bun test",
     "test:watch": "bun test --watch",
-    "test:coverage": "bun test --coverage"
+    "test:coverage": "bun test --coverage",
+    "fallow": "fallow",
+    "fallow:audit": "fallow audit --config .fallowrc.json"
   },
   "dependencies": {
     "@effect/atom-react": "4.0.0-beta.60",
@@ -52,6 +54,7 @@
     "@types/react-dom": "^19",
     "@types/yaml": "^1.9.7",
     "@vitejs/plugin-react": "^4.5.2",
+    "fallow": "^2.84.0",
     "typescript": "^5.x",
     "vite": "^7.0.0"
   }

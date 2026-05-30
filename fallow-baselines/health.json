@@ -1,0 +1,437 @@
+{
+  "finding_counts": {
+    "plugins/vite-plugin-orchestra-source/babel-plugin.ts": {
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "plugins/vite-plugin-orchestra-source/index.ts": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "public/sw.js": {
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "server/index.ts": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "server/lib/androidMediaBridge.ts": {
+      "complexity_high": {
+        "count": 1
+      },
+      "crap_high": {
+        "count": 2
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "server/lib/androidMediaBridgeLog.ts": {
+      "complexity_high": {
+        "count": 1
+      },
+      "complexity_moderate": {
+        "count": 1
+      },
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "server/rpc/sourceErrorMap.ts": {
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "server/scripts/enrich-library.ts": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "server/scripts/import-albums.ts": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      },
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "server/services/autoLogin.ts": {
+      "crap_high": {
+        "count": 2
+      }
+    },
+    "server/services/hotAlbums.ts": {
+      "complexity_moderate": {
+        "count": 1
+      }
+    },
+    "server/services/sourceManager.ts": {
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "server/services/stream.ts": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "complexity_high": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "src/config.ts": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "src/db/index.ts": {
+      "complexity_moderate": {
+        "count": 3
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "src/sources/bandcamp/client.ts": {
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "src/sources/bandcamp/source.ts": {
+      "complexity_moderate": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 2
+      }
+    },
+    "src/sources/discogs/source.ts": {
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "src/sources/index.ts": {
+      "complexity_high": {
+        "count": 1
+      },
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "src/sources/matcher.ts": {
+      "complexity_moderate": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "src/sources/musicbrainz/source.ts": {
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "src/sources/pandora/crypto/blowfish.ts": {
+      "complexity_high": {
+        "count": 1
+      },
+      "crap_high": {
+        "count": 2
+      }
+    },
+    "src/sources/soundcloud/source.ts": {
+      "crap_moderate": {
+        "count": 2
+      }
+    },
+    "src/sources/ytmusic/parsers.ts": {
+      "crap_high": {
+        "count": 3
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "src/sources/ytmusic/yt-dlp.ts": {
+      "complexity_high": {
+        "count": 1
+      },
+      "complexity_moderate": {
+        "count": 2
+      },
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "src/web/features/AlbumDetail/AlbumDetailContent.tsx": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "src/web/features/AlbumDetail/LibraryAlbumDetailRoot.tsx": {
+      "crap_critical": {
+        "count": 1
+      },
+      "crap_high": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 2
+      }
+    },
+    "src/web/features/AlbumDetail/SourceAlbumDetailRoot.tsx": {
+      "crap_critical": {
+        "count": 1
+      },
+      "crap_high": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 2
+      }
+    },
+    "src/web/features/PlaylistDetail/PlaylistDetailPage.tsx": {
+      "crap_critical": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "src/web/features/StationDetail/StationDetailPage.tsx": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "src/web/features/bookmarks/BookmarksPage.tsx": {
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "src/web/features/genres/GenresPage.tsx": {
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "src/web/features/history/HistoryPage.tsx": {
+      "crap_high": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 2
+      }
+    },
+    "src/web/features/home/AlbumShelf.tsx": {
+      "crap_moderate": {
+        "count": 3
+      }
+    },
+    "src/web/features/sandbox/QueueCoverflow/QueueCoverflowPage.tsx": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      },
+      "crap_high": {
+        "count": 2
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "src/web/features/search/SearchPage.tsx": {
+      "crap_critical": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "src/web/features/search/components/SearchAlbums.tsx": {
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "src/web/features/settings/SettingsPage.tsx": {
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "src/web/features/stations/AddSeedDialog.tsx": {
+      "crap_high": {
+        "count": 2
+      }
+    },
+    "src/web/features/stations/StationList/RadioStationRow.tsx": {
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "src/web/features/stations/StationsPage.tsx": {
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "src/web/routes/+index.tsx": {
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "src/web/shared/TrackInfoModal/TrackInfoTraits.tsx": {
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "src/web/shared/api/cutoverInventory.test.ts": {
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "src/web/shared/keyboardShortcuts.ts": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "src/web/shared/layout/CommandPalette.tsx": {
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "src/web/shared/layout/CommandPalette/components/CommandPaletteCommandListPanel.tsx": {
+      "crap_high": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "src/web/shared/layout/CommandPalette/components/CommandPaletteThemeListPanel.tsx": {
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "src/web/shared/layout/MobileNav.tsx": {
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "src/web/shared/layout/NowPlayingBar.tsx": {
+      "crap_critical": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "src/web/shared/lib/shortcuts.ts": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "src/web/shared/playback/usePlayback.ts": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      },
+      "crap_high": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 3
+      }
+    },
+    "src/web/shared/ui/ErrorBoundary.tsx": {
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "src/web/shared/ui/collection-grid/CollectionGridRoot.tsx": {
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "src/web/shared/ui/collection-grid/utils.ts": {
+      "crap_moderate": {
+        "count": 1
+      }
+    }
+  },
+  "runtime_coverage_findings": [],
+  "target_keys": [
+    "server/rpc/parity.test-support.ts:dead code",
+    "server/scripts/enrich-library.ts:complexity",
+    "server/rpc/sourceErrorMap.ts:dead code",
+    "server/rpc/middleware.ts:dead code",
+    "src/db/config.ts:dead code",
+    "server/rpc/services/authSession.ts:dead code",
+    "server/services/hotAlbums.ts:dead code",
+    "plugins/vite-plugin-orchestra-source/index.ts:dead code",
+    "server/rpc/handler.ts:circular dependency",
+    "server/services/session.ts:dead code",
+    "src/config.ts:complexity",
+    "server/rpc/handlers/library.ts:circular dependency",
+    "server/rpc/handlers/radio.ts:circular dependency",
+    "server/rpc/handlers/search.ts:circular dependency",
+    "server/rpc/handlers/player.ts:circular dependency",
+    "server/services/libraryPlacement.ts:dead code",
+    "server/rpc/handlers/playlist.ts:circular dependency",
+    "src/web/shared/lib/shortcuts.ts:dead code",
+    "server/rpc/handlers/track.ts:circular dependency",
+    "server/rpc/handlers/auth.ts:circular dependency",
+    "server/rpc/handlers/album.ts:circular dependency",
+    "server/rpc/handlers/queue.ts:circular dependency",
+    "server/rpc/handlers/artist.ts:circular dependency",
+    "server/services/stream.ts:complexity",
+    "server/rpc/handlers/listenLog.ts:circular dependency",
+    "src/web/shared/playback/usePlayback.ts:complexity"
+  ]
+}
