@@ -13,6 +13,7 @@ fixtures/*.json
 dist/
 result
 dist-web
+storybook-static
 .tmp/images/1770007391114
 .orchestra
 

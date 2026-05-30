@@ -32,6 +32,14 @@ typecheck:
 fallow-audit:
     nix run .#fallow -- audit --config .fallowrc.json
 
+# Run local Storybook
+storybook:
+    bun run storybook
+
+# Build local Storybook static output
+storybook-build:
+    bun run storybook:build
+
 # Dev mode (Vite embedded in Bun server)
 dev:
     bun run dev
