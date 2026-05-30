@@ -11,30 +11,38 @@ const queueState: ApiQueueState = {
 };
 
 describe("NowPlayingBarState.fromQueueResult", () => {
-  test("uses manual context before the queue stream emits", () => {
-    expect(NowPlayingBarState.fromQueueResult(AsyncResult.initial())).toEqual({
-      queueContext: { type: "manual" },
-      queueIndex: 0,
-    });
+  test("uses manual fallback before the queue stream emits", () => {
+    const state = NowPlayingBarState.fromQueueResult(AsyncResult.initial());
+
+    expect(state).toEqual({ _tag: "Fallback" });
+    expect(NowPlayingBarState.queueContext(state)).toEqual({ type: "manual" });
+    expect(NowPlayingBarState.queueIndex(state)).toBe(0);
   });
 
   test("uses the latest queue stream snapshot", () => {
-    expect(
-      NowPlayingBarState.fromQueueResult(AsyncResult.success(queueState)),
-    ).toEqual({
+    const state = NowPlayingBarState.fromQueueResult(
+      AsyncResult.success(queueState),
+    );
+
+    expect(state).toEqual({
+      _tag: "Synced",
       queueContext: { type: "radio", seedId: "pandora:station:123" },
       queueIndex: 3,
     });
+    expect(NowPlayingBarState.queueContext(state)).toEqual({
+      type: "radio",
+      seedId: "pandora:station:123",
+    });
+    expect(NowPlayingBarState.queueIndex(state)).toBe(3);
   });
 
   test("keeps the fallback context when the queue stream fails", () => {
-    expect(
-      NowPlayingBarState.fromQueueResult(
-        AsyncResult.failure(Cause.die(new Error("stream disconnected"))),
-      ),
-    ).toEqual({
-      queueContext: { type: "manual" },
-      queueIndex: 0,
-    });
+    const state = NowPlayingBarState.fromQueueResult(
+      AsyncResult.failure(Cause.die(new Error("stream disconnected"))),
+    );
+
+    expect(state).toEqual({ _tag: "Fallback" });
+    expect(NowPlayingBarState.queueContext(state)).toEqual({ type: "manual" });
+    expect(NowPlayingBarState.queueIndex(state)).toBe(0);
   });
 });

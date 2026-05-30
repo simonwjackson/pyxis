@@ -99,8 +99,9 @@ export function NowPlayingBar() {
   const isPlaying = PlaybackState.isPlaying(playback.state);
   const navigate = useNavigate();
   const queueResult = useAtomValue(queueStateStreamAtom);
-  const { queueContext, queueIndex } =
-    NowPlayingBarState.fromQueueResult(queueResult);
+  const queueState = NowPlayingBarState.fromQueueResult(queueResult);
+  const queueContext = NowPlayingBarState.queueContext(queueState);
+  const queueIndex = NowPlayingBarState.queueIndex(queueState);
   const [showTrackInfo, setShowTrackInfo] = useState(false);
   const [showActionSheet, setShowActionSheet] = useState(false);
   const progressBarRef = useRef<HTMLDivElement>(null);
