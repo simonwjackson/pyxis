@@ -180,6 +180,7 @@ describe("SourceAlbumDetailState.fromResults", () => {
       album: data.album,
       tracks: data.tracks,
       libraryState: {
+        _tag: "Linked",
         albumId: "album-1",
         placement: "collection",
         isHot: false,
@@ -227,7 +228,7 @@ describe("SourceAlbumDetailState.fromResults", () => {
       _tag: "Ready",
       album: data.album,
       tracks: data.tracks,
-      libraryState: { isHot: false },
+      libraryState: { _tag: "Observed", isHot: false },
     });
   });
 

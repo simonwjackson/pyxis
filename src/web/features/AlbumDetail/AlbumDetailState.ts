@@ -27,8 +27,8 @@
  * page rendered without placement controls.
  */
 
-import { AsyncResult } from "effect/unstable/reactivity";
 import type { AlbumPlacement } from "@app/shared/lib/libraryPlacement";
+import { AsyncResult } from "effect/unstable/reactivity";
 import type { ApiSourceAlbumWithTracks } from "../../../api/contracts/album.js";
 import type { ApiPublicError } from "../../../api/contracts/common.js";
 import type {
@@ -113,10 +113,27 @@ function isLibraryState(
  * is the library-album id the source maps to (when one exists); the legacy
  * page used it to decide whether placement controls were available.
  */
-export type SourceAlbumLibraryState = {
-  readonly albumId?: string | undefined;
-  readonly placement?: AlbumPlacement | undefined;
-  readonly isHot: boolean;
+export type SourceAlbumLibraryState =
+  | {
+      readonly _tag: "Linked";
+      readonly albumId: string;
+      readonly placement?: AlbumPlacement | undefined;
+      readonly isHot: boolean;
+    }
+  | {
+      readonly _tag: "Observed";
+      readonly placement?: AlbumPlacement | undefined;
+      readonly isHot: boolean;
+    };
+
+export const SourceAlbumLibraryState = {
+  albumId: (state: SourceAlbumLibraryState | null): string | undefined =>
+    state?._tag === "Linked" ? state.albumId : undefined,
+  placement: (
+    state: SourceAlbumLibraryState | null,
+  ): AlbumPlacement | undefined => state?.placement,
+  isHot: (state: SourceAlbumLibraryState | null): boolean =>
+    state?.isHot ?? false,
 };
 
 /** Source-detail ADT: `album.withTracks.get` + `library.albumStates.resolve`. */
@@ -194,9 +211,12 @@ function projectLibraryState(
   if (!AsyncResult.isSuccess(statesResult)) return null;
   const first = statesResult.value[0];
   if (first === undefined) return null;
-  return {
-    ...(first.albumId !== undefined ? { albumId: first.albumId } : {}),
+  const projected = {
     ...(first.placement !== undefined ? { placement: first.placement } : {}),
     isHot: first.isHot ?? false,
   };
+  if (first.albumId !== undefined) {
+    return { _tag: "Linked", albumId: first.albumId, ...projected };
+  }
+  return { _tag: "Observed", ...projected };
 }

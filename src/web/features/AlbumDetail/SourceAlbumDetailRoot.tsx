@@ -47,7 +47,10 @@ import { useCallback, useEffect, useMemo, useRef } from "react";
 import { toast } from "sonner";
 import { AlbumDetailContent } from "./AlbumDetailContent";
 import { AlbumDetailSkeleton } from "./AlbumDetailSkeleton";
-import { SourceAlbumDetailState } from "./AlbumDetailState";
+import {
+  SourceAlbumDetailState,
+  SourceAlbumLibraryState,
+} from "./AlbumDetailState";
 import type { AlbumDetailPageProps } from "./types";
 
 const saveAlbumMutationAtom = PyxisRpcClient.mutation("library.album.save");
@@ -91,7 +94,9 @@ export function SourceAlbumDetailRoot({
   const state = SourceAlbumDetailState.fromResults(sourceResult, statesResult);
 
   const libraryAlbumIdForWrite =
-    state._tag === "Ready" ? state.libraryState?.albumId : undefined;
+    state._tag === "Ready"
+      ? SourceAlbumLibraryState.albumId(state.libraryState)
+      : undefined;
 
   const albumWriteKeys = useMemo(
     () =>
@@ -222,7 +227,7 @@ export function SourceAlbumDetailRoot({
     );
   }
 
-  const linkedLibraryAlbumId = libraryState?.albumId;
+  const linkedLibraryAlbumId = SourceAlbumLibraryState.albumId(libraryState);
   const onSetPlacementCallback =
     linkedLibraryAlbumId !== undefined
       ? (placement: AlbumPlacement) =>
@@ -234,8 +239,8 @@ export function SourceAlbumDetailRoot({
       album={album}
       tracks={tracks}
       currentTrackId={currentTrackId ?? undefined}
-      currentPlacement={libraryState?.placement}
-      isHot={libraryState?.isHot ?? false}
+      currentPlacement={SourceAlbumLibraryState.placement(libraryState)}
+      isHot={SourceAlbumLibraryState.isHot(libraryState)}
       canManagePlacement={linkedLibraryAlbumId !== undefined}
       canEditMetadata={false}
       isSavingAlbum={isSavingAlbum}
