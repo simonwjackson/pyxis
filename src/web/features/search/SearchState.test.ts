@@ -117,6 +117,7 @@ describe("SearchState.fromResults", () => {
     expect(state._tag).toBe("Results");
     if (state._tag === "Results") {
       expect(state.results.albums[0]?.state).toEqual({
+        _tag: "InLibrary",
         albumId: "lib_album_1",
         placement: "discovery",
         isHot: true,
@@ -144,6 +145,7 @@ describe("SearchState.fromResults", () => {
     expect(state._tag).toBe("Results");
     if (state._tag === "Results") {
       expect(state.results.albums[0]?.state).toEqual({
+        _tag: "InLibrary",
         albumId: "lib_album_2",
         placement: "collection",
         isHot: false,

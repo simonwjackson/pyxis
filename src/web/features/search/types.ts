@@ -26,9 +26,21 @@ export type SearchTrack = {
 };
 
 export type SearchAlbumState = {
+  readonly _tag: "InLibrary";
   readonly albumId: string;
   readonly placement: AlbumPlacement;
   readonly isHot: boolean;
+};
+
+export const SearchAlbumState = {
+  placement: (state: SearchAlbumState): AlbumPlacement => state.placement,
+  isHot: (state: SearchAlbumState): boolean => state.isHot,
+  canAdd: (state: SearchAlbumState | undefined): boolean =>
+    state === undefined || state.placement === "dismissed",
+  actionLabel: (state: SearchAlbumState | undefined): string =>
+    state?.placement === "dismissed"
+      ? "Re-add to Discovery"
+      : "Add to Discovery",
 };
 
 export type SearchAlbum = {

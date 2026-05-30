@@ -129,6 +129,7 @@ function joinAlbums(
     return {
       ...base,
       state: {
+        _tag: "InLibrary",
         albumId: matched.albumId,
         placement: matched.placement,
         isHot: matched.isHot ?? false,

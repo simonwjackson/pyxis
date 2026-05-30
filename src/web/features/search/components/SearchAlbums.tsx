@@ -1,7 +1,7 @@
 import { formatPlacementLabel } from "@app/shared/lib/libraryPlacement";
 import { Link } from "@tanstack/react-router";
 import { Disc3, Loader2, Play } from "lucide-react";
-import type { SearchAlbum } from "../types";
+import { type SearchAlbum, SearchAlbumState } from "../types";
 import { SearchHotBadge } from "./SearchHotBadge";
 import { SearchPlacementBadge } from "./SearchPlacementBadge";
 import { SearchSectionHeader } from "./SearchSectionHeader";
@@ -28,11 +28,8 @@ export function SearchAlbums({
         {albums.map((album) => {
           const isLoadingPlay = playingAlbumId === album.id;
           const state = album.state;
-          const canAdd = !state || state.placement === "dismissed";
-          const actionLabel =
-            state?.placement === "dismissed"
-              ? "Re-add to Discovery"
-              : "Add to Discovery";
+          const canAdd = SearchAlbumState.canAdd(state);
+          const actionLabel = SearchAlbumState.actionLabel(state);
           return (
             <div
               key={album.id}
@@ -101,9 +98,13 @@ export function SearchAlbums({
                 </div>
                 <div className="flex items-center gap-1 mt-1 flex-wrap">
                   {state ? (
-                    <SearchPlacementBadge placement={state.placement} />
+                    <SearchPlacementBadge
+                      placement={SearchAlbumState.placement(state)}
+                    />
                   ) : null}
-                  {state?.isHot ? <SearchHotBadge /> : null}
+                  {state && SearchAlbumState.isHot(state) ? (
+                    <SearchHotBadge />
+                  ) : null}
                 </div>
                 {album.genres && album.genres.length > 0 ? (
                   <div className="flex gap-1 mt-2 flex-wrap">
@@ -127,11 +128,11 @@ export function SearchAlbums({
                   >
                     {actionLabel}
                   </button>
-                ) : (
+                ) : state ? (
                   <span className="text-ui-xs text-pyxis-dim shrink-0 w-full sm:w-auto mt-1 sm:mt-0 text-left sm:text-right">
-                    In {formatPlacementLabel(state.placement)}
+                    In {formatPlacementLabel(SearchAlbumState.placement(state))}
                   </span>
-                )
+                ) : null
               ) : null}
             </div>
           );
