@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { AlbumDetailPage } from "@app/features/album-detail/album-detail-page";
+import { AlbumDetailPage } from "@app/features/AlbumDetail/AlbumDetailPage";
 
 function AlbumDetailRoute() {
   const { albumId } = Route.useParams();

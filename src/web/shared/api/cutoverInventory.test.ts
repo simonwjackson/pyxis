@@ -19,18 +19,18 @@ const webConsumerInventory: readonly WebConsumerInventoryEntry[] = [
   //   PyxisRpcClient atoms.
   // src/web/shared/lib/trpc.ts -> deleted after the web runtime cutover.
   // Migrated to Effect atoms in U6 -- entries intentionally omitted.
-  // src/web/shared/playback/use-playback.ts -> playerStateStreamAtom over
+  // src/web/shared/playback/usePlayback.ts -> playerStateStreamAtom over
   //   player.state.stream plus player command/report mutation atoms from
   //   src/web/shared/playback/playerAtoms.ts. The hook still owns DOM Audio
   //   lifecycle and local optimistic playback state; the wire boundary no
   //   longer uses React Query or legacy subscriptions.
   // Migrated to Effect atoms in U6 -- entries intentionally omitted.
-  // src/web/shared/layout/now-playing-bar.tsx ->
+  // src/web/shared/layout/NowPlayingBar.tsx ->
   //   queueStateStreamAtom over queue.state.stream + NowPlayingBarState for
   //   the latest queue context/index, plus shared track command atoms for
   //   feedback/sleep/bookmark toasts.
   // Migrated to Effect atoms in U6 -- entries intentionally omitted.
-  // src/web/shared/layout/command-palette.tsx ->
+  // src/web/shared/layout/CommandPalette.tsx ->
   //   trackFeedbackAddMutationAtom + trackSleepSetMutationAtom +
   //   libraryBookmarkAddMutationAtom (from
   //   src/web/shared/commands/trackCommandAtoms.ts), invoked via
@@ -38,17 +38,17 @@ const webConsumerInventory: readonly WebConsumerInventoryEntry[] = [
   //   success without touching React Query. The three commands do not
   //   publish reactivity tags because the legacy tRPC consumers did not
   //   invalidate any caches either.
-  // src/web/shared/keyboard-shortcuts.ts ->
+  // src/web/shared/keyboardShortcuts.ts ->
   //   same shared track command atoms as the command palette
   //   (trackCommandAtoms.ts), invoked via useAtomSet({ mode: "promiseExit" })
   //   so the global keyboard shortcuts emit the same success/failure
   //   toasts as before without going through React Query.
   // Migrated to Effect atoms in U6 -- entries intentionally omitted.
-  // src/web/shared/layout/sidebar.tsx -> authStatusQueryAtom + AuthStatusState
-  // src/web/shared/layout/mobile-nav.tsx -> authStatusQueryAtom + AuthStatusState
-  // src/web/shared/track-info-modal/TrackInfoTraits.tsx -> TrackInfoState
+  // src/web/shared/layout/Sidebar.tsx -> authStatusQueryAtom + AuthStatusState
+  // src/web/shared/layout/MobileNav.tsx -> authStatusQueryAtom + AuthStatusState
+  // src/web/shared/TrackInfoModal/TrackInfoTraits.tsx -> TrackInfoState
   // Migrated to Effect atoms in U6 -- entry intentionally omitted.
-  // src/web/features/home/home-page.tsx -> playlist/hot/discovery/collection/
+  // src/web/features/home/HomePage.tsx -> playlist/hot/discovery/collection/
   //   archive query atoms + HomeState (each shelf is its own sub-component;
   //   the archive sub-component only mounts when the user expands it,
   //   preserving the legacy `enabled: showArchive` semantics). Shelf atoms
@@ -58,7 +58,7 @@ const webConsumerInventory: readonly WebConsumerInventoryEntry[] = [
   //   utils.library.albums / utils.library.hotAlbums / utils.playlist.list
   //   invalidations did.
   // Migrated to Effect atoms in U6 -- entry intentionally omitted.
-  // src/web/features/search/search-page.tsx -> search.unified query atom +
+  // src/web/features/search/SearchPage.tsx -> search.unified query atom +
   //   library.albumStates.resolve query atom (subscribed to
   //   LIBRARY_ALBUM_STATES_TAG) + SearchState ADT. Mutations:
   //   radio.station.create publishes RADIO_STATIONS_TAG (mirrors
@@ -70,7 +70,7 @@ const webConsumerInventory: readonly WebConsumerInventoryEntry[] = [
   //   album.withTracks.get as an imperative mutation-atom fetch, matching
   //   the station-detail "fetch then play" pattern.
   // Migrated to Effect atoms in U6 -- entries intentionally omitted.
-  // src/web/features/album-detail/library-album-detail-root.tsx ->
+  // src/web/features/AlbumDetail/LibraryAlbumDetailRoot.tsx ->
   //   library.album.get + library.albumTracks.list query atoms combined
   //   through LibraryAlbumDetailState (album.get subscribes to
   //   libraryAlbumTag(id); albumTracks.list subscribes to
@@ -82,7 +82,7 @@ const webConsumerInventory: readonly WebConsumerInventoryEntry[] = [
   //   invalidation quadruple); library.album.update publishes
   //   LIBRARY_ALBUMS_TAG + libraryAlbumTag(id); library.track.update
   //   publishes libraryAlbumTracksTag(albumId).
-  // src/web/features/album-detail/source-album-detail-root.tsx ->
+  // src/web/features/AlbumDetail/SourceAlbumDetailRoot.tsx ->
   //   album.withTracks.get + library.albumStates.resolve query atoms
   //   combined through SourceAlbumDetailState (states subscribes to
   //   LIBRARY_ALBUM_STATES_TAG). Mutations:
@@ -93,47 +93,47 @@ const webConsumerInventory: readonly WebConsumerInventoryEntry[] = [
   //   refreshes the same way the legacy
   //   utils.library.album.invalidate() did.
   // Migrated to Effect atoms in U6 -- entries intentionally omitted.
-  // src/web/features/station-detail/station-detail-page.tsx ->
+  // src/web/features/StationDetail/StationDetailPage.tsx ->
   //   stationQueryAtom (radio.station.get, subscribes to radio.station:<id>
   //   reactivity tag) + StationDetailState; radio.seed.remove mutation atom
   //   publishes the same tag so add/remove seed mutations refresh the page;
   //   radio.stationTracks.get is an imperative mutation-atom fetch that
   //   drives playback.playQueue; queue.state.stream feeds the queue context
   //   atom that decides whether the header Play button is hidden.
-  // src/web/features/stations/stations-page.tsx ->
+  // src/web/features/stations/StationsPage.tsx ->
   //   stationsQueryAtom + StationsState (refreshed via radio.stations tag)
-  // src/web/features/stations/delete-station-dialog.tsx ->
+  // src/web/features/stations/DeleteStationDialog.tsx ->
   //   radio.station.delete mutation atom + StationCommandState
   //   (publishes radio.stations reactivity tag)
-  // src/web/features/stations/rename-station-dialog.tsx ->
+  // src/web/features/stations/RenameStationDialog.tsx ->
   //   radio.station.rename mutation atom + StationCommandState
   //   (publishes radio.stations reactivity tag)
-  // src/web/features/stations/quick-mix-dialog.tsx ->
+  // src/web/features/stations/QuickMixDialog.tsx ->
   //   radio.quickMix.set mutation atom + StationCommandState
   //   (publishes radio.stations reactivity tag)
-  // src/web/features/stations/add-seed-dialog.tsx ->
+  // src/web/features/stations/AddSeedDialog.tsx ->
   //   search.pandora query atom + radio.seed.add mutation atom +
   //   AddSeedDialogState (publishes radio.station:<radioId> reactivity tag
   //   for the next U6 slice's station-detail atom).
   // Migrated to Effect atoms in U6 -- entries intentionally omitted.
-  // src/web/features/genres/genres-page.tsx -> radio.genres.list query atom +
+  // src/web/features/genres/GenresPage.tsx -> radio.genres.list query atom +
   //   radio.station.create mutation atom + GenresState (publishes
   //   RADIO_STATIONS_TAG so the stations surface refreshes after a station
   //   is created, mirroring the legacy utils.radio.list invalidation).
-  // src/web/features/bookmarks/bookmarks-page.tsx ->
+  // src/web/features/bookmarks/BookmarksPage.tsx ->
   //   library.bookmarks.list query atom (subscribed to LIBRARY_BOOKMARKS_TAG)
   //   + library.bookmark.remove mutation atom (publishes the same tag,
   //   mirroring utils.library.bookmarks.invalidate) + radio.station.create
   //   mutation atom (publishes RADIO_STATIONS_TAG, mirroring
   //   utils.radio.list.invalidate) + BookmarksState ADT.
   // Migrated to Effect atoms in U6 -- entries intentionally omitted.
-  // src/web/features/history/history-page.tsx -> HistoryState atom
-  // src/web/features/settings/settings-page.tsx -> SettingsState +
+  // src/web/features/history/HistoryPage.tsx -> HistoryState atom
+  // src/web/features/settings/SettingsPage.tsx -> SettingsState +
   //   auth.settings reactivity tag (replaces React Query invalidation).
-  // src/web/features/playlist-detail/playlist-detail-page.tsx ->
+  // src/web/features/PlaylistDetail/PlaylistDetailPage.tsx ->
   //   playlist.list + playlist.tracks.list query atoms combined through
   //   PlaylistDetailState; playlist list subscribes to PLAYLIST_LIST_TAG.
-  // src/web/features/sandbox/queue-coverflow/QueueCoverflowPage.tsx ->
+  // src/web/features/sandbox/QueueCoverflow/QueueCoverflowPage.tsx ->
   //   fixture-only QueueCoverflowState harness; live library query removed.
 ];
 

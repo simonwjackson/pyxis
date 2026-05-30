@@ -2,7 +2,7 @@ import {
   type AlbumPlacement,
   formatPlacementLabel,
   placementBadgeClassName,
-} from "@app/shared/lib/library-placement";
+} from "@app/shared/lib/libraryPlacement";
 
 type SearchPlacementBadgeProps = {
   readonly placement: AlbumPlacement;

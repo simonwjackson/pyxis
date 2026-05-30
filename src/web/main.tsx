@@ -10,9 +10,9 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { Toaster } from "sonner";
 import { routeTree } from "./routes/routeTree.gen";
-import { PlaybackProvider } from "./shared/playback/playback-context";
-import { ThemeProvider } from "./shared/theme/theme-context";
-import { ErrorBoundary } from "./shared/ui/error-boundary";
+import { PlaybackProvider } from "./shared/playback/PlaybackContext";
+import { ThemeProvider } from "./shared/theme/ThemeContext";
+import { ErrorBoundary } from "./shared/ui/ErrorBoundary";
 import "./index.css";
 
 /** TanStack Router instance configured with the generated route tree */

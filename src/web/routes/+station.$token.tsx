@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { StationDetailPage } from "@app/features/station-detail/station-detail-page";
+import { StationDetailPage } from "@app/features/StationDetail/StationDetailPage";
 
 function StationDetailRoute() {
   const { token } = Route.useParams();

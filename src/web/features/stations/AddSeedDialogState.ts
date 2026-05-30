@@ -21,7 +21,7 @@
 import { AsyncResult } from "effect/unstable/reactivity";
 import type { ApiPublicError } from "../../../api/contracts/common.js";
 import type { ApiPandoraSearchResponse } from "../../../api/contracts/search.js";
-import type { AddSeedArtist, AddSeedSong } from "./add-seed-dialog/types.js";
+import type { AddSeedArtist, AddSeedSong } from "./AddSeedDialog/types.js";
 
 export type AddSeedDialogState =
   | { readonly _tag: "Prompt" }

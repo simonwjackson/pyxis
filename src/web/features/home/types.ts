@@ -1,4 +1,4 @@
-import type { AlbumPlacement } from "@app/shared/lib/library-placement";
+import type { AlbumPlacement } from "@app/shared/lib/libraryPlacement";
 
 export type PlaylistData = {
   readonly id: string;

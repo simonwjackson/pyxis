@@ -1,4 +1,4 @@
-import { hotBadgeClassName } from "@app/shared/lib/library-placement";
+import { hotBadgeClassName } from "@app/shared/lib/libraryPlacement";
 
 export function SearchHotBadge() {
   return (

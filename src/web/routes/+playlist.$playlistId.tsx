@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { PlaylistDetailPage } from "@app/features/playlist-detail/playlist-detail-page";
+import { PlaylistDetailPage } from "@app/features/PlaylistDetail/PlaylistDetailPage";
 
 function PlaylistDetailRoute() {
   const { playlistId } = Route.useParams();
