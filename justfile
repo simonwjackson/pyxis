@@ -40,6 +40,10 @@ storybook:
 storybook-build:
     bun run storybook:build
 
+# Run Chromium Playwright e2e tests against the Bun dev server
+test-e2e:
+    nix develop .#playwright --command bun run test:e2e
+
 # Dev mode (Vite embedded in Bun server)
 dev:
     bun run dev
