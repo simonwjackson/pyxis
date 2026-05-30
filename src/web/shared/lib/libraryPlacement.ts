@@ -4,11 +4,6 @@ export type AlbumPlacement =
   | "archive"
   | "dismissed";
 
-export type AlbumPlacementState = {
-  readonly placement: AlbumPlacement;
-  readonly isHot?: boolean;
-};
-
 export function formatPlacementLabel(placement: AlbumPlacement): string {
   switch (placement) {
     case "discovery":
