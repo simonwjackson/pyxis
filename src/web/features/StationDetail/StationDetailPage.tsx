@@ -15,11 +15,6 @@
  * this station is already playing.
  */
 
-import { useAtomSet, useAtomValue } from "@effect/atom-react";
-import { useNavigate } from "@tanstack/react-router";
-import { AsyncResult } from "effect/unstable/reactivity";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { toast } from "sonner";
 import { AddSeedDialog } from "@app/features/stations/AddSeedDialog";
 import { radioStationTag } from "@app/features/stations/radioReactivityTags";
 import { StationCommandState } from "@app/features/stations/StationCommandState";
@@ -30,9 +25,13 @@ import {
   tracksToQueuePayload,
 } from "@app/shared/lib/nowPlayingUtils";
 import { usePlaybackContext } from "@app/shared/playback/PlaybackContext";
-import { PlaybackState } from "@app/shared/playback/types";
 import { queueStateStreamAtom } from "@app/shared/playback/queueStateStreamAtom";
-import { StationDetailState } from "./StationDetailState";
+import { PlaybackState } from "@app/shared/playback/types";
+import { useAtomSet, useAtomValue } from "@effect/atom-react";
+import { useNavigate } from "@tanstack/react-router";
+import { AsyncResult } from "effect/unstable/reactivity";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { toast } from "sonner";
 import { StationDetailArtistSeedRow } from "./StationDetailArtistSeedRow";
 import { StationDetailFeedbackRow } from "./StationDetailFeedbackRow";
 import {
@@ -44,6 +43,7 @@ import { StationDetailHeader } from "./StationDetailHeader";
 import { StationDetailSeedsSection } from "./StationDetailSeedsSection";
 import { StationDetailSkeleton } from "./StationDetailSkeleton";
 import { StationDetailSongSeedRow } from "./StationDetailSongSeedRow";
+import { StationDetailState } from "./StationDetailState";
 import type { StationDetailPageProps } from "./types";
 
 /**
@@ -123,12 +123,14 @@ export function StationDetailPage({ token, autoPlay }: StationDetailPageProps) {
     startRadioPlayback();
   }, [autoPlay, startRadioPlayback]);
 
+  const playbackError = PlaybackState.error(playback.state);
+
   useEffect(() => {
-    if (PlaybackState.error(playback.state)) {
-      toast.error(`Audio error: ${PlaybackState.error(playback.state)}`);
+    if (playbackError) {
+      toast.error(`Audio error: ${playbackError}`);
       playbackRef.current.clearError();
     }
-  }, [PlaybackState.error(playback.state)]);
+  }, [playbackError]);
 
   const removeSeedResult = projectQueryResult(
     useAtomValue(removeSeedMutationAtom),
@@ -158,18 +160,16 @@ export function StationDetailPage({ token, autoPlay }: StationDetailPageProps) {
 
   if (state._tag === "LoadError" || state._tag === "Defect") {
     return (
-      <div className="flex-1 px-4 sm:px-8 py-10">
-        <p className="text-[var(--color-error)]">
-          Failed to load station details
-        </p>
+      <div className="page-frame lattice-container">
+        <p className="text-pyxis-error">Failed to load station details</p>
       </div>
     );
   }
 
   if (state._tag === "NotFound") {
     return (
-      <div className="flex-1 px-4 sm:px-8 py-10">
-        <p className="text-[var(--color-text-dim)]">station not found.</p>
+      <div className="page-frame lattice-container">
+        <p className="text-pyxis-dim">station not found.</p>
       </div>
     );
   }
@@ -183,7 +183,7 @@ export function StationDetailPage({ token, autoPlay }: StationDetailPageProps) {
   const hasFeedback = thumbsUp.length > 0 || thumbsDown.length > 0;
 
   return (
-    <div className="flex-1 px-4 sm:px-8 py-10 space-y-8 max-w-3xl mx-auto">
+    <div className="page-frame lattice-container space-y-8 max-w-3xl mx-auto">
       <StationDetailHeader
         stationName={station.name}
         isPlaying={isThisStationPlaying}
@@ -207,9 +207,7 @@ export function StationDetailPage({ token, autoPlay }: StationDetailPageProps) {
         artistSeeds={
           artistSeeds.length > 0 ? (
             <div className="space-y-1 mb-4">
-              <p className="text-xs text-[var(--color-text-dim)] mb-1">
-                Artists
-              </p>
+              <p className="text-xs text-pyxis-dim mb-1">Artists</p>
               {artistSeeds.map((seed) => (
                 <StationDetailArtistSeedRow
                   key={seed.seedId}
@@ -224,7 +222,7 @@ export function StationDetailPage({ token, autoPlay }: StationDetailPageProps) {
         songSeeds={
           songSeeds.length > 0 ? (
             <div className="space-y-1">
-              <p className="text-xs text-[var(--color-text-dim)] mb-1">Songs</p>
+              <p className="text-xs text-pyxis-dim mb-1">Songs</p>
               {songSeeds.map((seed) => (
                 <StationDetailSongSeedRow
                   key={seed.seedId}

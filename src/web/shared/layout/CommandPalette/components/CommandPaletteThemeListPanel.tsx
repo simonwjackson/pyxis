@@ -1,6 +1,6 @@
+import { themeNames, themes } from "@app/shared/lib/themes";
 import { ArrowLeft, Check } from "lucide-react";
 import { type RefObject, useCallback, useEffect, useState } from "react";
-import { themeNames, themes } from "@app/shared/lib/themes";
 import { CommandPaletteSelectableItem } from "./CommandPaletteSelectableItem";
 
 type CommandPaletteThemeListPanelProps = {
@@ -63,11 +63,11 @@ export function CommandPaletteThemeListPanel({
   );
 
   return (
-    <div onKeyDown={handleKeyDown}>
+    <div onKeyDown={handleKeyDown} role="listbox" tabIndex={-1}>
       <button
         type="button"
         onClick={onBack}
-        className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-[var(--color-bg-highlight)] text-left text-[var(--color-text-dim)]"
+        className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-pyxis-highlight text-left text-pyxis-dim"
       >
         <ArrowLeft className="w-4 h-4" />
         <span className="text-[0.98rem] font-light tracking-[-0.02em] lowercase">
@@ -76,7 +76,7 @@ export function CommandPaletteThemeListPanel({
       </button>
 
       <div className="px-3 py-1 mt-1">
-        <p className="zune-label text-[var(--color-text-dim)]">themes</p>
+        <p className="zune-label text-pyxis-dim">themes</p>
       </div>
 
       {themeNames.map((name, index) => {
@@ -96,13 +96,11 @@ export function CommandPaletteThemeListPanel({
               style={{ background: theme.gradient }}
             />
             <span
-              className={`flex-1 text-[0.98rem] font-light tracking-[-0.02em] lowercase ${isSelected ? "text-[var(--color-text)]" : "text-[var(--color-text-muted)]"}`}
+              className={`flex-1 text-[0.98rem] font-light tracking-[-0.02em] lowercase ${isSelected ? "text-pyxis-text" : "text-pyxis-muted"}`}
             >
               {theme.label}
             </span>
-            {isActive ? (
-              <Check className="w-4 h-4 text-[var(--color-primary)]" />
-            ) : null}
+            {isActive ? <Check className="w-4 h-4 text-pyxis-primary" /> : null}
           </CommandPaletteSelectableItem>
         );
       })}

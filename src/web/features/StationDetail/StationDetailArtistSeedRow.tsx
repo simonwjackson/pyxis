@@ -13,20 +13,18 @@ export function StationDetailArtistSeedRow({
   onRemove,
 }: StationDetailArtistSeedRowProps) {
   return (
-    <div className="flex items-center gap-3 p-3 bg-[var(--color-bg-highlight)] group">
-      <div className="w-8 h-8 bg-[var(--color-bg-highlight)] flex items-center justify-center shrink-0">
-        <User className="w-4 h-4 text-[var(--color-text-muted)]" />
+    <div className="flex items-center gap-3 p-3 bg-pyxis-highlight group">
+      <div className="w-8 h-8 bg-pyxis-highlight flex items-center justify-center shrink-0">
+        <User className="w-4 h-4 text-pyxis-muted" />
       </div>
       <div className="flex-1 min-w-0">
-        <p className="text-sm text-[var(--color-text-muted)] truncate">
-          {seed.artistName}
-        </p>
+        <p className="text-sm text-pyxis-muted truncate">{seed.artistName}</p>
       </div>
       <button
         type="button"
         onClick={() => onRemove(seed.seedId)}
         disabled={isRemoving}
-        className="opacity-0 group-hover:opacity-100 p-1.5 text-[var(--color-text-dim)] hover:text-[var(--color-error)] hover:bg-[var(--color-bg-highlight)] transition-all disabled:opacity-50"
+        className="opacity-0 group-hover:opacity-100 p-1.5 text-pyxis-dim hover:text-pyxis-error hover:bg-pyxis-highlight transition-all disabled:opacity-50"
         title="Remove seed"
         aria-label={`Remove ${seed.artistName ?? "artist"} seed`}
       >

@@ -1,8 +1,19 @@
 import { Skeleton } from "@app/shared/ui/Skeleton";
 
+const TRACK_SKELETON_KEYS = [
+  "track-1",
+  "track-2",
+  "track-3",
+  "track-4",
+  "track-5",
+  "track-6",
+  "track-7",
+  "track-8",
+] as const;
+
 export function AlbumDetailSkeleton() {
   return (
-    <div className="flex-1 px-4 sm:px-8 py-10 max-w-3xl mx-auto space-y-8">
+    <div className="page-frame lattice-container max-w-3xl mx-auto space-y-8">
       <Skeleton className="h-5 w-16" />
       <div className="flex flex-col sm:flex-row gap-6 sm:gap-8 items-center sm:items-end">
         <Skeleton className="w-40 h-40 sm:w-56 sm:h-56 shrink-0" />
@@ -17,8 +28,8 @@ export function AlbumDetailSkeleton() {
         </div>
       </div>
       <div className="space-y-1">
-        {Array.from({ length: 8 }).map((_, index) => (
-          <div key={index} className="flex items-center gap-4 px-3 py-2.5">
+        {TRACK_SKELETON_KEYS.map((key) => (
+          <div key={key} className="flex items-center gap-4 px-3 py-2.5">
             <Skeleton className="w-6 h-4" />
             <Skeleton className="h-4 flex-1" />
             <Skeleton className="w-10 h-4" />

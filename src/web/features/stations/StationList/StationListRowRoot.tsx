@@ -18,7 +18,7 @@ export function StationListRowRoot({
   return (
     <div
       data-active={isActive || undefined}
-      className="flex items-center gap-4 p-4 transition-colors group hover:bg-[var(--color-bg-highlight)] data-[active]:bg-[var(--color-bg-highlight)] data-[active]:border data-[active]:border-[var(--color-border-active)]"
+      className="flex items-center gap-4 p-4 transition-colors group hover:bg-pyxis-highlight data-[active]:bg-pyxis-highlight data-[active]:border data-[active]:border-pyxis-border-active"
     >
       <button
         onClick={onSelect}
@@ -26,7 +26,7 @@ export function StationListRowRoot({
         type="button"
         aria-label="Play station"
       >
-        <div className="w-10 h-10 flex items-center justify-center shrink-0 bg-[var(--color-bg-highlight)]">
+        <div className="w-10 h-10 flex items-center justify-center shrink-0 bg-pyxis-highlight">
           {icon}
         </div>
         <div className="flex-1 min-w-0">{info}</div>

@@ -10,13 +10,13 @@
  * legacy `utils.radio.list.invalidate()`).
  */
 
-import { useAtomSet, useAtomValue } from "@effect/atom-react";
-import { Music, Plus, Trash2, User } from "lucide-react";
-import { toast } from "sonner";
 import { PyxisRpcClient } from "@app/shared/api/rpcClient";
 import { projectQueryResult } from "@app/shared/effect/projectQueryResult";
 import { Button } from "@app/shared/ui/Button";
 import { Spinner } from "@app/shared/ui/Spinner";
+import { useAtomSet, useAtomValue } from "@effect/atom-react";
+import { Music, Plus, Trash2, User } from "lucide-react";
+import { toast } from "sonner";
 import { RADIO_STATIONS_TAG } from "../stations/radioReactivityTags";
 import { BookmarksState } from "./BookmarksState";
 import { LIBRARY_BOOKMARKS_TAG } from "./bookmarksReactivityTags";
@@ -99,8 +99,8 @@ export function BookmarksPage() {
 
   if (state._tag === "LoadError" || state._tag === "Defect") {
     return (
-      <div className="flex-1 px-4 sm:px-8 py-10">
-        <p className="text-[var(--color-error)]">failed to load bookmarks</p>
+      <div className="page-frame lattice-container">
+        <p className="text-pyxis-error">failed to load bookmarks</p>
       </div>
     );
   }
@@ -109,33 +109,31 @@ export function BookmarksPage() {
   const songs = state._tag === "Ready" ? state.songs : [];
 
   return (
-    <div className="flex-1 px-4 sm:px-8 py-10 space-y-8">
-      <h2 className="zune-display zune-page-title text-[var(--color-text)]">
+    <div className="page-frame lattice-container space-y-8">
+      <h2 className="zune-display zune-page-title text-pyxis-text">
         bookmarks
       </h2>
 
       {artists.length > 0 && (
         <section>
-          <h3 className="zune-label text-[var(--color-text-muted)] mb-2">
-            artists
-          </h3>
+          <h3 className="zune-label text-pyxis-muted mb-2">artists</h3>
           <ul className="space-y-1">
             {artists.map((artist) => (
               <li
                 key={artist.bookmarkToken}
-                className="flex items-center gap-3 p-3 hover:bg-[var(--color-bg-highlight)] group"
+                className="flex items-center gap-3 p-3 hover:bg-pyxis-highlight group"
               >
-                <div className="w-10 h-10 bg-[var(--color-bg-highlight)] flex items-center justify-center shrink-0">
-                  <User className="w-5 h-5 text-[var(--color-text-muted)]" />
+                <div className="w-10 h-10 bg-pyxis-highlight flex items-center justify-center shrink-0">
+                  <User className="w-5 h-5 text-pyxis-muted" />
                 </div>
-                <span className="flex-1 zune-list-title text-[var(--color-text)]">
+                <span className="flex-1 zune-list-title text-pyxis-text">
                   {artist.artistName}
                 </span>
                 <div className="flex items-center gap-1 max-md:opacity-100 opacity-0 group-hover:opacity-100 transition-opacity">
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="text-[var(--color-text-muted)] hover:text-[var(--color-success)]"
+                    className="text-pyxis-muted hover:text-pyxis-success"
                     onClick={() =>
                       handleCreateStation(artist.musicToken, "artist")
                     }
@@ -147,7 +145,7 @@ export function BookmarksPage() {
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="text-[var(--color-text-muted)] hover:text-[var(--color-error)]"
+                    className="text-pyxis-muted hover:text-pyxis-error"
                     onClick={() =>
                       handleRemoveBookmark(artist.bookmarkToken, "artist")
                     }
@@ -165,23 +163,21 @@ export function BookmarksPage() {
 
       {songs.length > 0 && (
         <section>
-          <h3 className="zune-label text-[var(--color-text-muted)] mb-2">
-            songs
-          </h3>
+          <h3 className="zune-label text-pyxis-muted mb-2">songs</h3>
           <ul className="space-y-1">
             {songs.map((song) => (
               <li
                 key={song.bookmarkToken}
-                className="flex items-center gap-3 p-3 hover:bg-[var(--color-bg-highlight)] group"
+                className="flex items-center gap-3 p-3 hover:bg-pyxis-highlight group"
               >
-                <div className="w-10 h-10 bg-[var(--color-bg-highlight)] flex items-center justify-center shrink-0">
-                  <Music className="w-5 h-5 text-[var(--color-text-muted)]" />
+                <div className="w-10 h-10 bg-pyxis-highlight flex items-center justify-center shrink-0">
+                  <Music className="w-5 h-5 text-pyxis-muted" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="zune-list-title text-[var(--color-text)] truncate">
+                  <p className="zune-list-title text-pyxis-text truncate">
                     {song.songName}
                   </p>
-                  <p className="zune-eyebrow text-[var(--color-text-dim)]">
+                  <p className="zune-eyebrow text-pyxis-dim">
                     {song.artistName}
                   </p>
                 </div>
@@ -189,7 +185,7 @@ export function BookmarksPage() {
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="text-[var(--color-text-muted)] hover:text-[var(--color-success)]"
+                    className="text-pyxis-muted hover:text-pyxis-success"
                     onClick={() => handleCreateStation(song.musicToken, "song")}
                     title="Create station"
                     aria-label={`Create station from ${song.songName}`}
@@ -199,7 +195,7 @@ export function BookmarksPage() {
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="text-[var(--color-text-muted)] hover:text-[var(--color-error)]"
+                    className="text-pyxis-muted hover:text-pyxis-error"
                     onClick={() =>
                       handleRemoveBookmark(song.bookmarkToken, "song")
                     }
@@ -216,8 +212,8 @@ export function BookmarksPage() {
       )}
 
       {state._tag === "Empty" && (
-        <div className="py-16 text-[var(--color-text-dim)]">
-          <p className="zune-display text-4xl text-[var(--color-text-dim)]/40 mb-4">
+        <div className="py-16 text-pyxis-dim">
+          <p className="zune-display text-4xl text-pyxis-dim/40 mb-4">
             no bookmarks
           </p>
           <p className="text-sm">bookmark artists and songs while playing.</p>

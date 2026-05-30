@@ -25,16 +25,16 @@ export function formatPlacementLabel(placement: AlbumPlacement): string {
 export function placementBadgeClassName(placement: AlbumPlacement): string {
   switch (placement) {
     case "discovery":
-      return "bg-[var(--color-primary)]/15 text-[var(--color-primary)]";
+      return "bg-pyxis-primary/15 text-pyxis-primary";
     case "collection":
-      return "bg-emerald-500/15 text-emerald-300";
+      return "bg-pyxis-success/15 text-pyxis-success";
     case "archive":
-      return "bg-amber-500/15 text-amber-300";
+      return "bg-pyxis-accent/15 text-pyxis-accent";
     case "dismissed":
-      return "bg-rose-500/15 text-rose-300";
+      return "bg-pyxis-error/15 text-pyxis-error";
   }
 }
 
 export function hotBadgeClassName(): string {
-  return "bg-fuchsia-500/15 text-fuchsia-300";
+  return "bg-pyxis-accent/15 text-pyxis-accent";
 }

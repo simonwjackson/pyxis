@@ -32,7 +32,7 @@ export function RadioStationRow({
       icon={
         <Radio
           data-active={isActive || undefined}
-          className="w-5 h-5 text-[var(--color-text-dim)] data-[active]:text-[var(--color-primary)]"
+          className="w-5 h-5 text-pyxis-dim data-[active]:text-pyxis-primary"
         />
       }
       info={
@@ -41,7 +41,7 @@ export function RadioStationRow({
             {station.name}
           </StationListRowName>
           {isActive ? (
-            <StationListRowSubtitle className="text-[var(--color-primary)]">
+            <StationListRowSubtitle className="text-pyxis-primary">
               Now playing
             </StationListRowSubtitle>
           ) : null}

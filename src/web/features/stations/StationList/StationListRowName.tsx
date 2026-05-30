@@ -12,7 +12,7 @@ export function StationListRowName({
   return (
     <p
       data-active={isActive || undefined}
-      className="zune-list-title truncate text-[var(--color-text-muted)] data-[active]:text-[var(--color-text)]"
+      className="zune-list-title truncate text-pyxis-muted data-[active]:text-pyxis-text"
     >
       {children}
     </p>

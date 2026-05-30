@@ -1,6 +1,6 @@
+import { formatPlacementLabel } from "@app/shared/lib/libraryPlacement";
 import { Link } from "@tanstack/react-router";
 import { Disc3, Loader2, Play } from "lucide-react";
-import { formatPlacementLabel } from "@app/shared/lib/libraryPlacement";
 import type { SearchAlbum } from "../types";
 import { SearchHotBadge } from "./SearchHotBadge";
 import { SearchPlacementBadge } from "./SearchPlacementBadge";
@@ -36,13 +36,13 @@ export function SearchAlbums({
           return (
             <div
               key={album.id}
-              className="flex flex-wrap sm:flex-nowrap items-center gap-4 p-4 hover:bg-[var(--color-bg-highlight)] group"
+              className="flex flex-wrap sm:flex-nowrap items-center gap-4 p-4 hover:bg-pyxis-highlight group"
             >
               <button
                 type="button"
                 onClick={() => onPlayAlbum?.(album.id)}
                 disabled={isLoadingPlay}
-                className="relative w-12 h-12 bg-[var(--color-bg-highlight)] flex items-center justify-center shrink-0 overflow-hidden cursor-pointer"
+                className="relative w-12 h-12 bg-pyxis-highlight flex items-center justify-center shrink-0 overflow-hidden cursor-pointer"
                 aria-label={`Play ${album.title}`}
               >
                 {album.artworkUrl ? (
@@ -52,14 +52,14 @@ export function SearchAlbums({
                     className="w-full h-full object-cover"
                   />
                 ) : (
-                  <Disc3 className="w-6 h-6 text-[var(--color-text-dim)]" />
+                  <Disc3 className="w-6 h-6 text-pyxis-dim" />
                 )}
                 <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors flex items-center justify-center">
                   {isLoadingPlay ? (
-                    <Loader2 className="w-5 h-5 text-[var(--color-primary)] animate-spin" />
+                    <Loader2 className="w-5 h-5 text-pyxis-primary animate-spin" />
                   ) : (
                     <Play
-                      className="w-5 h-5 text-[var(--color-primary)] opacity-0 group-hover:opacity-100 transition-opacity"
+                      className="w-5 h-5 text-pyxis-primary opacity-0 group-hover:opacity-100 transition-opacity"
                       fill="currentColor"
                     />
                   )}
@@ -74,30 +74,26 @@ export function SearchAlbums({
                     startIndex: undefined,
                     shuffle: undefined,
                   }}
-                  className="zune-list-title text-[var(--color-text)] truncate block hover:underline"
+                  className="zune-list-title text-pyxis-text truncate block hover:underline"
                 >
                   {album.title}
                 </Link>
                 <div className="flex items-center gap-1.5 flex-wrap">
-                  <span className="zune-eyebrow text-[var(--color-text-dim)]">
+                  <span className="zune-eyebrow text-pyxis-dim">
                     {album.artist}
                   </span>
                   {album.year ? (
                     <>
-                      <span className="text-xs text-[var(--color-text-muted)]">
-                        &middot;
-                      </span>
-                      <span className="zune-eyebrow text-[var(--color-text-dim)]">
+                      <span className="text-xs text-pyxis-muted">&middot;</span>
+                      <span className="zune-eyebrow text-pyxis-dim">
                         {String(album.year)}
                       </span>
                     </>
                   ) : null}
                   {album.releaseType && album.releaseType !== "album" ? (
                     <>
-                      <span className="text-xs text-[var(--color-text-muted)]">
-                        &middot;
-                      </span>
-                      <span className="text-[10px] uppercase tracking-wider text-[var(--color-text-muted)] bg-[var(--color-bg-highlight)] px-1.5 py-0.5">
+                      <span className="text-xs text-pyxis-muted">&middot;</span>
+                      <span className="zune-badge text-pyxis-muted bg-pyxis-highlight px-1.5 py-0.5">
                         {album.releaseType}
                       </span>
                     </>
@@ -114,7 +110,7 @@ export function SearchAlbums({
                     {album.genres.slice(0, 5).map((genre) => (
                       <span
                         key={genre}
-                        className="text-[10px] text-[var(--color-text-muted)] bg-[var(--color-bg-highlight)]/80 px-1.5 py-0.5"
+                        className="text-ui-xs text-pyxis-muted bg-pyxis-highlight/80 px-1.5 py-0.5"
                       >
                         {genre}
                       </span>
@@ -127,12 +123,12 @@ export function SearchAlbums({
                   <button
                     type="button"
                     onClick={() => onSaveAlbum(album.id)}
-                    className="text-[10px] sm:text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text)] bg-[var(--color-bg-highlight)] hover:bg-[var(--color-border)] px-2 sm:px-2.5 py-1 sm:py-1.5 transition-colors shrink-0 w-full sm:w-auto mt-1 sm:mt-0 ml-0 sm:ml-auto"
+                    className="text-ui-xs text-pyxis-muted hover:text-pyxis-text bg-pyxis-highlight hover:bg-pyxis-border px-2 sm:px-2.5 py-1 sm:py-1.5 transition-colors shrink-0 w-full sm:w-auto mt-1 sm:mt-0 ml-0 sm:ml-auto"
                   >
                     {actionLabel}
                   </button>
                 ) : (
-                  <span className="text-[10px] sm:text-xs text-[var(--color-text-dim)] shrink-0 w-full sm:w-auto mt-1 sm:mt-0 text-left sm:text-right">
+                  <span className="text-ui-xs text-pyxis-dim shrink-0 w-full sm:w-auto mt-1 sm:mt-0 text-left sm:text-right">
                     In {formatPlacementLabel(state.placement)}
                   </span>
                 )

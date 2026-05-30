@@ -5,6 +5,15 @@
 
 import { cn } from "../lib/utils";
 
+const SKELETON_LIST_KEYS = [
+  "row-1",
+  "row-2",
+  "row-3",
+  "row-4",
+  "row-5",
+  "row-6",
+] as const;
+
 type SkeletonProps = {
   readonly className?: string;
 };
@@ -12,7 +21,7 @@ type SkeletonProps = {
 export function Skeleton({ className }: SkeletonProps) {
   return (
     <div
-      className={cn("animate-pulse bg-[var(--color-bg-highlight)]", className)}
+      className={cn("animate-pulse bg-pyxis-highlight", className)}
       aria-hidden="true"
     />
   );
@@ -23,8 +32,8 @@ export function StationListSkeleton() {
     <div className="space-y-2 p-6" role="status" aria-label="Loading stations">
       <Skeleton className="h-8 w-32 mb-6" />
       <Skeleton className="h-10 w-full mb-4" />
-      {Array.from({ length: 6 }).map((_, i) => (
-        <div key={i} className="flex items-center gap-3 p-3">
+      {SKELETON_LIST_KEYS.map((key) => (
+        <div key={key} className="flex items-center gap-3 p-3">
           <Skeleton className="w-10 h-10" />
           <Skeleton className="h-5 flex-1" />
         </div>

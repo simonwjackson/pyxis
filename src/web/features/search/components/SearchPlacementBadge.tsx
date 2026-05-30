@@ -11,7 +11,7 @@ type SearchPlacementBadgeProps = {
 export function SearchPlacementBadge({ placement }: SearchPlacementBadgeProps) {
   return (
     <span
-      className={`text-[10px] uppercase tracking-[0.18em] px-1.5 py-0.5 ${placementBadgeClassName(placement)}`}
+      className={`zune-badge px-1.5 py-0.5 ${placementBadgeClassName(placement)}`}
     >
       {formatPlacementLabel(placement)}
     </span>

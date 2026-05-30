@@ -18,10 +18,10 @@ export function StationListRowActions({
       <button
         type="button"
         onClick={() => setIsOpen((prev) => !prev)}
-        className="p-1.5 hover:bg-[var(--color-bg-highlight)] opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity md:opacity-0 max-md:opacity-100"
+        className="p-1.5 hover:bg-pyxis-highlight opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity md:opacity-0 max-md:opacity-100"
         aria-label={`Actions for ${stationName}`}
       >
-        <MoreVertical className="w-4 h-4 text-[var(--color-text-muted)]" />
+        <MoreVertical className="w-4 h-4 text-pyxis-muted" />
       </button>
 
       {isOpen ? (

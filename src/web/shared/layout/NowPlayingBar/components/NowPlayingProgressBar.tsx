@@ -40,7 +40,7 @@ export function NowPlayingProgressBar({
           style={{ width: `${String(progressPercent)}%` }}
         />
         <div
-          className="absolute top-1/2 -translate-y-1/2 w-3 h-3 bg-[var(--color-primary)] opacity-0 group-hover:opacity-100 transition-opacity"
+          className="absolute top-1/2 -translate-y-1/2 w-3 h-3 bg-pyxis-primary opacity-0 group-hover:opacity-100 transition-opacity"
           style={{ left: `${String(progressPercent)}%` }}
         />
       </div>

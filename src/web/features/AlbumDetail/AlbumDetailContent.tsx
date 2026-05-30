@@ -1,13 +1,4 @@
 import {
-  ArrowLeft,
-  BookmarkPlus,
-  ChevronDown,
-  Flame,
-  Music,
-  Play,
-} from "lucide-react";
-import { useEffect, useRef, useState } from "react";
-import {
   type AlbumPlacement,
   formatPlacementLabel,
   hotBadgeClassName,
@@ -16,6 +7,15 @@ import {
 import { formatTime } from "@app/shared/lib/nowPlayingUtils";
 import { Button } from "@app/shared/ui/Button";
 import { EditableText } from "@app/shared/ui/EditableText";
+import {
+  ArrowLeft,
+  BookmarkPlus,
+  ChevronDown,
+  Flame,
+  Music,
+  Play,
+} from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import type { AlbumDetailContentProps } from "./types";
 
 const PLACEMENTS: readonly AlbumPlacement[] = [
@@ -35,7 +35,7 @@ function formatTotalDuration(totalSeconds: number): string {
 function AlbumDetailHotBadge() {
   return (
     <span
-      className={`inline-flex items-center gap-1 text-[10px] uppercase tracking-[0.18em] px-1.5 py-0.5 ${hotBadgeClassName()}`}
+      className={`inline-flex items-center gap-1 zune-badge px-1.5 py-0.5 ${hotBadgeClassName()}`}
     >
       <Flame className="w-3 h-3" />
       Hot
@@ -94,8 +94,8 @@ function AlbumDetailPlacementMenu({
         aria-haspopup="menu"
         className={
           currentPlacement
-            ? `inline-flex items-center gap-1.5 px-3 py-1.5 text-xs uppercase tracking-[0.18em] transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-border-active)] ${placementBadgeClassName(currentPlacement)}`
-            : "inline-flex items-center gap-1.5 border border-[var(--color-border)] px-3 py-1.5 text-xs uppercase tracking-[0.18em] text-[var(--color-text-dim)] transition-colors hover:text-[var(--color-text)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-border-active)]"
+            ? `inline-flex items-center gap-1.5 px-3 py-1.5 text-xs uppercase tracking-badge transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-pyxis-border-active ${placementBadgeClassName(currentPlacement)}`
+            : "inline-flex items-center gap-1.5 border border-pyxis-border px-3 py-1.5 text-xs uppercase tracking-badge text-pyxis-dim transition-colors hover:text-pyxis-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-pyxis-border-active"
         }
       >
         <span>
@@ -108,7 +108,7 @@ function AlbumDetailPlacementMenu({
         />
       </button>
       {isOpen ? (
-        <div className="absolute left-0 top-full z-10 mt-2 min-w-44 overflow-hidden border border-[var(--color-border)] bg-[var(--color-bg)] shadow-lg">
+        <div className="absolute left-0 top-full z-10 mt-2 min-w-44 overflow-hidden border border-pyxis-border bg-pyxis-bg shadow-lg">
           <div className="py-1" role="menu" aria-label="Choose category">
             {nextPlacements.map((placement) => (
               <button
@@ -119,7 +119,7 @@ function AlbumDetailPlacementMenu({
                   onSetPlacement(placement);
                   setIsOpen(false);
                 }}
-                className="flex w-full items-center gap-3 px-3 py-2 text-left text-sm text-[var(--color-text-dim)] transition-colors hover:bg-[var(--color-bg-highlight)] hover:text-[var(--color-text)]"
+                className="flex w-full items-center gap-3 px-3 py-2 text-left text-sm text-pyxis-dim transition-colors hover:bg-pyxis-highlight hover:text-pyxis-text"
               >
                 <span>{formatPlacementLabel(placement)}</span>
               </button>
@@ -156,11 +156,11 @@ export function AlbumDetailContent({
   const trackCount = tracks.length;
 
   return (
-    <div className="flex-1 px-4 sm:px-8 py-10 max-w-3xl mx-auto space-y-8">
+    <div className="page-frame lattice-container max-w-3xl mx-auto space-y-8">
       <button
         type="button"
         onClick={onBack}
-        className="flex items-center gap-1.5 text-sm text-[var(--color-text-dim)] hover:text-[var(--color-text)] transition-colors"
+        className="flex items-center gap-1.5 text-sm text-pyxis-dim hover:text-pyxis-text transition-colors"
         aria-label="Go back"
       >
         <ArrowLeft className="w-4 h-4" aria-hidden="true" />
@@ -168,7 +168,7 @@ export function AlbumDetailContent({
       </button>
 
       <div className="flex flex-col sm:flex-row gap-6 sm:gap-8 items-center sm:items-end">
-        <div className="w-40 h-40 sm:w-56 sm:h-56 shrink-0 shadow-lg overflow-hidden bg-[var(--color-bg-highlight)]">
+        <div className="w-40 h-40 sm:w-56 sm:h-56 shrink-0 shadow-lg overflow-hidden bg-pyxis-highlight">
           {album.artworkUrl ? (
             <img
               src={album.artworkUrl}
@@ -177,7 +177,7 @@ export function AlbumDetailContent({
             />
           ) : (
             <div className="w-full h-full flex items-center justify-center">
-              <Music className="w-16 h-16 text-[var(--color-text-dim)]" />
+              <Music className="w-16 h-16 text-pyxis-dim" />
             </div>
           )}
         </div>
@@ -187,7 +187,7 @@ export function AlbumDetailContent({
             onSave={(title) => onUpdateAlbum?.({ title })}
             disabled={!canEditMetadata}
           >
-            <h1 className="zune-heading text-3xl md:text-4xl text-[var(--color-text)]">
+            <h1 className="zune-heading text-3xl md:text-4xl text-pyxis-text">
               {album.title}
             </h1>
           </EditableText>
@@ -196,11 +196,11 @@ export function AlbumDetailContent({
             onSave={(artist) => onUpdateAlbum?.({ artist })}
             disabled={!canEditMetadata}
           >
-            <p className="text-lg font-light tracking-tight text-[var(--color-text-muted)]">
+            <p className="text-lg font-light tracking-tight text-pyxis-muted">
               {album.artist}
             </p>
           </EditableText>
-          <p className="zune-meta text-[var(--color-text-dim)]">
+          <p className="zune-meta text-pyxis-dim">
             {album.year ? `${String(album.year)} · ` : ""}
             {String(trackCount)} track{trackCount !== 1 ? "s" : ""}
             {totalDuration > 0
@@ -215,7 +215,7 @@ export function AlbumDetailContent({
           <div className="flex gap-2 sm:gap-3 pt-4 flex-wrap justify-center sm:justify-start">
             <Button
               onClick={onPlay}
-              className="gap-2 bg-[var(--color-primary)] hover:brightness-110 text-[var(--color-bg)]"
+              className="gap-2 bg-pyxis-primary hover:brightness-110 text-pyxis-bg"
             >
               <Play className="w-4 h-4" fill="currentColor" />
               Play
@@ -244,7 +244,7 @@ export function AlbumDetailContent({
           </div>
           {canManagePlacement && onSetPlacement ? (
             <div className="pt-2 space-y-2">
-              <p className="text-xs uppercase tracking-[0.2em] text-[var(--color-text-dim)]">
+              <p className="text-xs uppercase tracking-badge text-pyxis-dim">
                 category
               </p>
               <div className="flex justify-center sm:justify-start">
@@ -257,7 +257,7 @@ export function AlbumDetailContent({
             </div>
           ) : null}
           {currentPlacement === "dismissed" && isHot ? (
-            <p className="text-sm text-[var(--color-text-dim)]">
+            <p className="text-sm text-pyxis-dim">
               This album is dismissed but still hot from recent listening.
             </p>
           ) : null}
@@ -275,8 +275,8 @@ export function AlbumDetailContent({
                 onClick={() => onPlayTrack(index)}
                 className={`w-full flex items-center gap-4 px-4 py-3 text-left transition-colors ${
                   isActive
-                    ? "bg-[var(--color-primary)]/10 text-[var(--color-primary)] font-medium"
-                    : "text-[var(--color-text-dim)] hover:text-[var(--color-text)] hover:bg-[var(--color-bg-highlight)]"
+                    ? "bg-pyxis-primary/10 text-pyxis-primary font-medium"
+                    : "text-pyxis-dim hover:text-pyxis-text hover:bg-pyxis-highlight"
                 }`}
               >
                 <span className="w-6 text-right text-sm">

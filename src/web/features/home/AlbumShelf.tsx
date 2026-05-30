@@ -17,7 +17,11 @@ function shuffleAlbums(albums: readonly AlbumData[]): AlbumData[] {
   const result = [...albums];
   for (let index = result.length - 1; index > 0; index--) {
     const swapIndex = Math.floor(Math.random() * (index + 1));
-    [result[index], result[swapIndex]] = [result[swapIndex]!, result[index]!];
+    const current = result[index];
+    const swap = result[swapIndex];
+    if (current === undefined || swap === undefined) continue;
+    result[index] = swap;
+    result[swapIndex] = current;
   }
   return result;
 }
@@ -156,10 +160,10 @@ export function AlbumShelf({
     <section>
       <div className="flex items-end justify-between mb-5 gap-4 flex-wrap">
         <div className="flex items-baseline gap-4">
-          <h2 className="zune-display zune-page-title text-[var(--color-text)]">
+          <h2 className="zune-display zune-page-title text-pyxis-text">
             {title}
           </h2>
-          <span className="zune-label zune-data text-[var(--color-text-dim)]">
+          <span className="zune-label zune-data text-pyxis-dim">
             {filterText
               ? `${String(sortedAlbums.length)} of ${String(albums.length)}`
               : String(albums.length)}
@@ -180,21 +184,18 @@ export function AlbumShelf({
                 setFilterText(event.target.value);
                 setCurrentPage(1);
               }}
-              className="bg-[var(--color-bg-highlight)] border border-[var(--color-border)] text-[var(--color-text)] py-1.5 pl-8 pr-3 text-[13px] w-full sm:w-[180px] outline-none focus:border-[var(--color-border-active)] transition-colors placeholder:text-[var(--color-text-dim)]"
+              className="bg-pyxis-highlight border border-pyxis-border text-pyxis-text py-1.5 pl-8 pr-3 text-ui-xs w-full sm:w-44 outline-none focus:border-pyxis-border-active transition-colors placeholder:text-pyxis-dim"
             />
             <Search
-              className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--color-text-dim)] w-4 h-4"
+              className="absolute left-2.5 top-1/2 -translate-y-1/2 text-pyxis-dim w-4 h-4"
               aria-hidden="true"
             />
           </div>
         </div>
       </div>
 
-      <div
-        className="flex gap-1.5 mb-6 flex-wrap"
-        role="group"
-        aria-label={`${title} sort options`}
-      >
+      <fieldset className="flex gap-1.5 mb-6 flex-wrap">
+        <legend className="sr-only">{title} sort options</legend>
         {sortOptions.map((option) => {
           const Icon = option.icon;
           const isActive = currentSort === option.key;
@@ -209,22 +210,22 @@ export function AlbumShelf({
               }}
               className={
                 isActive
-                  ? "bg-[var(--color-bg-elevated)] text-[var(--color-text)] py-1 px-3.5 text-xs font-medium inline-flex items-center gap-1.5 shrink-0 whitespace-nowrap"
-                  : "bg-transparent border border-[var(--color-border)] text-[var(--color-text-dim)] py-1 px-3.5 text-xs inline-flex items-center gap-1.5 shrink-0 whitespace-nowrap hover:text-[var(--color-text)] hover:border-[var(--color-text-dim)] transition-colors"
+                  ? "bg-pyxis-elevated text-pyxis-text py-1 px-3.5 text-xs font-medium inline-flex items-center gap-1.5 shrink-0 whitespace-nowrap"
+                  : "bg-transparent border border-pyxis-border text-pyxis-dim py-1 px-3.5 text-xs inline-flex items-center gap-1.5 shrink-0 whitespace-nowrap hover:text-pyxis-text hover:border-pyxis-dim transition-colors"
               }
             >
-              <Icon className="w-[13px] h-[13px]" aria-hidden="true" />
+              <Icon className="w-3.5 h-3.5" aria-hidden="true" />
               {option.label}
             </button>
           );
         })}
-      </div>
+      </fieldset>
 
       {sortedAlbums.length === 0 ? (
-        <p className="text-sm text-[var(--color-text-dim)]">{emptyMessage}</p>
+        <p className="text-sm text-pyxis-dim">{emptyMessage}</p>
       ) : (
         <>
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 sm:gap-5">
+          <div className="lattice-responsive-grid">
             {pageAlbums.map((album) => (
               <div key={album.id}>
                 <AlbumCard album={album} />
@@ -235,10 +236,10 @@ export function AlbumShelf({
 
           {showPagination ? (
             <nav
-              className="flex items-center justify-between mt-8 pt-5 border-t border-[var(--color-border)]"
+              className="flex items-center justify-between mt-8 pt-5 border-t border-pyxis-border"
               aria-label={`${title} pagination`}
             >
-              <span className="zune-label zune-data text-[var(--color-text-dim)] opacity-60">
+              <span className="zune-label zune-data text-pyxis-dim opacity-60">
                 page {String(safePage)} of {String(totalPages)}
               </span>
               <div className="flex gap-1 items-center">
@@ -246,7 +247,7 @@ export function AlbumShelf({
                   type="button"
                   disabled={safePage === 1}
                   onClick={() => setCurrentPage(safePage - 1)}
-                  className="bg-[var(--color-bg-highlight)] w-7 h-7 flex items-center justify-center disabled:opacity-30 disabled:cursor-not-allowed text-[var(--color-text-dim)] hover:text-[var(--color-text)] transition-colors"
+                  className="bg-pyxis-highlight w-7 h-7 flex items-center justify-center disabled:opacity-30 disabled:cursor-not-allowed text-pyxis-dim hover:text-pyxis-text transition-colors"
                   aria-label="Previous page"
                 >
                   <ChevronLeft className="w-4 h-4" aria-hidden="true" />
@@ -255,7 +256,7 @@ export function AlbumShelf({
                   page === "ellipsis" ? (
                     <span
                       key={`ellipsis-${String(index)}`}
-                      className="hidden sm:inline text-[var(--color-border)] text-xs px-0.5"
+                      className="hidden sm:inline text-pyxis-border text-xs px-0.5"
                       aria-hidden="true"
                     >
                       ...
@@ -267,8 +268,8 @@ export function AlbumShelf({
                       onClick={() => setCurrentPage(page)}
                       className={
                         page === safePage
-                          ? "hidden sm:inline-flex items-center justify-center bg-[var(--color-bg-elevated)] text-[var(--color-text)] min-w-[28px] h-7 text-xs font-medium"
-                          : "hidden sm:inline-flex items-center justify-center bg-[var(--color-bg-highlight)] text-[var(--color-text-dim)] min-w-[28px] h-7 text-xs hover:text-[var(--color-text)] transition-colors"
+                          ? "hidden sm:inline-flex items-center justify-center bg-pyxis-elevated text-pyxis-text min-w-7 h-7 text-xs font-medium"
+                          : "hidden sm:inline-flex items-center justify-center bg-pyxis-highlight text-pyxis-dim min-w-7 h-7 text-xs hover:text-pyxis-text transition-colors"
                       }
                       aria-current={page === safePage ? "page" : undefined}
                     >
@@ -280,7 +281,7 @@ export function AlbumShelf({
                   type="button"
                   disabled={safePage === totalPages}
                   onClick={() => setCurrentPage(safePage + 1)}
-                  className="bg-[var(--color-bg-highlight)] w-7 h-7 flex items-center justify-center disabled:opacity-30 disabled:cursor-not-allowed text-[var(--color-text-dim)] hover:text-[var(--color-text)] transition-colors"
+                  className="bg-pyxis-highlight w-7 h-7 flex items-center justify-center disabled:opacity-30 disabled:cursor-not-allowed text-pyxis-dim hover:text-pyxis-text transition-colors"
                   aria-label="Next page"
                 >
                   <ChevronRight className="w-4 h-4" aria-hidden="true" />

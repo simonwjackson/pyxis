@@ -9,23 +9,23 @@
  * React Query bridge.
  */
 
-import { useAtomValue } from "@effect/atom-react";
-import { useNavigate } from "@tanstack/react-router";
-import { Search, Shuffle } from "lucide-react";
-import { useState } from "react";
 import { PyxisRpcClient } from "@app/shared/api/rpcClient";
 import { projectQueryResult } from "@app/shared/effect/projectQueryResult";
 import { usePlaybackContext } from "@app/shared/playback/PlaybackContext";
 import { PlaybackState } from "@app/shared/playback/types";
 import { StationListSkeleton } from "@app/shared/ui/Skeleton";
+import { useAtomValue } from "@effect/atom-react";
+import { useNavigate } from "@tanstack/react-router";
+import { Search, Shuffle } from "lucide-react";
+import { useState } from "react";
 import type { ApiStationSummary } from "../../../api/contracts/radio.js";
 import { DeleteStationDialog } from "./DeleteStationDialog";
 import { QuickMixDialog } from "./QuickMixDialog";
-import { RADIO_STATIONS_TAG } from "./radioReactivityTags";
 import { RenameStationDialog } from "./RenameStationDialog";
-import { StationsState } from "./StationsState";
+import { RADIO_STATIONS_TAG } from "./radioReactivityTags";
 import { StationList } from "./StationList";
 import type { RadioStation } from "./StationList/types";
+import { StationsState } from "./StationsState";
 
 const stationsReactivityKeys = [RADIO_STATIONS_TAG] as const;
 
@@ -82,8 +82,8 @@ export function StationsPage() {
 
   if (state._tag === "LoadError" || state._tag === "Defect") {
     return (
-      <div className="flex-1 px-4 sm:px-8 py-10">
-        <p className="text-[var(--color-error)]">failed to load stations</p>
+      <div className="page-frame lattice-container">
+        <p className="text-pyxis-error">failed to load stations</p>
       </div>
     );
   }
@@ -96,16 +96,16 @@ export function StationsPage() {
   );
 
   return (
-    <div className="flex-1 px-4 sm:px-8 py-10 space-y-6">
+    <div className="page-frame lattice-container space-y-6">
       <div className="flex items-center justify-between">
-        <h2 className="zune-display zune-page-title text-[var(--color-text)]">
+        <h2 className="zune-display zune-page-title text-pyxis-text">
           your stations
         </h2>
         {hasQuickMix && (
           <button
             type="button"
             onClick={() => setDialog({ type: "quickmix" })}
-            className="flex items-center gap-2 px-3 py-1.5 text-sm text-[var(--color-secondary)] hover:bg-[var(--color-bg-highlight)] transition-colors"
+            className="flex items-center gap-2 px-3 py-1.5 text-sm text-pyxis-secondary hover:bg-pyxis-highlight transition-colors"
           >
             <Shuffle className="w-4 h-4" />
             manage shuffle
@@ -113,19 +113,21 @@ export function StationsPage() {
         )}
       </div>
       <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-[var(--color-text-dim)]" />
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-pyxis-dim" />
         <input
           type="text"
           placeholder="filter stations..."
           value={filter}
           onChange={(e) => setFilter(e.target.value)}
           aria-label="Filter stations"
-          className="w-full pl-10 pr-4 py-2 bg-[var(--color-bg-highlight)] border border-[var(--color-border)] text-sm text-[var(--color-text)] placeholder:text-[var(--color-text-dim)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-border-active)]"
+          className="w-full pl-10 pr-4 py-2 bg-pyxis-highlight border border-pyxis-border text-sm text-pyxis-text placeholder:text-pyxis-dim focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-pyxis-border-active"
         />
       </div>
       <StationList
         stations={filteredStations}
-        currentStationId={PlaybackState.currentStationToken(playback.state) ?? undefined}
+        currentStationId={
+          PlaybackState.currentStationToken(playback.state) ?? undefined
+        }
         onSelect={handleSelect}
         onDetails={handleDetails}
         onRename={(station) => setDialog({ type: "rename", station })}

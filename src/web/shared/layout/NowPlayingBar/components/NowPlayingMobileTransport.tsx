@@ -15,7 +15,7 @@ export function NowPlayingMobileTransport({
     <div className="flex items-center gap-0.5 shrink-0">
       <button
         onClick={onTogglePlayPause}
-        className="h-10 w-10 flex items-center justify-center bg-[var(--color-primary)] hover:brightness-110 transition-all text-white"
+        className="h-10 w-10 flex items-center justify-center bg-pyxis-primary hover:brightness-110 transition-all text-white"
         type="button"
         aria-label={isPlaying ? "Pause" : "Play"}
       >
@@ -27,7 +27,7 @@ export function NowPlayingMobileTransport({
       </button>
       <button
         onClick={onSkip}
-        className="h-8 w-8 flex items-center justify-center hover:bg-[var(--color-bg-highlight)] transition-colors text-[var(--color-text-muted)]"
+        className="h-8 w-8 flex items-center justify-center hover:bg-pyxis-highlight transition-colors text-pyxis-muted"
         type="button"
         aria-label="Skip track"
       >

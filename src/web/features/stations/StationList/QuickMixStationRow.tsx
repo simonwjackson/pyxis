@@ -29,13 +29,13 @@ export function QuickMixStationRow({
     <StationListRowRoot
       isActive={isActive}
       onSelect={() => onSelect(station)}
-      icon={<Shuffle className="w-5 h-5 text-[var(--color-secondary)]" />}
+      icon={<Shuffle className="w-5 h-5 text-pyxis-secondary" />}
       info={
         <>
           <StationListRowName isActive={isActive}>
             {station.name}
           </StationListRowName>
-          <StationListRowSubtitle className="text-[var(--color-secondary)]">
+          <StationListRowSubtitle className="text-pyxis-secondary">
             QuickMix
           </StationListRowSubtitle>
         </>

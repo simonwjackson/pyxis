@@ -27,10 +27,10 @@ export function CollectionGridHeader({
   return (
     <div className="flex items-end justify-between mb-5 gap-3 flex-wrap">
       <div className="flex items-baseline gap-4">
-        <h2 className="zune-display zune-page-title text-[var(--color-text)]">
+        <h2 className="zune-display zune-page-title text-pyxis-text">
           {title}
         </h2>
-        <span className="zune-label zune-data text-[var(--color-text-dim)]">
+        <span className="zune-label zune-data text-pyxis-dim">
           {filterText
             ? `${String(totalItems)} of ${String(totalSourceItems)}`
             : String(totalSourceItems)}
@@ -51,10 +51,10 @@ export function CollectionGridHeader({
               onFilterChange(event.target.value);
               if (currentPage !== 1) onResetPage();
             }}
-            className="bg-[var(--color-bg-highlight)] border border-[var(--color-border)] text-[var(--color-text)] py-1.5 pl-8 pr-3 text-[13px] w-full sm:w-[180px] outline-none focus:border-[var(--color-border-active)] transition-colors placeholder:text-[var(--color-text-dim)]"
+            className="bg-pyxis-highlight border border-pyxis-border text-pyxis-text py-1.5 pl-8 pr-3 text-ui-xs w-full sm:w-44 outline-none focus:border-pyxis-border-active transition-colors placeholder:text-pyxis-dim"
           />
           <Search
-            className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--color-text-dim)] w-4 h-4"
+            className="absolute left-2.5 top-1/2 -translate-y-1/2 text-pyxis-dim w-4 h-4"
             aria-hidden="true"
           />
         </div>

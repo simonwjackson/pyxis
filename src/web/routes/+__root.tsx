@@ -1,15 +1,15 @@
-import {
-  createRootRoute,
-  Outlet,
-  useRouterState,
-} from "@tanstack/react-router";
-import { useCallback, useState } from "react";
 import { useKeyboardShortcuts } from "@app/shared/keyboardShortcuts";
 import { CommandPalette } from "@app/shared/layout/CommandPalette";
 import { MobileNav } from "@app/shared/layout/MobileNav";
 import { NowPlayingBar } from "@app/shared/layout/NowPlayingBar";
 import { Sidebar } from "@app/shared/layout/Sidebar";
 import { ErrorBoundary } from "@app/shared/ui/ErrorBoundary";
+import {
+  createRootRoute,
+  Outlet,
+  useRouterState,
+} from "@tanstack/react-router";
+import { useCallback, useState } from "react";
 
 function AppShell() {
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
@@ -28,7 +28,7 @@ function AppShell() {
   });
 
   return (
-    <div className="flex h-screen bg-[var(--color-bg)] text-[var(--color-text)] safe-left safe-right">
+    <div className="flex h-screen bg-pyxis-bg text-pyxis-text safe-left safe-right">
       <Sidebar />
       <div className="flex-1 flex flex-col min-w-0">
         <MobileNav />

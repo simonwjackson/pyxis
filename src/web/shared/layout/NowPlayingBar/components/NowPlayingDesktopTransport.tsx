@@ -20,7 +20,7 @@ export function NowPlayingDesktopTransport({
       <button
         onClick={onPrevious}
         disabled={isAtQueueStart}
-        className="h-8 w-8 flex items-center justify-center hover:bg-[var(--color-bg-highlight)] transition-colors text-[var(--color-text-muted)] disabled:opacity-30 disabled:cursor-not-allowed"
+        className="h-8 w-8 flex items-center justify-center hover:bg-pyxis-highlight transition-colors text-pyxis-muted disabled:opacity-30 disabled:cursor-not-allowed"
         type="button"
         aria-label="Previous track"
       >
@@ -28,7 +28,7 @@ export function NowPlayingDesktopTransport({
       </button>
       <button
         onClick={onTogglePlayPause}
-        className="h-10 w-10 flex items-center justify-center bg-[var(--color-primary)] hover:brightness-110 transition-all text-white"
+        className="h-10 w-10 flex items-center justify-center bg-pyxis-primary hover:brightness-110 transition-all text-white"
         type="button"
         aria-label={isPlaying ? "Pause" : "Play"}
       >
@@ -40,7 +40,7 @@ export function NowPlayingDesktopTransport({
       </button>
       <button
         onClick={onSkip}
-        className="h-8 w-8 flex items-center justify-center hover:bg-[var(--color-bg-highlight)] transition-colors text-[var(--color-text-muted)]"
+        className="h-8 w-8 flex items-center justify-center hover:bg-pyxis-highlight transition-colors text-pyxis-muted"
         type="button"
         aria-label="Skip track"
       >

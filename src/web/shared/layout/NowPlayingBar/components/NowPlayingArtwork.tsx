@@ -1,5 +1,5 @@
-import { Music } from "lucide-react";
 import type { PlaybackTrack } from "@app/shared/playback/types";
+import { Music } from "lucide-react";
 
 type NowPlayingArtworkProps = {
   readonly track: PlaybackTrack;
@@ -26,7 +26,7 @@ export function NowPlayingArtwork({
         />
       ) : null}
       <div
-        className={`${sizeClassName} bg-[var(--color-bg-highlight)] flex items-center justify-center shrink-0 ${track.artUrl ? "hidden" : ""}`}
+        className={`${sizeClassName} bg-pyxis-highlight flex items-center justify-center shrink-0 ${track.artUrl ? "hidden" : ""}`}
       >
         <Music className={iconClassName} />
       </div>

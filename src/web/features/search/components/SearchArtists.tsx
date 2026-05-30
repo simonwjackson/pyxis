@@ -21,21 +21,19 @@ export function SearchArtists({
           <li key={artist.musicToken}>
             <button
               onClick={() => onCreateStation(artist.musicToken)}
-              className="w-full flex items-center gap-3 p-3 hover:bg-[var(--color-bg-highlight)] text-left"
+              className="w-full flex items-center gap-3 p-3 hover:bg-pyxis-highlight text-left"
               type="button"
             >
-              <div className="w-10 h-10 bg-[var(--color-bg-highlight)] flex items-center justify-center shrink-0">
-                <User className="w-5 h-5 text-[var(--color-text-muted)]" />
+              <div className="w-10 h-10 bg-pyxis-highlight flex items-center justify-center shrink-0">
+                <User className="w-5 h-5 text-pyxis-muted" />
               </div>
               <div className="flex-1">
-                <p className="zune-list-title text-[var(--color-text)]">
+                <p className="zune-list-title text-pyxis-text">
                   {artist.artistName}
                 </p>
-                <p className="zune-eyebrow text-[var(--color-text-dim)]">
-                  pandora
-                </p>
+                <p className="zune-eyebrow text-pyxis-dim">pandora</p>
               </div>
-              <span className="text-xs text-[var(--color-text-dim)] hover:text-[var(--color-primary)] transition-colors">
+              <span className="text-xs text-pyxis-dim hover:text-pyxis-primary transition-colors">
                 + station
               </span>
             </button>

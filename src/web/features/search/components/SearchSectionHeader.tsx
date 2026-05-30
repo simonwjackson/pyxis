@@ -3,7 +3,5 @@ type SearchSectionHeaderProps = {
 };
 
 export function SearchSectionHeader({ children }: SearchSectionHeaderProps) {
-  return (
-    <h3 className="zune-label text-[var(--color-text-dim)] mb-3">{children}</h3>
-  );
+  return <h3 className="zune-label text-pyxis-dim mb-3">{children}</h3>;
 }

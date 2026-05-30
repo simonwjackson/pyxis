@@ -10,13 +10,13 @@
  * fan-out).
  */
 
-import { useAtomSet, useAtomValue } from "@effect/atom-react";
-import { useMemo } from "react";
-import { toast } from "sonner";
 import { PyxisRpcClient } from "@app/shared/api/rpcClient";
 import { projectQueryResult } from "@app/shared/effect/projectQueryResult";
 import { authStatusQueryAtom } from "@app/shared/layout/authStatusAtom";
 import { Spinner } from "@app/shared/ui/Spinner";
+import { useAtomSet, useAtomValue } from "@effect/atom-react";
+import { useMemo } from "react";
+import { toast } from "sonner";
 import { SettingsState } from "./SettingsState";
 
 const AUTH_SETTINGS_TAG = "auth.settings" as const;
@@ -67,14 +67,12 @@ export function SettingsPage() {
   }
 
   return (
-    <div className="flex-1 px-4 sm:px-8 py-10 space-y-8">
-      <h2 className="zune-display zune-page-title text-[var(--color-text)]">
-        settings
-      </h2>
+    <div className="page-frame lattice-container space-y-8">
+      <h2 className="zune-display zune-page-title text-pyxis-text">settings</h2>
 
       {state._tag === "NoAccount" || state._tag === "Unavailable" ? (
-        <div className="py-16 text-[var(--color-text-dim)]">
-          <p className="zune-display text-4xl text-[var(--color-text-dim)]/40 mb-4">
+        <div className="py-16 text-pyxis-dim">
+          <p className="zune-display text-4xl text-pyxis-dim/40 mb-4">
             no account
           </p>
           <p className="text-sm">
@@ -107,13 +105,11 @@ function SettingsAccountSection({
   const explicitOn = settings.isExplicitContentFilterEnabled === true;
   return (
     <section className="space-y-4">
-      <h3 className="zune-label text-[var(--color-text-muted)]">
-        pandora account
-      </h3>
+      <h3 className="zune-label text-pyxis-muted">pandora account</h3>
       {settings.username && (
         <div className="flex items-center justify-between py-2">
           <span className="zune-meta">email</span>
-          <span className="zune-copy text-sm text-[var(--color-text-muted)]">
+          <span className="zune-copy text-sm text-pyxis-muted">
             {settings.username}
           </span>
         </div>
@@ -123,9 +119,7 @@ function SettingsAccountSection({
         <button
           onClick={() => onToggleExplicit(!explicitOn)}
           className={`w-12 h-6 rounded-full transition-colors relative ${
-            explicitOn
-              ? "bg-[var(--color-primary)]"
-              : "bg-[var(--color-bg-highlight)]"
+            explicitOn ? "bg-pyxis-primary" : "bg-pyxis-highlight"
           }`}
           type="button"
           role="switch"
@@ -153,27 +147,23 @@ function SettingsUsageSection({
   const cap = usage.monthlyCapHours;
   return (
     <section className="space-y-2">
-      <h3 className="zune-label text-[var(--color-text-muted)]">
-        pandora usage
-      </h3>
+      <h3 className="zune-label text-pyxis-muted">pandora usage</h3>
       {typeof monthly === "number" && (
         <div className="flex items-center justify-between py-2">
-          <span className="zune-copy text-sm text-[var(--color-text-muted)]">
+          <span className="zune-copy text-sm text-pyxis-muted">
             listening this month
           </span>
-          <span className="zune-data text-sm text-[var(--color-text-muted)]">
+          <span className="zune-data text-sm text-pyxis-muted">
             {Math.round(monthly / 3600)}h
           </span>
         </div>
       )}
       {typeof cap === "number" && (
         <div className="flex items-center justify-between py-2">
-          <span className="zune-copy text-sm text-[var(--color-text-muted)]">
+          <span className="zune-copy text-sm text-pyxis-muted">
             monthly cap
           </span>
-          <span className="zune-data text-sm text-[var(--color-text-muted)]">
-            {cap}h
-          </span>
+          <span className="zune-data text-sm text-pyxis-muted">{cap}h</span>
         </div>
       )}
     </section>

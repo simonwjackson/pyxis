@@ -9,14 +9,14 @@
  * `utils.radio.list.invalidate()`).
  */
 
-import { useAtomSet, useAtomValue } from "@effect/atom-react";
-import { ChevronDown, ChevronRight, Plus } from "lucide-react";
-import { useState } from "react";
-import { toast } from "sonner";
 import { PyxisRpcClient } from "@app/shared/api/rpcClient";
 import { projectQueryResult } from "@app/shared/effect/projectQueryResult";
 import { Button } from "@app/shared/ui/Button";
 import { Spinner } from "@app/shared/ui/Spinner";
+import { useAtomSet, useAtomValue } from "@effect/atom-react";
+import { ChevronDown, ChevronRight, Plus } from "lucide-react";
+import { useState } from "react";
+import { toast } from "sonner";
 import { RADIO_STATIONS_TAG } from "../stations/radioReactivityTags";
 import { GenresState } from "./GenresState";
 
@@ -62,8 +62,8 @@ export function GenresPage() {
 
   if (state._tag === "LoadError" || state._tag === "Defect") {
     return (
-      <div className="flex-1 px-4 sm:px-8 py-10">
-        <p className="text-[var(--color-error)]">failed to load genres</p>
+      <div className="page-frame lattice-container">
+        <p className="text-pyxis-error">failed to load genres</p>
       </div>
     );
   }
@@ -71,10 +71,8 @@ export function GenresPage() {
   const categories = state._tag === "Ready" ? state.categories : [];
 
   return (
-    <div className="flex-1 px-4 sm:px-8 py-10 space-y-6">
-      <h2 className="zune-display zune-page-title text-[var(--color-text)]">
-        genres
-      </h2>
+    <div className="page-frame lattice-container space-y-6">
+      <h2 className="zune-display zune-page-title text-pyxis-text">genres</h2>
       <div className="space-y-1">
         {categories.map((cat) => (
           <div key={cat.categoryName}>
@@ -84,14 +82,14 @@ export function GenresPage() {
                   expanded === cat.categoryName ? null : cat.categoryName,
                 )
               }
-              className="w-full text-left px-3 py-2.5 hover:bg-[var(--color-bg-highlight)] text-[var(--color-text)] font-medium flex items-center justify-between transition-colors"
+              className="w-full text-left px-3 py-2.5 hover:bg-pyxis-highlight text-pyxis-text font-medium flex items-center justify-between transition-colors"
               type="button"
             >
               <span>{cat.categoryName}</span>
               {expanded === cat.categoryName ? (
-                <ChevronDown className="w-4 h-4 text-[var(--color-text-dim)]" />
+                <ChevronDown className="w-4 h-4 text-pyxis-dim" />
               ) : (
-                <ChevronRight className="w-4 h-4 text-[var(--color-text-dim)]" />
+                <ChevronRight className="w-4 h-4 text-pyxis-dim" />
               )}
             </button>
             {expanded === cat.categoryName && (
@@ -99,9 +97,9 @@ export function GenresPage() {
                 {cat.stations.map((station) => (
                   <li
                     key={station.stationToken}
-                    className="flex items-center justify-between px-3 py-2 hover:bg-[var(--color-bg-highlight)]"
+                    className="flex items-center justify-between px-3 py-2 hover:bg-pyxis-highlight"
                   >
-                    <span className="text-sm text-[var(--color-text-muted)]">
+                    <span className="text-sm text-pyxis-muted">
                       {station.stationName}
                     </span>
                     <Button

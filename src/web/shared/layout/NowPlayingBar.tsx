@@ -17,11 +17,10 @@ import {
 } from "../commands/trackCommandAtoms";
 import { formatTime } from "../lib/nowPlayingUtils";
 import { usePlaybackContext } from "../playback/PlaybackContext";
-import { PlaybackState } from "../playback/types";
 import { queueStateStreamAtom } from "../playback/queueStateStreamAtom";
 import type { PlaybackQueueContext } from "../playback/types";
+import { PlaybackState } from "../playback/types";
 import { TrackInfoModal } from "../TrackInfoModal";
-import { NowPlayingBarState } from "./NowPlayingBarState";
 import { NowPlayingActionItem } from "./NowPlayingBar/components/NowPlayingActionItem";
 import { NowPlayingActionSheet } from "./NowPlayingBar/components/NowPlayingActionSheet";
 import { NowPlayingArtwork } from "./NowPlayingBar/components/NowPlayingArtwork";
@@ -32,6 +31,7 @@ import { NowPlayingMobileTransport } from "./NowPlayingBar/components/NowPlaying
 import { NowPlayingProgressBar } from "./NowPlayingBar/components/NowPlayingProgressBar";
 import { NowPlayingSecondaryActions } from "./NowPlayingBar/components/NowPlayingSecondaryActions";
 import { NowPlayingTrackSummary } from "./NowPlayingBar/components/NowPlayingTrackSummary";
+import { NowPlayingBarState } from "./NowPlayingBarState";
 
 function isPandoraTrack(trackToken: string): boolean {
   return trackToken.startsWith("pandora:");
@@ -87,8 +87,14 @@ function navigateToContext(
 
 export function NowPlayingBar() {
   const playback = usePlaybackContext();
-  const { progress, duration, togglePlayPause, triggerSkip, triggerPrevious, seek } =
-    playback;
+  const {
+    progress,
+    duration,
+    togglePlayPause,
+    triggerSkip,
+    triggerPrevious,
+    seek,
+  } = playback;
   const currentTrack = PlaybackState.currentTrack(playback.state);
   const isPlaying = PlaybackState.isPlaying(playback.state);
   const navigate = useNavigate();
@@ -206,7 +212,7 @@ export function NowPlayingBar() {
   return (
     <>
       <section
-        className="fixed bottom-0 left-0 right-0 border-t border-[var(--color-border)] safe-bottom"
+        className="fixed bottom-0 left-0 right-0 border-t border-pyxis-border safe-bottom"
         style={{ backgroundColor: "var(--color-bg-panel)", zIndex: 40 }}
         aria-label="Now playing"
       >
@@ -224,14 +230,14 @@ export function NowPlayingBar() {
           <NowPlayingArtwork
             track={currentTrack}
             sizeClassName="w-14 h-14"
-            iconClassName="w-5 h-5 text-[var(--color-text-dim)]"
+            iconClassName="w-5 h-5 text-pyxis-dim"
           />
           <NowPlayingTrackSummary
             track={currentTrack}
             layout="desktop"
             onClick={handleGoToContext}
           />
-          <span className="zune-data text-xs text-[var(--color-text-dim)] shrink-0 tabular-nums">
+          <span className="zune-data text-xs text-pyxis-dim shrink-0 tabular-nums">
             {formatTime(progress)} / {formatTime(duration)}
           </span>
           <NowPlayingDesktopTransport
@@ -245,7 +251,7 @@ export function NowPlayingBar() {
             {hasPandoraCapabilities ? (
               <button
                 onClick={() => setShowActionSheet(true)}
-                className="h-8 w-8 flex items-center justify-center hover:bg-[var(--color-bg-highlight)] transition-colors text-[var(--color-text-muted)]"
+                className="h-8 w-8 flex items-center justify-center hover:bg-pyxis-highlight transition-colors text-pyxis-muted"
                 type="button"
                 aria-label="More actions"
                 title="More actions"
@@ -260,7 +266,7 @@ export function NowPlayingBar() {
           <NowPlayingArtwork
             track={currentTrack}
             sizeClassName="w-11 h-11"
-            iconClassName="w-5 h-5 text-[var(--color-text-dim)]"
+            iconClassName="w-5 h-5 text-pyxis-dim"
           />
           <NowPlayingTrackSummary
             track={currentTrack}

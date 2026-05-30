@@ -15,11 +15,11 @@ type ButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> & {
 };
 
 const variantStyles: Record<ButtonVariant, string> = {
-  default: "bg-[var(--color-primary)] text-white hover:brightness-110",
-  ghost: "hover:bg-[var(--color-bg-highlight)] text-[var(--color-text-muted)]",
+  default: "bg-pyxis-primary text-white hover:brightness-110",
+  ghost: "hover:bg-pyxis-highlight text-pyxis-muted",
   outline:
-    "border border-[var(--color-border)] text-[var(--color-text-muted)] hover:bg-[var(--color-bg-highlight)]",
-  destructive: "bg-[var(--color-error)] text-white hover:brightness-110",
+    "border border-pyxis-border text-pyxis-muted hover:bg-pyxis-highlight",
+  destructive: "bg-pyxis-error text-white hover:brightness-110",
 };
 
 const sizeStyles: Record<ButtonSize, string> = {
@@ -44,7 +44,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
       ref={ref}
       type={type}
       className={cn(
-        "inline-flex items-center justify-center font-medium tracking-wide transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-border-active)] disabled:pointer-events-none disabled:opacity-50",
+        "inline-flex items-center justify-center font-medium tracking-wide transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-pyxis-border-active disabled:pointer-events-none disabled:opacity-50",
         variantStyles[variant],
         sizeStyles[size],
         className,

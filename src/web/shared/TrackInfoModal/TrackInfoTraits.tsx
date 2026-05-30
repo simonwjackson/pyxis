@@ -1,7 +1,7 @@
-import { useAtomValue } from "@effect/atom-react";
-import { useMemo } from "react";
 import { PyxisRpcClient } from "@app/shared/api/rpcClient";
 import { projectQueryResult } from "@app/shared/effect/projectQueryResult";
+import { useAtomValue } from "@effect/atom-react";
+import { useMemo } from "react";
 import { TrackInfoState } from "./TrackInfoState";
 import { TrackInfoTraitsEmpty } from "./TrackInfoTraitsEmpty";
 import { TrackInfoTraitsError } from "./TrackInfoTraitsError";
@@ -23,7 +23,7 @@ export function TrackInfoTraits({ trackId }: TrackInfoTraitsProps) {
 
   return (
     <div>
-      <h3 className="text-sm font-medium text-[var(--color-text-muted)] uppercase tracking-wide mb-3">
+      <h3 className="text-sm font-medium text-pyxis-muted uppercase tracking-wide mb-3">
         Music Genome Traits
       </h3>
 

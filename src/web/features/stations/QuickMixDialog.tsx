@@ -8,12 +8,12 @@
  * refreshes after a successful update.
  */
 
+import { PyxisRpcClient } from "@app/shared/api/rpcClient";
+import { projectQueryResult } from "@app/shared/effect/projectQueryResult";
 import { useAtomSet, useAtomValue } from "@effect/atom-react";
 import { Shuffle } from "lucide-react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
-import { PyxisRpcClient } from "@app/shared/api/rpcClient";
-import { projectQueryResult } from "@app/shared/effect/projectQueryResult";
 import { RADIO_STATIONS_TAG } from "./radioReactivityTags";
 import { StationCommandState } from "./StationCommandState";
 import type { RadioStation } from "./StationList/types";
@@ -96,26 +96,26 @@ export function QuickMixDialog({ stations, onClose }: QuickMixDialogProps) {
     >
       {/* biome-ignore lint/a11y/noStaticElementInteractions: dialog content stops backdrop click/keydown propagation; outer div carries the dialog role. */}
       <div
-        className="bg-[var(--color-bg)] border border-[var(--color-border)] w-full max-w-md max-h-[70vh] flex flex-col shadow-2xl"
+        className="bg-pyxis-bg border border-pyxis-border w-full max-w-md max-h-[70dvh] flex flex-col shadow-2xl"
         onClick={(e) => e.stopPropagation()}
         onKeyDown={() => {}}
       >
-        <div className="p-4 border-b border-[var(--color-border)] flex items-center justify-between shrink-0">
+        <div className="p-4 border-b border-pyxis-border flex items-center justify-between shrink-0">
           <div className="flex items-center gap-3">
             <div
-              className="w-9 h-9 bg-[var(--color-bg-highlight)] flex items-center justify-center"
+              className="w-9 h-9 bg-pyxis-highlight flex items-center justify-center"
               aria-hidden="true"
             >
-              <Shuffle className="w-4 h-4 text-[var(--color-secondary)]" />
+              <Shuffle className="w-4 h-4 text-pyxis-secondary" />
             </div>
             <div>
               <h2
                 id="quickmix-dialog-title"
-                className="zune-heading text-2xl text-[var(--color-text)]"
+                className="zune-heading text-2xl text-pyxis-text"
               >
                 Manage Shuffle
               </h2>
-              <p className="text-sm text-[var(--color-text-dim)]">
+              <p className="text-sm text-pyxis-dim">
                 {selectedIds.size} of {nonQuickMixStations.length} stations
                 selected
               </p>
@@ -125,14 +125,14 @@ export function QuickMixDialog({ stations, onClose }: QuickMixDialogProps) {
             <button
               type="button"
               onClick={selectAll}
-              className="text-xs text-[var(--color-text-dim)] hover:text-[var(--color-text)] px-2 py-1hover:bg-[var(--color-bg-highlight)]"
+              className="text-xs text-pyxis-dim hover:text-pyxis-text px-2 py-1hover:bg-pyxis-highlight"
             >
               All
             </button>
             <button
               type="button"
               onClick={selectNone}
-              className="text-xs text-[var(--color-text-dim)] hover:text-[var(--color-text)] px-2 py-1hover:bg-[var(--color-bg-highlight)]"
+              className="text-xs text-pyxis-dim hover:text-pyxis-text px-2 py-1hover:bg-pyxis-highlight"
             >
               None
             </button>
@@ -145,19 +145,17 @@ export function QuickMixDialog({ stations, onClose }: QuickMixDialogProps) {
             return (
               <label
                 key={station.stationId}
-                className="flex items-center gap-3 p-3 hover:bg-[var(--color-bg-highlight)] cursor-pointer"
+                className="flex items-center gap-3 p-3 hover:bg-pyxis-highlight cursor-pointer"
               >
                 <input
                   type="checkbox"
                   checked={checked}
                   onChange={() => toggle(station.stationId)}
-                  className="w-4 h-4border-[var(--color-border)] text-[var(--color-secondary)] focus:ring-[var(--color-border-active)] bg-[var(--color-bg-highlight)]"
+                  className="w-4 h-4 border-pyxis-border text-pyxis-secondary focus:ring-pyxis-border-active bg-pyxis-highlight"
                 />
                 <span
                   className={`text-sm ${
-                    checked
-                      ? "text-[var(--color-text)]"
-                      : "text-[var(--color-text-muted)]"
+                    checked ? "text-pyxis-text" : "text-pyxis-muted"
                   }`}
                 >
                   {station.name}
@@ -167,12 +165,12 @@ export function QuickMixDialog({ stations, onClose }: QuickMixDialogProps) {
           })}
         </div>
 
-        <div className="p-4 border-t border-[var(--color-border)] flex gap-3 justify-end shrink-0">
+        <div className="p-4 border-t border-pyxis-border flex gap-3 justify-end shrink-0">
           <button
             type="button"
             onClick={onClose}
             disabled={isSaving}
-            className="px-4 py-2 text-sm text-[var(--color-text-muted)] hover:bg-[var(--color-bg-highlight)]"
+            className="px-4 py-2 text-sm text-pyxis-muted hover:bg-pyxis-highlight"
           >
             Cancel
           </button>
@@ -180,7 +178,7 @@ export function QuickMixDialog({ stations, onClose }: QuickMixDialogProps) {
             type="button"
             onClick={handleSave}
             disabled={isSaving}
-            className="px-4 py-2 text-sm text-[var(--color-bg)] bg-[var(--color-secondary)] hover:brightness-110 font-medium disabled:opacity-50"
+            className="px-4 py-2 text-sm text-pyxis-bg bg-pyxis-secondary hover:brightness-110 font-medium disabled:opacity-50"
           >
             {isSaving ? "Saving..." : "Save"}
           </button>

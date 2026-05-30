@@ -31,7 +31,7 @@ export function Sidebar() {
 
   return (
     <aside
-      className="hidden md:flex md:w-64 flex-col bg-[var(--color-bg-panel)]"
+      className="hidden md:flex md:w-64 flex-col bg-pyxis-panel"
       aria-label="Main navigation"
     >
       {/* Brand */}
@@ -46,7 +46,7 @@ export function Sidebar() {
           }}
           className="block"
         >
-          <span className="zune-display text-5xl text-[var(--color-primary)]">
+          <span className="zune-display text-5xl text-pyxis-primary">
             pyxis
           </span>
         </Link>
@@ -63,8 +63,8 @@ export function Sidebar() {
               className={cn(
                 "block py-1.5 transition-colors zune-heading text-[1.35rem]",
                 isActive
-                  ? "text-[var(--color-text)]"
-                  : "text-[var(--color-text-dim)] hover:text-[var(--color-text-muted)]",
+                  ? "text-pyxis-text"
+                  : "text-pyxis-dim hover:text-pyxis-muted",
               )}
             >
               {item.label}

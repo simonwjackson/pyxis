@@ -14,13 +14,13 @@
  * and `utils.playlist.list.invalidate()` fan-outs.
  */
 
+import { PyxisRpcClient } from "@app/shared/api/rpcClient";
+import { projectQueryResult } from "@app/shared/effect/projectQueryResult";
+import { CollectionGridSkeleton } from "@app/shared/ui/collection-grid/CollectionGridSkeleton";
 import { useAtomValue } from "@effect/atom-react";
 import { useNavigate } from "@tanstack/react-router";
 import { Plus } from "lucide-react";
 import { useCallback, useState } from "react";
-import { PyxisRpcClient } from "@app/shared/api/rpcClient";
-import { projectQueryResult } from "@app/shared/effect/projectQueryResult";
-import { CollectionGridSkeleton } from "@app/shared/ui/collection-grid/CollectionGridSkeleton";
 import { AlbumShelf, HOT_SORT_OPTIONS } from "./AlbumShelf";
 import { HomeState } from "./HomeState";
 import {
@@ -31,9 +31,13 @@ import {
 import { PlaylistShelf } from "./PlaylistShelf";
 import type { PlaylistData } from "./types";
 
-const playlistsQueryAtom = PyxisRpcClient.query("library.playlists.list", undefined, {
-  reactivityKeys: [PLAYLIST_LIST_TAG] as const,
-});
+const playlistsQueryAtom = PyxisRpcClient.query(
+  "library.playlists.list",
+  undefined,
+  {
+    reactivityKeys: [PLAYLIST_LIST_TAG] as const,
+  },
+);
 
 const hotAlbumsQueryAtom = PyxisRpcClient.query(
   "library.hotAlbums.list",
@@ -87,7 +91,7 @@ export function HomePage() {
   );
 
   return (
-    <div className="flex-1 px-4 sm:px-8 py-10 space-y-16">
+    <div className="page-frame lattice-container space-y-16">
       <HomePlaylistShelfSection
         onOpenPlaylist={handleOpenPlaylist}
         onSeeAll={() => navigate({ to: "/stations" })}
@@ -173,17 +177,12 @@ function HomeDiscoveryShelfSection({
       trailing={
         <button
           type="button"
-          className="aspect-square border border-dashed border-[var(--color-border)] flex flex-col items-center justify-center cursor-pointer hover:border-[var(--color-text-dim)] transition-colors"
+          className="aspect-square border border-dashed border-pyxis-border flex flex-col items-center justify-center cursor-pointer hover:border-pyxis-dim transition-colors"
           onClick={onAddAlbum}
           aria-label="Add album"
         >
-          <Plus
-            className="w-8 h-8 text-[var(--color-text-dim)] mb-1"
-            aria-hidden="true"
-          />
-          <span className="zune-meta text-[var(--color-text-dim)]">
-            add album
-          </span>
+          <Plus className="w-8 h-8 text-pyxis-dim mb-1" aria-hidden="true" />
+          <span className="zune-meta text-pyxis-dim">add album</span>
         </button>
       }
     />
@@ -215,7 +214,7 @@ function HomeCollectionShelfSection({
         <button
           type="button"
           onClick={onToggleArchive}
-          className="zune-label text-[var(--color-text-dim)] hover:text-[var(--color-text)] transition-colors"
+          className="zune-label text-pyxis-dim hover:text-pyxis-text transition-colors"
         >
           {showArchive ? "hide archive" : "show archive"}
         </button>

@@ -8,11 +8,11 @@
  * after a successful rename.
  */
 
+import { PyxisRpcClient } from "@app/shared/api/rpcClient";
+import { projectQueryResult } from "@app/shared/effect/projectQueryResult";
 import { useAtomSet, useAtomValue } from "@effect/atom-react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { PyxisRpcClient } from "@app/shared/api/rpcClient";
-import { projectQueryResult } from "@app/shared/effect/projectQueryResult";
 import { RADIO_STATIONS_TAG } from "./radioReactivityTags";
 import { StationCommandState } from "./StationCommandState";
 
@@ -84,13 +84,13 @@ export function RenameStationDialog({
     >
       {/* biome-ignore lint/a11y/noStaticElementInteractions: dialog content stops backdrop click/keydown propagation; outer div carries the dialog role. */}
       <div
-        className="bg-[var(--color-bg)] border border-[var(--color-border)] p-6 max-w-sm w-full shadow-2xl"
+        className="bg-pyxis-bg border border-pyxis-border p-6 max-w-sm w-full shadow-2xl"
         onClick={(e) => e.stopPropagation()}
         onKeyDown={() => {}}
       >
         <h2
           id="rename-dialog-title"
-          className="zune-heading text-2xl text-[var(--color-text)] mb-4"
+          className="zune-heading text-2xl text-pyxis-text mb-4"
         >
           Rename Station
         </h2>
@@ -98,7 +98,7 @@ export function RenameStationDialog({
         <form onSubmit={handleSubmit}>
           <label
             htmlFor="station-name"
-            className="block text-sm text-[var(--color-text-muted)] mb-1"
+            className="block text-sm text-pyxis-muted mb-1"
           >
             Station name
           </label>
@@ -109,7 +109,7 @@ export function RenameStationDialog({
             value={name}
             onChange={(e) => setName(e.target.value)}
             disabled={isRenaming}
-            className="w-full px-3 py-2 bg-[var(--color-bg-highlight)] border border-[var(--color-border)] text-sm text-[var(--color-text)] focus:outline-none focus:ring-2 focus:ring-[var(--color-border-active)] mb-6"
+            className="w-full px-3 py-2 bg-pyxis-highlight border border-pyxis-border text-sm text-pyxis-text focus:outline-none focus:ring-2 focus:ring-pyxis-border-active mb-6"
           />
 
           <div className="flex gap-3 justify-end">
@@ -117,7 +117,7 @@ export function RenameStationDialog({
               type="button"
               onClick={onCancel}
               disabled={isRenaming}
-              className="px-4 py-2 text-sm text-[var(--color-text-muted)] hover:bg-[var(--color-bg-highlight)] transition-colors"
+              className="px-4 py-2 text-sm text-pyxis-muted hover:bg-pyxis-highlight transition-colors"
             >
               Cancel
             </button>
@@ -126,7 +126,7 @@ export function RenameStationDialog({
               disabled={
                 isRenaming || !name.trim() || name.trim() === stationName
               }
-              className="px-4 py-2 text-sm text-[var(--color-bg)] bg-[var(--color-primary)] hover:brightness-110 transition-colors disabled:opacity-50"
+              className="px-4 py-2 text-sm text-pyxis-bg bg-pyxis-primary hover:brightness-110 transition-colors disabled:opacity-50"
             >
               {isRenaming ? "Saving..." : "Save"}
             </button>

@@ -19,9 +19,7 @@ export function AddSeedDialogResults({
     <>
       {artists.length > 0 ? (
         <div className="mb-2">
-          <p className="text-xs text-[var(--color-text-dim)] px-3 py-1">
-            Artists
-          </p>
+          <p className="text-xs text-pyxis-dim px-3 py-1">Artists</p>
           {artists.map((artist) => (
             <AddSeedDialogArtistRow
               key={artist.musicToken}
@@ -35,9 +33,7 @@ export function AddSeedDialogResults({
 
       {songs.length > 0 ? (
         <div>
-          <p className="text-xs text-[var(--color-text-dim)] px-3 py-1">
-            Songs
-          </p>
+          <p className="text-xs text-pyxis-dim px-3 py-1">Songs</p>
           {songs.map((song) => (
             <AddSeedDialogSongRow
               key={song.musicToken}

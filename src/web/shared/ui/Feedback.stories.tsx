@@ -23,9 +23,7 @@ export const LoadingPrimitives: Story = {
     <div className="grid max-w-lg gap-6">
       <div className="flex items-center gap-3">
         <Spinner />
-        <span className="zune-label text-[var(--color-text-muted)]">
-          syncing library
-        </span>
+        <span className="zune-label text-pyxis-muted">syncing library</span>
       </div>
       <div className="grid gap-3">
         <Skeleton className="h-5 w-48" />

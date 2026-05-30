@@ -39,13 +39,13 @@ export function MobileNav() {
             al_sort: undefined,
             al_page: undefined,
           }}
-          className="zune-display text-2xl text-[var(--color-primary)]"
+          className="zune-display text-2xl text-pyxis-primary"
         >
           pyxis
         </Link>
         <button
           onClick={() => setIsOpen(!isOpen)}
-          className="p-2 text-[var(--color-text-muted)] hover:text-[var(--color-text)] transition-colors"
+          className="p-2 text-pyxis-muted hover:text-pyxis-text transition-colors"
           type="button"
           aria-label={isOpen ? "Close navigation menu" : "Open navigation menu"}
           aria-expanded={isOpen}
@@ -54,7 +54,7 @@ export function MobileNav() {
         </button>
       </div>
       {isOpen && (
-        <div className="absolute inset-x-0 top-14 bottom-0 z-50 bg-[var(--color-bg-panel)] pb-40 overflow-y-auto">
+        <div className="absolute inset-x-0 top-14 bottom-0 z-50 bg-pyxis-panel pb-40 overflow-y-auto">
           <nav className="px-8 pt-12 space-y-1" aria-label="Mobile navigation">
             {visibleItems.map((item) => {
               const isActive = location.pathname === item.path;
@@ -66,8 +66,8 @@ export function MobileNav() {
                   className={cn(
                     "block py-3 zune-heading text-4xl transition-colors",
                     isActive
-                      ? "text-[var(--color-text)]"
-                      : "text-[var(--color-text-dim)] hover:text-[var(--color-text-muted)]",
+                      ? "text-pyxis-text"
+                      : "text-pyxis-dim hover:text-pyxis-muted",
                   )}
                 >
                   {item.label}

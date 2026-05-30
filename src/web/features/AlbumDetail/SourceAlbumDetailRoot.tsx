@@ -20,11 +20,6 @@
  *    `utils.library.album.invalidate()` did.
  */
 
-import { useAtomSet, useAtomValue } from "@effect/atom-react";
-import { useRouter } from "@tanstack/react-router";
-import { AsyncResult } from "effect/unstable/reactivity";
-import { useCallback, useEffect, useMemo, useRef } from "react";
-import { toast } from "sonner";
 import {
   LIBRARY_ALBUM_STATES_TAG,
   LIBRARY_ALBUMS_TAG,
@@ -45,9 +40,14 @@ import {
 } from "@app/shared/lib/nowPlayingUtils";
 import { usePlaybackContext } from "@app/shared/playback/PlaybackContext";
 import { PlaybackState } from "@app/shared/playback/types";
-import { SourceAlbumDetailState } from "./AlbumDetailState";
+import { useAtomSet, useAtomValue } from "@effect/atom-react";
+import { useRouter } from "@tanstack/react-router";
+import { AsyncResult } from "effect/unstable/reactivity";
+import { useCallback, useEffect, useMemo, useRef } from "react";
+import { toast } from "sonner";
 import { AlbumDetailContent } from "./AlbumDetailContent";
 import { AlbumDetailSkeleton } from "./AlbumDetailSkeleton";
+import { SourceAlbumDetailState } from "./AlbumDetailState";
 import type { AlbumDetailPageProps } from "./types";
 
 const saveAlbumMutationAtom = PyxisRpcClient.mutation("library.album.save");
@@ -148,12 +148,14 @@ export function SourceAlbumDetailRoot({
     startPlayback(startIndex ?? 0, shuffle ?? false);
   }, [album, autoPlay, shuffle, startIndex, startPlayback, tracks]);
 
+  const playbackError = PlaybackState.error(playback.state);
+
   useEffect(() => {
-    if (PlaybackState.error(playback.state)) {
-      toast.error(`Audio error: ${PlaybackState.error(playback.state)}`);
+    if (playbackError) {
+      toast.error(`Audio error: ${playbackError}`);
       playbackRef.current.clearError();
     }
-  }, [PlaybackState.error(playback.state)]);
+  }, [playbackError]);
 
   const handleSaveAlbum = useCallback(() => {
     void saveAlbum({
@@ -207,7 +209,7 @@ export function SourceAlbumDetailRoot({
   if (state._tag === "LoadError" || state._tag === "Defect") {
     return (
       <div className="flex-1 flex flex-col items-center justify-center p-4 gap-3">
-        <p className="text-[var(--color-text-dim)]">couldn't load album</p>
+        <p className="text-pyxis-dim">couldn't load album</p>
       </div>
     );
   }
@@ -215,7 +217,7 @@ export function SourceAlbumDetailRoot({
   if (!album || !tracks) {
     return (
       <div className="flex-1 flex items-center justify-center p-4">
-        <p className="text-[var(--color-text-dim)]">album not found</p>
+        <p className="text-pyxis-dim">album not found</p>
       </div>
     );
   }

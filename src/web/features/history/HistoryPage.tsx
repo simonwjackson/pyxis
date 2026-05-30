@@ -7,12 +7,12 @@
  * state-specific components rather than branching on raw runtime fields.
  */
 
-import { useAtomValue } from "@effect/atom-react";
-import { useMemo, useState } from "react";
 import { PyxisRpcClient } from "@app/shared/api/rpcClient";
 import { projectQueryResult } from "@app/shared/effect/projectQueryResult";
 import { Button } from "@app/shared/ui/Button";
 import { Spinner } from "@app/shared/ui/Spinner";
+import { useAtomValue } from "@effect/atom-react";
+import { useMemo, useState } from "react";
 import type { ApiListenLogEntry } from "../../../api/contracts/listenLog.js";
 import { HistoryState } from "./HistoryState";
 
@@ -45,10 +45,8 @@ export function HistoryPage() {
   const state = HistoryState.fromResult(projectQueryResult(result), offset);
 
   return (
-    <div className="flex-1 px-4 sm:px-8 py-10 space-y-6">
-      <h2 className="zune-display zune-page-title text-[var(--color-text)]">
-        history
-      </h2>
+    <div className="page-frame lattice-container space-y-6">
+      <h2 className="zune-display zune-page-title text-pyxis-text">history</h2>
 
       <HistoryBody state={state} />
 
@@ -72,8 +70,8 @@ function HistoryBody({ state }: { state: HistoryState }) {
   if (state._tag === "Empty") {
     if (state.offset !== 0) return null;
     return (
-      <div className="py-16 text-[var(--color-text-dim)]">
-        <p className="zune-display text-4xl text-[var(--color-text-dim)]/40 mb-4">
+      <div className="py-16 text-pyxis-dim">
+        <p className="zune-display text-4xl text-pyxis-dim/40 mb-4">
           no history
         </p>
         <p className="text-sm">
@@ -84,7 +82,7 @@ function HistoryBody({ state }: { state: HistoryState }) {
   }
   if (state._tag === "LoadError" || state._tag === "Defect") {
     return (
-      <div className="py-16 text-[var(--color-text-dim)]">
+      <div className="py-16 text-pyxis-dim">
         <p className="text-sm">couldn't load history.</p>
       </div>
     );
@@ -98,22 +96,22 @@ function HistoryList({ entries }: { entries: readonly ApiListenLogEntry[] }) {
       {entries.map((entry) => (
         <li
           key={entry.id}
-          className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3 p-3 hover:bg-[var(--color-bg-highlight)]"
+          className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3 p-3 hover:bg-pyxis-highlight"
         >
           <div className="flex-1 min-w-0">
-            <p className="zune-list-title text-[var(--color-text)] truncate">
+            <p className="zune-list-title text-pyxis-text truncate">
               {entry.title}
             </p>
-            <p className="zune-eyebrow text-[var(--color-text-dim)]">
+            <p className="zune-eyebrow text-pyxis-dim">
               {entry.artist}
               {entry.album ? ` \u2014 ${entry.album}` : ""}
             </p>
           </div>
           <div className="flex items-center gap-2 shrink-0 self-start sm:self-center">
-            <span className="zune-eyebrow px-1.5 py-0.5 bg-[var(--color-bg-highlight)] text-[var(--color-text-muted)]">
+            <span className="zune-eyebrow px-1.5 py-0.5 bg-pyxis-highlight text-pyxis-muted">
               {entry.source}
             </span>
-            <span className="zune-data text-xs text-[var(--color-text-dim)]">
+            <span className="zune-data text-xs text-pyxis-dim">
               {formatRelativeTime(new Date(entry.listenedAt))}
             </span>
           </div>

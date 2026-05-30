@@ -27,7 +27,6 @@ export function TrackInfoModal({
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center"
-      onClick={onClose}
       onKeyDown={(event) => {
         if (event.key === "Escape") onClose();
       }}
@@ -35,26 +34,27 @@ export function TrackInfoModal({
       aria-modal="true"
       aria-labelledby="track-info-title"
     >
-      <div className="fixed inset-0 bg-black/60" aria-hidden="true" />
-      <div
-        className="relative bg-[var(--color-bg)] border border-[var(--color-border)] max-w-md w-full shadow-2xl mx-4 max-h-[80vh] flex flex-col"
-        onClick={(event) => event.stopPropagation()}
-        onKeyDown={() => {}}
-      >
-        <div className="flex items-center justify-between p-4 border-b border-[var(--color-border)]">
+      <button
+        type="button"
+        className="fixed inset-0 bg-black/60"
+        onClick={onClose}
+        aria-label="Close track info"
+      />
+      <div className="relative bg-pyxis-bg border border-pyxis-border max-w-md w-full shadow-2xl mx-4 max-h-[80vh] flex flex-col">
+        <div className="flex items-center justify-between p-4 border-b border-pyxis-border">
           <h2
             id="track-info-title"
-            className="text-lg font-semibold text-[var(--color-text)]"
+            className="text-lg font-semibold text-pyxis-text"
           >
             Track Info
           </h2>
           <button
             type="button"
             onClick={onClose}
-            className="p-1.5 hover:bg-[var(--color-bg-highlight)] transition-colors"
+            className="p-1.5 hover:bg-pyxis-highlight transition-colors"
             aria-label="Close"
           >
-            <X className="w-5 h-5 text-[var(--color-text-muted)]" />
+            <X className="w-5 h-5 text-pyxis-muted" />
           </button>
         </div>
 

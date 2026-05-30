@@ -35,7 +35,7 @@ export function StationList({
 }: StationListProps) {
   if (stations.length === 0) {
     return (
-      <p className="text-[var(--color-text-dim)] text-sm py-4 text-center">
+      <p className="text-pyxis-dim text-sm py-4 text-center">
         No stations found.
       </p>
     );

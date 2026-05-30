@@ -1,3 +1,4 @@
+import { filterCommands, groupCommands } from "@app/shared/lib/commands";
 import {
   Bookmark,
   LayoutGrid,
@@ -12,7 +13,6 @@ import {
   ThumbsUp,
 } from "lucide-react";
 import { type RefObject, useCallback, useEffect, useState } from "react";
-import { filterCommands, groupCommands } from "@app/shared/lib/commands";
 import { CommandPaletteSelectableItem } from "./CommandPaletteSelectableItem";
 
 type CommandPaletteCommandListPanelProps = {
@@ -91,7 +91,7 @@ export function CommandPaletteCommandListPanel({
   );
 
   return (
-    <div onKeyDown={handleKeyDown}>
+    <div onKeyDown={handleKeyDown} role="listbox" tabIndex={-1}>
       {grouped.map((group, groupIdx) => {
         const prevCount = grouped
           .slice(0, groupIdx)
@@ -99,9 +99,7 @@ export function CommandPaletteCommandListPanel({
         return (
           <div key={group.category}>
             <div className="px-3 py-1">
-              <p className="zune-label text-[var(--color-text-dim)]">
-                {group.category}
-              </p>
+              <p className="zune-label text-pyxis-dim">{group.category}</p>
             </div>
             {group.commands.map((command, commandIdx) => {
               const globalIdx = prevCount + commandIdx;
@@ -121,22 +119,20 @@ export function CommandPaletteCommandListPanel({
                   onMouseEnter={() => setSelectedIndex(globalIdx)}
                 >
                   <Icon
-                    className={`w-4 h-4 ${isSelected ? "text-[var(--color-primary)]" : "text-[var(--color-text-muted)]"}`}
+                    className={`w-4 h-4 ${isSelected ? "text-pyxis-primary" : "text-pyxis-muted"}`}
                   />
                   <span
-                    className={`flex-1 text-[0.98rem] font-light tracking-[-0.02em] lowercase ${isSelected ? "text-[var(--color-text)]" : "text-[var(--color-text-muted)]"}`}
+                    className={`flex-1 text-[0.98rem] font-light tracking-[-0.02em] lowercase ${isSelected ? "text-pyxis-text" : "text-pyxis-muted"}`}
                   >
                     {command.label}
                   </span>
                   {command.shortcut ? (
-                    <kbd className="zune-label px-1.5 py-0.5 text-[var(--color-text-dim)] bg-[var(--color-bg-highlight)] border border-[var(--color-border)]">
+                    <kbd className="zune-label px-1.5 py-0.5 text-pyxis-dim bg-pyxis-highlight border border-pyxis-border">
                       {command.shortcut}
                     </kbd>
                   ) : null}
                   {command.action === "changeTheme" ? (
-                    <span className="text-[10px] text-[var(--color-text-dim)]">
-                      &rarr;
-                    </span>
+                    <span className="text-ui-xs text-pyxis-dim">&rarr;</span>
                   ) : null}
                 </CommandPaletteSelectableItem>
               );
@@ -145,7 +141,7 @@ export function CommandPaletteCommandListPanel({
         );
       })}
       {flatItems.length === 0 ? (
-        <div className="px-4 py-8 text-center text-sm text-[var(--color-text-dim)] lowercase">
+        <div className="px-4 py-8 text-center text-sm text-pyxis-dim lowercase">
           no commands found
         </div>
       ) : null}

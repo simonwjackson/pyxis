@@ -3,11 +3,6 @@
  * Playlist detail view showing track listing with play and shuffle controls.
  */
 
-import { useAtomValue } from "@effect/atom-react";
-import { useNavigate } from "@tanstack/react-router";
-import { ArrowLeft, Music, Play, Shuffle } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef } from "react";
-import { toast } from "sonner";
 import { PLAYLIST_LIST_TAG } from "@app/features/home/libraryReactivityTags";
 import { PyxisRpcClient } from "@app/shared/api/rpcClient";
 import { projectQueryResult } from "@app/shared/effect/projectQueryResult";
@@ -21,6 +16,11 @@ import { usePlaybackContext } from "@app/shared/playback/PlaybackContext";
 import { PlaybackState } from "@app/shared/playback/types";
 import { Button } from "@app/shared/ui/Button";
 import { Skeleton } from "@app/shared/ui/Skeleton";
+import { useAtomValue } from "@effect/atom-react";
+import { useNavigate } from "@tanstack/react-router";
+import { ArrowLeft, Music, Play, Shuffle } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
+import { toast } from "sonner";
 import { PlaylistDetailState } from "./PlaylistDetailState";
 
 /**
@@ -129,12 +129,14 @@ export function PlaylistDetailPage({
     startPlayback(0, true);
   };
 
+  const playbackError = PlaybackState.error(playback.state);
+
   useEffect(() => {
-    if (PlaybackState.error(playback.state)) {
-      toast.error(`Audio error: ${PlaybackState.error(playback.state)}`);
+    if (playbackError) {
+      toast.error(`Audio error: ${playbackError}`);
       playbackRef.current.clearError();
     }
-  }, [PlaybackState.error(playback.state)]);
+  }, [playbackError]);
 
   if (state._tag === "Loading") {
     return <PlaylistDetailSkeleton />;
@@ -143,7 +145,7 @@ export function PlaylistDetailPage({
   if (state._tag === "LoadError" || state._tag === "Defect") {
     return (
       <div className="flex-1 flex items-center justify-center p-4">
-        <p className="text-[var(--color-error)]">Failed to load playlist</p>
+        <p className="text-pyxis-error">Failed to load playlist</p>
       </div>
     );
   }
@@ -151,7 +153,7 @@ export function PlaylistDetailPage({
   if (state._tag === "NotFound" || !playlist) {
     return (
       <div className="flex-1 flex items-center justify-center p-4">
-        <p className="text-[var(--color-text-dim)]">playlist not found</p>
+        <p className="text-pyxis-dim">playlist not found</p>
       </div>
     );
   }
@@ -161,7 +163,7 @@ export function PlaylistDetailPage({
   const trackCount = tracks?.length ?? 0;
 
   return (
-    <div className="flex-1 px-4 sm:px-8 py-10 max-w-3xl mx-auto space-y-8">
+    <div className="page-frame lattice-container max-w-3xl mx-auto space-y-8">
       <button
         type="button"
         onClick={() =>
@@ -175,7 +177,7 @@ export function PlaylistDetailPage({
             },
           })
         }
-        className="flex items-center gap-1.5 text-sm text-[var(--color-text-dim)] hover:text-[var(--color-text)] transition-colors"
+        className="flex items-center gap-1.5 text-sm text-pyxis-dim hover:text-pyxis-text transition-colors"
         aria-label="Back to home"
       >
         <ArrowLeft className="w-4 h-4" aria-hidden="true" />
@@ -183,7 +185,7 @@ export function PlaylistDetailPage({
       </button>
 
       <div className="flex flex-col sm:flex-row gap-4 sm:gap-6 items-center sm:items-end">
-        <div className="w-40 h-40 sm:w-56 sm:h-56 shrink-0 shadow-lg overflow-hidden bg-[var(--color-bg-highlight)]">
+        <div className="w-40 h-40 sm:w-56 sm:h-56 shrink-0 shadow-lg overflow-hidden bg-pyxis-highlight">
           {playlist.artworkUrl ? (
             <img
               src={playlist.artworkUrl}
@@ -192,15 +194,15 @@ export function PlaylistDetailPage({
             />
           ) : (
             <div className="w-full h-full flex items-center justify-center">
-              <Music className="w-16 h-16 text-[var(--color-text-dim)]" />
+              <Music className="w-16 h-16 text-pyxis-dim" />
             </div>
           )}
         </div>
         <div className="space-y-1 min-w-0 text-center sm:text-left">
-          <h1 className="zune-heading text-3xl md:text-4xl text-[var(--color-text)]">
+          <h1 className="zune-heading text-3xl md:text-4xl text-pyxis-text">
             {playlist.name}
           </h1>
-          <p className="text-sm text-[var(--color-text-dim)]">
+          <p className="text-sm text-pyxis-dim">
             {String(trackCount)} track{trackCount !== 1 ? "s" : ""}
             {totalDuration > 0
               ? ` \u00B7 ${formatTotalDuration(totalDuration)}`
@@ -209,7 +211,7 @@ export function PlaylistDetailPage({
           <div className="flex gap-2 sm:gap-3 pt-3 flex-wrap justify-center sm:justify-start">
             <Button
               onClick={() => handlePlay(0)}
-              className="gap-2bg-[var(--color-primary)] hover:brightness-110 text-[var(--color-bg)]"
+              className="gap-2bg-pyxis-primary hover:brightness-110 text-pyxis-bg"
             >
               <Play className="w-4 h-4" fill="currentColor" />
               Play
@@ -233,8 +235,8 @@ export function PlaylistDetailPage({
                 onClick={() => handlePlay(index)}
                 className={`w-full flex items-center gap-4 px-4 py-3 text-left transition-colors ${
                   isActive
-                    ? "bg-[var(--color-primary)]/10 text-[var(--color-primary)] font-medium"
-                    : "text-[var(--color-text-dim)] hover:text-[var(--color-text)] hover:bg-[var(--color-bg-highlight)]"
+                    ? "bg-pyxis-primary/10 text-pyxis-primary font-medium"
+                    : "text-pyxis-dim hover:text-pyxis-text hover:bg-pyxis-highlight"
                 }`}
               >
                 <span className="w-6 text-right text-sm">
@@ -242,7 +244,7 @@ export function PlaylistDetailPage({
                 </span>
                 <div className="flex-1 min-w-0">
                   <span className="text-sm truncate block">{track.title}</span>
-                  <span className="text-xs text-[var(--color-text-dim)] truncate block">
+                  <span className="text-xs text-pyxis-dim truncate block">
                     {track.artist}
                   </span>
                 </div>
@@ -263,7 +265,7 @@ export function PlaylistDetailPage({
  */
 function PlaylistDetailSkeleton() {
   return (
-    <div className="flex-1 px-4 sm:px-8 py-10 max-w-3xl mx-auto space-y-8">
+    <div className="page-frame lattice-container max-w-3xl mx-auto space-y-8">
       <Skeleton className="h-5 w-16" />
       <div className="flex flex-col sm:flex-row gap-4 sm:gap-6 items-center sm:items-end">
         <Skeleton className="w-40 h-40 sm:w-56 sm:h-56 shrink-0" />

@@ -18,9 +18,7 @@ export function CommandPaletteSelectableItem({
       type="button"
       data-selected={selected}
       className={`w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors ${
-        selected
-          ? "bg-[var(--color-bg-highlight)]"
-          : "hover:bg-[var(--color-bg-highlight)]"
+        selected ? "bg-pyxis-highlight" : "hover:bg-pyxis-highlight"
       }`}
       onClick={onClick}
       onMouseEnter={onMouseEnter}

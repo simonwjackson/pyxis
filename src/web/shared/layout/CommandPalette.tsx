@@ -61,7 +61,9 @@ export function CommandPalette({ onClose }: CommandPaletteProps) {
           break;
         case "likeTrack": {
           const track = PlaybackState.currentTrack(playback.state);
-          const stationToken = PlaybackState.currentStationToken(playback.state);
+          const stationToken = PlaybackState.currentStationToken(
+            playback.state,
+          );
           if (track && stationToken) {
             void submitFeedback({
               payload: {
@@ -77,7 +79,9 @@ export function CommandPalette({ onClose }: CommandPaletteProps) {
         }
         case "dislikeTrack": {
           const track = PlaybackState.currentTrack(playback.state);
-          const stationToken = PlaybackState.currentStationToken(playback.state);
+          const stationToken = PlaybackState.currentStationToken(
+            playback.state,
+          );
           if (track && stationToken) {
             void submitFeedback({
               payload: {
@@ -164,7 +168,7 @@ export function CommandPalette({ onClose }: CommandPaletteProps) {
       <div
         role="dialog"
         aria-modal="true"
-        className="relative w-full max-w-xl bg-[var(--color-bg)] border border-[var(--color-border)] shadow-2xl overflow-hidden"
+        className="relative w-full max-w-xl bg-pyxis-bg border border-pyxis-border shadow-2xl overflow-hidden"
         onClick={(event) => event.stopPropagation()}
         onKeyDown={(event) => event.stopPropagation()}
       >

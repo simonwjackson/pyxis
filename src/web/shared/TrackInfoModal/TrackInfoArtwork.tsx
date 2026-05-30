@@ -20,8 +20,8 @@ export function TrackInfoArtwork({
   }
 
   return (
-    <div className="w-20 h-20 shrink-0 bg-[var(--color-bg-highlight)] flex items-center justify-center">
-      <Music className="w-8 h-8 text-[var(--color-text-dim)]" />
+    <div className="w-20 h-20 shrink-0 bg-pyxis-highlight flex items-center justify-center">
+      <Music className="w-8 h-8 text-pyxis-dim" />
     </div>
   );
 }

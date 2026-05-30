@@ -1,7 +1,52 @@
 @import "tailwindcss";
 
 @theme {
-	--font-sans: "Urbanist", system-ui, sans-serif;
+  --font-sans: "Urbanist", system-ui, sans-serif;
+
+  /* Lattice visual scale: named, reusable tokens instead of one-off arbitrary values. */
+  --color-pyxis-bg: var(--color-bg);
+  --color-pyxis-panel: var(--color-bg-panel);
+  --color-pyxis-highlight: var(--color-bg-highlight);
+  --color-pyxis-elevated: var(--color-bg-elevated);
+  --color-pyxis-text: var(--color-text);
+  --color-pyxis-muted: var(--color-text-muted);
+  --color-pyxis-dim: var(--color-text-dim);
+  --color-pyxis-border: var(--color-border);
+  --color-pyxis-border-active: var(--color-border-active);
+  --color-pyxis-primary: var(--color-primary);
+  --color-pyxis-secondary: var(--color-secondary);
+  --color-pyxis-accent: var(--color-accent);
+  --color-pyxis-error: var(--color-error);
+  --color-pyxis-success: var(--color-success);
+
+  --color-playlist-magenta-bg: #2a1e22;
+  --color-playlist-magenta-fg: #d4377b;
+  --color-playlist-olive-bg: #1e2a1e;
+  --color-playlist-olive-fg: #8b9a3e;
+  --color-playlist-amber-bg: #2a2518;
+  --color-playlist-amber-fg: #e8a849;
+  --color-playlist-ice-bg: #1e2428;
+  --color-playlist-ice-fg: #6ba3be;
+  --color-playlist-rose-bg: #2a1e1e;
+  --color-playlist-rose-fg: #c94040;
+  --color-playlist-violet-bg: #22202a;
+  --color-playlist-violet-fg: #9a7bbf;
+  --color-playlist-clay-bg: #2a2520;
+  --color-playlist-clay-fg: #be8a6b;
+  --color-playlist-teal-bg: #1e2a28;
+  --color-playlist-teal-fg: #5caa8e;
+
+  --text-ui-xs: 0.75rem;
+  --text-ui-sm: 0.875rem;
+  --text-ui-base: 1rem;
+  --text-ui-lg: 1.125rem;
+  --text-ui-xl: 1.25rem;
+  --text-ui-2xl: 1.5rem;
+  --text-ui-3xl: 2rem;
+  --text-ui-4xl: 3rem;
+
+  --tracking-badge: 0.14em;
+  --tracking-kicker: 0.08em;
 }
 
 :root {
@@ -53,6 +98,48 @@ body {
 ::selection {
   background: color-mix(in srgb, var(--color-primary) 40%, transparent);
   color: var(--color-text);
+}
+
+/* Lattice container primitives */
+.lattice-container {
+  container-type: inline-size;
+}
+
+.page-frame {
+  flex: 1 1 0%;
+  padding: 2.5rem 1rem;
+}
+
+@media (min-width: 640px) {
+  .page-frame {
+    padding-left: 2rem;
+    padding-right: 2rem;
+  }
+}
+
+.lattice-responsive-grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+@container (min-width: 42cqi) {
+  .lattice-responsive-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@container (min-width: 64cqi) {
+  .lattice-responsive-grid {
+    gap: 1.25rem;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+}
+
+.zune-badge {
+  font-size: var(--text-ui-xs);
+  letter-spacing: var(--tracking-badge);
+  text-transform: uppercase;
 }
 
 /* Zune typography scale */

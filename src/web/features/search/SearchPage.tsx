@@ -26,9 +26,6 @@
  * matches the existing station-detail "fetch tracks then play" pattern.
  */
 
-import { useAtomSet, useAtomValue } from "@effect/atom-react";
-import { useCallback, useMemo, useRef, useState } from "react";
-import { toast } from "sonner";
 import {
   LIBRARY_ALBUM_STATES_TAG,
   LIBRARY_ALBUMS_TAG,
@@ -44,16 +41,18 @@ import {
   tracksToQueuePayload,
 } from "@app/shared/lib/nowPlayingUtils";
 import { usePlaybackContext } from "@app/shared/playback/PlaybackContext";
-import { PlaybackState } from "@app/shared/playback/types";
 import { Spinner } from "@app/shared/ui/Spinner";
+import { useAtomSet, useAtomValue } from "@effect/atom-react";
+import { useCallback, useMemo, useRef, useState } from "react";
+import { toast } from "sonner";
 import { SearchAlbums } from "./components/SearchAlbums";
 import { SearchArtists } from "./components/SearchArtists";
 import { SearchGenres } from "./components/SearchGenres";
 import { SearchResultsEmpty } from "./components/SearchResultsEmpty";
 import { SearchTracks } from "./components/SearchTracks";
-import { SearchState } from "./SearchState";
 import { SearchInput } from "./SearchInput";
 import { SearchResultsRoot } from "./SearchResultsRoot";
+import { SearchState } from "./SearchState";
 import type { SearchTrack } from "./types";
 
 const createStationMutationAtom = PyxisRpcClient.mutation(
@@ -104,8 +103,8 @@ function SearchContent({
   switch (state._tag) {
     case "Idle":
       return (
-        <div className="text-center py-20 text-[var(--color-text-dim)]">
-          <p className="zune-display text-5xl sm:text-6xl text-[var(--color-text-dim)]/40 mb-6">
+        <div className="text-center py-20 text-pyxis-dim">
+          <p className="zune-display text-5xl sm:text-6xl text-pyxis-dim/40 mb-6">
             discover
           </p>
           <p className="text-sm">
@@ -124,7 +123,7 @@ function SearchContent({
     case "LoadError":
     case "Defect":
       return (
-        <div className="text-center py-20 text-[var(--color-error)]">
+        <div className="text-center py-20 text-pyxis-error">
           <p className="text-sm">failed to search</p>
         </div>
       );
@@ -309,8 +308,8 @@ export function SearchPage() {
   );
 
   return (
-    <div className="flex-1 px-4 sm:px-8 py-10 space-y-6">
-      <h2 className="zune-display zune-page-title text-[var(--color-text)] mb-4">
+    <div className="page-frame lattice-container space-y-6">
+      <h2 className="zune-display zune-page-title text-pyxis-text mb-4">
         search
       </h2>
       <SearchInput

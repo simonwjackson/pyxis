@@ -10,15 +10,14 @@
  * legacy code invalidated `radio.getStation` for the same `radioId`.
  */
 
+import { PyxisRpcClient } from "@app/shared/api/rpcClient";
+import { projectQueryResult } from "@app/shared/effect/projectQueryResult";
 import { useAtomSet, useAtomValue } from "@effect/atom-react";
 import { AsyncResult, Atom } from "effect/unstable/reactivity";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
-import { PyxisRpcClient } from "@app/shared/api/rpcClient";
-import { projectQueryResult } from "@app/shared/effect/projectQueryResult";
 import type { ApiPublicError } from "../../../api/contracts/common.js";
 import type { ApiPandoraSearchResponse } from "../../../api/contracts/search.js";
-import { AddSeedDialogState } from "./AddSeedDialogState";
 import { AddSeedDialogEmpty } from "./AddSeedDialog/AddSeedDialogEmpty";
 import { AddSeedDialogFooter } from "./AddSeedDialog/AddSeedDialogFooter";
 import { AddSeedDialogHeader } from "./AddSeedDialog/AddSeedDialogHeader";
@@ -26,6 +25,7 @@ import { AddSeedDialogPrompt } from "./AddSeedDialog/AddSeedDialogPrompt";
 import { AddSeedDialogResults } from "./AddSeedDialog/AddSeedDialogResults";
 import { AddSeedDialogSearching } from "./AddSeedDialog/AddSeedDialogSearching";
 import type { AddSeedDialogProps } from "./AddSeedDialog/types";
+import { AddSeedDialogState } from "./AddSeedDialogState";
 import { radioStationTag } from "./radioReactivityTags";
 import { StationCommandState } from "./StationCommandState";
 
@@ -105,7 +105,7 @@ export function AddSeedDialog({ radioId, onClose }: AddSeedDialogProps) {
     >
       {/* biome-ignore lint/a11y/noStaticElementInteractions: dialog content stops backdrop click/keydown propagation; outer div carries the dialog role. */}
       <div
-        className="bg-[var(--color-bg)] border border-[var(--color-border)] w-full max-w-md max-h-[70vh] flex flex-col shadow-2xl"
+        className="bg-pyxis-bg border border-pyxis-border w-full max-w-md max-h-[70dvh] flex flex-col shadow-2xl"
         onClick={(event) => event.stopPropagation()}
         onKeyDown={() => {}}
       >

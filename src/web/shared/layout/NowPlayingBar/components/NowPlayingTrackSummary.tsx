@@ -13,12 +13,12 @@ export function NowPlayingTrackSummary({
 }: NowPlayingTrackSummaryProps) {
   const titleClassName =
     layout === "desktop"
-      ? "zune-title text-[0.95rem] text-[var(--color-text)] truncate"
-      : "zune-title text-[0.95rem] text-[var(--color-text)] truncate";
+      ? "zune-title text-ui-base text-pyxis-text truncate"
+      : "zune-title text-ui-base text-pyxis-text truncate";
   const subtitleClassName =
     layout === "desktop"
-      ? "text-[0.78rem] font-light tracking-[-0.01em] text-[var(--color-text-muted)] truncate"
-      : "text-[0.75rem] font-light tracking-[-0.01em] text-[var(--color-text-muted)] truncate";
+      ? "text-[0.78rem] font-light tracking-[-0.01em] text-pyxis-muted truncate"
+      : "text-[0.75rem] font-light tracking-[-0.01em] text-pyxis-muted truncate";
   const subtitle =
     layout === "desktop"
       ? `${track.artistName} — ${track.albumName}`

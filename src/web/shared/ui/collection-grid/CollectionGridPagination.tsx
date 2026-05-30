@@ -14,10 +14,10 @@ export function CollectionGridPagination({
 }: CollectionGridPaginationProps) {
   return (
     <nav
-      className="flex items-center justify-between mt-8 pt-5 border-t border-[var(--color-border)]"
+      className="flex items-center justify-between mt-8 pt-5 border-t border-pyxis-border"
       aria-label="Pagination"
     >
-      <span className="zune-label zune-data text-[var(--color-text-dim)] opacity-60">
+      <span className="zune-label zune-data text-pyxis-dim opacity-60">
         page {String(currentPage)} of {String(totalPages)}
       </span>
       <div className="flex gap-1 items-center">
@@ -26,7 +26,7 @@ export function CollectionGridPagination({
           disabled={currentPage === 1}
           onClick={() => onPageChange(currentPage - 1)}
           aria-label="Previous page"
-          className="bg-[var(--color-bg-highlight)] w-7 h-7 flex items-center justify-center disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer text-[var(--color-text-dim)] hover:text-[var(--color-text)] transition-colors"
+          className="bg-pyxis-highlight w-7 h-7 flex items-center justify-center disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer text-pyxis-dim hover:text-pyxis-text transition-colors"
         >
           <ChevronLeft className="w-4 h-4" aria-hidden="true" />
         </button>
@@ -34,7 +34,7 @@ export function CollectionGridPagination({
           page === "ellipsis" ? (
             <span
               key={`ellipsis-${String(index)}`}
-              className="hidden sm:inline text-[var(--color-border)] text-xs px-0.5"
+              className="hidden sm:inline text-pyxis-border text-xs px-0.5"
               aria-hidden="true"
             >
               ...
@@ -48,8 +48,8 @@ export function CollectionGridPagination({
               aria-current={page === currentPage ? "page" : undefined}
               className={
                 page === currentPage
-                  ? "hidden sm:inline-flex items-center justify-center bg-[var(--color-bg-elevated)] text-[var(--color-text)] min-w-[28px] h-7 text-xs font-medium"
-                  : "hidden sm:inline-flex items-center justify-center bg-[var(--color-bg-highlight)] text-[var(--color-text-dim)] min-w-[28px] h-7 text-xs cursor-pointer hover:text-[var(--color-text)] transition-colors"
+                  ? "hidden sm:inline-flex items-center justify-center bg-pyxis-elevated text-pyxis-text min-w-7 h-7 text-xs font-medium"
+                  : "hidden sm:inline-flex items-center justify-center bg-pyxis-highlight text-pyxis-dim min-w-7 h-7 text-xs cursor-pointer hover:text-pyxis-text transition-colors"
               }
             >
               {String(page)}
@@ -61,7 +61,7 @@ export function CollectionGridPagination({
           disabled={currentPage === totalPages}
           onClick={() => onPageChange(currentPage + 1)}
           aria-label="Next page"
-          className="bg-[var(--color-bg-highlight)] w-7 h-7 flex items-center justify-center disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer text-[var(--color-text-dim)] hover:text-[var(--color-text)] transition-colors"
+          className="bg-pyxis-highlight w-7 h-7 flex items-center justify-center disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer text-pyxis-dim hover:text-pyxis-text transition-colors"
         >
           <ChevronRight className="w-4 h-4" aria-hidden="true" />
         </button>

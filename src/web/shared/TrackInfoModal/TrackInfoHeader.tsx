@@ -25,17 +25,11 @@ export function TrackInfoHeader({
     <div className="flex gap-4">
       <TrackInfoArtwork albumArtUrl={albumArtUrl} albumName={albumName} />
       <div className="min-w-0">
-        <p className="font-semibold text-[var(--color-text)] truncate">
-          {songName}
-        </p>
-        <p className="text-sm text-[var(--color-text-muted)] truncate">
-          {artistName}
-        </p>
-        <p className="text-sm text-[var(--color-text-dim)] truncate">
-          {albumName}
-        </p>
+        <p className="font-semibold text-pyxis-text truncate">{songName}</p>
+        <p className="text-sm text-pyxis-muted truncate">{artistName}</p>
+        <p className="text-sm text-pyxis-dim truncate">{albumName}</p>
         {duration > 0 ? (
-          <p className="text-xs text-[var(--color-text-dim)] mt-1">
+          <p className="text-xs text-pyxis-dim mt-1">
             Duration: {formatDuration(duration)}
           </p>
         ) : null}

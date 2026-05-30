@@ -12,12 +12,15 @@ export function CollectionGridSkeleton({
   return (
     <section role="status" aria-label={`Loading ${title}`}>
       <CollectionGridSectionHeader title={title} />
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 sm:gap-5">
-        {Array.from({ length: count }, (_, i) => (
-          <div key={i} aria-hidden="true">
-            <div className="aspect-square bg-[var(--color-bg-highlight)] mb-2 animate-pulse" />
-            <div className="h-4 bg-[var(--color-bg-highlight)] animate-pulse mb-1 w-3/4" />
-            <div className="h-3 bg-[var(--color-bg-highlight)] animate-pulse w-1/2" />
+      <div className="lattice-responsive-grid">
+        {Array.from(
+          { length: count },
+          (_, index) => `skeleton-${index + 1}`,
+        ).map((key) => (
+          <div key={key} aria-hidden="true">
+            <div className="aspect-square bg-pyxis-highlight mb-2 animate-pulse" />
+            <div className="h-4 bg-pyxis-highlight animate-pulse mb-1 w-3/4" />
+            <div className="h-3 bg-pyxis-highlight animate-pulse w-1/2" />
           </div>
         ))}
       </div>

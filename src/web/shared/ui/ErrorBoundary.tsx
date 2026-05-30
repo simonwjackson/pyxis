@@ -68,10 +68,11 @@ export class ErrorBoundary extends Component<
             }}
           >
             <svg
-              className="w-8 h-8 text-[var(--color-error)]"
+              className="w-8 h-8 text-pyxis-error"
               fill="none"
               viewBox="0 0 24 24"
               stroke="currentColor"
+              aria-hidden="true"
             >
               <path
                 strokeLinecap="round"
@@ -81,10 +82,10 @@ export class ErrorBoundary extends Component<
               />
             </svg>
           </div>
-          <h3 className="text-lg font-semibold text-[var(--color-text)] mb-2">
+          <h3 className="text-lg font-semibold text-pyxis-text mb-2">
             something went wrong
           </h3>
-          <p className="text-sm text-[var(--color-text-muted)] mb-4 max-w-md">
+          <p className="text-sm text-pyxis-muted mb-4 max-w-md">
             {this.state.error?.message ?? "An unexpected error occurred"}
           </p>
           <Button

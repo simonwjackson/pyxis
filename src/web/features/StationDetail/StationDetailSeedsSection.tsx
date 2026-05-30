@@ -14,7 +14,7 @@ export function StationDetailSeedsSection({
   return (
     <div>
       {!hasSeeds ? (
-        <p className="py-6 text-center text-[var(--color-text-dim)] text-sm">
+        <p className="py-6 text-center text-pyxis-dim text-sm">
           No seeds found for this station.
         </p>
       ) : null}

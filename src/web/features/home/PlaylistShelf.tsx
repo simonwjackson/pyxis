@@ -1,9 +1,9 @@
-import { ArrowDownAZ, Clock, Shuffle } from "lucide-react";
-import { useCallback } from "react";
 import { CollectionGridEmpty } from "@app/shared/ui/collection-grid/CollectionGridEmpty";
 import { CollectionGridRoot } from "@app/shared/ui/collection-grid/CollectionGridRoot";
 import { CollectionGridSkeleton } from "@app/shared/ui/collection-grid/CollectionGridSkeleton";
 import type { SortOption } from "@app/shared/ui/collection-grid/types";
+import { ArrowDownAZ, Clock, Shuffle } from "lucide-react";
+import { useCallback } from "react";
 import { PlaylistCard } from "./PlaylistCard";
 import type { PlaylistData } from "./types";
 
@@ -76,7 +76,7 @@ export function PlaylistShelf({
         <button
           type="button"
           onClick={onSeeAll}
-          className="zune-label text-[var(--color-text-dim)] hover:text-[var(--color-text)] transition-colors"
+          className="zune-label text-pyxis-dim hover:text-pyxis-text transition-colors"
         >
           see all
         </button>
