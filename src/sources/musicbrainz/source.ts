@@ -48,7 +48,7 @@ const normalizeReleaseGroup = (rg: ReleaseGroup): NormalizedRelease => {
   const year = rawYear != null && !Number.isNaN(rawYear) ? rawYear : undefined;
 
   // Extract genres from tags, sorted by vote count descending
-  const genres = (rg.tags ?? [])
+  const genres = [...(rg.tags ?? [])]
     .sort((a, b) => b.count - a.count)
     .map((t) => t.name);
 

@@ -3,29 +3,37 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
+import { Schema } from "effect";
 import {
   ConfigSchema,
+  decodeConfig,
   getPandoraPassword,
   getSoulseekPassword,
   resolveConfig,
 } from "./config.js";
 
+const expectDefaultRuntimeConfig = (
+  config: ReturnType<typeof decodeConfig>,
+): void => {
+  expect(config.server.port).toBe(8765);
+  expect(config.server.hostname).toBe("localhost");
+  expect(config.web.port).toBe(5678);
+  expect(config.log.level).toBe("info");
+};
+
 describe("ConfigSchema", () => {
   describe("defaults", () => {
     it("provides default values for empty config", () => {
-      const config = ConfigSchema.parse({});
+      const config = Schema.decodeUnknownSync(ConfigSchema)({});
 
-      expect(config.server.port).toBe(8765);
-      expect(config.server.hostname).toBe("localhost");
-      expect(config.web.port).toBe(5678);
+      expectDefaultRuntimeConfig(config);
       expect(config.web.allowedHosts).toEqual([]);
-      expect(config.log.level).toBe("info");
       expect(config.androidBridge.enabled).toBe(false);
       expect(config.androidBridge.token).toBeUndefined();
     });
 
     it("preserves custom values when provided", () => {
-      const config = ConfigSchema.parse({
+      const config = decodeConfig({
         server: {
           port: 9000,
           hostname: "myhost",
@@ -58,7 +66,7 @@ describe("ConfigSchema", () => {
 
   describe("source defaults", () => {
     it("provides default source configurations", () => {
-      const config = ConfigSchema.parse({});
+      const config = decodeConfig({});
 
       expect(config.sources.musicbrainz.enabled).toBe(true);
       expect(config.sources.discogs.enabled).toBe(true);
@@ -76,7 +84,7 @@ describe("ConfigSchema", () => {
     });
 
     it("allows disabling sources", () => {
-      const config = ConfigSchema.parse({
+      const config = decodeConfig({
         sources: {
           musicbrainz: { enabled: false },
           discogs: { enabled: false, token: "mytoken" },
@@ -87,16 +95,46 @@ describe("ConfigSchema", () => {
       expect(config.sources.discogs.enabled).toBe(false);
       expect(config.sources.discogs.token).toBe("mytoken");
     });
+
+    it("normalizes nullable optional source secrets to undefined", () => {
+      const config = decodeConfig({
+        sources: {
+          pandora: { username: null },
+          discogs: { token: null },
+          soundcloud: { clientId: null },
+          soulseek: { username: null },
+        },
+        androidBridge: { token: null },
+      });
+
+      expect(config.sources.pandora.username).toBeUndefined();
+      expect(config.sources.discogs.token).toBeUndefined();
+      expect(config.sources.soundcloud.clientId).toBeUndefined();
+      expect(config.sources.soulseek.username).toBeUndefined();
+      expect(config.androidBridge.token).toBeUndefined();
+    });
   });
 
   describe("validation", () => {
     it("rejects invalid port numbers", () => {
-      expect(() => ConfigSchema.parse({ server: { port: -1 } })).toThrow();
-      expect(() => ConfigSchema.parse({ server: { port: 70000 } })).toThrow();
+      expect(() => decodeConfig({ server: { port: -1 } })).toThrow();
+      expect(() => decodeConfig({ server: { port: 70000 } })).toThrow();
     });
 
     it("rejects invalid log levels", () => {
-      expect(() => ConfigSchema.parse({ log: { level: "invalid" } })).toThrow();
+      expect(() => decodeConfig({ log: { level: "invalid" } })).toThrow();
+    });
+
+    it("rejects invalid source and upgrade invariants", () => {
+      expect(() =>
+        decodeConfig({ sources: { soulseek: { maxConcurrentDownloads: 0 } } }),
+      ).toThrow();
+      expect(() =>
+        decodeConfig({ upgrade: { retrySchedule: [1, 0, 3] } }),
+      ).toThrow();
+      expect(() =>
+        decodeConfig({ upgrade: { storage: { maxCapacityMB: 0 } } }),
+      ).toThrow();
     });
 
     it("accepts valid log levels", () => {
@@ -109,7 +147,7 @@ describe("ConfigSchema", () => {
         "fatal",
       ] as const;
       for (const level of levels) {
-        const config = ConfigSchema.parse({ log: { level } });
+        const config = decodeConfig({ log: { level } });
         expect(config.log.level).toBe(level);
       }
     });
@@ -138,10 +176,7 @@ describe("resolveConfig", () => {
   it("returns defaults when config file does not exist", () => {
     const config = resolveConfig("/nonexistent/path/config.yaml");
 
-    expect(config.server.port).toBe(8765);
-    expect(config.server.hostname).toBe("localhost");
-    expect(config.web.port).toBe(5678);
-    expect(config.log.level).toBe("info");
+    expectDefaultRuntimeConfig(config);
   });
 
   it("applies environment variable overrides for server port", () => {

@@ -15,7 +15,7 @@ import type {
   Source,
 } from "../types.js";
 import { createBandcampClient } from "./client.js";
-import type { AutocompleteItem, Track } from "./schemas.js";
+import type { AutocompleteItem, BandcampTrack } from "./schemas.js";
 
 /**
  * Maps Bandcamp item type codes to canonical release types.
@@ -113,7 +113,7 @@ const decodeCompositeId = (
  * @returns Canonical track object
  */
 const bandcampTrackToCanonical = (
-  track: Track,
+  track: BandcampTrack,
   albumTitle: string,
   albumArtist: string,
   bandId: number,

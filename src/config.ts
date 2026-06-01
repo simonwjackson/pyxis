@@ -6,114 +6,132 @@
 
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import { Effect, Schema, SchemaGetter } from "effect";
 import envPaths from "env-paths";
 import { parse as parseYaml } from "yaml";
-import { z } from "zod";
 
-const optionalString = z.preprocess(
-  (val) => (val === null ? undefined : val),
-  z.string().optional(),
+const withDefault = <S extends Schema.Top>(schema: S, value: S["Encoded"]) =>
+  schema.pipe(Schema.withDecodingDefault(Effect.succeed(value)));
+
+const optionalNullableString = Schema.Union([
+  Schema.String,
+  Schema.Null,
+  Schema.Undefined,
+]).pipe(
+  Schema.decodeTo(Schema.UndefinedOr(Schema.String), {
+    decode: SchemaGetter.transform((value) => value ?? undefined),
+    encode: SchemaGetter.transform((value) => value ?? undefined),
+  }),
 );
 
-const ServerSchema = z.object({
-  port: z.number().int().min(1).max(65535).default(8765),
-  hostname: z.string().default("localhost"),
+const optionalString = Schema.optionalKey(optionalNullableString);
+const portNumber = Schema.Finite.check(
+  Schema.isInt(),
+  Schema.isGreaterThanOrEqualTo(1),
+  Schema.isLessThanOrEqualTo(65535),
+);
+const positiveNumber = Schema.Finite.check(Schema.isGreaterThan(0));
+const positiveInteger = Schema.Finite.check(
+  Schema.isInt(),
+  Schema.isGreaterThan(0),
+);
+
+const ServerSchema = Schema.Struct({
+  port: withDefault(portNumber, 8765),
+  hostname: withDefault(Schema.String, "localhost"),
 });
 
-const WebSchema = z.object({
-  port: z.number().int().min(1).max(65535).default(5678),
-  allowedHosts: z.array(z.string()).default([]),
+const WebSchema = Schema.Struct({
+  port: withDefault(portNumber, 5678),
+  allowedHosts: withDefault(Schema.Array(Schema.String), []),
 });
 
-const PandoraSourceSchema = z.object({
+const PandoraSourceSchema = Schema.Struct({
   username: optionalString,
 });
 
-const MusicBrainzSourceSchema = z.object({
-  enabled: z.boolean().default(true),
+const MusicBrainzSourceSchema = Schema.Struct({
+  enabled: withDefault(Schema.Boolean, true),
 });
 
-const DiscogsSourceSchema = z.object({
-  enabled: z.boolean().default(true),
+const DiscogsSourceSchema = Schema.Struct({
+  enabled: withDefault(Schema.Boolean, true),
   token: optionalString,
 });
 
-const DeezerSourceSchema = z.object({
-  enabled: z.boolean().default(true),
+const DeezerSourceSchema = Schema.Struct({
+  enabled: withDefault(Schema.Boolean, true),
 });
 
-const BandcampSourceSchema = z.object({
-  enabled: z.boolean().default(true),
+const BandcampSourceSchema = Schema.Struct({
+  enabled: withDefault(Schema.Boolean, true),
 });
 
-const SoundCloudSourceSchema = z.object({
-  enabled: z.boolean().default(true),
+const SoundCloudSourceSchema = Schema.Struct({
+  enabled: withDefault(Schema.Boolean, true),
   clientId: optionalString,
 });
 
-const SoulseekSourceSchema = z.object({
-  enabled: z.boolean().default(false),
+const SoulseekSourceSchema = Schema.Struct({
+  enabled: withDefault(Schema.Boolean, false),
   username: optionalString,
-  maxConcurrentDownloads: z.number().int().min(1).default(2),
+  maxConcurrentDownloads: withDefault(positiveInteger, 2),
 });
 
-const SourcesSchema = z.object({
-  pandora: PandoraSourceSchema.default(() => PandoraSourceSchema.parse({})),
-  musicbrainz: MusicBrainzSourceSchema.default(() =>
-    MusicBrainzSourceSchema.parse({}),
+const SourcesSchema = Schema.Struct({
+  pandora: withDefault(PandoraSourceSchema, {}),
+  musicbrainz: withDefault(MusicBrainzSourceSchema, {}),
+  discogs: withDefault(DiscogsSourceSchema, {}),
+  deezer: withDefault(DeezerSourceSchema, {}),
+  bandcamp: withDefault(BandcampSourceSchema, {}),
+  soundcloud: withDefault(SoundCloudSourceSchema, {}),
+  soulseek: withDefault(SoulseekSourceSchema, {}),
+});
+
+const UpgradeStorageSchema = Schema.Struct({
+  maxCapacityMB: Schema.optionalKey(positiveNumber),
+  ttlDays: Schema.optionalKey(positiveNumber),
+});
+
+const UpgradeSchema = Schema.Struct({
+  enabled: withDefault(Schema.Boolean, false),
+  radioLookahead: withDefault(positiveInteger, 3),
+  retrySchedule: withDefault(Schema.Array(positiveInteger), [1, 3, 7, 30]),
+  storage: withDefault(UpgradeStorageSchema, {}),
+});
+
+const LogSchema = Schema.Struct({
+  level: withDefault(
+    Schema.Literals(["trace", "debug", "info", "warn", "error", "fatal"]),
+    "info",
   ),
-  discogs: DiscogsSourceSchema.default(() => DiscogsSourceSchema.parse({})),
-  deezer: DeezerSourceSchema.default(() => DeezerSourceSchema.parse({})),
-  bandcamp: BandcampSourceSchema.default(() => BandcampSourceSchema.parse({})),
-  soundcloud: SoundCloudSourceSchema.default(() =>
-    SoundCloudSourceSchema.parse({}),
-  ),
-  soulseek: SoulseekSourceSchema.default(() => SoulseekSourceSchema.parse({})),
 });
 
-const UpgradeStorageSchema = z.object({
-  maxCapacityMB: z.number().positive().optional(),
-  ttlDays: z.number().positive().optional(),
-});
-
-const UpgradeSchema = z.object({
-  enabled: z.boolean().default(false),
-  radioLookahead: z.number().int().min(1).default(3),
-  retrySchedule: z.array(z.number().int().positive()).default([1, 3, 7, 30]),
-  storage: UpgradeStorageSchema.default(() => UpgradeStorageSchema.parse({})),
-});
-
-const LogSchema = z.object({
-  level: z
-    .enum(["trace", "debug", "info", "warn", "error", "fatal"])
-    .default("info"),
-});
-
-const AndroidBridgeSchema = z.object({
-  enabled: z.boolean().default(false),
+const AndroidBridgeSchema = Schema.Struct({
+  enabled: withDefault(Schema.Boolean, false),
   token: optionalString,
 });
 
 /**
- * Zod schema for the complete application configuration.
- * Validates and provides defaults for server, web, sources, and log settings.
+ * Effect Schema for the complete application configuration.
+ * Validates and provides defaults for server, web, sources, upgrade, Android bridge, and log settings.
  */
-export const ConfigSchema = z.object({
-  server: ServerSchema.default(() => ServerSchema.parse({})),
-  web: WebSchema.default(() => WebSchema.parse({})),
-  sources: SourcesSchema.default(() => SourcesSchema.parse({})),
-  upgrade: UpgradeSchema.default(() => UpgradeSchema.parse({})),
-  log: LogSchema.default(() => LogSchema.parse({})),
-  androidBridge: AndroidBridgeSchema.default(() =>
-    AndroidBridgeSchema.parse({}),
-  ),
+export const ConfigSchema = Schema.Struct({
+  server: withDefault(ServerSchema, {}),
+  web: withDefault(WebSchema, {}),
+  sources: withDefault(SourcesSchema, {}),
+  upgrade: withDefault(UpgradeSchema, {}),
+  log: withDefault(LogSchema, {}),
+  androidBridge: withDefault(AndroidBridgeSchema, {}),
 });
+
+export const decodeConfig = Schema.decodeUnknownSync(ConfigSchema);
 
 /**
  * Fully resolved application configuration type.
  * Derived from ConfigSchema with all defaults applied.
  */
-export type AppConfig = z.infer<typeof ConfigSchema>;
+export type AppConfig = Schema.Schema.Type<typeof ConfigSchema>;
 
 const paths = envPaths("pyxis", { suffix: "" });
 const DEFAULT_CONFIG_PATH = join(paths.config, "config.yaml");
@@ -220,7 +238,7 @@ export function resolveConfig(configPath?: string): AppConfig {
   const yamlPath = configPath ?? DEFAULT_CONFIG_PATH;
   const raw = loadYaml(yamlPath);
   const withEnv = applyEnvOverrides(raw as Record<string, unknown>);
-  return ConfigSchema.parse(withEnv);
+  return decodeConfig(withEnv);
 }
 
 /**
