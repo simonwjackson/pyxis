@@ -152,7 +152,9 @@ describe("player.seek and player.volume.set", () => {
     PlayerSingleton.setDuration(120);
 
     await withHandlers(async (handlers) => {
-      await Effect.runPromise(handlers["player.transport.seek"]({ position: 45 }));
+      await Effect.runPromise(
+        handlers["player.transport.seek"]({ position: 45 }),
+      );
     });
     PlayerSingleton.pause();
     expect(PlayerSingleton.getState().progress).toBeGreaterThanOrEqual(45);
@@ -182,6 +184,7 @@ describe("player.progress.report (stale guard)", () => {
     });
     PlayerSingleton.skip(); // current is now ytmusic:b
     PlayerSingleton.pause();
+    const progressBeforeStaleReport = PlayerSingleton.getState().progress;
     const updates: number[] = [];
     const unsubscribe = PlayerSingleton.subscribe((s) =>
       updates.push(s.progress),
@@ -199,7 +202,10 @@ describe("player.progress.report (stale guard)", () => {
       // reportProgress is silent (no subscriber notification) when applied
       // and must also be silent when dropped as stale.
       expect(updates).toEqual([]);
-      expect(PlayerSingleton.getState().progress).toBe(0);
+      expect(PlayerSingleton.getState().progress).toBe(
+        progressBeforeStaleReport,
+      );
+      expect(PlayerSingleton.getState().progress).not.toBe(90);
       expect(PlayerSingleton.getState().currentTrack?.id).toBe("ytmusic:b");
     } finally {
       unsubscribe();
@@ -276,7 +282,9 @@ describe("player.trackEnded (stale guard)", () => {
 
     const result = await withHandlers(async (handlers) =>
       Effect.runPromise(
-        handlers["player.transport.trackEnded"]({ appliesToTrackId: "ytmusic:a" }),
+        handlers["player.transport.trackEnded"]({
+          appliesToTrackId: "ytmusic:a",
+        }),
       ),
     );
     expect(result.currentTrack?.id).toBe(before);
