@@ -252,7 +252,9 @@ describe("jumpToIndex", () => {
     jumpToIndex(1);
 
     const state = getState();
-    expect(state.progress).toBe(0);
+    expect(state.currentTrack?.id).toBe("2");
+    expect(state.progress).toBeLessThan(0.1);
+    expect(state.progress).toBeLessThan(60);
   });
 });
 

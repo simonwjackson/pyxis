@@ -9,6 +9,16 @@ import { AsyncResult } from "effect/unstable/reactivity";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ApiPlayerState } from "../../../api/contracts/player.js";
 import {
+  BrowserAudio,
+  type BrowserAudio as BrowserAudioAdapter,
+} from "./browserAudio";
+import {
+  type PlaybackAudioAction,
+  type PlaybackServerStateSource,
+  type PlaybackStatePatch,
+  reconcilePlaybackState,
+} from "./playbackReconciliation";
+import {
   clientLogWriteMutationAtom,
   playerAudioErrorReportMutationAtom,
   playerDurationReportMutationAtom,
@@ -51,6 +61,18 @@ type InternalPlaybackState = {
   readonly volume: number;
 };
 
+const applyPlaybackStatePatch = (
+  state: InternalPlaybackState,
+  patch: PlaybackStatePatch,
+): InternalPlaybackState => ({
+  ...state,
+  currentTrack: patch.currentTrack,
+  isPlaying: patch.isPlaying,
+  progress: patch.progress ?? state.progress,
+  duration: patch.duration ?? state.duration,
+  volume: patch.volume ?? state.volume,
+});
+
 /**
  * Main playback hook providing audio controls and server synchronization.
  * Manages HTML Audio element lifecycle, SSE state subscriptions, and server mutations.
@@ -76,7 +98,7 @@ function getCurrentStationToken(context: PlaybackQueueContext): string | null {
 }
 
 export function usePlayback(): PlaybackContextValue {
-  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const audioRef = useRef<BrowserAudioAdapter | null>(null);
   const [state, setState] = useState<InternalPlaybackState>({
     currentTrack: null,
     currentStationToken: null,
@@ -91,7 +113,7 @@ export function usePlayback(): PlaybackContextValue {
   const lastStreamUrlRef = useRef<string | null>(null);
   const seekingRef = useRef(false);
   const handleServerStateRef = useRef<
-    (state: ServerState, source?: string) => void
+    (state: ServerState, source?: PlaybackServerStateSource) => void
   >(() => {});
   // Track whether we've handled the first SSE state after page load.
   // We only suppress autoplay for a newly loaded track during that first sync,
@@ -129,17 +151,21 @@ export function usePlayback(): PlaybackContextValue {
 
   // Initialize audio element once
   useEffect(() => {
-    const audio = new Audio();
+    const audio = BrowserAudio.create();
     audioRef.current = audio;
 
     const onTimeUpdate = () => {
       if (!seekingRef.current) {
-        setState((prev) => ({ ...prev, progress: audio.currentTime }));
+        setState((prev) => ({
+          ...prev,
+          progress: audio.snapshot().currentTime,
+        }));
       }
     };
     const onDurationChange = () => {
-      setState((prev) => ({ ...prev, duration: audio.duration }));
-      void reportDuration({ payload: { duration: audio.duration } });
+      const duration = audio.getDuration();
+      setState((prev) => ({ ...prev, duration }));
+      void reportDuration({ payload: { duration } });
     };
     const onEnded = () => {
       logToServer("[audio] track ended, calling trackEnded mutation");
@@ -151,30 +177,18 @@ export function usePlayback(): PlaybackContextValue {
       });
     };
     const onError = () => {
-      const mediaError = audio.error;
+      const mediaError = audio.getError();
+      const src = audio.snapshot().src;
       // MEDIA_ERR_ABORTED is expected during track transitions (src changed while loading)
-      if (mediaError?.code === MediaError.MEDIA_ERR_ABORTED) {
+      if (mediaError?.code === BrowserAudio.mediaErrorAborted) {
         logToServer(
-          `[audio] MEDIA_ERR_ABORTED silenced (transition expected) src=${audio.src}`,
+          `[audio] MEDIA_ERR_ABORTED silenced (transition expected) src=${src}`,
         );
         return;
       }
-      let message = "Audio playback failed";
-      if (mediaError) {
-        const codeMessages: Record<number, string> = {
-          [MediaError.MEDIA_ERR_ABORTED]: "Playback aborted",
-          [MediaError.MEDIA_ERR_NETWORK]: "Network error loading audio",
-          [MediaError.MEDIA_ERR_DECODE]: "Audio decoding error",
-          [MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED]:
-            "Audio format not supported",
-        };
-        message = codeMessages[mediaError.code] ?? message;
-        if (mediaError.message) {
-          message += `: ${mediaError.message}`;
-        }
-      }
+      const message = BrowserAudio.describeError(mediaError);
       logToServer(
-        `[audio] error code=${mediaError?.code ?? "unknown"} message=${message} src=${audio.src}`,
+        `[audio] error code=${mediaError?.code ?? "unknown"} message=${message} src=${src}`,
       );
       void reportAudioError({ payload: { message } });
       setState((prev) => ({
@@ -198,26 +212,9 @@ export function usePlayback(): PlaybackContextValue {
     };
   }, [logToServer, reportAudioError, reportDuration, trackEnded]);
 
-  /** Seek audio to a position once playable, handling both loaded and loading states */
-  const seekAudioTo = useCallback(
-    (audio: HTMLAudioElement, position: number) => {
-      if (position <= 0) return;
-      if (audio.readyState >= HTMLMediaElement.HAVE_METADATA) {
-        audio.currentTime = position;
-      } else {
-        const onCanPlay = () => {
-          audio.removeEventListener("canplay", onCanPlay);
-          audio.currentTime = position;
-        };
-        audio.addEventListener("canplay", onCanPlay);
-      }
-    },
-    [],
-  );
-
   /** Safely call audio.play() with standard error handling */
   const safePlay = useCallback(
-    (audio: HTMLAudioElement, context: string) => {
+    (audio: BrowserAudioAdapter, context: string) => {
       audio.play().catch((err: unknown) => {
         if (err instanceof DOMException && err.name === "AbortError") {
           logToServer(`[audio] play() AbortError silenced (${context})`);
@@ -241,158 +238,83 @@ export function usePlayback(): PlaybackContextValue {
     [logToServer, reportAudioError],
   );
 
+  const executeAudioAction = useCallback(
+    (audio: BrowserAudioAdapter, action: PlaybackAudioAction) => {
+      const handlers = {
+        Load: (load: Extract<PlaybackAudioAction, { _tag: "Load" }>) => {
+          audio.setSrc(load.src);
+        },
+        Seek: (seek: Extract<PlaybackAudioAction, { _tag: "Seek" }>) => {
+          if (seek.when === "now") {
+            audio.setCurrentTime(seek.position);
+            return;
+          }
+          const onCanPlay = () => {
+            audio.removeEventListener("canplay", onCanPlay);
+            audio.setCurrentTime(seek.position);
+          };
+          audio.addEventListener("canplay", onCanPlay);
+        },
+        Play: (play: Extract<PlaybackAudioAction, { _tag: "Play" }>) => {
+          safePlay(audio, play.context);
+        },
+        Pause: () => {
+          audio.pause();
+        },
+        ResetTime: () => {
+          audio.setCurrentTime(0);
+        },
+        SetVolume: (
+          setVolume: Extract<PlaybackAudioAction, { _tag: "SetVolume" }>,
+        ) => {
+          audio.setVolume(setVolume.volume);
+        },
+      };
+
+      handlers[action._tag](action as never);
+    },
+    [safePlay],
+  );
+
   // Shared handler for server player state — called from both SSE and mutation responses
   const handleServerState = useCallback(
-    (serverState: ServerState, source: string = "sse") => {
+    (serverState: ServerState, source: PlaybackServerStateSource = "sse") => {
       const audio = audioRef.current;
       if (!audio) return;
 
-      const track = serverState.currentTrack;
       const isInitialState =
         source === "sse" && !hasReceivedInitialStateRef.current;
 
-      // Always keep server progress ref updated
-      serverProgressRef.current = serverState.progress;
-
       logToServer(
-        `[${source}] received status=${serverState.status} track=${track?.id ?? "none"} progress=${String(serverState.progress)} initial=${String(isInitialState)}`,
+        `[${source}] received status=${serverState.status} track=${serverState.currentTrack?.id ?? "none"} progress=${String(serverState.progress)} initial=${String(isInitialState)}`,
       );
 
-      if (isInitialState) {
-        hasReceivedInitialStateRef.current = true;
+      const reconciliation = reconcilePlaybackState({
+        serverState,
+        source,
+        audio: audio.snapshot(),
+        lastStreamUrl: lastStreamUrlRef.current,
+        hasReceivedInitialState: hasReceivedInitialStateRef.current,
+        haveMetadata: BrowserAudio.haveMetadata,
+      });
+
+      serverProgressRef.current = reconciliation.serverProgress;
+      lastStreamUrlRef.current = reconciliation.nextLastStreamUrl;
+      hasReceivedInitialStateRef.current =
+        reconciliation.nextHasReceivedInitialState;
+
+      for (const message of reconciliation.logs) {
+        logToServer(message);
+      }
+      for (const action of reconciliation.actions) {
+        executeAudioAction(audio, action);
       }
 
-      if (track) {
-        // Load new audio if the stream URL changed (ignore ?next= prefetch hint)
-        const baseUrl = track.streamUrl.split("?")[0];
-        const lastBaseUrl = lastStreamUrlRef.current?.split("?")[0] ?? null;
-        logToServer(
-          `[${source}] baseUrl comparison: base=${baseUrl} last=${lastBaseUrl} changed=${String(baseUrl !== lastBaseUrl)}`,
-        );
-
-        if (baseUrl !== lastBaseUrl) {
-          // New track
-          lastStreamUrlRef.current = track.streamUrl;
-          audio.src = track.streamUrl;
-
-          // Seek to server progress for mid-track handoff
-          seekAudioTo(audio, serverState.progress);
-
-          if (isInitialState) {
-            // On the first SSE sync after page load, don't auto-play a newly loaded track.
-            logToServer(
-              `[${source}] → FIRST SSE state: load track, show paused at ${String(serverState.progress)}s`,
-            );
-          } else if (serverState.status === "playing") {
-            logToServer(`[${source}] → LOAD new src + play() (status=playing)`);
-            safePlay(audio, "new track load");
-          } else {
-            logToServer(
-              `[${source}] → LOAD new src (status=${serverState.status}, not playing)`,
-            );
-          }
-        } else {
-          // Same track — sync play/pause state
-          if (isInitialState) {
-            if (serverState.status === "playing") {
-              if (audio.paused) {
-                const delta = Math.abs(
-                  audio.currentTime - serverState.progress,
-                );
-                if (delta > 2) {
-                  logToServer(
-                    `[${source}] → FIRST SSE state: same track paused locally, seek ${String(audio.currentTime)}→${String(serverState.progress)} (delta=${String(delta)})`,
-                  );
-                  seekAudioTo(audio, serverState.progress);
-                }
-                logToServer(
-                  `[${source}] → FIRST SSE state: same track, resume because server=playing`,
-                );
-                safePlay(audio, "initial same track resume");
-              } else {
-                logToServer(
-                  `[${source}] → FIRST SSE state: same track already playing, keep playing`,
-                );
-              }
-            } else if (serverState.status === "paused") {
-              logToServer(
-                `[${source}] → FIRST SSE state: same track, seek to ${String(serverState.progress)}s, show paused`,
-              );
-              seekAudioTo(audio, serverState.progress);
-              if (!audio.paused) {
-                audio.pause();
-              }
-            } else {
-              logToServer(`[${source}] → FIRST SSE state: same track, stop`);
-              audio.pause();
-              audio.currentTime = 0;
-            }
-          } else if (serverState.status === "playing" && audio.paused) {
-            // Another device started playing — apply progress threshold to avoid jitter
-            const delta = Math.abs(audio.currentTime - serverState.progress);
-            if (delta > 2) {
-              logToServer(
-                `[${source}] → SAME track: seek ${String(audio.currentTime)}→${String(serverState.progress)} (delta=${String(delta)})`,
-              );
-              audio.currentTime = serverState.progress;
-            }
-            logToServer(`[${source}] → SAME track: resume (paused→playing)`);
-            safePlay(audio, "same track resume");
-          } else if (serverState.status === "paused" && !audio.paused) {
-            logToServer(`[${source}] → SAME track: pause (playing→paused)`);
-            audio.pause();
-          } else if (serverState.status === "stopped") {
-            logToServer(`[${source}] → SAME track: stop`);
-            audio.pause();
-            audio.currentTime = 0;
-          } else {
-            logToServer(
-              `[${source}] → SAME track: no action needed (server=${serverState.status} paused=${String(audio.paused)})`,
-            );
-          }
-        }
-
-        // Sync volume
-        audio.volume = serverState.volume / 100;
-
-        const suppressAutoplayOnInitialLoad =
-          isInitialState && baseUrl !== lastBaseUrl;
-
-        setState((prev) => ({
-          ...prev,
-          currentTrack: {
-            trackToken: track.id,
-            songName: track.title,
-            artistName: track.artist,
-            albumName: track.album,
-            audioUrl: track.streamUrl,
-            ...(track.artworkUrl ? { artUrl: track.artworkUrl } : {}),
-          },
-          // Suppress autoplay only for a newly loaded track on first connect.
-          // Reconnects for the same in-flight track should preserve playing state.
-          isPlaying: suppressAutoplayOnInitialLoad
-            ? false
-            : serverState.status === "playing",
-          progress: isInitialState ? serverState.progress : prev.progress,
-          volume: serverState.volume,
-        }));
-      } else {
-        // No track — stopped
-        logToServer(`[${source}] → NO track: stopped`);
-        if (!audio.paused) {
-          audio.pause();
-        }
-        lastStreamUrlRef.current = null;
-        setState((prev) => ({
-          ...prev,
-          currentTrack: null,
-          isPlaying: false,
-          progress: 0,
-          duration: 0,
-        }));
-      }
+      setState((prev) =>
+        applyPlaybackStatePatch(prev, reconciliation.statePatch),
+      );
     },
-    [logToServer, seekAudioTo, safePlay],
+    [executeAudioAction, logToServer],
   );
 
   // Keep ref in sync so audio event listeners always call the latest version
@@ -411,8 +333,10 @@ export function usePlayback(): PlaybackContextValue {
     if (!state.isPlaying) return;
     const interval = setInterval(() => {
       const audio = audioRef.current;
-      if (audio && !audio.paused) {
-        void reportProgress({ payload: { progress: audio.currentTime } });
+      if (!audio) return;
+      const snapshot = audio.snapshot();
+      if (!snapshot.paused) {
+        void reportProgress({ payload: { progress: snapshot.currentTime } });
       }
     }, 5000);
     return () => clearInterval(interval);
@@ -440,7 +364,7 @@ export function usePlayback(): PlaybackContextValue {
       logToServer("[action] togglePlayPause → pause");
       const audio = audioRef.current;
       if (audio) {
-        serverProgressRef.current = audio.currentTime;
+        serverProgressRef.current = audio.snapshot().currentTime;
         audio.pause();
       }
       setState((prev) => ({ ...prev, isPlaying: false }));
@@ -450,12 +374,15 @@ export function usePlayback(): PlaybackContextValue {
       const audio = audioRef.current;
       if (audio) {
         // Seek to server progress before playing — handles handoff from another device
-        const delta = Math.abs(audio.currentTime - serverProgressRef.current);
+        const snapshot = audio.snapshot();
+        const delta = Math.abs(
+          snapshot.currentTime - serverProgressRef.current,
+        );
         if (delta > 2) {
           logToServer(
-            `[action] seek before resume: ${String(audio.currentTime)}→${String(serverProgressRef.current)} (delta=${String(delta)})`,
+            `[action] seek before resume: ${String(snapshot.currentTime)}→${String(serverProgressRef.current)} (delta=${String(delta)})`,
           );
-          audio.currentTime = serverProgressRef.current;
+          audio.setCurrentTime(serverProgressRef.current);
         }
         safePlay(audio, "togglePlayPause resume");
       }
@@ -468,7 +395,7 @@ export function usePlayback(): PlaybackContextValue {
     const audio = audioRef.current;
     if (audio) {
       audio.pause();
-      audio.currentTime = 0;
+      audio.setCurrentTime(0);
     }
     lastStreamUrlRef.current = null;
     setState((prev) => ({
@@ -488,7 +415,7 @@ export function usePlayback(): PlaybackContextValue {
       const audio = audioRef.current;
       if (audio) {
         seekingRef.current = true;
-        audio.currentTime = time;
+        audio.setCurrentTime(time);
         setState((prev) => ({ ...prev, progress: time }));
         void seekRemote({ payload: { position: time } });
         setTimeout(() => {
@@ -528,7 +455,7 @@ export function usePlayback(): PlaybackContextValue {
       );
       const audio = audioRef.current;
       if (!audio) return;
-      audio.src = track.audioUrl;
+      audio.setSrc(track.audioUrl);
       lastStreamUrlRef.current = track.audioUrl;
       audio.play().catch((err: unknown) => {
         // AbortError is expected when src changes during play()
