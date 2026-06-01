@@ -3,6 +3,7 @@ import {
   expectEffectSuccess,
   resetFixtureMode,
   setFixtureMode,
+  shouldRunPandoraFixtures,
 } from "../test-utils.js";
 import type {
   AddArtistBookmarkRequest,
@@ -26,7 +27,7 @@ const mockAuthState = {
   userId: "123456789",
 };
 
-describe("bookmark", () => {
+describe.skipIf(!shouldRunPandoraFixtures)("bookmark", () => {
   beforeEach(() => {
     setFixtureMode("replay");
   });

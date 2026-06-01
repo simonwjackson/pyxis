@@ -16,6 +16,10 @@ test:
 test-unit:
     bun run test-unit
 
+# Run Pandora fixture-replay integration tests (requires recorded fixtures)
+test-pandora-fixtures:
+    bun run test:pandora-fixtures
+
 # Check formatting and lint rules for changed files
 lint:
     bun run lint

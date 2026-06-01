@@ -3,11 +3,12 @@ import {
   expectEffectSuccess,
   resetFixtureMode,
   setFixtureMode,
+  shouldRunPandoraFixtures,
 } from "../test-utils.js";
 import { PartnerLoginError, UserLoginError } from "../types/errors.js";
 import { partnerLogin, userLogin } from "./auth.js";
 
-describe("auth", () => {
+describe.skipIf(!shouldRunPandoraFixtures)("auth", () => {
   beforeEach(() => {
     setFixtureMode("replay");
   });

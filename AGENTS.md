@@ -15,7 +15,8 @@ nix build           # Full Nix package
 # Testing & Quality
 just format         # Format changed files
 just lint           # Check formatting and lint rules for changed files
-just test-unit      # Run unit tests
+just test-unit      # Run unit tests (default gate; Pandora replay tests are skipped)
+just test-pandora-fixtures  # Pandora fixture-replay integration tests; needs recorded fixtures
 bun test <file>     # Run single test file
 just typecheck      # TypeScript type checking
 

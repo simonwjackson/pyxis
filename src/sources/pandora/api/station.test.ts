@@ -3,6 +3,7 @@ import {
   expectEffectSuccess,
   resetFixtureMode,
   setFixtureMode,
+  shouldRunPandoraFixtures,
 } from "../test-utils.js";
 import type { AuthState } from "./call.js";
 import {
@@ -20,7 +21,7 @@ import {
   transformSharedStation,
 } from "./station.js";
 
-describe("station API", () => {
+describe.skipIf(!shouldRunPandoraFixtures)("station API", () => {
   // Authenticated session fixture for tests
   const mockAuthState: AuthState = {
     syncTime: 0,

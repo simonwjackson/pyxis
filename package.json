@@ -14,6 +14,7 @@
     "test": "bun test",
     "test:watch": "bun test --watch",
     "test:coverage": "bun test --coverage",
+    "test:pandora-fixtures": "PYXIS_RUN_PANDORA_FIXTURES=1 bun test src/sources/pandora",
     "fallow": "fallow",
     "fallow:audit": "fallow audit --config .fallowrc.json",
     "storybook": "storybook dev -p 6006",

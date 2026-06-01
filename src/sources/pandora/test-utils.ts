@@ -7,6 +7,22 @@
 import { Cause, Effect, Exit } from "effect";
 
 /**
+ * Whether to run Pandora fixture-backed integration tests in the current run.
+ *
+ * Replay tests depend on JSON fixtures recorded against the live Pandora API
+ * (`PYXIS_FIXTURE_MODE=record`). Those fixtures aren't committed, so the
+ * default unit gate (`just test-unit`) opts out and runs only pure-logic
+ * suites. Opt in for the integration sweep with:
+ *
+ *   PYXIS_RUN_PANDORA_FIXTURES=1 bun test src/sources/pandora
+ *
+ * The `test:pandora-fixtures` script and `just test-pandora-fixtures` recipe
+ * wrap that command.
+ */
+export const shouldRunPandoraFixtures: boolean =
+  process.env.PYXIS_RUN_PANDORA_FIXTURES === "1";
+
+/**
  * Runs an Effect and returns the success value, throwing on failure.
  * Use in tests where you expect the Effect to succeed.
  *

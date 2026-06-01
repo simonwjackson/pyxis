@@ -3,12 +3,13 @@ import {
   expectEffectSuccess,
   resetFixtureMode,
   setFixtureMode,
+  shouldRunPandoraFixtures,
 } from "../test-utils.js";
 import type { ExplainTrackRequest } from "../types/api.js";
 import { ApiCallError } from "../types/errors.js";
 import { explainTrack } from "./track.js";
 
-describe("track", () => {
+describe.skipIf(!shouldRunPandoraFixtures)("track", () => {
   const mockAuthState = {
     syncTime: 1234567890,
     partnerId: "42",

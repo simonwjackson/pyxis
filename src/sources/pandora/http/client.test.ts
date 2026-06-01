@@ -4,12 +4,13 @@ import {
   expectEffectSuccess,
   resetFixtureMode,
   setFixtureMode,
+  shouldRunPandoraFixtures,
 } from "../test-utils.js";
 import type { ApiResponse } from "../types/api.js";
 import { ApiCallError } from "../types/errors.js";
 import { type HttpRequest, httpRequest } from "./client.js";
 
-describe("http client", () => {
+describe.skipIf(!shouldRunPandoraFixtures)("http client", () => {
   beforeEach(() => {
     resetFixtureMode();
   });

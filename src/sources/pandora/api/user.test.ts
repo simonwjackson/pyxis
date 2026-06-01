@@ -3,6 +3,7 @@ import {
   expectEffectSuccess,
   resetFixtureMode,
   setFixtureMode,
+  shouldRunPandoraFixtures,
 } from "../test-utils.js";
 import type { AuthState } from "./call.js";
 import {
@@ -17,7 +18,7 @@ import {
   sleepSong,
 } from "./user.js";
 
-describe("user API", () => {
+describe.skipIf(!shouldRunPandoraFixtures)("user API", () => {
   // Authenticated session fixture for tests
   const mockAuthState: AuthState = {
     syncTime: 0,

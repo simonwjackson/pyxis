@@ -3,12 +3,13 @@ import {
   expectEffectSuccess,
   resetFixtureMode,
   setFixtureMode,
+  shouldRunPandoraFixtures,
 } from "../test-utils.js";
 import { ApiCallError } from "../types/errors.js";
 import type { AuthState } from "./call.js";
 import { getTrack, search, shareMusic } from "./music.js";
 
-describe("music API", () => {
+describe.skipIf(!shouldRunPandoraFixtures)("music API", () => {
   // Authenticated session fixture for tests
   const mockAuthState: AuthState = {
     syncTime: 0,
