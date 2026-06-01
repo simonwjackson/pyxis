@@ -15,6 +15,7 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
+import { type DbInstance, setDbForTesting } from "@shared/db/index.js";
 import { Effect, Layer, Stream } from "effect";
 import * as PlayerSingleton from "../../services/player.js";
 import type { QueueTrack } from "../../services/queue.js";
@@ -79,6 +80,7 @@ beforeEach(() => {
 afterEach(() => {
   PlayerSingleton.stop();
   QueueSingleton.clear();
+  setDbForTesting(null);
 });
 
 describe("player.state.get", () => {
@@ -94,6 +96,49 @@ describe("player.state.get", () => {
     expect(result.currentTrack?.id).toBe("ytmusic:current");
     expect(result.currentTrack?.streamUrl).toBe(
       "/stream/ytmusic%3Acurrent?next=ytmusic%3Aupcoming",
+    );
+  });
+});
+
+describe("player.transport.play", () => {
+  it("resolves bare album track ids to source-prefixed queue and response ids", async () => {
+    setDbForTesting({
+      albumTracks: {
+        findById: () => ({
+          runPromise: Promise.resolve({
+            source: "ytmusic",
+            sourceTrackId: "remote-track-1",
+          }),
+        }),
+      },
+    } as unknown as DbInstance);
+
+    const result = await withHandlers(async (handlers) =>
+      Effect.runPromise(
+        handlers["player.transport.play"]({
+          tracks: [
+            {
+              id: "library-row-1",
+              title: "Track 1",
+              artist: "Artist",
+              album: "Album",
+              duration: null,
+              artworkUrl: null,
+            },
+          ],
+          context: { type: "album", albumId: "album-1" },
+          startIndex: 0,
+        }),
+      ),
+    );
+
+    expect(result.status).toBe("playing");
+    expect(result.currentTrack?.id).toBe("ytmusic:remote-track-1");
+    expect(result.currentTrack?.streamUrl).toBe(
+      "/stream/ytmusic%3Aremote-track-1",
+    );
+    expect(QueueSingleton.getState().items[0]?.id).toBe(
+      "ytmusic:remote-track-1",
     );
   });
 });

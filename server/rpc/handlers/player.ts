@@ -23,7 +23,6 @@
  *   never overwrite the newly current track.
  */
 
-import { Effect, Queue as EffectQueue, Stream } from "effect";
 import type {
   ApiJumpToIndexInput,
   ApiPlayerState,
@@ -37,7 +36,12 @@ import type {
   ApiVolumeInput,
 } from "@shared/api/contracts/player.js";
 import { createLogger } from "@shared/logger.js";
-import { buildStreamUrl, resolveTrackSource } from "../../lib/ids.js";
+import { Effect, Queue as EffectQueue, Stream } from "effect";
+import {
+  buildStreamUrl,
+  resolveTrackForStream,
+  resolveTrackSource,
+} from "../../lib/ids.js";
 import { toPlayerStateView } from "../../lib/playerStateView.js";
 import type { PlayerState } from "../../services/player.js";
 import type { QueueTrack } from "../../services/queue.js";
@@ -80,9 +84,12 @@ export function serializePlayerState(state: PlayerState): ApiPlayerState {
 }
 
 async function attachSource(track: ApiPlayTrackInput): Promise<QueueTrack> {
-  const source = await resolveTrackSource(track.id);
+  const [source, id] = await Promise.all([
+    resolveTrackSource(track.id),
+    resolveTrackForStream(track.id),
+  ]);
   return {
-    id: track.id,
+    id,
     title: track.title,
     artist: track.artist,
     album: track.album,
