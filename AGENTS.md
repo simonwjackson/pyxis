@@ -85,7 +85,7 @@ Both use strict mode with `exactOptionalPropertyTypes` and `noUncheckedIndexedAc
 ```bash
 # ALWAYS run these FIRST when debugging (before reading any source code)
 tail -200 /home/simonwjackson/.local/state/pyxis/playback.log   # Player, queue, SSE, client-reported logs
-tail -200 /home/simonwjackson/.local/state/pyxis/server.log      # tRPC requests, startup, errors
+tail -200 /home/simonwjackson/.local/state/pyxis/server.log      # Effect RPC requests, startup, errors
 tail -200 /home/simonwjackson/.local/state/pyxis/stream.log      # Audio stream proxy, cache hits/misses
 tail -200 /home/simonwjackson/.local/state/pyxis/radio.log       # Radio station operations
 tail -200 /home/simonwjackson/.local/state/pyxis/web.log         # Vite dev server

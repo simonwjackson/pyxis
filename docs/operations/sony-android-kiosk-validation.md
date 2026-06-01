@@ -77,4 +77,4 @@ Run these before claiming full MediaSession support or relaxing kiosk policy:
 - LAN HTTP is trusted for this MVP and is not a secure transport posture.
 - iKKO support, server discovery, editable profiles, and offline sync are deferred.
 - Native media controls now use the guarded Android MediaSession bridge; Sony pass/fail evidence lives in `docs/operations/sony-android-mediasession-validation.md`.
-- The MediaSession bridge token protects only the new bridge endpoints. Existing web/tRPC LAN controls remain part of the current trusted-LAN MVP posture.
+- The MediaSession bridge token protects only the native bridge endpoints. Existing web/Effect RPC LAN controls remain part of the current trusted-LAN MVP posture.

@@ -10,6 +10,8 @@ verify_command: "just typecheck && just test"
 
 # refactor: Migrate Pyxis API runtime to Effect RPC
 
+> **Historical / superseded:** This staged strangler plan is superseded by `docs/plans/2026-05-25-003-refactor-effect-runtime-big-bang-plan.md` and is not the current Pyxis architecture. Current runtime docs live in `README.md`, `ARCHITECTURE.md`, `AGENTS.md`, and `CLAUDE.md`.
+
 ## Summary
 
 Migrate Pyxis from tRPC + React Query to the Lattice target runtime: Effect RPC, Effect Schema-first contracts, Effect services/layers, and Effect atom-driven React state. The migration includes the full dependency target now — React 19 + Effect v4 / atom-react — while preserving current product behavior through a staged strangler sequence that leaves playback, queue subscriptions, and audio streaming until parity is proven.

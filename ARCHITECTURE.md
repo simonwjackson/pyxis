@@ -23,6 +23,18 @@ Source Manager (src/sources/)
 Pandora JSON API v5         YouTube Music (yt-dlp)
 ```
 
+## Application Runtime
+
+Pyxis uses the Lattice runtime model end-to-end for application state and transport:
+
+- **Effect Schema** in `src/api/contracts/**` is the source of truth for wire payloads, responses, and typed public errors.
+- **Effect RPC** exposes the application API through the authoritative `PyxisRpc` group in `src/api/rpc.ts` and the `/rpc` HTTP endpoint.
+- **Effect services/layers** in `server/rpc/**` adapt server capabilities behind explicit dependency seams before handlers call business services.
+- **Effect atoms** and `PyxisRpcClient` drive web reads/writes; React components render domain-specific UI states rather than raw transport results.
+- **Plain HTTP remains intentional** for media bytes (`/stream/:compositeTrackId`), health, static assets, Vite middleware, and the Android media bridge.
+
+Stale `/trpc/*` requests are compatibility failures, not a live transport: they intentionally fail closed instead of falling through to app/static routes.
+
 ## Source Abstraction Layer (src/sources/)
 
 Unified interface for multiple music backends. Sources implement capability

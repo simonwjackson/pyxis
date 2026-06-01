@@ -59,6 +59,8 @@ The previous active migration plan assumed a production strangler period with `/
 
 ## Context & Research
 
+> **Historical research note:** this section preserves the pre-cutover inventory used to execute the migration. It describes the old tRPC/React Query surfaces that were being replaced, not the current runtime map. For current architecture, use `README.md`, `ARCHITECTURE.md`, `AGENTS.md`, and `CLAUDE.md`.
+
 ### Relevant Code and Patterns
 
 - `server/index.ts` owns HTTP routing for `OPTIONS`, `/healthz`, `/stream/*`, `/trpc`, static assets, and Vite fallback. The final cutover must remove `/trpc` without breaking `/stream`, `/healthz`, or dev fallback ordering.

@@ -196,7 +196,8 @@ When you just want music without decisions:
 ### Daemon Model
 
 Always-on NixOS service on a home server. Single process with:
-- tRPC API for all client interactions
+- Effect RPC API for application interactions, with Effect Schema as the wire-contract source of truth
+- Effect services/layers as the server dependency boundary for source, playback, queue, persistence, and session behavior
 - Audio stream proxy for all playback
 - Background enrichment worker
 - Listening history logger
@@ -239,7 +240,8 @@ Future sources are aspirational stubs -- the architecture supports them, but the
 
 ### UI Stack
 
-- React + TanStack Router + tRPC client
+- React + TanStack Router + Effect atoms + `PyxisRpcClient`
+- Effect atom state is adapted into domain UI states before rendering
 - Shadcn/Radix components with Tailwind tokens (migration from current ad-hoc components)
 - Responsive design: mobile-first, works on all screen sizes
 - Progressive disclosure throughout -- no data dumps

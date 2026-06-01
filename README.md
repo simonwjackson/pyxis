@@ -8,8 +8,9 @@ Music streaming daemon with a web frontend, supporting Pandora and YouTube Music
 ## Architecture
 
 Single Bun server with embedded web development mode:
-- **Backend server** (`bun run dev`) — tRPC API, audio stream proxy, and Vite middleware in development on port 8765
+- **Backend server** (`bun run dev`) — Effect RPC API at `/rpc`, plain HTTP audio stream proxy at `/stream/:compositeTrackId`, and Vite middleware in development on port 8765
 - **Production web frontend** (`bun run build:web`) — React/Vite build served by the Bun server from `dist-web/`
+- **Application runtime** — Effect Schema wire contracts in `src/api/contracts/**`, the authoritative RPC group in `src/api/rpc.ts`, Effect service/layer wiring in `server/rpc/**`, and web state through Effect atoms + `PyxisRpcClient`
 
 ## Configuration
 

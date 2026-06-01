@@ -7,7 +7,7 @@
 ## Key Code
 N/A: shallow strategy/layout scan only; no code entrypoint read.
 ## Architecture
-TypeScript/Bun daemon + React/Vite/TanStack Router web UI; tRPC API, stream proxy, WebSocket support.
+TypeScript/Bun daemon + React/Vite/TanStack Router web UI; Effect RPC API, Effect atoms, stream proxy, WebSocket support.
 Source layer normalizes backends; current core sources Pandora + YTMusic, broader source stubs/ambitions in docs.
 Top-level layout: `server/`, `src/web/`, `src/sources/`, `src/db/`, `android/`, `docs/`, `nix/`, `plugins/`, `openspec/`, `public/`.
 Android is debug-only native WebView kiosk shell for Sony NW-A306, currently pointed at local Pyxis server.
