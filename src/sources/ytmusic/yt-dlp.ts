@@ -59,9 +59,16 @@ type YtDlpPlaylistInfo = {
   readonly entries: readonly YtDlpPlaylistEntry[];
 };
 
+const AUDIO_ONLY_FORMAT = "bestaudio";
+const PLAYABLE_AUDIO_FORMAT = "bestaudio/best[acodec!=none]";
+
+function ytDlpBinary(): string {
+  return process.env.PYXIS_YT_DLP_BIN ?? "yt-dlp";
+}
+
 function runYtDlp(args: readonly string[]): Promise<string> {
   return new Promise((resolve, reject) => {
-    const proc = spawn("yt-dlp", args, {
+    const proc = spawn(ytDlpBinary(), args, {
       stdio: ["ignore", "pipe", "pipe"],
     });
     let stdout = "";
@@ -85,6 +92,23 @@ function runYtDlp(args: readonly string[]): Promise<string> {
     });
     proc.on("error", reject);
   });
+}
+
+function isUnavailableFormatError(cause: unknown): boolean {
+  return (
+    cause instanceof Error &&
+    cause.message.includes("Requested format is not available")
+  );
+}
+
+async function getStreamableAudioUrl(url: string): Promise<string> {
+  const baseArgs = ["--get-url", "--no-playlist", url] as const;
+  try {
+    return await runYtDlp(["--format", AUDIO_ONLY_FORMAT, ...baseArgs]);
+  } catch (cause) {
+    if (!isUnavailableFormatError(cause)) throw cause;
+    return runYtDlp(["--format", PLAYABLE_AUDIO_FORMAT, ...baseArgs]);
+  }
 }
 
 /**
@@ -156,14 +180,7 @@ export async function getVideoInfo(videoId: string): Promise<YtDlpVideoInfo> {
  * @throws Error if yt-dlp fails or video is unavailable
  */
 export async function getAudioUrl(videoId: string): Promise<string> {
-  const output = await runYtDlp([
-    "--format",
-    "bestaudio",
-    "--get-url",
-    "--no-playlist",
-    `https://music.youtube.com/watch?v=${videoId}`,
-  ]);
-  return output;
+  return getStreamableAudioUrl(`https://music.youtube.com/watch?v=${videoId}`);
 }
 
 /**
@@ -176,14 +193,7 @@ export async function getAudioUrl(videoId: string): Promise<string> {
  * @throws Error if yt-dlp fails or video is unavailable
  */
 export async function getYouTubeAudioUrl(videoId: string): Promise<string> {
-  const output = await runYtDlp([
-    "--format",
-    "bestaudio",
-    "--get-url",
-    "--no-playlist",
-    `https://www.youtube.com/watch?v=${videoId}`,
-  ]);
-  return output;
+  return getStreamableAudioUrl(`https://www.youtube.com/watch?v=${videoId}`);
 }
 
 /**
