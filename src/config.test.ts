@@ -30,6 +30,8 @@ describe("ConfigSchema", () => {
       expect(config.web.allowedHosts).toEqual([]);
       expect(config.androidBridge.enabled).toBe(false);
       expect(config.androidBridge.token).toBeUndefined();
+      expect(config.library.albumRelationship.hot.windowDays).toBe(30);
+      expect(config.library.albumRelationship.hot.minRecentListens).toBe(3);
     });
 
     it("preserves custom values when provided", () => {
@@ -47,6 +49,11 @@ describe("ConfigSchema", () => {
         },
         log: { level: "debug" },
         androidBridge: { enabled: true, token: "bridge-secret" },
+        library: {
+          albumRelationship: {
+            hot: { windowDays: 14, minRecentListens: 5 },
+          },
+        },
       });
 
       expect(config.server.port).toBe(9000);
@@ -61,6 +68,8 @@ describe("ConfigSchema", () => {
       expect(config.log.level).toBe("debug");
       expect(config.androidBridge.enabled).toBe(true);
       expect(config.androidBridge.token).toBe("bridge-secret");
+      expect(config.library.albumRelationship.hot.windowDays).toBe(14);
+      expect(config.library.albumRelationship.hot.minRecentListens).toBe(5);
     });
   });
 
@@ -134,6 +143,16 @@ describe("ConfigSchema", () => {
       ).toThrow();
       expect(() =>
         decodeConfig({ upgrade: { storage: { maxCapacityMB: 0 } } }),
+      ).toThrow();
+      expect(() =>
+        decodeConfig({
+          library: { albumRelationship: { hot: { windowDays: 0 } } },
+        }),
+      ).toThrow();
+      expect(() =>
+        decodeConfig({
+          library: { albumRelationship: { hot: { minRecentListens: 0 } } },
+        }),
       ).toThrow();
     });
 

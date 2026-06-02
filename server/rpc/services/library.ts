@@ -6,12 +6,16 @@
  * identical for the cutover.
  */
 
-import { Context, Effect, Layer } from "effect";
 import type { AlbumPlacement } from "@shared/db/config.js";
 import { type DbInstance, getDb } from "@shared/db/index.js";
 import { createLogger } from "@shared/logger.js";
 import type { SourceManager } from "@shared/sources/index.js";
+import { Context, Effect, Layer } from "effect";
 import { parseId } from "../../lib/ids.js";
+import {
+  type AlbumRelationshipPolicy,
+  getConfiguredAlbumRelationshipPolicy,
+} from "../../services/albumRelationshipPolicy.js";
 import {
   getLibraryAlbum,
   type LibraryAlbumView,
@@ -38,6 +42,7 @@ export type ListLibraryAlbumsOptions = {
   readonly includeDismissed?: boolean | undefined;
   readonly hotOnly?: boolean | undefined;
   readonly now?: number | undefined;
+  readonly policy?: AlbumRelationshipPolicy | undefined;
 };
 
 /**
@@ -84,6 +89,8 @@ export type LibraryBehavior = {
   readonly now?: () => number;
   /** Optional id factory for created albums. */
   readonly createId?: () => string;
+  /** Optional policy override for placement + Hot read-model behavior. */
+  readonly policy?: AlbumRelationshipPolicy | (() => AlbumRelationshipPolicy);
 };
 
 function resolveDb(
@@ -101,6 +108,12 @@ function resolveDb(
   return Effect.succeed(db);
 }
 
+function resolvePolicy(
+  policy: AlbumRelationshipPolicy | (() => AlbumRelationshipPolicy) | undefined,
+): AlbumRelationshipPolicy | undefined {
+  return typeof policy === "function" ? policy() : policy;
+}
+
 function makeShape(behavior: LibraryBehavior): LibraryShape {
   const now = behavior.now;
   const createId = behavior.createId;
@@ -108,10 +121,14 @@ function makeShape(behavior: LibraryBehavior): LibraryShape {
   const list: LibraryShape["list"] = (options) =>
     Effect.gen(function* () {
       const db = yield* resolveDb(behavior.db);
+      const policy = resolvePolicy(behavior.policy);
       const merged: ListLibraryAlbumsOptions = {
         ...(options ?? {}),
         ...(now !== undefined && options?.now === undefined
           ? { now: now() }
+          : {}),
+        ...(policy !== undefined && options?.policy === undefined
+          ? { policy }
           : {}),
       };
       return yield* Effect.tryPromise({
@@ -131,7 +148,11 @@ function makeShape(behavior: LibraryBehavior): LibraryShape {
         );
       }
       const db = yield* resolveDb(behavior.db);
-      const options = now !== undefined ? { now: now() } : undefined;
+      const policy = resolvePolicy(behavior.policy);
+      const options = {
+        ...(now !== undefined ? { now: now() } : {}),
+        ...(policy !== undefined ? { policy } : {}),
+      };
       return yield* Effect.tryPromise({
         try: () => getLibraryAlbum(db, albumId, options),
         catch: (cause) => {
@@ -144,7 +165,11 @@ function makeShape(behavior: LibraryBehavior): LibraryShape {
   const resolveStates: LibraryShape["resolveStates"] = (sourceIds) =>
     Effect.gen(function* () {
       const db = yield* resolveDb(behavior.db);
-      const options = now !== undefined ? { now: now() } : undefined;
+      const policy = resolvePolicy(behavior.policy);
+      const options = {
+        ...(now !== undefined ? { now: now() } : {}),
+        ...(policy !== undefined ? { policy } : {}),
+      };
       return yield* Effect.tryPromise({
         try: () => resolveAlbumStatesForSourceIds(db, sourceIds, options),
         catch: (cause) => {
@@ -168,11 +193,14 @@ function makeShape(behavior: LibraryBehavior): LibraryShape {
         );
       }
       const db = yield* resolveDb(behavior.db);
+      const policy = resolvePolicy(behavior.policy);
       const options: {
         readonly now?: number | undefined;
+        readonly policy?: AlbumRelationshipPolicy | undefined;
         readonly createId?: (() => string) | undefined;
       } = {
         ...(now !== undefined ? { now: now() } : {}),
+        ...(policy !== undefined ? { policy } : {}),
         ...(createId !== undefined ? { createId } : {}),
       };
       const result = yield* Effect.tryPromise({
@@ -218,7 +246,11 @@ function makeShape(behavior: LibraryBehavior): LibraryShape {
         );
       }
       const db = yield* resolveDb(behavior.db);
-      const options = now !== undefined ? { now: now() } : undefined;
+      const policy = resolvePolicy(behavior.policy);
+      const options = {
+        ...(now !== undefined ? { now: now() } : {}),
+        ...(policy !== undefined ? { policy } : {}),
+      };
       const updated = yield* Effect.tryPromise({
         try: () => setAlbumPlacement(db, albumId, placement, options),
         catch: (cause) => {
@@ -259,5 +291,8 @@ export function LibraryLayerFromBehavior(
 
 /** Live Library layer backed by the application database. */
 export const LibraryLayerLive: Layer.Layer<Library> = Layer.sync(Library)(() =>
-  makeShape({ db: () => getDb() }),
+  makeShape({
+    db: () => getDb(),
+    policy: getConfiguredAlbumRelationshipPolicy,
+  }),
 );

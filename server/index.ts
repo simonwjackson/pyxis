@@ -29,6 +29,7 @@ import { handleViteRequest } from "./http/vite.js";
 import { createAndroidMediaBridge } from "./lib/androidMediaBridge.js";
 import { resolveTrackForStream } from "./lib/ids.js";
 import { handleRpcRequest } from "./rpc/http.js";
+import { setConfiguredAlbumRelationshipPolicy } from "./services/albumRelationshipPolicy.js";
 import { tryAutoLogin } from "./services/autoLogin.js";
 import { setCredentialsConfig } from "./services/credentials.js";
 import { ensureSourceManager, setAppConfig } from "./services/sourceManager.js";
@@ -40,6 +41,7 @@ const configPath =
 const config = resolveConfig(configPath);
 setAppConfig(config);
 setCredentialsConfig(config);
+setConfiguredAlbumRelationshipPolicy(config);
 
 const serverLogger = createLogger("server");
 const streamLog = serverLogger.child({ component: "stream" });

@@ -3,19 +3,22 @@
  * Placement-aware library album service.
  */
 
-import { Effect } from "effect";
 import type { AlbumPlacement } from "@shared/db/config.js";
 import type { DbInstance } from "@shared/db/index.js";
 import type { SourceManager } from "@shared/sources/index.js";
 import type { SourceType } from "@shared/sources/types.js";
+import { Effect } from "effect";
 import { formatSourceId, generateId, parseId } from "../lib/ids.js";
-import { getHotAlbumMap, type HotAlbumState } from "./hotAlbums.js";
 import {
+  type AlbumRelationshipPolicy,
   setPlacement as buildPlacementUpdate,
   createInitialPlacement,
+  getHotAlbumMap,
+  type HotAlbumState,
+  resolveAlbumRelationshipPolicy,
   resolveListPlacements,
   restorePlacement,
-} from "./libraryPlacement.js";
+} from "./albumRelationshipPolicy.js";
 
 export type LibraryAlbumView = {
   readonly id: string;
@@ -75,14 +78,19 @@ function withHotDefaults(
 
 async function loadAlbumsWithRefs(
   db: DbInstance,
-  options?: { readonly now?: number | undefined },
+  options?: {
+    readonly now?: number | undefined;
+    readonly policy?: AlbumRelationshipPolicy | undefined;
+  },
 ): Promise<{
   readonly albums: readonly AlbumRecord[];
   readonly refsByAlbumId: Map<string, string[]>;
   readonly hotMap: Map<string, HotAlbumState>;
 }> {
-  const hotOptions =
-    options?.now !== undefined ? { now: options.now } : undefined;
+  const hotOptions = {
+    ...(options?.now !== undefined ? { now: options.now } : {}),
+    ...(options?.policy !== undefined ? { policy: options.policy } : {}),
+  };
   const [albumsRaw, refsRaw, hotMap] = await Promise.all([
     db.albums.query({}).runPromise,
     db.albumSourceRefs.query({}).runPromise,
@@ -131,9 +139,11 @@ export async function listLibraryAlbums(
     readonly includeDismissed?: boolean | undefined;
     readonly hotOnly?: boolean | undefined;
     readonly now?: number | undefined;
+    readonly policy?: AlbumRelationshipPolicy | undefined;
   },
 ): Promise<readonly LibraryAlbumView[]> {
-  const placements = new Set(resolveListPlacements(options));
+  const policy = resolveAlbumRelationshipPolicy(options?.policy);
+  const placements = new Set(resolveListPlacements(policy, options));
   const { albums, refsByAlbumId, hotMap } = await loadAlbumsWithRefs(
     db,
     options,
@@ -159,7 +169,10 @@ export async function listLibraryAlbums(
 export async function getLibraryAlbum(
   db: DbInstance,
   albumId: string,
-  options?: { readonly now?: number | undefined },
+  options?: {
+    readonly now?: number | undefined;
+    readonly policy?: AlbumRelationshipPolicy | undefined;
+  },
 ): Promise<LibraryAlbumView | null> {
   const { albums, refsByAlbumId, hotMap } = await loadAlbumsWithRefs(
     db,
@@ -173,12 +186,17 @@ export async function getLibraryAlbum(
 export async function resolveAlbumStatesForSourceIds(
   db: DbInstance,
   sourceIds: readonly string[],
-  options?: { readonly now?: number | undefined },
+  options?: {
+    readonly now?: number | undefined;
+    readonly policy?: AlbumRelationshipPolicy | undefined;
+  },
 ): Promise<readonly ResolvedAlbumState[]> {
   if (sourceIds.length === 0) return [];
 
-  const hotOptions =
-    options?.now !== undefined ? { now: options.now } : undefined;
+  const hotOptions = {
+    ...(options?.now !== undefined ? { now: options.now } : {}),
+    ...(options?.policy !== undefined ? { policy: options.policy } : {}),
+  };
   const [albumsRaw, refsRaw, hotMap] = await Promise.all([
     db.albums.query({}).runPromise,
     db.albumSourceRefs.query({}).runPromise,
@@ -218,12 +236,18 @@ export async function setAlbumPlacement(
   db: DbInstance,
   albumId: string,
   placement: AlbumPlacement,
-  options?: { readonly now?: number | undefined },
+  options?: {
+    readonly now?: number | undefined;
+    readonly policy?: AlbumRelationshipPolicy | undefined;
+  },
 ): Promise<LibraryAlbumView> {
   const now = options?.now ?? Date.now();
   await db.albums.update(albumId, buildPlacementUpdate(placement, now))
     .runPromise;
-  const updated = await getLibraryAlbum(db, albumId, { now });
+  const updated = await getLibraryAlbum(db, albumId, {
+    now,
+    ...(options?.policy !== undefined ? { policy: options.policy } : {}),
+  });
   if (!updated) {
     throw new Error(`Album not found: ${albumId}`);
   }
@@ -236,6 +260,7 @@ export async function saveAlbumToLibrary(
   sourceAlbumId: string,
   options?: {
     readonly now?: number | undefined;
+    readonly policy?: AlbumRelationshipPolicy | undefined;
     readonly createId?: (() => string) | undefined;
   },
 ): Promise<{
@@ -251,6 +276,7 @@ export async function saveAlbumToLibrary(
   }
 
   const now = options?.now ?? Date.now();
+  const policy = resolveAlbumRelationshipPolicy(options?.policy);
   const createId = options?.createId ?? generateId;
   const source = parsed.source;
   const sourceId = parsed.id;
@@ -268,12 +294,12 @@ export async function saveAlbumToLibrary(
       );
     }
     if (existingAlbum.placement === "dismissed") {
-      await db.albums.update(existingAlbum.id, restorePlacement(now))
+      await db.albums.update(existingAlbum.id, restorePlacement(policy, now))
         .runPromise;
       return {
         id: existingAlbum.id,
         outcome: "restored",
-        placement: "discovery",
+        placement: policy.placement.restoreFromDismissed,
       };
     }
     return {
@@ -288,7 +314,7 @@ export async function saveAlbumToLibrary(
     sourceId,
   );
   const newAlbumId = createId();
-  const initialPlacement = createInitialPlacement(now);
+  const initialPlacement = createInitialPlacement(policy, now);
 
   await Effect.runPromise(
     db.$transaction((tx) =>
@@ -336,6 +362,6 @@ export async function saveAlbumToLibrary(
   return {
     id: newAlbumId,
     outcome: "created",
-    placement: "discovery",
+    placement: policy.placement.initial,
   };
 }

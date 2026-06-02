@@ -35,6 +35,14 @@ sources:
     username: user@example.com
     # password via PYXIS_PANDORA_PASSWORD env var only
 
+library:
+  albumRelationship:
+    hot:
+      # Albums become Hot after this many listens inside the window.
+      minRecentListens: 3
+      # Recent-listen window used by library.hotAlbums and album state resolution.
+      windowDays: 30
+
 log:
   level: info    # trace | debug | info | warn | error | fatal
 ```

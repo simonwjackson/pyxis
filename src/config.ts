@@ -112,15 +112,29 @@ const AndroidBridgeSchema = Schema.Struct({
   token: optionalString,
 });
 
+const AlbumRelationshipHotSchema = Schema.Struct({
+  windowDays: withDefault(positiveNumber, 30),
+  minRecentListens: withDefault(positiveInteger, 3),
+});
+
+const AlbumRelationshipSchema = Schema.Struct({
+  hot: withDefault(AlbumRelationshipHotSchema, {}),
+});
+
+const LibrarySchema = Schema.Struct({
+  albumRelationship: withDefault(AlbumRelationshipSchema, {}),
+});
+
 /**
  * Effect Schema for the complete application configuration.
- * Validates and provides defaults for server, web, sources, upgrade, Android bridge, and log settings.
+ * Validates and provides defaults for server, web, sources, upgrade, Android bridge, library policy, and log settings.
  */
 export const ConfigSchema = Schema.Struct({
   server: withDefault(ServerSchema, {}),
   web: withDefault(WebSchema, {}),
   sources: withDefault(SourcesSchema, {}),
   upgrade: withDefault(UpgradeSchema, {}),
+  library: withDefault(LibrarySchema, {}),
   log: withDefault(LogSchema, {}),
   androidBridge: withDefault(AndroidBridgeSchema, {}),
 });

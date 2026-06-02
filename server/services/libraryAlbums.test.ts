@@ -2,11 +2,15 @@ import { afterEach, describe, expect, it } from "bun:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { createNodeDatabase } from "@proseql/node";
-import { Effect, Exit, Scope } from "effect";
 import { dbConfig } from "@shared/db/config.js";
 import type { DbInstance } from "@shared/db/index.js";
+import { Effect, Exit, Scope } from "effect";
 import { formatSourceId } from "../lib/ids.js";
-import { getHotAlbumMap } from "./hotAlbums.js";
+import {
+  type AlbumRelationshipPolicy,
+  DEFAULT_ALBUM_RELATIONSHIP_POLICY,
+  getHotAlbumMap,
+} from "./albumRelationshipPolicy.js";
 import {
   listLibraryAlbums,
   resolveAlbumStatesForSourceIds,
@@ -75,6 +79,22 @@ async function createTestDb(): Promise<TestDb> {
 function createIdFactory(prefix: string) {
   let index = 0;
   return () => `${prefix}_${String(++index)}`;
+}
+
+function hotPolicy(input: {
+  readonly windowMs?: number;
+  readonly minRecentListens?: number;
+}): AlbumRelationshipPolicy {
+  return {
+    ...DEFAULT_ALBUM_RELATIONSHIP_POLICY,
+    hot: {
+      windowMs:
+        input.windowMs ?? DEFAULT_ALBUM_RELATIONSHIP_POLICY.hot.windowMs,
+      minRecentListens:
+        input.minRecentListens ??
+        DEFAULT_ALBUM_RELATIONSHIP_POLICY.hot.minRecentListens,
+    },
+  };
 }
 
 async function seedAlbum(
@@ -310,6 +330,137 @@ describe("placement-aware listing", () => {
 });
 
 describe("resolveAlbumStatesForSourceIds and hot albums", () => {
+  it("uses configurable Hot listen thresholds from the relationship policy", async () => {
+    const { db, cleanup } = await createTestDb();
+    try {
+      await seedAlbum(db, {
+        albumId: "album_policy_hot",
+        source: "ytmusic",
+        sourceAlbumId: "policy_album_source",
+        sourceTrackId: "policy_track_source",
+        placement: "collection",
+        placementUpdatedAt: 10,
+      });
+      await seedListen(db, {
+        id: "listen_1",
+        source: "ytmusic",
+        sourceTrackId: "policy_track_source",
+        listenedAt: 1_000,
+      });
+      await seedListen(db, {
+        id: "listen_2",
+        source: "ytmusic",
+        sourceTrackId: "policy_track_source",
+        listenedAt: 2_000,
+      });
+
+      const defaultHotMap = await getHotAlbumMap(db, { now: 3_000 });
+      expect(defaultHotMap.get("album_policy_hot")?.isHot).toBe(false);
+
+      const relaxedPolicy = hotPolicy({ minRecentListens: 2 });
+      const configuredHotMap = await getHotAlbumMap(db, {
+        now: 3_000,
+        policy: relaxedPolicy,
+      });
+      expect(configuredHotMap.get("album_policy_hot")).toMatchObject({
+        isHot: true,
+        hotRank: 1,
+        recentListenCount: 2,
+      });
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it("uses configurable Hot windows for library list and state resolution", async () => {
+    const { db, cleanup } = await createTestDb();
+    try {
+      await seedAlbum(db, {
+        albumId: "album_window_hot",
+        source: "ytmusic",
+        sourceAlbumId: "window_album_source",
+        sourceTrackId: "window_track_source",
+        placement: "collection",
+        placementUpdatedAt: 10,
+      });
+      await seedListen(db, {
+        id: "old_listen_1",
+        source: "ytmusic",
+        sourceTrackId: "window_track_source",
+        listenedAt: 1_000,
+      });
+      await seedListen(db, {
+        id: "old_listen_2",
+        source: "ytmusic",
+        sourceTrackId: "window_track_source",
+        listenedAt: 2_000,
+      });
+
+      const policy = hotPolicy({ windowMs: 500, minRecentListens: 2 });
+      const albums = await listLibraryAlbums(db, {
+        hotOnly: true,
+        now: 3_000,
+        policy,
+      });
+      const states = await resolveAlbumStatesForSourceIds(
+        db,
+        ["ytmusic:window_album_source"],
+        { now: 3_000, policy },
+      );
+
+      expect(albums).toEqual([]);
+      expect(states[0]).toMatchObject({
+        albumId: "album_window_hot",
+        isHot: false,
+        hotRank: null,
+        recentListenCount: 0,
+      });
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it("keeps dismissed Hot albums out of the default Hot shelf while resolving their state", async () => {
+    const { db, cleanup } = await createTestDb();
+    try {
+      await seedAlbum(db, {
+        albumId: "dismissed_hot",
+        source: "ytmusic",
+        sourceAlbumId: "dismissed_hot_source",
+        sourceTrackId: "dismissed_hot_track",
+        placement: "dismissed",
+        placementUpdatedAt: 10,
+      });
+      for (const id of ["listen_1", "listen_2", "listen_3"]) {
+        await seedListen(db, {
+          id,
+          source: "ytmusic",
+          sourceTrackId: "dismissed_hot_track",
+          listenedAt: 1_000,
+        });
+      }
+
+      const hotShelf = await listLibraryAlbums(db, {
+        hotOnly: true,
+        now: 2_000,
+      });
+      const states = await resolveAlbumStatesForSourceIds(
+        db,
+        ["ytmusic:dismissed_hot_source"],
+        { now: 2_000 },
+      );
+
+      expect(hotShelf.map((album) => album.id)).not.toContain("dismissed_hot");
+      expect(states[0]).toMatchObject({
+        albumId: "dismissed_hot",
+        placement: "dismissed",
+        isHot: true,
+      });
+    } finally {
+      await cleanup();
+    }
+  });
+
   it("maps listen history back to albums via source track ids", async () => {
     const { db, cleanup } = await createTestDb();
     try {
