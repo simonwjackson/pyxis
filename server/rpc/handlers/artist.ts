@@ -7,11 +7,11 @@
  * track search results.
  */
 
-import { Effect } from "effect";
 import type {
   ApiArtistIdInput,
   ApiArtistSearchInput,
 } from "@shared/api/contracts/artist.js";
+import { Effect } from "effect";
 import { formatSourceId, parseId } from "../../lib/ids.js";
 import { publicHandler } from "../handler.js";
 import type { SourceCatalogShape } from "../services/sourceCatalog.js";
@@ -34,8 +34,7 @@ export const artistHandlers = (deps: ArtistHandlerDeps) => ({
   "artist.search.run": (payload: ApiArtistSearchInput) =>
     publicHandler(
       Effect.gen(function* () {
-        const manager = yield* deps.catalog.resolveManager;
-        const results = yield* deps.catalog.searchAll(manager, payload.query);
+        const results = yield* deps.catalog.searchAll(payload.query);
         const seen = new Set<string>();
         const artists = results.tracks
           .filter((t) => {

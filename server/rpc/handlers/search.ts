@@ -10,7 +10,6 @@
  *   logged-out users still receive cross-source tracks/albums.
  */
 
-import { Effect } from "effect";
 import type {
   ApiPandoraSearchInput,
   ApiSearchInput,
@@ -20,10 +19,8 @@ import type {
   SearchArtist,
   SearchGenreStation,
 } from "@shared/sources/pandora/types/api.js";
-import type {
-  CanonicalAlbum,
-  CanonicalTrack,
-} from "@shared/sources/types.js";
+import type { CanonicalAlbum, CanonicalTrack } from "@shared/sources/types.js";
+import { Effect } from "effect";
 import { formatSourceId, trackCapabilities } from "../../lib/ids.js";
 import { publicHandler } from "../handler.js";
 import type { AuthSessionShape } from "../services/authSession.js";
@@ -76,8 +73,7 @@ export const searchHandlers = (deps: SearchHandlerDeps) => ({
   "search.unified.run": (payload: ApiSearchInput) =>
     publicHandler(
       Effect.gen(function* () {
-        const manager = yield* deps.catalog.resolveManager;
-        const results = yield* deps.catalog.searchAll(manager, payload.query);
+        const results = yield* deps.catalog.searchAll(payload.query);
 
         let pandoraArtists: readonly SearchArtist[] = [];
         let pandoraGenres: readonly SearchGenreStation[] = [];

@@ -40,6 +40,22 @@ Stale `/trpc/*` requests are compatibility failures, not a live transport: they 
 Unified interface for multiple music backends. Sources implement capability
 interfaces: `SearchCapability`, `PlaylistCapability`, `StreamCapability`, `AlbumCapability`.
 
+### SourceCatalog RPC seam (server/rpc/services/sourceCatalog.ts)
+
+`SourceCatalog` is the RPC-facing source contract seam. RPC handlers pass Pyxis/domain ids such as `ytmusic:album_1`, `ytmusic:playlist_1`, or library track nanoids; they do not resolve `SourceManager` instances or split source-prefixed ids for search, album, playlist, track metadata, or stream URL operations.
+
+`SourceCatalog` owns:
+
+- resolving the active `SourceManager` for the request,
+- validating source-prefixed ids for album and playlist operations,
+- resolving opaque track ids to source capabilities for metadata and public `/stream/` URLs,
+- checking source capabilities before invoking provider adapters,
+- mapping source/provider failures into typed public RPC errors.
+
+Raw source adapters in `src/sources/**` stay provider-specific. They expose canonical tracks, albums, playlists, and capability methods; they should not know about RPC wire errors, `/stream/` URL construction, or library/domain id validation.
+
+A narrow transitional exception remains for library album save: the `Library` service still accepts a `getAlbumTracks`-capable manager while the library persistence seam is deepened.
+
 ### Pandora Source (src/sources/pandora/)
 
 Self-contained Pandora client library:

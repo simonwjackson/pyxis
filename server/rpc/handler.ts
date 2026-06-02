@@ -10,10 +10,10 @@
  * tests that only exercise the non-realtime endpoint families.
  */
 
-import { Effect, Layer } from "effect";
 import type { ApiPublicError } from "@shared/api/contracts/common.js";
 import { PyxisRpc } from "@shared/api/rpc.js";
 import { createLogger } from "@shared/logger.js";
+import { Effect, Layer } from "effect";
 import {
   internalDefect,
   type PublicError,
@@ -155,7 +155,7 @@ export const NonRealtimeRpcHandlersLayer = NonRealtimeRpc.toLayer(
       ...searchHandlers({ auth, catalog }),
       ...radioHandlers({ auth }),
       ...playlistHandlers({ auth, catalog }),
-      ...trackHandlers({ auth }),
+      ...trackHandlers({ auth, catalog }),
       ...listenLogHandlers(),
       ...logHandlers(),
     };
@@ -183,7 +183,7 @@ export const PyxisRpcHandlersLayer = PyxisRpc.toLayer(
       ...searchHandlers({ auth, catalog }),
       ...radioHandlers({ auth }),
       ...playlistHandlers({ auth, catalog }),
-      ...trackHandlers({ auth }),
+      ...trackHandlers({ auth, catalog }),
       ...listenLogHandlers(),
       ...logHandlers(),
       ...playerHandlers({ player, queue }),

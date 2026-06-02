@@ -3,21 +3,18 @@
  * Effect RPC handlers for the `album.*` family. Preserves the deep
  * `getAlbumTracks` workflow from `server/routers/album.ts`:
  *
- * - `album.get` and `album.tracks.list` reuse `SourceManager.getAlbumTracks`
- *   so the per-source upstream call remains a single round trip.
+ * - `album.get` and `album.tracks.list` pass source-prefixed album ids to
+ *   SourceCatalog so manager resolution, source validation, capability checks,
+ *   and upstream error mapping stay behind the source seam.
  * - `album.withTracks.get` keeps the batched album-with-tracks shape that
  *   `docs/solutions/feature-patterns/2026-02-10-album-browsing-without-save.md`
  *   requires; splitting it would duplicate the upstream work.
  */
 
-import { Effect } from "effect";
 import type { ApiSourceAlbumIdInput } from "@shared/api/contracts/album.js";
-import type {
-  CanonicalAlbum,
-  CanonicalTrack,
-} from "@shared/sources/types.js";
-import { formatSourceId, parseId, trackCapabilities } from "../../lib/ids.js";
-import { ValidationError } from "../errors.js";
+import type { CanonicalAlbum, CanonicalTrack } from "@shared/sources/types.js";
+import { Effect } from "effect";
+import { formatSourceId, trackCapabilities } from "../../lib/ids.js";
 import { publicHandler } from "../handler.js";
 import type { SourceCatalogShape } from "../services/sourceCatalog.js";
 
@@ -52,21 +49,7 @@ export const albumHandlers = (deps: AlbumHandlerDeps) => ({
   "album.metadata.get": (payload: ApiSourceAlbumIdInput) =>
     publicHandler(
       Effect.gen(function* () {
-        const parsed = parseId(payload.id);
-        if (!parsed.source) {
-          return yield* Effect.fail(
-            new ValidationError({
-              code: "album_id_requires_source_prefix",
-              field: "id",
-            }),
-          );
-        }
-        const manager = yield* deps.catalog.resolveManager;
-        const { album } = yield* deps.catalog.getAlbumTracks(
-          manager,
-          parsed.source,
-          parsed.id,
-        );
+        const { album } = yield* deps.catalog.getAlbumTracks(payload.id);
         return encodeAlbumHeader({ id: payload.id, album });
       }),
     ),
@@ -74,21 +57,7 @@ export const albumHandlers = (deps: AlbumHandlerDeps) => ({
   "album.tracks.list": (payload: ApiSourceAlbumIdInput) =>
     publicHandler(
       Effect.gen(function* () {
-        const parsed = parseId(payload.id);
-        if (!parsed.source) {
-          return yield* Effect.fail(
-            new ValidationError({
-              code: "album_id_requires_source_prefix",
-              field: "id",
-            }),
-          );
-        }
-        const manager = yield* deps.catalog.resolveManager;
-        const { tracks } = yield* deps.catalog.getAlbumTracks(
-          manager,
-          parsed.source,
-          parsed.id,
-        );
+        const { tracks } = yield* deps.catalog.getAlbumTracks(payload.id);
         return tracks.map(encodeAlbumTrack);
       }),
     ),
@@ -96,20 +65,8 @@ export const albumHandlers = (deps: AlbumHandlerDeps) => ({
   "album.withTracks.get": (payload: ApiSourceAlbumIdInput) =>
     publicHandler(
       Effect.gen(function* () {
-        const parsed = parseId(payload.id);
-        if (!parsed.source) {
-          return yield* Effect.fail(
-            new ValidationError({
-              code: "album_id_requires_source_prefix",
-              field: "id",
-            }),
-          );
-        }
-        const manager = yield* deps.catalog.resolveManager;
         const { album, tracks } = yield* deps.catalog.getAlbumTracks(
-          manager,
-          parsed.source,
-          parsed.id,
+          payload.id,
         );
         return {
           album: encodeAlbumHeader({ id: payload.id, album }),

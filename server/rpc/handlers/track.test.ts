@@ -1,20 +1,18 @@
-/**
+/*
  * @module server/rpc/handlers/track tests
  * Behavior tests for the parts of the `track.*` family that do not require
- * Pandora upstream calls. The unauthenticated surfaces are:
+ * Pandora upstream calls. The unauthenticated surfaces delegate source/id
+ * validation to SourceCatalog:
  *
- * - `track.metadata.get` reports source-derived capabilities,
- * - `track.streamUrl.get` builds a `/stream/` URL with optional `next=`
- *   prefetch hints and never returns a non-`/stream/` URL.
- *
- * The Pandora-authenticated surfaces (`feedback`, `sleep`, `explain`) are
- * covered by the AuthSession service tests and existing router suites; this
- * file focuses on the pure-encoding handlers that have no Pandora call.
+ * - `track.metadata.get` reports catalog-derived capabilities,
+ * - `track.streamUrl.get` returns the catalog-built `/stream/` URL with
+ *   optional `next=` prefetch hints.
  */
 
 import { describe, expect, it } from "bun:test";
 import { Effect } from "effect";
 import type { AuthSessionShape } from "../services/authSession.js";
+import type { SourceCatalogShape } from "../services/sourceCatalog.js";
 import { trackHandlers } from "./track.js";
 
 const auth: AuthSessionShape = {
@@ -25,9 +23,31 @@ const auth: AuthSessionShape = {
   withAuthRetry: () => Effect.fail({} as never),
 };
 
+const catalog: SourceCatalogShape = {
+  listPlaylists: () => Effect.succeed([] as never),
+  getPlaylistTracks: () => Effect.succeed([] as never),
+  searchAll: () => Effect.succeed({ tracks: [], albums: [] } as never),
+  getAlbumTracks: () => Effect.fail({} as never),
+  getStreamUrl: (id, nextId) =>
+    Effect.succeed(
+      nextId
+        ? `/stream/${encodeURIComponent(id)}?next=${encodeURIComponent(nextId)}`
+        : `/stream/${encodeURIComponent(id)}`,
+    ),
+  getTrackCapabilities: (id) =>
+    Effect.succeed({
+      feedback: id.startsWith("pandora:"),
+      sleep: id.startsWith("pandora:"),
+      bookmark: id.startsWith("pandora:"),
+      explain: id.startsWith("pandora:"),
+      radio: true,
+    }),
+  resolveManager: Effect.succeed({} as never),
+};
+
 describe("track handlers", () => {
   it("track.metadata.get returns Pandora-only capability flags for pandora-prefixed ids", async () => {
-    const handlers = trackHandlers({ auth });
+    const handlers = trackHandlers({ auth, catalog });
     const result = await Effect.runPromise(
       handlers["track.metadata.get"]({ id: "pandora:abc" }),
     );
@@ -44,7 +64,7 @@ describe("track handlers", () => {
   });
 
   it("track.metadata.get reports non-Pandora capabilities for ytmusic ids", async () => {
-    const handlers = trackHandlers({ auth });
+    const handlers = trackHandlers({ auth, catalog });
     const result = await Effect.runPromise(
       handlers["track.metadata.get"]({ id: "ytmusic:abc" }),
     );
@@ -53,7 +73,7 @@ describe("track handlers", () => {
   });
 
   it("track.streamUrl.get returns a /stream/-rooted URL with the encoded id", async () => {
-    const handlers = trackHandlers({ auth });
+    const handlers = trackHandlers({ auth, catalog });
     const result = await Effect.runPromise(
       handlers["track.streamUrl.get"]({ id: "ytmusic:abc" }),
     );
@@ -61,7 +81,7 @@ describe("track handlers", () => {
   });
 
   it("track.streamUrl.get includes the next-track prefetch hint when supplied", async () => {
-    const handlers = trackHandlers({ auth });
+    const handlers = trackHandlers({ auth, catalog });
     const result = await Effect.runPromise(
       handlers["track.streamUrl.get"]({
         id: "ytmusic:abc",
@@ -73,6 +93,7 @@ describe("track handlers", () => {
 
   it("track.explanation.get maps Pandora focus-trait fields to the public contract", async () => {
     const handlers = trackHandlers({
+      catalog,
       auth: {
         ...auth,
         withAuthRetry: () =>

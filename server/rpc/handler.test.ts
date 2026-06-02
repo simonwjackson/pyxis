@@ -10,13 +10,15 @@
  */
 
 import { describe, expect, it } from "bun:test";
-import { Effect, Layer } from "effect";
-import { RpcTest } from "effect/unstable/rpc";
+import { createSourceManager } from "@shared/sources/index.js";
 import type {
   CanonicalAlbum,
   CanonicalTrack,
+  Source,
 } from "@shared/sources/types.js";
-import { NonRealtimeRpcHandlersLayer, NonRealtimeRpc } from "./handler.js";
+import { Effect, Layer } from "effect";
+import { RpcTest } from "effect/unstable/rpc";
+import { NonRealtimeRpc, NonRealtimeRpcHandlersLayer } from "./handler.js";
 import {
   type AuthSessionBehavior,
   AuthSessionLayerFromBehavior,
@@ -64,21 +66,23 @@ const sampleTracks: readonly CanonicalTrack[] = [
 ];
 
 function catalogBehavior(): SourceCatalogBehavior {
+  const source: Source = {
+    type: "ytmusic",
+    name: "YTMusic",
+    getAlbumTracks: async () => ({
+      album: sampleAlbum,
+      tracks: sampleTracks,
+    }),
+    search: async () => ({
+      tracks: sampleTracks,
+      albums: [],
+    }),
+    listPlaylists: async () => [],
+    getPlaylistTracks: async () => [],
+    getStreamUrl: async () => "/stream/none",
+  };
   return {
-    resolveManager: async () =>
-      ({
-        getAlbumTracks: async () => ({
-          album: sampleAlbum,
-          tracks: sampleTracks,
-        }),
-        searchAll: async () => ({
-          tracks: sampleTracks,
-          albums: [],
-        }),
-        listAllPlaylists: () => [],
-        getPlaylistTracks: async () => [],
-        getStreamUrl: async () => "/stream/none",
-      }) as never,
+    resolveManager: async () => createSourceManager([source]),
   };
 }
 

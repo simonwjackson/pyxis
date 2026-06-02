@@ -18,12 +18,12 @@
  */
 
 import { describe, expect, it } from "bun:test";
-import { Effect } from "effect";
 import type {
   CanonicalAlbum,
   CanonicalPlaylist,
   CanonicalTrack,
 } from "@shared/sources/types.js";
+import { Effect } from "effect";
 import type { AuthSessionShape } from "../services/authSession.js";
 import type {
   LibraryShape,
@@ -95,6 +95,7 @@ function makeCatalog(): SourceCatalogShape {
         tracks: [] as readonly CanonicalTrack[],
       }),
     getStreamUrl: () => Effect.succeed("/stream/none"),
+    getTrackCapabilities: () => Effect.fail({} as never),
     resolveManager: Effect.succeed({} as never),
   };
 }

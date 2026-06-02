@@ -12,7 +12,6 @@
  *   require a Pandora session.
  */
 
-import { Effect } from "effect";
 import type {
   ApiRemoveTrackFeedbackInput,
   ApiTrackFeedbackInput,
@@ -21,35 +20,31 @@ import type {
   ApiTrackStreamUrlInput,
 } from "@shared/api/contracts/track.js";
 import * as Pandora from "@shared/sources/pandora/client.js";
-import {
-  buildStreamUrl,
-  formatSourceId,
-  parseId,
-  resolveTrackSource,
-  trackCapabilities,
-} from "../../lib/ids.js";
+import { Effect } from "effect";
+import { formatSourceId, parseId } from "../../lib/ids.js";
 import { publicHandler } from "../handler.js";
 import type { AuthSessionShape } from "../services/authSession.js";
-import { mapUnknownError } from "../sourceErrorMap.js";
+import type { SourceCatalogShape } from "../services/sourceCatalog.js";
 
 export type TrackHandlerDeps = {
   readonly auth: AuthSessionShape;
+  readonly catalog: SourceCatalogShape;
 };
 
 export const trackHandlers = (deps: TrackHandlerDeps) => ({
   "track.metadata.get": (payload: ApiTrackIdRequest) =>
     publicHandler(
-      Effect.tryPromise({
-        try: async () => {
-          const source = await resolveTrackSource(payload.id);
-          return { id: payload.id, capabilities: trackCapabilities(source) };
-        },
-        catch: (cause) => mapUnknownError(cause),
-      }),
+      deps.catalog
+        .getTrackCapabilities(payload.id)
+        .pipe(Effect.map((capabilities) => ({ id: payload.id, capabilities }))),
     ),
 
   "track.streamUrl.get": (payload: ApiTrackStreamUrlInput) =>
-    Effect.sync(() => ({ url: buildStreamUrl(payload.id, payload.nextId) })),
+    publicHandler(
+      deps.catalog
+        .getStreamUrl(payload.id, payload.nextId)
+        .pipe(Effect.map((url) => ({ url }))),
+    ),
 
   "track.feedback.add": (payload: ApiTrackFeedbackInput) =>
     publicHandler(

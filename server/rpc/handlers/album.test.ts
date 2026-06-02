@@ -1,10 +1,9 @@
 /**
  * @module server/rpc/handlers/album tests
  * Behavior tests for the `album.*` handlers. The handlers preserve the
- * batched `SourceManager.getAlbumTracks` workflow, so the tests assert:
+ * batched SourceCatalog workflow, so the tests assert:
  *
- * - source-prefixed ids are decoded into source + raw id before the catalog
- *   call,
+ * - source-prefixed ids are passed intact to the catalog seam,
  * - `album.withTracks.get` returns the batched header + indexed track list
  *   without performing two upstream calls,
  * - bare nanoid ids fail with a typed ValidationError before reaching the
@@ -12,17 +11,16 @@
  */
 
 import { describe, expect, it } from "bun:test";
-import { Effect } from "effect";
 import type {
   CanonicalAlbum,
   CanonicalPlaylist,
   CanonicalTrack,
-  SourceType,
 } from "@shared/sources/types.js";
+import { Effect } from "effect";
 import type { SourceCatalogShape } from "../services/sourceCatalog.js";
 import { albumHandlers } from "./album.js";
 
-type AlbumCall = { readonly source: SourceType; readonly albumId: string };
+type AlbumCall = { readonly albumId: string };
 
 function makeCatalog(args: {
   readonly album: CanonicalAlbum;
@@ -33,11 +31,12 @@ function makeCatalog(args: {
     listPlaylists: () => Effect.succeed([] as readonly CanonicalPlaylist[]),
     getPlaylistTracks: () => Effect.succeed([] as readonly CanonicalTrack[]),
     searchAll: () => Effect.succeed({ tracks: [], albums: [] } as never),
-    getAlbumTracks: (_manager, source, albumId) => {
-      args.calls.push({ source, albumId });
+    getAlbumTracks: (albumId) => {
+      args.calls.push({ albumId });
       return Effect.succeed({ album: args.album, tracks: args.tracks });
     },
     getStreamUrl: () => Effect.succeed("/stream/none"),
+    getTrackCapabilities: () => Effect.fail({} as never),
     resolveManager: Effect.succeed({} as never),
   };
 }
@@ -77,7 +76,7 @@ describe("album handlers", () => {
     const header = await Effect.runPromise(
       handlers["album.metadata.get"]({ id: "ytmusic:remote_1" }),
     );
-    expect(calls).toEqual([{ source: "ytmusic", albumId: "remote_1" }]);
+    expect(calls).toEqual([{ albumId: "ytmusic:remote_1" }]);
     expect(header).toEqual({
       id: "ytmusic:remote_1",
       title: "Remote Album",
@@ -133,20 +132,23 @@ describe("album handlers", () => {
     });
   });
 
-  it("album.get fails with a typed ValidationError on a bare nanoid id", async () => {
+  it("album.get leaves bare-id validation to the catalog", async () => {
     const calls: AlbumCall[] = [];
     const handlers = albumHandlers({
-      catalog: makeCatalog({ album: sampleAlbum, tracks: [], calls }),
+      catalog: {
+        ...makeCatalog({ album: sampleAlbum, tracks: [], calls }),
+        getAlbumTracks: () =>
+          Effect.fail({
+            _tag: "ValidationError",
+            code: "bad",
+            field: "id",
+          } as never),
+      },
     });
     const exit = await Effect.runPromise(
       Effect.exit(handlers["album.metadata.get"]({ id: "bareid" })),
     );
     expect(exit._tag).toBe("Failure");
-    if (exit._tag === "Failure") {
-      const cause = exit.cause as { _tag?: string; error?: { _tag?: string } };
-      // catchDefect+mapError leaves a typed failure cause; extract via toJSON.
-      expect(JSON.stringify(cause)).toContain("ValidationError");
-    }
     expect(calls.length).toBe(0);
   });
 });

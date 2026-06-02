@@ -5,20 +5,19 @@
  * encoding:
  *
  * - `playlist.list` aggregates encoded playlists from the catalog,
- * - `playlist.tracks.list` requires a source-prefixed id and forwards the
- *   raw id to the catalog,
+ * - `playlist.tracks.list` forwards the composite playlist id to the catalog
+ *   where source validation and capability checks happen,
  * - `playlist.radio.create` is exercised through the live router/library
  *   covers; here we only assert the contract-side validation behavior so
  *   no DB side effects are required for this branch-internal test.
  */
 
 import { describe, expect, it } from "bun:test";
-import { Effect } from "effect";
 import type {
   CanonicalPlaylist,
   CanonicalTrack,
-  SourceType,
 } from "@shared/sources/types.js";
+import { Effect } from "effect";
 import type { AuthSessionShape } from "../services/authSession.js";
 import type { SourceCatalogShape } from "../services/sourceCatalog.js";
 import { playlistHandlers } from "./playlist.js";
@@ -38,17 +37,18 @@ const sampleTracks: readonly CanonicalTrack[] = [
 ];
 
 function makeCatalog(args: {
-  readonly trackCalls: Array<{ source: SourceType; id: string }>;
+  readonly trackCalls: Array<{ id: string }>;
 }): SourceCatalogShape {
   return {
     listPlaylists: () => Effect.succeed(samplePlaylists),
-    getPlaylistTracks: (_manager, source, id) => {
-      args.trackCalls.push({ source, id });
+    getPlaylistTracks: (id) => {
+      args.trackCalls.push({ id });
       return Effect.succeed(sampleTracks);
     },
     searchAll: () => Effect.succeed({ tracks: [], albums: [] } as never),
     getAlbumTracks: () => Effect.fail({} as never),
     getStreamUrl: () => Effect.succeed("/stream/none"),
+    getTrackCapabilities: () => Effect.fail({} as never),
     resolveManager: Effect.succeed({} as never),
   };
 }
@@ -67,13 +67,15 @@ describe("playlist handlers", () => {
       auth,
       catalog: makeCatalog({ trackCalls: [] }),
     });
-    const result = await Effect.runPromise(handlers["library.playlists.list"]());
+    const result = await Effect.runPromise(
+      handlers["library.playlists.list"](),
+    );
     expect(result.map((p) => p.id)).toEqual(["ytmusic:pl1", "pandora:pl2"]);
     expect(result[0]?.capabilities).toEqual({ radio: true });
   });
 
-  it("playlist.tracks.list forwards the raw source id to the catalog", async () => {
-    const trackCalls: Array<{ source: SourceType; id: string }> = [];
+  it("playlist.tracks.list forwards the composite playlist id to the catalog", async () => {
+    const trackCalls: Array<{ id: string }> = [];
     const handlers = playlistHandlers({
       auth,
       catalog: makeCatalog({ trackCalls }),
@@ -81,15 +83,23 @@ describe("playlist handlers", () => {
     const tracks = await Effect.runPromise(
       handlers["playlist.tracks.list"]({ id: "ytmusic:pl1" }),
     );
-    expect(trackCalls).toEqual([{ source: "ytmusic", id: "pl1" }]);
+    expect(trackCalls).toEqual([{ id: "ytmusic:pl1" }]);
     expect(tracks.map((t) => t.id)).toEqual(["ytmusic:t1"]);
   });
 
-  it("playlist.tracks.list rejects bare ids with a typed ValidationError", async () => {
-    const trackCalls: Array<{ source: SourceType; id: string }> = [];
+  it("playlist.tracks.list leaves bare-id validation to the catalog", async () => {
+    const trackCalls: Array<{ id: string }> = [];
     const handlers = playlistHandlers({
       auth,
-      catalog: makeCatalog({ trackCalls }),
+      catalog: {
+        ...makeCatalog({ trackCalls }),
+        getPlaylistTracks: () =>
+          Effect.fail({
+            _tag: "ValidationError",
+            code: "bad",
+            field: "id",
+          } as never),
+      },
     });
     const exit = await Effect.runPromise(
       Effect.exit(handlers["playlist.tracks.list"]({ id: "bareid" })),

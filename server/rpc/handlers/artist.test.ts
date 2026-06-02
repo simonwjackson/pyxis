@@ -10,12 +10,12 @@
  */
 
 import { describe, expect, it } from "bun:test";
-import { Effect } from "effect";
 import type {
   CanonicalAlbum,
   CanonicalPlaylist,
   CanonicalTrack,
 } from "@shared/sources/types.js";
+import { Effect } from "effect";
 import type { SourceCatalogShape } from "../services/sourceCatalog.js";
 import { artistHandlers } from "./artist.js";
 
@@ -37,6 +37,7 @@ function makeCatalog(
         resource: "album",
       }) as never,
     getStreamUrl: () => Effect.succeed("/stream/none"),
+    getTrackCapabilities: () => Effect.fail({} as never),
     resolveManager: Effect.succeed({} as never),
   };
 }

@@ -11,7 +11,6 @@
  *   subsequent `playlist.list` calls.
  */
 
-import { Effect } from "effect";
 import type {
   ApiCreatePlaylistRadioInput,
   ApiPlaylistTracksInput,
@@ -22,6 +21,7 @@ import type {
   CanonicalTrack,
 } from "@shared/sources/types.js";
 import { generateRadioUrl } from "@shared/sources/ytmusic/index.js";
+import { Effect } from "effect";
 import {
   formatSourceId,
   parseId,
@@ -29,7 +29,6 @@ import {
   trackCapabilities,
 } from "../../lib/ids.js";
 import { invalidateManagers } from "../../services/sourceManager.js";
-import { ValidationError } from "../errors.js";
 import { publicHandler } from "../handler.js";
 import type { AuthSessionShape } from "../services/authSession.js";
 import type { SourceCatalogShape } from "../services/sourceCatalog.js";
@@ -68,8 +67,7 @@ export const playlistHandlers = (deps: PlaylistHandlerDeps) => ({
   "library.playlists.list": () =>
     publicHandler(
       Effect.gen(function* () {
-        const manager = yield* deps.catalog.resolveManager;
-        const playlists = yield* deps.catalog.listPlaylists(manager);
+        const playlists = yield* deps.catalog.listPlaylists();
         return playlists.map(encodePlaylist);
       }),
     ),
@@ -77,21 +75,7 @@ export const playlistHandlers = (deps: PlaylistHandlerDeps) => ({
   "playlist.tracks.list": (payload: ApiPlaylistTracksInput) =>
     publicHandler(
       Effect.gen(function* () {
-        const parsed = parseId(payload.id);
-        if (!parsed.source) {
-          return yield* Effect.fail(
-            new ValidationError({
-              code: "playlist_id_requires_source_prefix",
-              field: "id",
-            }),
-          );
-        }
-        const manager = yield* deps.catalog.resolveManager;
-        const tracks = yield* deps.catalog.getPlaylistTracks(
-          manager,
-          parsed.source,
-          parsed.id,
-        );
+        const tracks = yield* deps.catalog.getPlaylistTracks(payload.id);
         return tracks.map(encodeTrack);
       }),
     ),
