@@ -4,7 +4,10 @@ import type {
 } from "@shared/api/contracts/androidMediaBridge.js";
 import type { AppConfig } from "@shared/config.js";
 import { createLogger } from "@shared/logger.js";
-import * as PlayerService from "../services/player.js";
+import {
+  getLivePlayerAuthority,
+  type PlayerAuthority,
+} from "../services/playerAuthority.js";
 import {
   parseNativeBridgeLogPayload,
   writeNativeBridgeLog,
@@ -23,6 +26,7 @@ const log = createLogger("playback").child({ component: "android-bridge" });
 export type AndroidMediaBridgeConfig = AppConfig["androidBridge"] & {
   readonly now?: () => number;
   readonly commandLimit?: { readonly max: number; readonly windowMs: number };
+  readonly player?: PlayerAuthority;
 };
 
 export function isAndroidMediaBridgeRequest(url: URL): boolean {
@@ -46,6 +50,7 @@ export class AndroidMediaBridgeHandler {
     readonly max: number;
     readonly windowMs: number;
   };
+  private readonly player: PlayerAuthority;
   private commandWindowStartedAt = 0;
   private commandCount = 0;
   private lastStateIdentity = "";
@@ -56,6 +61,7 @@ export class AndroidMediaBridgeHandler {
     this.token = config.token;
     this.now = config.now ?? Date.now;
     this.commandLimit = config.commandLimit ?? DEFAULT_COMMAND_LIMIT;
+    this.player = config.player ?? getLivePlayerAuthority();
   }
 
   async handle(req: Request): Promise<Response> {
@@ -101,14 +107,14 @@ export class AndroidMediaBridgeHandler {
   }
 
   private projectState(): AndroidMediaBridgeState {
-    const view = toPlayerStateView(PlayerService.getState());
+    const view = toPlayerStateView(this.player.getState());
     const identity = `${view.status}:${view.currentTrack?.id ?? "none"}:${view.updatedAt}`;
     if (identity !== this.lastStateIdentity) {
       this.lastStateIdentity = identity;
       this.stateRevision += 1;
     }
     const publishedAt = this.now();
-    const audio = PlayerService.getAudioRealization();
+    const audio = this.player.getAudioRealization();
     return toAndroidMediaBridgeState(view, {
       publishedAt,
       stateRevision: this.stateRevision,
@@ -127,7 +133,7 @@ export class AndroidMediaBridgeHandler {
           );
         };
         sendState();
-        unsubscribe = PlayerService.subscribe(sendState);
+        unsubscribe = this.player.subscribe(sendState);
       },
       cancel: () => {
         unsubscribe?.();
@@ -157,34 +163,34 @@ export class AndroidMediaBridgeHandler {
     const command = parseCommand(payload.value);
     if (!command.ok) return jsonResponse({ error: command.error }, 400);
 
-    const before = PlayerService.getState();
+    const before = this.player.getState();
     let outcome: AndroidMediaBridgeCommandResult["outcome"] = "noop";
     switch (command.value.action) {
       case "pause":
         if (before.status === "playing") {
-          PlayerService.pause();
+          this.player.pause();
           outcome = "applied";
         }
         break;
       case "play":
         if (before.status === "paused") {
-          PlayerService.resume();
+          this.player.resume();
           outcome = "applied";
         } else if (before.status === "stopped") {
           outcome = "unavailable";
         }
         break;
       case "next": {
-        const next = before.currentTrack ? PlayerService.skip() : undefined;
+        const next = before.currentTrack ? this.player.skip() : undefined;
         outcome =
-          next || PlayerService.getState().status === "stopped"
+          next || this.player.getState().status === "stopped"
             ? "applied"
             : "unavailable";
         break;
       }
       case "previous": {
         const previous = before.currentTrack
-          ? PlayerService.previousTrack()
+          ? this.player.previousTrack()
           : undefined;
         outcome = previous ? "applied" : "unavailable";
         break;

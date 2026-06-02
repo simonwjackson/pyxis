@@ -35,6 +35,17 @@ Pyxis uses the Lattice runtime model end-to-end for application state and transp
 
 Stale `/trpc/*` requests are compatibility failures, not a live transport: they intentionally fail closed instead of falling through to app/static routes.
 
+### Playback authority seam
+
+Player and queue state still live in the existing singleton modules while the runtime is being deepened, but singleton access is now explicit and centralized:
+
+- `server/services/playerAuthority.ts` defines the `PlayerAuthority` contract and the singleton-backed live adapter.
+- `server/services/queueAuthority.ts` defines the `QueueAuthority` contract and the singleton-backed live adapter.
+- `server/rpc/services/player.ts` and `server/rpc/services/queue.ts` build Effect layers from those authorities instead of importing the singleton modules directly.
+- `server/lib/androidMediaBridge.ts` accepts a `PlayerAuthority`, defaulting to the same live adapter, so Android commands and Effect RPC reads can be tested against the same playback authority.
+
+This is an intentional transitional adapter: `server/services/player.ts` and `server/services/queue.ts` remain the concrete state owners until persistence/listen-log/audio realization are moved behind deeper Effect-native services.
+
 ## Source Abstraction Layer (src/sources/)
 
 Unified interface for multiple music backends. Sources implement capability

@@ -1,9 +1,9 @@
 /**
  * @module server/rpc/services/queue
- * Effect service wrapping the singleton {@link QueueService}. The live
- * layer delegates every method to the existing module-level functions so
- * the player singleton, persistence, and auto-fetch share one queue
- * authority.
+ * Effect service for the shared queue authority. The live layer delegates
+ * through the singleton-backed authority adapter so the player singleton,
+ * persistence, auto-fetch, and RPC observe one queue authority without every
+ * runtime importing the singleton directly.
  */
 
 import { Context, Effect, Layer } from "effect";
@@ -12,9 +12,11 @@ import type {
   QueueState,
   QueueTrack,
 } from "../../services/queue.js";
-import * as QueueSingleton from "../../services/queue.js";
-
-export type QueueStateListener = (state: QueueState) => void;
+import {
+  getLiveQueueAuthority,
+  type QueueAuthority,
+  type QueueStateListener,
+} from "../../services/queueAuthority.js";
 
 /**
  * Effect surface for the queue. As with {@link PlayerShape}, U3 keeps the
@@ -46,71 +48,40 @@ export class Queue extends Context.Service<Queue, QueueShape>()(
   "Pyxis/Queue",
 ) {}
 
-/** Behavior knobs for an in-memory Queue layer used by tests. */
-export type QueueBehavior = {
-  readonly getState: () => QueueState;
-  readonly setQueue: (
-    tracks: readonly QueueTrack[],
-    context: QueueContext,
-    startIndex?: number,
-  ) => void;
-  readonly addTracks: (
-    tracks: readonly QueueTrack[],
-    insertNext?: boolean,
-  ) => void;
-  readonly removeTrack: (index: number) => void;
-  readonly clear: () => void;
-  readonly jumpTo: (index: number) => void;
-  readonly shuffle: () => void;
-  readonly subscribe: (listener: QueueStateListener) => () => void;
-};
-
-function makeShape(behavior: QueueBehavior): QueueShape {
+function makeShape(authority: QueueAuthority): QueueShape {
   const afterCommand = (mutate: () => void) =>
     Effect.sync(() => {
       mutate();
-      return behavior.getState();
+      return authority.getState();
     });
 
   return {
-    getState: Effect.sync(() => behavior.getState()),
+    getState: Effect.sync(() => authority.getState()),
     setQueue: (tracks, context, startIndex) =>
-      afterCommand(() => behavior.setQueue(tracks, context, startIndex)),
+      afterCommand(() => authority.setQueue(tracks, context, startIndex)),
     addTracks: (tracks, insertNext) =>
-      afterCommand(() => behavior.addTracks(tracks, insertNext)),
-    removeTrack: (index) => afterCommand(() => behavior.removeTrack(index)),
-    clear: afterCommand(() => behavior.clear()),
-    jumpTo: (index) => afterCommand(() => behavior.jumpTo(index)),
-    shuffle: afterCommand(() => behavior.shuffle()),
-    subscribe: (listener) => Effect.sync(() => behavior.subscribe(listener)),
+      afterCommand(() => authority.addTracks(tracks, insertNext)),
+    removeTrack: (index) => afterCommand(() => authority.removeTrack(index)),
+    clear: afterCommand(() => authority.clear()),
+    jumpTo: (index) => afterCommand(() => authority.jumpTo(index)),
+    shuffle: afterCommand(() => authority.shuffle()),
+    subscribe: (listener) => Effect.sync(() => authority.subscribe(listener)),
   };
 }
 
-/** Build a Queue layer from a configurable behavior. */
-export function QueueLayerFromBehavior(
-  behavior: QueueBehavior,
+/** Build a Queue layer from a configurable authority. */
+export function QueueLayerFromAuthority(
+  authority: QueueAuthority,
 ): Layer.Layer<Queue> {
-  return Layer.sync(Queue)(() => makeShape(behavior));
+  return Layer.sync(Queue)(() => makeShape(authority));
 }
 
+/** Build a Queue layer from a configurable behavior. */
+export const QueueLayerFromBehavior = QueueLayerFromAuthority;
+
 /**
- * Live Queue layer wrapping the module-level singleton. Production RPC
- * handlers consume this layer; auto-fetch and persistence continue to call
- * the singleton directly so all paths share state.
+ * Live Queue layer wrapping the singleton-backed authority adapter.
  */
 export const QueueLayerLive: Layer.Layer<Queue> = Layer.sync(Queue)(() =>
-  makeShape({
-    getState: () => QueueSingleton.getState(),
-    setQueue: (tracks, context, startIndex) =>
-      QueueSingleton.setQueue(tracks, context, startIndex),
-    addTracks: (tracks, insertNext) =>
-      QueueSingleton.addTracks(tracks, insertNext),
-    removeTrack: (index) => QueueSingleton.removeTrack(index),
-    clear: () => QueueSingleton.clear(),
-    jumpTo: (index) => {
-      QueueSingleton.jumpTo(index);
-    },
-    shuffle: () => QueueSingleton.shuffle(),
-    subscribe: (listener) => QueueSingleton.subscribe(listener),
-  }),
+  makeShape(getLiveQueueAuthority()),
 );

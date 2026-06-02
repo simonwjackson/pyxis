@@ -11,7 +11,7 @@ import { beforeEach, describe, expect, it } from "bun:test";
 import { Effect } from "effect";
 import type { QueueState, QueueTrack } from "../../services/queue.js";
 import * as QueueSingleton from "../../services/queue.js";
-import { Queue, QueueLayerFromBehavior, QueueLayerLive } from "./queue.js";
+import { Queue, QueueLayerFromAuthority, QueueLayerLive } from "./queue.js";
 
 function track(id: string): QueueTrack {
   return {
@@ -126,7 +126,7 @@ describe("Queue service (in-memory behavior)", () => {
       currentIndex: 0,
       context: { type: "manual" },
     });
-    const layer = QueueLayerFromBehavior({
+    const layer = QueueLayerFromAuthority({
       getState: state,
       setQueue: (tracks) => {
         stored = tracks;

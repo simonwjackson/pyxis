@@ -1,9 +1,9 @@
 /**
  * @module server/rpc/services/player
- * Effect service wrapping the singleton {@link PlayerService}. The live
- * layer delegates every method to the existing module-level functions so
- * web RPC, Android media bridge, and listen-log side effects continue to
- * observe one player state owner.
+ * Effect service for the shared player authority. The live layer delegates
+ * through the singleton-backed authority adapter so web RPC, Android media
+ * bridge, and listen-log side effects continue to observe one player state
+ * owner without each runtime importing the singleton directly.
  *
  * U5 threads `appliesToTrackId` through the report/ended methods so the
  * underlying singleton can drop stale client reports without leaking that
@@ -13,16 +13,17 @@
 
 import { Context, Effect, Layer } from "effect";
 import type { PlayerState } from "../../services/player.js";
-import * as PlayerSingleton from "../../services/player.js";
+import {
+  getLivePlayerAuthority,
+  type PlayerAuthority,
+  type PlayerStateListener,
+} from "../../services/playerAuthority.js";
 import type { QueueContext, QueueTrack } from "../../services/queue.js";
 
-/** Snapshot subscription callback. */
-export type PlayerStateListener = (state: PlayerState) => void;
-
 /**
- * Service surface. Every method delegates to the existing singleton; tests
- * that wire a custom backend (e.g. an in-process simulation) can supply a
- * `PlayerBehavior` that matches the same shape.
+ * Service surface. Every method delegates to the configured player authority;
+ * tests that wire a custom backend can supply a `PlayerAuthority` that matches
+ * the same shape.
  */
 export type PlayerShape = {
   readonly getState: Effect.Effect<PlayerState>;
@@ -85,113 +86,56 @@ export class Player extends Context.Service<Player, PlayerShape>()(
   "Pyxis/Player",
 ) {}
 
-/** Behavior knobs for an in-memory Player layer used by tests. */
-export type PlayerBehavior = {
-  readonly getState: () => PlayerState;
-  readonly play: (
-    tracks?: readonly QueueTrack[],
-    context?: QueueContext,
-    startIndex?: number,
-  ) => void;
-  readonly pause: () => void;
-  readonly resume: () => void;
-  readonly stop: () => void;
-  readonly skip: () => void;
-  readonly previous: () => void;
-  readonly jumpTo: (index: number) => void;
-  readonly seek: (position: number) => void;
-  readonly setVolume: (level: number) => void;
-  readonly setDuration: (
-    duration: number,
-    appliesToTrackId?: string,
-  ) => boolean;
-  readonly reportProgress: (
-    progress: number,
-    appliesToTrackId?: string,
-  ) => boolean;
-  readonly reportAudioError: (
-    message: string,
-    appliesToTrackId?: string,
-  ) => boolean;
-  readonly trackEnded: (appliesToTrackId?: string) => void;
-  readonly subscribe: (listener: PlayerStateListener) => () => void;
-};
-
-function makeShape(behavior: PlayerBehavior): PlayerShape {
+function makeShape(authority: PlayerAuthority): PlayerShape {
   const afterCommand = (mutate: () => void) =>
     Effect.sync(() => {
       mutate();
-      return behavior.getState();
+      return authority.getState();
     });
 
   return {
-    getState: Effect.sync(() => behavior.getState()),
+    getState: Effect.sync(() => authority.getState()),
     play: (tracks, context, startIndex) =>
-      afterCommand(() => behavior.play(tracks, context, startIndex)),
-    pause: afterCommand(() => behavior.pause()),
-    resume: afterCommand(() => behavior.resume()),
-    stop: afterCommand(() => behavior.stop()),
-    skip: afterCommand(() => behavior.skip()),
-    previous: afterCommand(() => behavior.previous()),
-    jumpTo: (index) => afterCommand(() => behavior.jumpTo(index)),
-    seek: (position) => afterCommand(() => behavior.seek(position)),
-    setVolume: (level) => afterCommand(() => behavior.setVolume(level)),
+      afterCommand(() => authority.play(tracks, context, startIndex)),
+    pause: afterCommand(() => authority.pause()),
+    resume: afterCommand(() => authority.resume()),
+    stop: afterCommand(() => authority.stop()),
+    skip: afterCommand(() => authority.skip()),
+    previous: afterCommand(() => authority.previousTrack()),
+    jumpTo: (index) => afterCommand(() => authority.jumpToIndex(index)),
+    seek: (position) => afterCommand(() => authority.seek(position)),
+    setVolume: (level) => afterCommand(() => authority.setVolume(level)),
     setDuration: (duration, appliesToTrackId) =>
       afterCommand(() => {
-        behavior.setDuration(duration, appliesToTrackId);
+        authority.setDuration(duration, appliesToTrackId);
       }),
     reportProgress: (progress, appliesToTrackId) =>
-      Effect.sync(() => behavior.reportProgress(progress, appliesToTrackId)),
+      Effect.sync(() => authority.reportProgress(progress, appliesToTrackId)),
     reportAudioError: (message, appliesToTrackId) =>
       afterCommand(() => {
-        behavior.reportAudioError(message, appliesToTrackId);
+        authority.reportAudioError(message, appliesToTrackId);
       }),
     trackEnded: (appliesToTrackId) =>
-      afterCommand(() => behavior.trackEnded(appliesToTrackId)),
-    subscribe: (listener) => Effect.sync(() => behavior.subscribe(listener)),
+      afterCommand(() => authority.trackEnded(appliesToTrackId)),
+    subscribe: (listener) => Effect.sync(() => authority.subscribe(listener)),
   };
 }
 
-/** Build a Player layer from a configurable behavior. */
-export function PlayerLayerFromBehavior(
-  behavior: PlayerBehavior,
+/** Build a Player layer from a configurable authority. */
+export function PlayerLayerFromAuthority(
+  authority: PlayerAuthority,
 ): Layer.Layer<Player> {
-  return Layer.sync(Player)(() => makeShape(behavior));
+  return Layer.sync(Player)(() => makeShape(authority));
 }
 
+/** Build a Player layer from a configurable behavior. */
+export const PlayerLayerFromBehavior = PlayerLayerFromAuthority;
+
 /**
- * Live Player layer wrapping the module-level singleton. Production RPC
- * handlers consume this layer; Android media bridge and persistence
- * continue to call the singleton directly so all paths share state.
+ * Live Player layer wrapping the singleton-backed authority adapter.
+ * Production RPC handlers consume this layer; Android media bridge can use
+ * the same adapter so both paths share state through a named seam.
  */
 export const PlayerLayerLive: Layer.Layer<Player> = Layer.sync(Player)(() =>
-  makeShape({
-    getState: () => PlayerSingleton.getState(),
-    play: (tracks, context, startIndex) =>
-      PlayerSingleton.play(tracks, context, startIndex),
-    pause: () => PlayerSingleton.pause(),
-    resume: () => PlayerSingleton.resume(),
-    stop: () => PlayerSingleton.stop(),
-    skip: () => {
-      PlayerSingleton.skip();
-    },
-    previous: () => {
-      PlayerSingleton.previousTrack();
-    },
-    jumpTo: (index) => {
-      PlayerSingleton.jumpToIndex(index);
-    },
-    seek: (position) => PlayerSingleton.seek(position),
-    setVolume: (level) => PlayerSingleton.setVolume(level),
-    setDuration: (duration, appliesToTrackId) =>
-      PlayerSingleton.setDuration(duration, appliesToTrackId),
-    reportProgress: (progress, appliesToTrackId) =>
-      PlayerSingleton.reportProgress(progress, appliesToTrackId),
-    reportAudioError: (message, appliesToTrackId) =>
-      PlayerSingleton.reportAudioError(message, appliesToTrackId),
-    trackEnded: (appliesToTrackId) => {
-      PlayerSingleton.trackEnded(appliesToTrackId);
-    },
-    subscribe: (listener) => PlayerSingleton.subscribe(listener),
-  }),
+  makeShape(getLivePlayerAuthority()),
 );
