@@ -7,21 +7,23 @@
  * and Android bridge handling can stay plain HTTP.
  */
 
-import { Effect, Layer } from "effect";
-import { HttpEffect } from "effect/unstable/http";
-import { RpcSerialization, RpcServer } from "effect/unstable/rpc";
 import { PyxisRpc } from "@shared/api/rpc.js";
+import { Layer } from "effect";
+import { HttpRouter } from "effect/unstable/http";
+import { RpcSerialization, RpcServer } from "effect/unstable/rpc";
 import { PyxisRpcLayerLive } from "./handler.js";
 
-const rpcLayer = PyxisRpcLayerLive.pipe(
+const rpcLayer = RpcServer.layerHttp({
+  group: PyxisRpc,
+  path: "/rpc",
+  protocol: "http",
+  spanPrefix: "rpc.server",
+}).pipe(
+  Layer.provide(PyxisRpcLayerLive),
   Layer.provide(RpcSerialization.layerNdjson),
 );
 
-const rpcApp = Effect.flatten(
-  RpcServer.toHttpEffect(PyxisRpc, { spanPrefix: "rpc.server" }),
-);
-
-const rpcHttp = HttpEffect.toWebHandlerLayer(rpcApp, rpcLayer);
+const rpcHttp = HttpRouter.toWebHandler(rpcLayer, { disableLogger: true });
 
 export const disposeRpcHttpHandler = rpcHttp.dispose;
 
