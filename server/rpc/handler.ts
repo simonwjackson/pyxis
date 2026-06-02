@@ -35,6 +35,7 @@ import { AuthSession, AuthSessionLayerLive } from "./services/authSession.js";
 import { Library, LibraryLayerLive } from "./services/library.js";
 import { Player, PlayerLayerLive } from "./services/player.js";
 import { Queue, QueueLayerLive } from "./services/queue.js";
+import { Radio, RadioLayerLive } from "./services/radio.js";
 import {
   SourceCatalog,
   SourceCatalogLayerLive,
@@ -147,13 +148,14 @@ export const NonRealtimeRpcHandlersLayer = NonRealtimeRpc.toLayer(
     const auth = yield* AuthSession;
     const library = yield* Library;
     const catalog = yield* SourceCatalog;
+    const radio = yield* Radio;
     const handlers = {
       ...authHandlers({ auth }),
       ...libraryHandlers({ auth, library, catalog }),
       ...albumHandlers({ catalog }),
       ...artistHandlers({ catalog }),
       ...searchHandlers({ auth, catalog }),
-      ...radioHandlers({ auth }),
+      ...radioHandlers({ radio }),
       ...playlistHandlers({ auth, catalog }),
       ...trackHandlers({ auth, catalog }),
       ...listenLogHandlers(),
@@ -173,6 +175,7 @@ export const PyxisRpcHandlersLayer = PyxisRpc.toLayer(
     const auth = yield* AuthSession;
     const library = yield* Library;
     const catalog = yield* SourceCatalog;
+    const radio = yield* Radio;
     const player = yield* Player;
     const queue = yield* Queue;
     const handlers = {
@@ -181,7 +184,7 @@ export const PyxisRpcHandlersLayer = PyxisRpc.toLayer(
       ...albumHandlers({ catalog }),
       ...artistHandlers({ catalog }),
       ...searchHandlers({ auth, catalog }),
-      ...radioHandlers({ auth }),
+      ...radioHandlers({ radio }),
       ...playlistHandlers({ auth, catalog }),
       ...trackHandlers({ auth, catalog }),
       ...listenLogHandlers(),
@@ -199,9 +202,10 @@ export const PyxisRpcHandlersLayer = PyxisRpc.toLayer(
  * route as the application's only RPC runtime.
  */
 export const PyxisRpcLayerLive = PyxisRpcHandlersLayer.pipe(
-  Layer.provide(AuthSessionLayerLive),
   Layer.provide(LibraryLayerLive),
   Layer.provide(SourceCatalogLayerLive),
+  Layer.provide(RadioLayerLive),
+  Layer.provide(AuthSessionLayerLive),
   Layer.provide(PlayerLayerLive),
   Layer.provide(QueueLayerLive),
 );

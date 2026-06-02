@@ -56,6 +56,20 @@ Raw source adapters in `src/sources/**` stay provider-specific. They expose cano
 
 A narrow transitional exception remains for library album save: the `Library` service still accepts a `getAlbumTracks`-capable manager while the library persistence seam is deepened.
 
+### Radio station service seam (server/rpc/services/radio.ts)
+
+`Radio` is the RPC-facing Pandora station lifecycle seam. RPC handlers bind request payloads to this service; they do not encode station details, parse QuickMix ids, register fetched playlist items, or decide command success envelopes.
+
+`Radio` owns:
+
+- Pandora station list/detail/create/delete/rename orchestration through `AuthSession.withAuthRetry`,
+- station seed and feedback encoding into Pyxis station detail shapes,
+- station playlist fetches and registration of playlist items with the Pandora source manager,
+- QuickMix id parsing and seed add/remove command behavior,
+- typed station command results for create/rename/seed-add operations.
+
+Pandora terminology remains provider-facing inside this seam: station tokens, station ids, seeds, feedback, and playlist items are normalized before crossing the RPC boundary.
+
 ### Pandora Source (src/sources/pandora/)
 
 Self-contained Pandora client library:

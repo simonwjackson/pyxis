@@ -86,12 +86,14 @@ import {
 } from "./contracts/queue.js";
 import {
   AddRadioSeedInputSchema,
+  AddRadioSeedResultSchema,
   CreateStationInputSchema,
   DeleteStationInputSchema,
   GenreCategoryListSchema,
   GetRadioTracksInputSchema,
   QuickMixInputSchema,
   RadioIdInputSchema,
+  RadioStationCommandResultSchema,
   RadioTrackListSchema,
   RemoveRadioSeedInputSchema,
   RenameStationInputSchema,
@@ -223,7 +225,7 @@ const radioStationTracksGet = Rpc.make("radio.stationTracks.get", {
 });
 const radioStationCreate = Rpc.make("radio.station.create", {
   payload: CreateStationInputSchema,
-  success: Schema.Unknown,
+  success: RadioStationCommandResultSchema,
   error: PublicErrorSchema,
 });
 const radioStationDelete = Rpc.make("radio.station.delete", {
@@ -233,7 +235,7 @@ const radioStationDelete = Rpc.make("radio.station.delete", {
 });
 const radioStationRename = Rpc.make("radio.station.rename", {
   payload: RenameStationInputSchema,
-  success: Schema.Unknown,
+  success: RadioStationCommandResultSchema,
   error: PublicErrorSchema,
 });
 const radioGenresList = Rpc.make("radio.genres.list", {
@@ -247,7 +249,7 @@ const radioQuickMixSet = Rpc.make("radio.quickMix.set", {
 });
 const radioSeedAdd = Rpc.make("radio.seed.add", {
   payload: AddRadioSeedInputSchema,
-  success: Schema.Unknown,
+  success: AddRadioSeedResultSchema,
   error: PublicErrorSchema,
 });
 const radioSeedRemove = Rpc.make("radio.seed.remove", {

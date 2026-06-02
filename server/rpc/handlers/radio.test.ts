@@ -1,73 +1,63 @@
 /**
  * @module server/rpc/handlers/radio tests
- * Behavior tests for the `radio.*` family. Focused on:
- *
- * - station list / station detail / genres responses are encoded with the
- *   same shape as `server/routers/radio.ts`,
- * - playlist items with missing required metadata are dropped (preserving
- *   the existing safe-fallback behavior),
- * - state-changing commands return the expected `success: true` envelopes,
- * - missing Pandora session surfaces a typed Unauthorized public error.
+ * Handler glue tests for the `radio.*` family. Pandora station behavior is
+ * covered by the Radio service tests; these assert the handler layer delegates
+ * payloads and preserves typed public failures through `publicHandler`.
  */
 
 import { describe, expect, it } from "bun:test";
 import { Effect } from "effect";
 import { Unauthorized } from "../errors.js";
-import type { AuthSessionShape } from "../services/authSession.js";
+import type { RadioShape } from "../services/radio.js";
 import { radioHandlers } from "./radio.js";
 
-function makeAuth(
-  retry: <A, E, R>(
-    f: (ctx: never) => Effect.Effect<A, E, R>,
-  ) => Effect.Effect<A, E, R>,
-): AuthSessionShape {
+function makeRadio(overrides: Partial<RadioShape> = {}): RadioShape {
   return {
-    getSession: Effect.succeed(undefined as never),
-    requireSession: Effect.fail({} as never),
-    getSourceManager: Effect.succeed({} as never),
-    refresh: Effect.fail({} as never),
-    withAuthRetry: retry as AuthSessionShape["withAuthRetry"],
+    listStations: () =>
+      Effect.succeed([
+        {
+          id: "pandora:tok1",
+          stationId: "pandora:sid1",
+          name: "Indie",
+          isQuickMix: false,
+          quickMixStationIds: [],
+          allowDelete: false,
+          allowRename: false,
+        },
+      ]),
+    getStation: () =>
+      Effect.succeed({
+        id: "pandora:tok1",
+        stationId: "pandora:sid1",
+        name: "Indie",
+      }),
+    getStationTracks: () => Effect.succeed([]),
+    createStation: () =>
+      Effect.succeed({
+        id: "pandora:tok1",
+        stationId: "pandora:sid1",
+        name: "Indie",
+      }),
+    deleteStation: () => Effect.succeed({ success: true as const }),
+    renameStation: () =>
+      Effect.succeed({
+        id: "pandora:tok1",
+        stationId: "pandora:sid1",
+        name: "Renamed",
+      }),
+    listGenres: () => Effect.succeed([]),
+    setQuickMix: () => Effect.succeed({ success: true as const }),
+    addSeed: () => Effect.succeed({ seedId: "pandora:seed-1" }),
+    removeSeed: () => Effect.succeed({ success: true as const }),
+    ...overrides,
   };
 }
 
-const unauthorized: AuthSessionShape = {
-  getSession: Effect.succeed(undefined as never),
-  requireSession: Effect.fail(
-    new Unauthorized({ code: "pandora_credentials_required" }),
-  ),
-  getSourceManager: Effect.succeed({} as never),
-  refresh: Effect.fail({} as never),
-  withAuthRetry: (() =>
-    Effect.fail(
-      new Unauthorized({ code: "pandora_credentials_required" }),
-    )) as AuthSessionShape["withAuthRetry"],
-};
-
-describe("radio.stations.list handler", () => {
-  it("encodes every station with opaque ids and default flags", async () => {
-    const auth = makeAuth(((
-      _f: (ctx: never) => Effect.Effect<unknown, unknown>,
-    ) =>
-      Effect.succeed({
-        stations: [
-          {
-            stationToken: "tok1",
-            stationId: "sid1",
-            stationName: "Indie",
-          },
-          {
-            stationToken: "tok2",
-            stationId: "sid2",
-            stationName: "Jazz",
-            isQuickMix: true,
-            quickMixStationIds: ["a", "b"],
-            allowDelete: true,
-            allowRename: true,
-          },
-        ],
-      })) as never);
-    const handlers = radioHandlers({ auth });
+describe("radio handlers", () => {
+  it("radio.stations.list returns the service station summaries", async () => {
+    const handlers = radioHandlers({ radio: makeRadio() });
     const result = await Effect.runPromise(handlers["radio.stations.list"]());
+
     expect(result).toEqual([
       {
         id: "pandora:tok1",
@@ -78,78 +68,69 @@ describe("radio.stations.list handler", () => {
         allowDelete: false,
         allowRename: false,
       },
-      {
-        id: "pandora:tok2",
-        stationId: "pandora:sid2",
-        name: "Jazz",
-        isQuickMix: true,
-        quickMixStationIds: ["pandora:a", "pandora:b"],
-        allowDelete: true,
-        allowRename: true,
-      },
     ]);
   });
 
-  it("propagates Unauthorized when no Pandora session is available", async () => {
-    const handlers = radioHandlers({ auth: unauthorized });
+  it("radio.station.get passes the payload through to the service", async () => {
+    let seenId = "";
+    const handlers = radioHandlers({
+      radio: makeRadio({
+        getStation: (input) => {
+          seenId = input.id;
+          return Effect.succeed({
+            id: input.id,
+            stationId: "pandora:sid1",
+            name: "Indie",
+          });
+        },
+      }),
+    });
+
+    const result = await Effect.runPromise(
+      handlers["radio.station.get"]({ id: "pandora:tok1" }),
+    );
+
+    expect(seenId).toBe("pandora:tok1");
+    expect(result.id).toBe("pandora:tok1");
+  });
+
+  it("state-changing commands return typed service envelopes", async () => {
+    const handlers = radioHandlers({ radio: makeRadio() });
+
+    await expect(
+      Effect.runPromise(
+        handlers["radio.station.delete"]({ id: "pandora:tok1" }),
+      ),
+    ).resolves.toEqual({ success: true });
+    await expect(
+      Effect.runPromise(
+        handlers["radio.quickMix.set"]({ radioIds: ["pandora:tok1"] }),
+      ),
+    ).resolves.toEqual({ success: true });
+    await expect(
+      Effect.runPromise(
+        handlers["radio.seed.add"]({
+          radioId: "pandora:tok1",
+          musicToken: "music-token",
+        }),
+      ),
+    ).resolves.toEqual({ seedId: "pandora:seed-1" });
+  });
+
+  it("maps typed service failures through the public error boundary", async () => {
+    const handlers = radioHandlers({
+      radio: makeRadio({
+        listStations: () =>
+          Effect.fail(
+            new Unauthorized({ code: "pandora_credentials_required" }),
+          ),
+      }),
+    });
+
     const exit = await Effect.runPromise(
       Effect.exit(handlers["radio.stations.list"]()),
     );
-    expect(exit._tag).toBe("Failure");
-    if (exit._tag === "Failure") {
-      expect(JSON.stringify(exit.cause)).toContain("Unauthorized");
-    }
-  });
-});
 
-describe("radio.station.delete handler", () => {
-  it("returns success:true after the underlying Pandora delete resolves", async () => {
-    const auth = makeAuth(((
-      _f: (ctx: never) => Effect.Effect<unknown, unknown>,
-    ) => Effect.succeed(undefined)) as never);
-    const handlers = radioHandlers({ auth });
-    const result = await Effect.runPromise(
-      handlers["radio.station.delete"]({ id: "pandora:tokenA" }),
-    );
-    expect(result).toEqual({ success: true });
-  });
-});
-
-describe("radio.quickMix.set handler", () => {
-  it("returns success:true after parsing radio ids and calling Pandora", async () => {
-    const auth = makeAuth(((
-      _f: (ctx: never) => Effect.Effect<unknown, unknown>,
-    ) => Effect.succeed(undefined)) as never);
-    const handlers = radioHandlers({ auth });
-    const result = await Effect.runPromise(
-      handlers["radio.quickMix.set"]({
-        radioIds: ["pandora:a", "pandora:b"],
-      }),
-    );
-    expect(result).toEqual({ success: true });
-  });
-});
-
-describe("radio.genres.list handler", () => {
-  it("forwards Pandora category list straight through", async () => {
-    const auth = makeAuth(((
-      _f: (ctx: never) => Effect.Effect<unknown, unknown>,
-    ) =>
-      Effect.succeed({
-        categories: [
-          {
-            categoryName: "Rock",
-            stations: [{ stationToken: "g1", stationName: "Indie Rock" }],
-          },
-        ],
-      })) as never);
-    const handlers = radioHandlers({ auth });
-    const result = await Effect.runPromise(handlers["radio.genres.list"]());
-    expect(result).toEqual([
-      {
-        categoryName: "Rock",
-        stations: [{ stationToken: "g1", stationName: "Indie Rock" }],
-      },
-    ]);
+    expect(JSON.stringify(exit)).toContain("Unauthorized");
   });
 });

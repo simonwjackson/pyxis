@@ -129,6 +129,24 @@ export type ApiCreateStationInput = Schema.Schema.Type<
   typeof CreateStationInputSchema
 >;
 
+export const RadioStationCommandResultSchema = Schema.Struct({
+  id: Schema.String,
+  stationId: Schema.String,
+  name: Schema.String,
+});
+export type ApiRadioStationCommandResult = Schema.Schema.Type<
+  typeof RadioStationCommandResultSchema
+>;
+
+export const AddRadioSeedResultSchema = Schema.Struct({
+  seedId: Schema.String,
+  artistName: Schema.optionalKey(Schema.String),
+  songName: Schema.optionalKey(Schema.String),
+});
+export type ApiAddRadioSeedResult = Schema.Schema.Type<
+  typeof AddRadioSeedResultSchema
+>;
+
 export const DeleteStationInputSchema = RadioIdInputSchema;
 export type ApiDeleteStationInput = Schema.Schema.Type<
   typeof DeleteStationInputSchema

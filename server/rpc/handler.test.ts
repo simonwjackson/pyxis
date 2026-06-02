@@ -27,6 +27,7 @@ import {
   type LibraryBehavior,
   LibraryLayerFromBehavior,
 } from "./services/library.js";
+import { RadioLayerFromBehavior } from "./services/radio.js";
 import {
   type SourceCatalogBehavior,
   SourceCatalogLayerFromBehavior,
@@ -91,6 +92,11 @@ function makeServiceLayer() {
     AuthSessionLayerFromBehavior(authBehavior()),
     LibraryLayerFromBehavior(libraryBehavior()),
     SourceCatalogLayerFromBehavior(catalogBehavior()),
+    RadioLayerFromBehavior({
+      auth: {
+        withAuthRetry: () => Effect.fail({ _tag: "Unauthorized" } as never),
+      },
+    }),
   );
 }
 

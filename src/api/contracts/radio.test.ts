@@ -2,10 +2,12 @@ import { describe, expect, it } from "bun:test";
 import { Schema } from "effect";
 import {
   AddRadioSeedInputSchema,
+  AddRadioSeedResultSchema,
   CreateStationInputSchema,
   GenreCategorySchema,
   GetRadioTracksInputSchema,
   QuickMixInputSchema,
+  RadioStationCommandResultSchema,
   RadioTrackSchema,
   RemoveRadioSeedInputSchema,
   RenameStationInputSchema,
@@ -112,6 +114,40 @@ describe("radio API contracts", () => {
     expect(() =>
       Schema.decodeUnknownSync(CreateStationInputSchema)({
         musicType: "playlist",
+      }),
+    ).toThrow();
+  });
+
+  it("decodes typed station command results", () => {
+    expect(
+      Schema.decodeUnknownSync(RadioStationCommandResultSchema)({
+        id: "pandora:station_token",
+        stationId: "pandora:station_id",
+        name: "Station",
+      }),
+    ).toEqual({
+      id: "pandora:station_token",
+      stationId: "pandora:station_id",
+      name: "Station",
+    });
+    expect(() =>
+      Schema.decodeUnknownSync(RadioStationCommandResultSchema)({
+        id: "pandora:station_token",
+        stationId: "pandora:station_id",
+      }),
+    ).toThrow();
+  });
+
+  it("decodes typed add-seed command results", () => {
+    expect(
+      Schema.decodeUnknownSync(AddRadioSeedResultSchema)({
+        seedId: "pandora:seed_1",
+        artistName: "Artist",
+      }),
+    ).toEqual({ seedId: "pandora:seed_1", artistName: "Artist" });
+    expect(() =>
+      Schema.decodeUnknownSync(AddRadioSeedResultSchema)({
+        artistName: "Artist",
       }),
     ).toThrow();
   });
