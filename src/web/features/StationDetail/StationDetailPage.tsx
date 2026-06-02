@@ -15,7 +15,6 @@
  * this station is already playing.
  */
 
-import { AddSeedDialog } from "@app/features/stations/AddSeedDialog";
 import { radioStationTag } from "@app/features/stations/radioReactivityTags";
 import { StationCommandState } from "@app/features/stations/StationCommandState";
 import { PyxisRpcClient } from "@app/shared/api/rpcClient";
@@ -27,15 +26,17 @@ import {
 import { usePlaybackContext } from "@app/shared/playback/PlaybackContext";
 import { queueStateStreamAtom } from "@app/shared/playback/queueStateStreamAtom";
 import { PlaybackState } from "@app/shared/playback/types";
+import { usePlaybackErrorToast } from "@app/shared/playback/usePlaybackErrorToast";
 import { useAtomSet, useAtomValue } from "@effect/atom-react";
 import { useNavigate } from "@tanstack/react-router";
 import { AsyncResult } from "effect/unstable/reactivity";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
-import { StationDetailFeedbackSection } from "./StationDetailFeedbackSection";
-import { StationDetailHeader } from "./StationDetailHeader";
-import { StationDetailSeedsSection } from "./StationDetailSeedsSection";
-import { StationDetailSkeleton } from "./StationDetailSkeleton";
+import { StationDetailFailureState } from "./StationDetailFailureState";
+import { StationDetailLoadingState } from "./StationDetailLoadingState";
+import { StationDetailNotFoundState } from "./StationDetailNotFoundState";
+import { StationDetailPageProvider } from "./StationDetailPage.context";
+import { StationDetailReadyState } from "./StationDetailReadyState";
 import { StationDetailState } from "./StationDetailState";
 import type { StationDetailPageProps } from "./types";
 
@@ -69,6 +70,7 @@ export function StationDetailPage({ token, autoPlay }: StationDetailPageProps) {
   const playback = usePlaybackContext();
   const playbackRef = useRef(playback);
   playbackRef.current = playback;
+  usePlaybackErrorToast(playback);
   const hasAutoPlayedRef = useRef(false);
 
   const stationQueryAtom = useMemo(
@@ -116,15 +118,6 @@ export function StationDetailPage({ token, autoPlay }: StationDetailPageProps) {
     startRadioPlayback();
   }, [autoPlay, startRadioPlayback]);
 
-  const playbackError = PlaybackState.error(playback.state);
-
-  useEffect(() => {
-    if (playbackError) {
-      toast.error(`Audio error: ${playbackError}`);
-      playbackRef.current.clearError();
-    }
-  }, [playbackError]);
-
   const removeSeedResult = projectQueryResult(
     useAtomValue(removeSeedMutationAtom),
   );
@@ -134,74 +127,53 @@ export function StationDetailPage({ token, autoPlay }: StationDetailPageProps) {
     mode: "promiseExit",
   });
 
-  const handleRemoveSeed = (seedId: string) => {
-    void removeSeed({
-      payload: { radioId: token, seedId },
-      reactivityKeys: [radioStationTag(token)],
-    }).then((exit) => {
-      if (exit._tag === "Success") {
-        toast.success("seed removed");
-      } else {
-        toast.error("Failed to remove seed");
-      }
+  const handleBack = useCallback(() => {
+    navigate({
+      to: "/",
+      search: {
+        pl_sort: undefined,
+        pl_page: undefined,
+        al_sort: undefined,
+        al_page: undefined,
+      },
     });
-  };
+  }, [navigate]);
 
-  if (state._tag === "Loading") {
-    return <StationDetailSkeleton />;
-  }
-
-  if (state._tag === "LoadError" || state._tag === "Defect") {
-    return (
-      <div className="page-frame lattice-container">
-        <p className="text-pyxis-error">Failed to load station details</p>
-      </div>
-    );
-  }
-
-  if (state._tag === "NotFound") {
-    return (
-      <div className="page-frame lattice-container">
-        <p className="text-pyxis-dim">station not found.</p>
-      </div>
-    );
-  }
-
-  const station = state.station;
-  const seedsState = StationDetailState.seeds(station);
-  const feedbackState = StationDetailState.feedback(station);
+  const handleRemoveSeed = useCallback(
+    (seedId: string) => {
+      void removeSeed({
+        payload: { radioId: token, seedId },
+        reactivityKeys: [radioStationTag(token)],
+      }).then((exit) => {
+        if (exit._tag === "Success") {
+          toast.success("seed removed");
+        } else {
+          toast.error("Failed to remove seed");
+        }
+      });
+    },
+    [removeSeed, token],
+  );
 
   return (
-    <div className="page-frame lattice-container space-y-8 max-w-3xl mx-auto">
-      <StationDetailHeader
-        stationName={station.name}
-        isPlaying={isThisStationPlaying}
-        onBack={() =>
-          navigate({
-            to: "/",
-            search: {
-              pl_sort: undefined,
-              pl_page: undefined,
-              al_sort: undefined,
-              al_page: undefined,
-            },
-          })
-        }
-        onPlay={startRadioPlayback}
-        onAddSeed={() => setShowAddSeed(true)}
-      />
-
-      <StationDetailSeedsSection
-        state={seedsState}
-        isRemoving={isRemovingSeed}
-        onRemove={handleRemoveSeed}
-      />
-
-      <StationDetailFeedbackSection state={feedbackState} />
-
-      {showAddSeed ? (
-        <AddSeedDialog radioId={token} onClose={() => setShowAddSeed(false)} />
-      ) : null}
-    </div>
+    <StationDetailPageProvider
+      value={{
+        state,
+        token,
+        showAddSeed,
+        isPlaying: isThisStationPlaying,
+        isRemovingSeed,
+        back: handleBack,
+        play: startRadioPlayback,
+        openAddSeed: () => setShowAddSeed(true),
+        closeAddSeed: () => setShowAddSeed(false),
+        removeSeed: handleRemoveSeed,
+      }}
+    >
+      <StationDetailLoadingState />
+      <StationDetailFailureState />
+      <StationDetailNotFoundState />
+      <StationDetailReadyState />
+    </StationDetailPageProvider>
   );
 }

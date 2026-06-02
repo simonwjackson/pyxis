@@ -3,10 +3,11 @@ import { projectQueryResult } from "@app/shared/effect/projectQueryResult";
 import { useAtomValue } from "@effect/atom-react";
 import { useMemo } from "react";
 import { TrackInfoState } from "./TrackInfoState";
-import { TrackInfoTraitsEmpty } from "./TrackInfoTraitsEmpty";
-import { TrackInfoTraitsError } from "./TrackInfoTraitsError";
-import { TrackInfoTraitsList } from "./TrackInfoTraitsList";
-import { TrackInfoTraitsLoading } from "./TrackInfoTraitsLoading";
+import { TrackInfoTraitsProvider } from "./TrackInfoTraits.context";
+import { TrackInfoTraitsEmptyState } from "./TrackInfoTraitsEmptyState";
+import { TrackInfoTraitsFailureState } from "./TrackInfoTraitsFailureState";
+import { TrackInfoTraitsLoadingState } from "./TrackInfoTraitsLoadingState";
+import { TrackInfoTraitsReadyState } from "./TrackInfoTraitsReadyState";
 
 type TrackInfoTraitsProps = {
   readonly trackId: string;
@@ -27,14 +28,12 @@ export function TrackInfoTraits({ trackId }: TrackInfoTraitsProps) {
         Music Genome Traits
       </h3>
 
-      {state._tag === "Loading" ? <TrackInfoTraitsLoading /> : null}
-      {state._tag === "LoadError" || state._tag === "Defect" ? (
-        <TrackInfoTraitsError />
-      ) : null}
-      {state._tag === "Empty" ? <TrackInfoTraitsEmpty /> : null}
-      {state._tag === "Ready" ? (
-        <TrackInfoTraitsList explanations={state.traits} />
-      ) : null}
+      <TrackInfoTraitsProvider value={{ state }}>
+        <TrackInfoTraitsLoadingState />
+        <TrackInfoTraitsFailureState />
+        <TrackInfoTraitsEmptyState />
+        <TrackInfoTraitsReadyState />
+      </TrackInfoTraitsProvider>
     </div>
   );
 }

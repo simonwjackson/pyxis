@@ -23,19 +23,20 @@ function StationDetailFeedbackBody({
 }: {
   readonly state: StationDetailFeedbackState;
 }) {
-  switch (state._tag) {
-    case "Empty":
-      return <StationDetailFeedbackEmpty />;
-    case "Ready":
-      return <StationDetailFeedbackReady state={state} />;
-  }
+  return (
+    <>
+      <StationDetailFeedbackEmpty state={state} />
+      <StationDetailFeedbackReady state={state} />
+    </>
+  );
 }
 
 function StationDetailFeedbackReady({
   state,
 }: {
-  readonly state: Extract<StationDetailFeedbackState, { _tag: "Ready" }>;
+  readonly state: StationDetailFeedbackState;
 }) {
+  if (state._tag !== "Ready") return null;
   return (
     <>
       <StationDetailLikedFeedbackGroup feedback={state.liked} />
@@ -44,7 +45,12 @@ function StationDetailFeedbackReady({
   );
 }
 
-function StationDetailFeedbackEmpty() {
+function StationDetailFeedbackEmpty({
+  state,
+}: {
+  readonly state: StationDetailFeedbackState;
+}) {
+  if (state._tag !== "Empty") return null;
   return (
     <p className="py-6 text-center text-pyxis-dim text-sm">
       No feedback for this station yet.

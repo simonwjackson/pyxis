@@ -26,6 +26,7 @@
  * matches the existing station-detail "fetch tracks then play" pattern.
  */
 
+import { toastAlbumSaveResult } from "@app/features/home/libraryAlbumToasts";
 import {
   LIBRARY_ALBUM_STATES_TAG,
   LIBRARY_ALBUMS_TAG,
@@ -35,23 +36,21 @@ import {
 import { RADIO_STATIONS_TAG } from "@app/features/stations/radioReactivityTags";
 import { PyxisRpcClient } from "@app/shared/api/rpcClient";
 import { projectQueryResult } from "@app/shared/effect/projectQueryResult";
-import { formatPlacementLabel } from "@app/shared/lib/libraryPlacement";
 import {
   sourceAlbumTrackToNowPlaying,
   tracksToQueuePayload,
 } from "@app/shared/lib/nowPlayingUtils";
 import { usePlaybackContext } from "@app/shared/playback/PlaybackContext";
-import { Spinner } from "@app/shared/ui/Spinner";
 import { useAtomSet, useAtomValue } from "@effect/atom-react";
 import { useCallback, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
-import { SearchAlbums } from "./components/SearchAlbums";
-import { SearchArtists } from "./components/SearchArtists";
-import { SearchGenres } from "./components/SearchGenres";
-import { SearchResultsEmpty } from "./components/SearchResultsEmpty";
-import { SearchTracks } from "./components/SearchTracks";
+import { SearchEmptyState } from "./components/SearchEmptyState";
+import { SearchFailureState } from "./components/SearchFailureState";
+import { SearchIdleState } from "./components/SearchIdleState";
+import { SearchLoadingState } from "./components/SearchLoadingState";
+import { SearchResultsState } from "./components/SearchResultsState";
 import { SearchInput } from "./SearchInput";
-import { SearchResultsRoot } from "./SearchResultsRoot";
+import { SearchPageProvider } from "./SearchPage.context";
 import { SearchState } from "./SearchState";
 import type { SearchTrack } from "./types";
 
@@ -82,84 +81,6 @@ const createPlaylistRadioReactivityKeys = [PLAYLIST_LIST_TAG] as const;
 const albumWithTracksFetchAtom = PyxisRpcClient.mutation(
   "album.withTracks.get",
 );
-
-type SearchContentProps = {
-  readonly state: SearchState;
-  readonly onPlayAlbum: (albumId: string) => void;
-  readonly playingAlbumId: string | null;
-  readonly onSaveAlbum: (albumId: string) => void;
-  readonly onStartRadio: (track: SearchTrack) => void;
-  readonly onCreateStation: (musicToken: string) => void;
-};
-
-function SearchContent({
-  state,
-  onPlayAlbum,
-  playingAlbumId,
-  onSaveAlbum,
-  onStartRadio,
-  onCreateStation,
-}: SearchContentProps) {
-  switch (state._tag) {
-    case "Idle":
-      return (
-        <div className="text-center py-20 text-pyxis-dim">
-          <p className="zune-display text-5xl sm:text-6xl text-pyxis-dim/40 mb-6">
-            discover
-          </p>
-          <p className="text-sm">
-            search for artists, songs, or albums across all sources
-          </p>
-        </div>
-      );
-    case "Loading":
-      return (
-        <div className="flex justify-center py-8">
-          <Spinner />
-        </div>
-      );
-    case "Empty":
-      return <SearchResultsEmpty />;
-    case "LoadError":
-    case "Defect":
-      return (
-        <div className="text-center py-20 text-pyxis-error">
-          <p className="text-sm">failed to search</p>
-        </div>
-      );
-    case "Results":
-      return (
-        <SearchResultsRoot>
-          {state.results.albums.length > 0 ? (
-            <SearchAlbums
-              albums={state.results.albums}
-              onPlayAlbum={onPlayAlbum}
-              playingAlbumId={playingAlbumId}
-              onSaveAlbum={onSaveAlbum}
-            />
-          ) : null}
-          {state.results.tracks.length > 0 ? (
-            <SearchTracks
-              tracks={state.results.tracks}
-              onStartRadio={onStartRadio}
-            />
-          ) : null}
-          {state.results.pandoraArtists.length > 0 ? (
-            <SearchArtists
-              artists={state.results.pandoraArtists}
-              onCreateStation={onCreateStation}
-            />
-          ) : null}
-          {state.results.pandoraGenres.length > 0 ? (
-            <SearchGenres
-              genres={state.results.pandoraGenres}
-              onCreateStation={onCreateStation}
-            />
-          ) : null}
-        </SearchResultsRoot>
-      );
-  }
-}
 
 export function SearchPage() {
   const [query, setQuery] = useState("");
@@ -235,19 +156,7 @@ export function SearchPage() {
         reactivityKeys: saveAlbumReactivityKeys,
       }).then((exit) => {
         if (exit._tag === "Success") {
-          switch (exit.value.outcome) {
-            case "created":
-              toast.success("album added to discovery");
-              break;
-            case "restored":
-              toast.success("album restored to discovery");
-              break;
-            case "existing":
-              toast.info(
-                `album already in ${formatPlacementLabel(exit.value.placement).toLowerCase()}`,
-              );
-              break;
-          }
+          toastAlbumSaveResult(exit.value);
         } else {
           toast.error("Failed to add album");
         }
@@ -316,14 +225,22 @@ export function SearchPage() {
         onSearch={handleSearch}
         placeholder="search artists, songs, albums..."
       />
-      <SearchContent
-        state={state}
-        onPlayAlbum={handlePlayAlbum}
-        playingAlbumId={playingAlbumId}
-        onSaveAlbum={handleSaveAlbum}
-        onStartRadio={handleStartRadio}
-        onCreateStation={handleCreateStation}
-      />
+      <SearchPageProvider
+        value={{
+          state,
+          playingAlbumId,
+          playAlbum: handlePlayAlbum,
+          saveAlbum: handleSaveAlbum,
+          startRadio: handleStartRadio,
+          createStation: handleCreateStation,
+        }}
+      >
+        <SearchIdleState />
+        <SearchLoadingState />
+        <SearchEmptyState />
+        <SearchFailureState />
+        <SearchResultsState />
+      </SearchPageProvider>
     </div>
   );
 }

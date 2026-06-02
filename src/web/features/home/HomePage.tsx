@@ -16,12 +16,12 @@
 
 import { PyxisRpcClient } from "@app/shared/api/rpcClient";
 import { projectQueryResult } from "@app/shared/effect/projectQueryResult";
-import { CollectionGridSkeleton } from "@app/shared/ui/collection-grid/CollectionGridSkeleton";
 import { useAtomValue } from "@effect/atom-react";
 import { useNavigate } from "@tanstack/react-router";
 import { Plus } from "lucide-react";
 import { useCallback, useState } from "react";
-import { AlbumShelf, HOT_SORT_OPTIONS } from "./AlbumShelf";
+import { HOT_SORT_OPTIONS } from "./AlbumShelf";
+import { HomeAlbumShelfState } from "./HomeAlbumShelfState";
 import { HomeState } from "./HomeState";
 import {
   LIBRARY_ALBUMS_TAG,
@@ -136,16 +136,10 @@ function HomeHotShelfSection() {
   const result = projectQueryResult(useAtomValue(hotAlbumsQueryAtom));
   const state = HomeState.albumShelfFromResult(result);
 
-  if (state._tag === "Loading") {
-    return <CollectionGridSkeleton title="Hot" />;
-  }
-
-  const albums = state._tag === "Ready" ? state.items : [];
-
   return (
-    <AlbumShelf
+    <HomeAlbumShelfState
+      state={state}
       title="Hot"
-      albums={albums}
       emptyMessage="Nothing hot yet. Listen to an album a few times and it will surface here."
       sortOptions={HOT_SORT_OPTIONS}
       defaultSort="hot"
@@ -161,16 +155,10 @@ function HomeDiscoveryShelfSection({
   const result = projectQueryResult(useAtomValue(discoveryAlbumsQueryAtom));
   const state = HomeState.albumShelfFromResult(result);
 
-  if (state._tag === "Loading") {
-    return <CollectionGridSkeleton title="Discovery" />;
-  }
-
-  const albums = state._tag === "Ready" ? state.items : [];
-
   return (
-    <AlbumShelf
+    <HomeAlbumShelfState
+      state={state}
       title="Discovery"
-      albums={albums}
       emptyMessage="Nothing in discovery yet. Add an album to get started."
       trailing={
         <button
@@ -197,16 +185,10 @@ function HomeCollectionShelfSection({
   const result = projectQueryResult(useAtomValue(collectionAlbumsQueryAtom));
   const state = HomeState.albumShelfFromResult(result);
 
-  if (state._tag === "Loading") {
-    return <CollectionGridSkeleton title="Collection" />;
-  }
-
-  const albums = state._tag === "Ready" ? state.items : [];
-
   return (
-    <AlbumShelf
+    <HomeAlbumShelfState
+      state={state}
       title="Collection"
-      albums={albums}
       emptyMessage="Nothing in collection yet. Move albums here when they become keepers."
       headerAction={
         <button
@@ -225,16 +207,10 @@ function HomeArchiveShelfSection() {
   const result = projectQueryResult(useAtomValue(archiveAlbumsQueryAtom));
   const state = HomeState.albumShelfFromResult(result);
 
-  if (state._tag === "Loading") {
-    return <CollectionGridSkeleton title="Archive" />;
-  }
-
-  const albums = state._tag === "Ready" ? state.items : [];
-
   return (
-    <AlbumShelf
+    <HomeAlbumShelfState
+      state={state}
       title="Archive"
-      albums={albums}
       emptyMessage="Archive is empty."
     />
   );

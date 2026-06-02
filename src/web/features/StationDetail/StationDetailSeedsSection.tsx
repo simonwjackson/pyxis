@@ -13,18 +13,16 @@ export function StationDetailSeedsSection({
   isRemoving,
   onRemove,
 }: StationDetailSeedsSectionProps) {
-  switch (state._tag) {
-    case "Empty":
-      return <StationDetailSeedsEmpty />;
-    case "Ready":
-      return (
-        <StationDetailSeedsReady
-          state={state}
-          isRemoving={isRemoving}
-          onRemove={onRemove}
-        />
-      );
-  }
+  return (
+    <>
+      <StationDetailSeedsEmpty state={state} />
+      <StationDetailSeedsReady
+        state={state}
+        isRemoving={isRemoving}
+        onRemove={onRemove}
+      />
+    </>
+  );
 }
 
 function StationDetailSeedsReady({
@@ -32,10 +30,11 @@ function StationDetailSeedsReady({
   isRemoving,
   onRemove,
 }: {
-  readonly state: Extract<StationDetailSeedsState, { _tag: "Ready" }>;
+  readonly state: StationDetailSeedsState;
   readonly isRemoving: boolean;
   readonly onRemove: (seedId: string) => void;
 }) {
+  if (state._tag !== "Ready") return null;
   return (
     <div>
       <StationDetailArtistSeedsGroup
@@ -52,7 +51,12 @@ function StationDetailSeedsReady({
   );
 }
 
-function StationDetailSeedsEmpty() {
+function StationDetailSeedsEmpty({
+  state,
+}: {
+  readonly state: StationDetailSeedsState;
+}) {
+  if (state._tag !== "Empty") return null;
   return (
     <p className="py-6 text-center text-pyxis-dim text-sm">
       No seeds found for this station.
