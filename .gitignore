@@ -18,6 +18,7 @@ test-results/
 playwright-report/
 .tmp/images/1770007391114
 .orchestra
+.lab/
 
 # Android build output and local SDK state
 android/.gradle/
