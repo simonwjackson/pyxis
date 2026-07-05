@@ -1,21 +1,20 @@
 /**
  * @module QueueCoverflowReady
  *
- * The interactive cover-flow + vinyl-detail surface for a populated queue.
+ * The interactive cover-flow surface for a populated queue. The covers occupy
+ * their own measured stack area and the title/artist lives in a separate
+ * caption region, so artwork always stands alone. The caption placement is a
+ * variation (`captionVariant`) so alternatives can be compared as templates.
  *
- * Intrinsic sizing: the surface fills its mounting host (the device frame) and
- * measures ITS OWN container — never the window — so every size is a fraction
- * of the device it is mounted in. There are no screen-size media queries; the
- * same code is correct on a Walkman, a phone, or a desktop. It composes the
- * extracted building blocks (backdrop, title, stage, detail) and owns only the
- * view/navigation state, not data fetching.
+ * Intrinsic sizing: the stack area measures ITSELF (not the window), so cover
+ * sizes and the reflow axis come from the container; no screen media queries.
  */
 
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { BlurredBackdrop } from "./components/BlurredBackdrop";
+import { CoverflowCaption } from "./components/CoverflowCaption";
 import { CoverflowDetail } from "./components/CoverflowDetail";
 import { CoverflowStage } from "./components/CoverflowStage";
-import { QueueTitleBar } from "./components/QueueTitleBar";
 import type { QueueCoverflowTrack } from "./QueueCoverflowState";
 import {
   cardSpacingFor,
@@ -24,6 +23,8 @@ import {
   coverflowAxis,
   stepIndexFromDelta,
 } from "./queueCoverflowGeometry";
+
+export type CoverflowCaptionVariant = "below" | "above" | "editorial";
 
 interface Size {
   readonly width: number;
@@ -54,21 +55,29 @@ function useDebouncedValue<T>(value: T, delayMs: number): T {
   return debounced;
 }
 
+const captionSlotStyle: React.CSSProperties = {
+  flexShrink: 0,
+  display: "flex",
+  alignItems: "center",
+  padding: "clamp(0.6rem, 3cqmin, 1.4rem) clamp(1rem, 5cqmin, 2rem)",
+};
+
 export function QueueCoverflowReady({
   tracks,
   initialIndex,
+  captionVariant = "below",
 }: {
   readonly tracks: readonly QueueCoverflowTrack[];
   readonly initialIndex: number;
+  readonly captionVariant?: CoverflowCaptionVariant;
 }) {
-  const rootRef = useRef<HTMLDivElement>(null);
-  const { width, height } = useContainerSize(rootRef);
+  const stackRef = useRef<HTMLDivElement>(null);
+  const { width, height } = useContainerSize(stackRef);
   const measured = width > 0 && height > 0;
-  // Reflow from the container's own aspect ratio: a wide frame fans the cards
-  // horizontally; a tall frame flows them top-to-bottom. No screen media query.
   const axis = coverflowAxis(width, height);
   const cardSize = computeCardSize(width, height, axis);
   const detailSize = computeDetailSize(width, height);
+  const cardSpacing = cardSpacingFor(cardSize, axis);
 
   const [activeIndex, setActiveIndex] = useState(initialIndex);
   const [view, setView] = useState<"queue" | "detail">("queue");
@@ -79,30 +88,7 @@ export function QueueCoverflowReady({
     );
   }, [tracks.length]);
 
-  const activeTrack = tracks[activeIndex] ?? tracks[0];
-  const debouncedArtwork = useDebouncedValue(activeTrack?.artwork ?? "", 1000);
-
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && view === "detail") {
-        setView("queue");
-        return;
-      }
-      if (view !== "queue") return;
-      if (e.key === "ArrowLeft" || e.key === "ArrowUp")
-        setActiveIndex((p) => Math.max(0, p - 1));
-      else if (e.key === "ArrowRight" || e.key === "ArrowDown")
-        setActiveIndex((p) => Math.min(Math.max(0, tracks.length - 1), p + 1));
-      else if (e.key === "Enter") setView("detail");
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [tracks.length, view]);
-
   // ── Touch / pointer drag + wheel scrubbing ──────────────────────────────
-  // The stack follows the finger 1:1 (live dragOffset, transitions off) and
-  // only snaps to the nearest card on release.
-  const cardSpacing = cardSpacingFor(cardSize, axis);
   const [dragOffset, setDragOffset] = useState(0);
   const [dragging, setDragging] = useState(false);
   const dragStartRef = useRef<{ pos: number; index: number } | null>(null);
@@ -128,8 +114,6 @@ export function QueueCoverflowReady({
     if (!start) return;
     const raw = pointerPos(e) - start.pos;
     if (Math.abs(raw) > 6) draggedRef.current = true;
-    // Allow only a half-card of overshoot past either end, so the stack never
-    // slides into empty space.
     const maxOff = (start.index + 0.5) * cardSpacing;
     const minOff = (start.index - (lastCount - 1) - 0.5) * cardSpacing;
     const clamped = Math.max(minOff, Math.min(raw, maxOff));
@@ -166,8 +150,24 @@ export function QueueCoverflowReady({
     }
   };
 
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && view === "detail") {
+        setView("queue");
+        return;
+      }
+      if (view !== "queue") return;
+      if (e.key === "ArrowLeft" || e.key === "ArrowUp")
+        setActiveIndex((p) => Math.max(0, p - 1));
+      else if (e.key === "ArrowRight" || e.key === "ArrowDown")
+        setActiveIndex((p) => Math.min(Math.max(0, tracks.length - 1), p + 1));
+      else if (e.key === "Enter") setView("detail");
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [tracks.length, view]);
+
   const selectTrack = (index: number) => {
-    // A drag ends in a click; swallow it so scrubbing never opens a card.
     if (draggedRef.current) {
       draggedRef.current = false;
       return;
@@ -176,16 +176,28 @@ export function QueueCoverflowReady({
     else setActiveIndex(index);
   };
 
-  // While dragging, the active position is fractional so card emphasis (scale,
-  // opacity, tilt, z) reselects live; on release it settles to an integer.
+  // Fractional active position while dragging → live reselection.
   const scrollIndex =
     dragging && cardSpacing > 0
       ? activeIndex - dragOffset / cardSpacing
       : activeIndex;
+  const nearestIndex = Math.min(
+    Math.max(0, Math.round(scrollIndex)),
+    Math.max(0, tracks.length - 1),
+  );
+  const captionTrack = tracks[nearestIndex];
+  const activeTrack = tracks[activeIndex] ?? tracks[0];
+  const debouncedArtwork = useDebouncedValue(
+    captionTrack?.artwork ?? activeTrack?.artwork ?? "",
+    600,
+  );
+
+  const showCaptionAbove = captionVariant === "above";
+  const showCaptionBelow =
+    captionVariant === "below" || captionVariant === "editorial";
 
   return (
     <div
-      ref={rootRef}
       style={{
         position: "absolute",
         inset: 0,
@@ -198,27 +210,44 @@ export function QueueCoverflowReady({
     >
       <BlurredBackdrop artwork={debouncedArtwork} />
 
-      {measured ? (
-        <>
-          <QueueTitleBar visible={view === "queue"} />
+      <div
+        style={{
+          position: "absolute",
+          inset: 0,
+          zIndex: 1,
+          display: "flex",
+          flexDirection: "column",
+          opacity: view === "queue" ? 1 : 0,
+          pointerEvents: view === "queue" ? "auto" : "none",
+          transition: "opacity 0.5s ease",
+        }}
+      >
+        {showCaptionAbove ? (
+          <div style={captionSlotStyle}>
+            <CoverflowCaption
+              track={captionTrack}
+              index={nearestIndex}
+              count={tracks.length}
+            />
+          </div>
+        ) : null}
 
-          {/* ── Queue View ────────────────────────────────────────── */}
-          <div
-            onPointerDown={onPointerDown}
-            onPointerMove={onPointerMove}
-            onPointerUp={onPointerUp}
-            onPointerCancel={onPointerUp}
-            onWheel={onWheel}
-            style={{
-              position: "absolute",
-              inset: 0,
-              cursor: view === "queue" ? "grab" : "default",
-              touchAction: "none",
-              opacity: view === "queue" ? 1 : 0,
-              pointerEvents: view === "queue" ? "auto" : "none",
-              transition: "opacity 0.5s ease",
-            }}
-          >
+        <div
+          ref={stackRef}
+          onPointerDown={onPointerDown}
+          onPointerMove={onPointerMove}
+          onPointerUp={onPointerUp}
+          onPointerCancel={onPointerUp}
+          onWheel={onWheel}
+          style={{
+            position: "relative",
+            flex: 1,
+            minHeight: 0,
+            touchAction: "none",
+            cursor: view === "queue" ? "grab" : "default",
+          }}
+        >
+          {measured ? (
             <CoverflowStage
               tracks={tracks}
               activeIndex={scrollIndex}
@@ -228,40 +257,52 @@ export function QueueCoverflowReady({
               focusable={view === "queue"}
               onSelect={selectTrack}
             />
-          </div>
+          ) : null}
+        </div>
 
-          {/* ── Detail View ───────────────────────────────────────── */}
-          {/* biome-ignore lint/a11y/useSemanticElements: full-screen rich detail surface acts like a dismissable overlay, not a native button. */}
-          <div
-            role="button"
-            tabIndex={view === "detail" ? 0 : -1}
-            onClick={() => setView("queue")}
-            onKeyDown={(event) => {
-              if (event.key === "Enter" || event.key === " ") {
-                event.preventDefault();
-                setView("queue");
-              }
-            }}
-            style={{
-              position: "absolute",
-              inset: 0,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              cursor: "default",
-              opacity: view === "detail" ? 1 : 0,
-              pointerEvents: view === "detail" ? "auto" : "none",
-              transition: "opacity 0.5s ease",
-            }}
-          >
-            <CoverflowDetail
-              track={activeTrack}
-              detailSize={detailSize}
-              open={view === "detail"}
+        {showCaptionBelow ? (
+          <div style={captionSlotStyle}>
+            <CoverflowCaption
+              track={captionTrack}
+              index={nearestIndex}
+              count={tracks.length}
+              editorial={captionVariant === "editorial"}
             />
           </div>
-        </>
-      ) : null}
+        ) : null}
+      </div>
+
+      {/* ── Detail View ─────────────────────────────────────────── */}
+      {/* biome-ignore lint/a11y/useSemanticElements: full-screen rich detail surface acts like a dismissable overlay, not a native button. */}
+      <div
+        role="button"
+        tabIndex={view === "detail" ? 0 : -1}
+        onClick={() => setView("queue")}
+        onKeyDown={(event) => {
+          if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            setView("queue");
+          }
+        }}
+        style={{
+          position: "absolute",
+          inset: 0,
+          zIndex: 2,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          cursor: "default",
+          opacity: view === "detail" ? 1 : 0,
+          pointerEvents: view === "detail" ? "auto" : "none",
+          transition: "opacity 0.5s ease",
+        }}
+      >
+        <CoverflowDetail
+          track={activeTrack}
+          detailSize={detailSize}
+          open={view === "detail"}
+        />
+      </div>
 
       {/* Vinyl spin keyframes */}
       <style>{`

@@ -67,11 +67,7 @@ export function CoverflowStage({
             }
           }}
         >
-          <CoverflowCard
-            track={track}
-            size={cardSize}
-            active={index === nearest}
-          />
+          <CoverflowCard track={track} active={index === nearest} />
         </div>
       ))}
     </>
