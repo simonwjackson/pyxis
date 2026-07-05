@@ -1,7 +1,7 @@
 ---
 title: "feat: Align Pyxis as Caliper's first external consumer"
 type: feat
-status: active
+status: complete
 date: 2026-07-04
 origin: caliper/work/items/active/20260704190231-caliper-extraction-and-pyxis-alignment/plan.md
 verify_command: "just typecheck && just test-unit"
