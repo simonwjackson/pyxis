@@ -72,32 +72,56 @@ interface CoverflowSpacing {
   readonly compressed: number;
   readonly center: number;
   readonly softness: number;
+  /** An extra "moat" pushed onto every non-active card so the active album
+   * lifts clear of the pack. Applied as a fast-saturating step. */
+  readonly separation: number;
+  readonly separationSoftness: number;
 }
 
 const SPACING_PROFILES: Record<CoverflowAxis, CoverflowSpacing> = {
-  y: { compressed: 0.17, center: 0.52, softness: 1 },
-  x: { compressed: 0.9, center: 0.9, softness: 1 },
+  y: {
+    compressed: 0.17,
+    center: 0.52,
+    softness: 1,
+    separation: 0.22,
+    separationSoftness: 0.6,
+  },
+  x: {
+    compressed: 0.9,
+    center: 0.9,
+    softness: 1,
+    separation: 0,
+    separationSoftness: 1,
+  },
 };
 
-/** Drag/step spacing: the centre spacing, so a one-card drag near the active
- * tracks the finger 1:1. */
+/** Drag/step spacing: the effective spacing right at the centre (including the
+ * separation moat) so a one-card drag near the active tracks the finger 1:1. */
 export function cardSpacingFor(cardSize: number, axis: CoverflowAxis): number {
-  return cardSize * SPACING_PROFILES[axis].center;
+  const p = SPACING_PROFILES[axis];
+  return cardSize * (p.center + p.separation / p.separationSoftness);
 }
 
 /**
- * Main-axis pixel offset of a card from the active one. Linear near the centre
- * (full spacing) easing to a tight constant spacing far out, via a tanh, so the
- * active album is separated and the rest compress into a browsable stack.
+ * Main-axis pixel offset of a card from the active one. Full spacing near the
+ * centre easing to a tight constant spacing far out (tanh compression), plus a
+ * fast-saturating separation moat that lifts every non-active card clear of the
+ * active album — so it reads as: active → gap → compressed browsable stack.
  */
 export function cardMainOffset(
   diff: number,
   cardSize: number,
   axis: CoverflowAxis,
 ): number {
-  const { compressed, center, softness } = SPACING_PROFILES[axis];
+  const { compressed, center, softness, separation, separationSoftness } =
+    SPACING_PROFILES[axis];
   const gain = (center - compressed) * softness;
-  return cardSize * (compressed * diff + gain * Math.tanh(diff / softness));
+  return (
+    cardSize *
+    (compressed * diff +
+      gain * Math.tanh(diff / softness) +
+      separation * Math.tanh(diff / separationSoftness))
+  );
 }
 
 /**

@@ -79,8 +79,9 @@ describe("queueCoverflowGeometry", () => {
       rotation: 5,
       axis: "y",
     });
-    // Portrait first neighbour uses the (larger) centre spacing, not compressed.
-    expect(translateAxis(neighbor.transform, "Y")).toBeCloseTo(87.31, 1);
+    // Portrait first neighbour clears the active album by the centre spacing
+    // plus the separation moat, well beyond the compressed far spacing.
+    expect(translateAxis(neighbor.transform, "Y")).toBeCloseTo(128.28, 1);
     expect(neighbor.marginTop).toBe(-100);
     expect(neighbor.transform).not.toContain("translateX");
     expect(neighbor.transform).toContain(`rotate(${5 * PORTRAIT_TILT}deg)`);
