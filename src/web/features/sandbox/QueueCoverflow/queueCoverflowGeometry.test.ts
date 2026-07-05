@@ -8,12 +8,23 @@ import {
 } from "./queueCoverflowGeometry.js";
 
 describe("queueCoverflowGeometry", () => {
-  it("sizes the card from the container's smaller side, clamped 64..300", () => {
+  it("sizes the landscape card from the container's smaller side, clamped 64..300", () => {
     expect(computeCardSize(120, 120)).toBe(64);
     expect(computeCardSize(4000, 4000)).toBe(300);
     expect(computeCardSize(1000, 800)).toBeCloseTo(272, 5);
     // A tiny handheld frame (e.g. NW-A306 portrait) stays legible, not blown up.
     expect(computeCardSize(179, 319)).toBeCloseTo(64, 5);
+  });
+
+  it("sizes the portrait card to nearly fill the container width", () => {
+    // A portrait handheld: the album nearly fills the width (much bigger than
+    // the landscape fan card for the same frame).
+    expect(computeCardSize(179, 319, "y")).toBeCloseTo(150.36, 2);
+    expect(computeCardSize(179, 319, "y")).toBeGreaterThan(
+      computeCardSize(179, 319, "x"),
+    );
+    // Clamped so a wide portrait window doesn't produce an absurd cover.
+    expect(computeCardSize(700, 1200, "y")).toBe(420);
   });
 
   it("derives detail size from the smaller container projection", () => {

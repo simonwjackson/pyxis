@@ -62,11 +62,11 @@ export function QueueCoverflowReady({
   const rootRef = useRef<HTMLDivElement>(null);
   const { width, height } = useContainerSize(rootRef);
   const measured = width > 0 && height > 0;
-  const cardSize = computeCardSize(width, height);
-  const detailSize = computeDetailSize(width, height);
   // Reflow from the container's own aspect ratio: a wide frame fans the cards
   // horizontally; a tall frame flows them top-to-bottom. No screen media query.
   const axis = coverflowAxis(width, height);
+  const cardSize = computeCardSize(width, height, axis);
+  const detailSize = computeDetailSize(width, height);
 
   const [activeIndex, setActiveIndex] = useState(initialIndex);
   const [view, setView] = useState<"queue" | "detail">("queue");

@@ -17,13 +17,21 @@ export function seededRotation(index: number): number {
 }
 
 /**
- * Card edge length as a fraction of the container's smaller side, clamped so it
- * stays legible on a tiny handheld and never dominates a large display.
+ * Card edge length, derived from the container.
+ *
+ * - Landscape fan (`x`): a fraction of the SMALLER side so several cards read at
+ *   once, clamped to stay legible on a handheld and modest on a big display.
+ * - Portrait flow (`y`): a large fraction of the WIDTH so the active album
+ *   nearly fills the frame and the queue reads as a stack of big covers.
  */
 export function computeCardSize(
   containerWidth: number,
   containerHeight: number,
+  axis: CoverflowAxis = "x",
 ): number {
+  if (axis === "y") {
+    return Math.max(96, Math.min(containerWidth * 0.84, 420));
+  }
   const base = Math.min(containerWidth, containerHeight) * 0.34;
   return Math.max(64, Math.min(base, 300));
 }
