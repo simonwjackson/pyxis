@@ -78,17 +78,18 @@ interface CoverflowSpacing {
 }
 
 const SPACING_PROFILES: Record<CoverflowAxis, CoverflowSpacing> = {
-  y: { center: 0.52, softness: 1, separation: 0.22, separationSoftness: 0.6 },
+  y: { center: 0.52, softness: 0.7, separation: 0.22, separationSoftness: 0.6 },
   x: { center: 0.9, softness: 1, separation: 0, separationSoftness: 1 },
 };
 
 // Portrait far-spacing (the tight pack) as a fraction of the cover, scaled by
-// cover size: smaller covers (smaller screens) pack tighter, so more overlap
-// and more albums are visible at once. Landscape keeps its uniform fan.
-const PORTRAIT_COMPRESSED_MIN = 0.1;
-const PORTRAIT_COMPRESSED_MAX = 0.22;
-const PORTRAIT_CARD_MIN = 96;
-const PORTRAIT_CARD_MAX = 360;
+// cover size: on small covers (small screens) it collapses to a thin sliver so
+// only a slice of each non-selected album shows and many stack up; big covers
+// ease open. Landscape keeps its uniform fan.
+const PORTRAIT_COMPRESSED_MIN = 0.05;
+const PORTRAIT_COMPRESSED_MAX = 0.2;
+const PORTRAIT_CARD_MIN = 150;
+const PORTRAIT_CARD_MAX = 380;
 
 function compressedFor(axis: CoverflowAxis, cardSize: number): number {
   if (axis === "x") return SPACING_PROFILES.x.center;
