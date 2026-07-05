@@ -47,10 +47,13 @@ export function coverflowAxis(
   return containerHeight > containerWidth ? "y" : "x";
 }
 
-/** Neighbour-to-neighbour spacing. Horizontal fans overlap the artwork edges;
- * vertical flow leaves room for each card's label. */
+/** Neighbour-to-neighbour spacing, always a fraction of the card so cards
+ * OVERLAP into a compact stack rather than spreading apart. The active card
+ * (top z-index, scaled up) therefore stays fully visible while its neighbours
+ * tuck behind it. Vertical flow is tighter still so tall handheld frames don't
+ * strand the cards far apart. */
 export function cardSpacingFor(cardSize: number, axis: CoverflowAxis): number {
-  return cardSize * (axis === "y" ? 1.08 : 0.95);
+  return cardSize * (axis === "y" ? 0.62 : 0.9);
 }
 
 export interface CardStyleInput {
