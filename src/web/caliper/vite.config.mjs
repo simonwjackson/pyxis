@@ -8,6 +8,7 @@ const repoRoot = path.resolve(caliperDir, "../../..");
 const config = defineCaliperViteConfig({
   repoRoot,
   aliases: {
+    "pyxis-caliper-runtime": "@simonwjackson/caliper",
     "@app": path.resolve(repoRoot, "src/web"),
     "@server": path.resolve(repoRoot, "server"),
     "@shared/api": path.resolve(repoRoot, "src/api"),
