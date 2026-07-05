@@ -1,6 +1,6 @@
 import { PyxisRpcClient } from "@app/shared/api/rpcClient";
-import { Atom, AsyncResult } from "effect/unstable/reactivity";
 import { Cause } from "effect";
+import { AsyncResult, Atom } from "effect/unstable/reactivity";
 import type { RpcClientError } from "effect/unstable/rpc/RpcClientError";
 import type { ApiPublicError } from "../../../api/contracts/common.js";
 import type { ApiLibraryAlbum } from "../../../api/contracts/library.js";
@@ -64,7 +64,15 @@ const rpcHomeSource: HomeSource = {
 export const homeSourceAtom: Atom.Writable<HomeSource> =
   Atom.make<HomeSource>(rpcHomeSource);
 
-export type HomeFixtureState = "Loading" | "Ready" | "Empty" | "LoadError" | "Defect";
+export const HOME_FIXTURE_STATES = [
+  "Loading",
+  "Ready",
+  "Empty",
+  "LoadError",
+  "Defect",
+] as const;
+
+export type HomeFixtureState = (typeof HOME_FIXTURE_STATES)[number];
 
 export function makeHomeFixtureSource(state: HomeFixtureState): HomeSource {
   return {

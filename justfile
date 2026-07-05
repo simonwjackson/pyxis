@@ -52,6 +52,10 @@ test-e2e:
 dev:
     bun run dev
 
+# Run the Caliper design lab for real Pyxis surfaces
+dev-lab:
+    bun run dev-lab
+
 # Build the Sony Android debug APK
 android-build:
     nix develop .#android --command bash -lc 'cd android && ./gradlew assembleDebug'
