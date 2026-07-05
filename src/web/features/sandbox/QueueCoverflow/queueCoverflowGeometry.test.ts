@@ -5,6 +5,7 @@ import {
   computeDetailSize,
   coverflowAxis,
   seededRotation,
+  stepIndexFromDelta,
 } from "./queueCoverflowGeometry.js";
 
 describe("queueCoverflowGeometry", () => {
@@ -85,5 +86,19 @@ describe("queueCoverflowGeometry", () => {
     expect(coverflowAxis(1000, 600)).toBe("x");
     expect(coverflowAxis(600, 1000)).toBe("y");
     expect(coverflowAxis(500, 500)).toBe("x");
+  });
+
+  it("steps the active index from a drag delta and clamps to bounds", () => {
+    // No movement keeps the starting card.
+    expect(stepIndexFromDelta(2, 0, 100, 7)).toBe(2);
+    // Dragging up/left (negative) advances toward later cards.
+    expect(stepIndexFromDelta(2, -200, 100, 7)).toBe(4);
+    // Dragging down/right (positive) goes back toward earlier cards.
+    expect(stepIndexFromDelta(4, 200, 100, 7)).toBe(2);
+    // Clamped at both ends.
+    expect(stepIndexFromDelta(0, 1000, 50, 7)).toBe(0);
+    expect(stepIndexFromDelta(6, -1000, 50, 7)).toBe(6);
+    // Degenerate spacing is a no-op, not a crash.
+    expect(stepIndexFromDelta(3, 120, 0, 7)).toBe(3);
   });
 });

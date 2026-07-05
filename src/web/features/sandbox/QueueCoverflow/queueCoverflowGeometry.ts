@@ -64,6 +64,26 @@ export function cardSpacingFor(cardSize: number, axis: CoverflowAxis): number {
   return cardSize * (axis === "y" ? 0.62 : 0.9);
 }
 
+/**
+ * Resolve the active index while dragging: a drag along the flow axis of one
+ * card-spacing moves one card. Dragging up/left (negative delta) advances to
+ * later cards, like pushing a stack. Always clamped to the queue bounds.
+ */
+export function stepIndexFromDelta(
+  startIndex: number,
+  deltaPx: number,
+  stepPx: number,
+  count: number,
+): number {
+  if (count <= 0) return 0;
+  const maxIndex = count - 1;
+  if (!(stepPx > 0) || !Number.isFinite(deltaPx)) {
+    return Math.min(Math.max(0, startIndex), maxIndex);
+  }
+  const steps = Math.round(deltaPx / stepPx);
+  return Math.min(Math.max(0, startIndex - steps), maxIndex);
+}
+
 export interface CardStyleInput {
   readonly index: number;
   readonly activeIndex: number;

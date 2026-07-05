@@ -18,9 +18,11 @@ import { CoverflowStage } from "./components/CoverflowStage";
 import { QueueTitleBar } from "./components/QueueTitleBar";
 import type { QueueCoverflowTrack } from "./QueueCoverflowState";
 import {
+  cardSpacingFor,
   computeCardSize,
   computeDetailSize,
   coverflowAxis,
+  stepIndexFromDelta,
 } from "./queueCoverflowGeometry";
 
 interface Size {
@@ -97,7 +99,53 @@ export function QueueCoverflowReady({
     return () => window.removeEventListener("keydown", onKey);
   }, [tracks.length, view]);
 
+  // ── Touch / pointer drag + wheel scrubbing ──────────────────────────────
+  const cardSpacing = cardSpacingFor(cardSize, axis);
+  const dragStartRef = useRef<{ pos: number; index: number } | null>(null);
+  const draggedRef = useRef(false);
+  const wheelAccRef = useRef(0);
+  const lastCount = tracks.length;
+
+  const pointerPos = (e: React.PointerEvent<HTMLElement>) =>
+    axis === "x" ? e.clientX : e.clientY;
+
+  const onPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (view !== "queue") return;
+    dragStartRef.current = { pos: pointerPos(e), index: activeIndex };
+    draggedRef.current = false;
+    e.currentTarget.setPointerCapture?.(e.pointerId);
+  };
+  const onPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    const start = dragStartRef.current;
+    if (!start) return;
+    const delta = pointerPos(e) - start.pos;
+    if (Math.abs(delta) > 6) draggedRef.current = true;
+    setActiveIndex(
+      stepIndexFromDelta(start.index, delta, cardSpacing, lastCount),
+    );
+  };
+  const onPointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
+    dragStartRef.current = null;
+    e.currentTarget.releasePointerCapture?.(e.pointerId);
+  };
+  const onWheel = (e: React.WheelEvent<HTMLDivElement>) => {
+    if (view !== "queue") return;
+    const step = Math.max(24, cardSpacing * 0.5);
+    const primary = axis === "x" ? e.deltaX || e.deltaY : e.deltaY;
+    wheelAccRef.current += primary;
+    while (Math.abs(wheelAccRef.current) >= step) {
+      const dir = Math.sign(wheelAccRef.current);
+      setActiveIndex((p) => Math.min(Math.max(0, p + dir), lastCount - 1));
+      wheelAccRef.current -= dir * step;
+    }
+  };
+
   const selectTrack = (index: number) => {
+    // A drag ends in a click; swallow it so scrubbing never opens a card.
+    if (draggedRef.current) {
+      draggedRef.current = false;
+      return;
+    }
     if (index === activeIndex) setView("detail");
     else setActiveIndex(index);
   };
@@ -123,10 +171,16 @@ export function QueueCoverflowReady({
 
           {/* ── Queue View ────────────────────────────────────────── */}
           <div
+            onPointerDown={onPointerDown}
+            onPointerMove={onPointerMove}
+            onPointerUp={onPointerUp}
+            onPointerCancel={onPointerUp}
+            onWheel={onWheel}
             style={{
               position: "absolute",
               inset: 0,
-              cursor: "default",
+              cursor: view === "queue" ? "grab" : "default",
+              touchAction: "none",
               opacity: view === "queue" ? 1 : 0,
               pointerEvents: view === "queue" ? "auto" : "none",
               transition: "opacity 0.5s ease",
