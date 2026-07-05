@@ -1,15 +1,12 @@
 import type { RouterHistory } from "@tanstack/history";
 import type * as AtomRegistry from "effect/unstable/reactivity/AtomRegistry";
-import { mountPyxis, type MountPyxisOptions } from "../mountPyxis";
-import {
-  HOME_FIXTURE_STATES,
-  type HomeFixtureState,
-} from "@app/features/home/homeSource";
+import { type MountPyxisOptions, mountPyxis } from "../mountPyxis";
 import {
   type PyxisLabStateAxis,
   pyxisAxesForScreen,
   registerPyxisCaliperRegistry,
 } from "./pyxis-axes";
+import { makePyxisSeedInitialValues } from "./pyxis-seed";
 import {
   PYXIS_CALIPER_DEVICES,
   PYXIS_CALIPER_KNOBS,
@@ -17,7 +14,6 @@ import {
   type PyxisCaliperDeviceConfig,
   type PyxisCaliperKnob,
 } from "./pyxisConfig";
-import { makePyxisSeedInitialValues } from "./pyxis-seed";
 
 interface PyxisLabSurfaceAdapter {
   readonly id: string;
@@ -34,7 +30,6 @@ interface PyxisLabSurfaceAdapter {
     readonly label: string;
     readonly description?: string;
   }[];
-  readonly states: readonly { readonly id: string; readonly label: string }[];
   readonly axesForScreen: (screenPath: string) => readonly PyxisLabStateAxis[];
   readonly makeSeedInitialValues: () => Promise<unknown>;
   readonly makeSeedInitialValuesForBinding: (binding: {
@@ -58,6 +53,7 @@ export const pyxisLabSurfaceAdapter: PyxisLabSurfaceAdapter = {
   knobs: PYXIS_CALIPER_KNOBS,
   screens: [
     { label: "Home", path: "/", pagePartId: "pyxis.home" },
+    { label: "Queue", path: "/sandbox/queue", pagePartId: "pyxis.queue" },
     { label: "Search", path: "/search" },
     { label: "Stations", path: "/stations" },
     { label: "Settings", path: "/settings" },
@@ -69,24 +65,24 @@ export const pyxisLabSurfaceAdapter: PyxisLabSurfaceAdapter = {
       description:
         "Pinned Home shelf data through Pyxis's real Effect atom source edge.",
     },
+    {
+      id: "fixture-queue",
+      label: "Fixture queue source",
+      description:
+        "Pinned queue snapshot through Pyxis's real queue-stream source edge.",
+    },
   ],
-  states: HOME_FIXTURE_STATES.map((state) => ({
-    id: state,
-    label: state === "Empty" ? "Ready / empty" : state,
-  })),
   axesForScreen: pyxisAxesForScreen,
-  makeSeedInitialValues: async () => makePyxisSeedInitialValues("Ready"),
-  makeSeedInitialValuesForBinding: async ({ stateId }) =>
-    makePyxisSeedInitialValues(homeFixtureStateFromInput(stateId)),
+  makeSeedInitialValues: async () => makePyxisSeedInitialValues(),
+  makeSeedInitialValuesForBinding: async () => makePyxisSeedInitialValues(),
   mountSurface: (host, options) => {
     let unregisterRegistry = () => {};
-    const seedState = seedStateFromInitialValues(options.initialValues);
     const mountOptions: MountPyxisOptions = {
       data: { initialValues: options.initialValues as never },
       ...(options.history ? { navigation: { history: options.history } } : {}),
       onRegistry: (registry: AtomRegistry.AtomRegistry) => {
         unregisterRegistry();
-        unregisterRegistry = registerPyxisCaliperRegistry(registry, seedState);
+        unregisterRegistry = registerPyxisCaliperRegistry(registry);
         options.onRegistry?.(registry);
       },
     };
@@ -100,35 +96,3 @@ export const pyxisLabSurfaceAdapter: PyxisLabSurfaceAdapter = {
     };
   },
 };
-
-function homeFixtureStateFromInput(value: unknown): HomeFixtureState {
-  return typeof value === "string" && isHomeFixtureState(value)
-    ? value
-    : "Ready";
-}
-
-function isHomeFixtureState(value: string): value is HomeFixtureState {
-  return HOME_FIXTURE_STATES.includes(value as HomeFixtureState);
-}
-
-function seedStateFromInitialValues(initialValues: unknown): HomeFixtureState {
-  if (!Array.isArray(initialValues)) return "Ready";
-  for (const entry of initialValues) {
-    if (!Array.isArray(entry) || entry.length < 2) continue;
-    const source = entry[1];
-    const state = readFixtureState(source);
-    if (state) return state;
-  }
-  return "Ready";
-}
-
-function readFixtureState(source: unknown): HomeFixtureState | null {
-  if (typeof source !== "object" || source === null) return null;
-  const serialized = JSON.stringify(source);
-  for (const state of HOME_FIXTURE_STATES) {
-    if (serialized.includes(`home fixture ${state.toLowerCase()}`)) {
-      return state;
-    }
-  }
-  return null;
-}

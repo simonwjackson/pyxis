@@ -1,10 +1,19 @@
+/**
+ * @module pyxis-axes
+ *
+ * Turns the declared {@link PYXIS_LAB_SOURCES} into per-screen state axes the
+ * Caliper lab can pin. Pinning a state writes the source's fixture into every
+ * mounted Pyxis registry through the real writable source atom; releasing
+ * restores the source's default fixture.
+ */
+
+import type * as Atom from "effect/unstable/reactivity/Atom";
 import type * as AtomRegistry from "effect/unstable/reactivity/AtomRegistry";
 import {
-  HOME_FIXTURE_STATES,
-  type HomeFixtureState,
-  homeSourceAtom,
-  makeHomeFixtureSource,
-} from "@app/features/home/homeSource";
+  PYXIS_LAB_SOURCES,
+  type PyxisLabSource,
+  stateOptions,
+} from "./pyxis-lab-sources";
 
 export interface PyxisLabStateAxisContext {
   readonly scopeId?: string;
@@ -20,65 +29,44 @@ export interface PyxisLabStateAxis {
   readonly release: (context?: PyxisLabStateAxisContext) => void;
 }
 
-interface MountedPyxisRegistry {
-  readonly registry: AtomRegistry.AtomRegistry;
-  readonly seedState: HomeFixtureState;
-}
-
-const mountedRegistries = new Set<MountedPyxisRegistry>();
+const mountedRegistries = new Set<AtomRegistry.AtomRegistry>();
 
 export function registerPyxisCaliperRegistry(
   registry: AtomRegistry.AtomRegistry,
-  seedState: HomeFixtureState,
 ): () => void {
-  const entry = { registry, seedState };
-  mountedRegistries.add(entry);
-  return () => mountedRegistries.delete(entry);
+  mountedRegistries.add(registry);
+  return () => {
+    mountedRegistries.delete(registry);
+  };
 }
 
 export function pyxisAxesForScreen(
   screenPath: string,
 ): readonly PyxisLabStateAxis[] {
-  if (screenPath !== "/") return [];
-  return [homeSourceAxis];
+  return PYXIS_LAB_SOURCES.filter(
+    (source) => source.screenPath === screenPath,
+  ).map(sourceToAxis);
 }
 
-const homeSourceAxis: PyxisLabStateAxis = {
-  id: "home-source-state",
-  kind: "single",
-  label: "Home source",
-  liveLabel: "Live RPC",
-  states: HOME_FIXTURE_STATES.map((state) => ({
-    id: state,
-    label: state === "Empty" ? "Ready / empty" : state,
-  })),
-  pin: (stateId, context) => {
-    if (!isHomeFixtureState(stateId)) return;
-    writeHomeSourceState(stateId, context);
-  },
-  release: (context) => {
-    forEachTargetRegistry(context, ({ registry, seedState }) => {
-      registry.set(homeSourceAtom, makeHomeFixtureSource(seedState));
-    });
-  },
-};
-
-function writeHomeSourceState(
-  state: HomeFixtureState,
-  context?: PyxisLabStateAxisContext,
-): void {
-  forEachTargetRegistry(context, ({ registry }) => {
-    registry.set(homeSourceAtom, makeHomeFixtureSource(state));
-  });
+function sourceToAxis(source: PyxisLabSource): PyxisLabStateAxis {
+  return {
+    id: source.axisId,
+    kind: "single",
+    label: source.label,
+    liveLabel: source.liveLabel,
+    states: stateOptions(source),
+    pin: (stateId) => {
+      if (!source.states.includes(stateId)) return;
+      writeSource(source, source.makeFixture(stateId));
+    },
+    release: () => {
+      writeSource(source, source.makeFixture(source.defaultState));
+    },
+  };
 }
 
-function forEachTargetRegistry(
-  _context: PyxisLabStateAxisContext | undefined,
-  run: (entry: MountedPyxisRegistry) => void,
-): void {
-  for (const entry of mountedRegistries) run(entry);
-}
-
-function isHomeFixtureState(state: string): state is HomeFixtureState {
-  return HOME_FIXTURE_STATES.includes(state as HomeFixtureState);
+function writeSource(source: PyxisLabSource, value: unknown): void {
+  for (const registry of mountedRegistries) {
+    registry.set(source.atom as Atom.Writable<unknown, unknown>, value);
+  }
 }
