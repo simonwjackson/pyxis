@@ -60,8 +60,44 @@ export function coverflowAxis(
  * (top z-index, scaled up) therefore stays fully visible while its neighbours
  * tuck behind it. Vertical flow is tighter still so tall handheld frames don't
  * strand the cards far apart. */
+/**
+ * Per-axis spacing profile, as fractions of the card size:
+ * - `center`: spacing right around the active card, so it stands on its own.
+ * - `compressed`: the tight spacing far from centre, so the rest pack like a
+ *   flipped-through record bin and many are visible at once.
+ * - `softness`: how quickly spacing eases from centre to compressed (cards).
+ * Landscape keeps a uniform fan (center === compressed).
+ */
+interface CoverflowSpacing {
+  readonly compressed: number;
+  readonly center: number;
+  readonly softness: number;
+}
+
+const SPACING_PROFILES: Record<CoverflowAxis, CoverflowSpacing> = {
+  y: { compressed: 0.17, center: 0.52, softness: 1 },
+  x: { compressed: 0.9, center: 0.9, softness: 1 },
+};
+
+/** Drag/step spacing: the centre spacing, so a one-card drag near the active
+ * tracks the finger 1:1. */
 export function cardSpacingFor(cardSize: number, axis: CoverflowAxis): number {
-  return cardSize * (axis === "y" ? 0.62 : 0.9);
+  return cardSize * SPACING_PROFILES[axis].center;
+}
+
+/**
+ * Main-axis pixel offset of a card from the active one. Linear near the centre
+ * (full spacing) easing to a tight constant spacing far out, via a tanh, so the
+ * active album is separated and the rest compress into a browsable stack.
+ */
+export function cardMainOffset(
+  diff: number,
+  cardSize: number,
+  axis: CoverflowAxis,
+): number {
+  const { compressed, center, softness } = SPACING_PROFILES[axis];
+  const gain = (center - compressed) * softness;
+  return cardSize * (compressed * diff + gain * Math.tanh(diff / softness));
 }
 
 /**
@@ -92,7 +128,6 @@ export interface CardStyleInput {
   readonly index: number;
   readonly activeIndex: number;
   readonly cardSize: number;
-  readonly cardSpacing: number;
   readonly rotation: number;
   readonly axis?: CoverflowAxis;
   /** While true, transitions are suppressed so the drag tracks 1:1; on release
@@ -104,7 +139,6 @@ export function cardStyle({
   index,
   activeIndex,
   cardSize,
-  cardSpacing,
   rotation,
   axis = "x",
   dragging = false,
@@ -115,7 +149,7 @@ export function cardStyle({
   // "reselection" feel: the card nearest centre grows, brightens, straightens,
   // and rises as you drag it in. Fractional activeIndex makes it continuous.
   const proximity = Math.max(0, 1 - distance);
-  const main = diff * cardSpacing;
+  const main = cardMainOffset(diff, cardSize, axis);
   const scale = 1 + 0.08 * proximity;
   const opacity = 0.55 + 0.45 * proximity;
   const zIndex = Math.round(120 - distance * 20);

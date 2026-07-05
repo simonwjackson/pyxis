@@ -1,5 +1,6 @@
 import { describe, expect, it } from "bun:test";
 import {
+  cardMainOffset,
   cardStyle,
   computeCardSize,
   computeDetailSize,
@@ -8,6 +9,13 @@ import {
   seededRotation,
   stepIndexFromDelta,
 } from "./queueCoverflowGeometry.js";
+
+function translateAxis(transform: unknown, axis: "X" | "Y"): number {
+  const match = new RegExp(`translate${axis}\\(([-\\d.]+)px\\)`).exec(
+    String(transform),
+  );
+  return Number(match?.[1] ?? "0");
+}
 
 describe("queueCoverflowGeometry", () => {
   it("sizes the landscape card from the container's smaller side, clamped 64..300", () => {
@@ -19,13 +27,10 @@ describe("queueCoverflowGeometry", () => {
   });
 
   it("sizes the portrait card to nearly fill the container width", () => {
-    // A portrait handheld: the album nearly fills the width (much bigger than
-    // the landscape fan card for the same frame).
     expect(computeCardSize(179, 319, "y")).toBeCloseTo(150.36, 2);
     expect(computeCardSize(179, 319, "y")).toBeGreaterThan(
       computeCardSize(179, 319, "x"),
     );
-    // Clamped so a wide portrait window doesn't produce an absurd cover.
     expect(computeCardSize(700, 1200, "y")).toBe(420);
   });
 
@@ -44,7 +49,6 @@ describe("queueCoverflowGeometry", () => {
       index: 2,
       activeIndex: 2,
       cardSize: 200,
-      cardSpacing: 190,
       rotation: 5,
     });
     expect(active.opacity).toBe(1);
@@ -53,17 +57,17 @@ describe("queueCoverflowGeometry", () => {
     expect(active.transform).toContain("scale(1.08)");
   });
 
-  it("offsets and dims non-active cards by their distance", () => {
+  it("offsets and dims non-active cards by their distance (landscape fan)", () => {
     const neighbor = cardStyle({
       index: 3,
       activeIndex: 2,
       cardSize: 200,
-      cardSpacing: 190,
       rotation: 5,
     });
     expect(neighbor.opacity).toBe(0.55);
     expect(neighbor.zIndex).toBe(100);
-    expect(neighbor.transform).toContain("translateX(190px)");
+    // Landscape uses a uniform fan: 0.9 * 200.
+    expect(translateAxis(neighbor.transform, "X")).toBeCloseTo(180, 5);
     expect(neighbor.transform).toContain("rotate(5deg)");
   });
 
@@ -72,16 +76,30 @@ describe("queueCoverflowGeometry", () => {
       index: 3,
       activeIndex: 2,
       cardSize: 200,
-      cardSpacing: 190,
       rotation: 5,
       axis: "y",
     });
-    expect(neighbor.transform).toContain("translateY(190px)");
+    // Portrait first neighbour uses the (larger) centre spacing, not compressed.
+    expect(translateAxis(neighbor.transform, "Y")).toBeCloseTo(87.31, 1);
     expect(neighbor.marginTop).toBe(-100);
-    // Portrait covers stay centered (no sideways nudge) but keep a subtle,
-    // damped tilt offset rather than the full landscape fan angle.
     expect(neighbor.transform).not.toContain("translateX");
     expect(neighbor.transform).toContain(`rotate(${5 * PORTRAIT_TILT}deg)`);
+  });
+
+  it("compresses far portrait cards into a record-bin stack", () => {
+    const o1 = cardMainOffset(1, 200, "y");
+    const o2 = cardMainOffset(2, 200, "y");
+    const o5 = cardMainOffset(5, 200, "y");
+    const o6 = cardMainOffset(6, 200, "y");
+    // The active album stands on its own: the first gap is the widest.
+    expect(o2 - o1).toBeLessThan(o1);
+    // Far gaps compress toward the tight pack, so more cards are visible.
+    expect(o6 - o5).toBeLessThan(o2 - o1);
+    expect(o6 - o5).toBeCloseTo(0.17 * 200, 0);
+    // Landscape stays a uniform fan (no compression).
+    expect(
+      cardMainOffset(2, 200, "x") - cardMainOffset(1, 200, "x"),
+    ).toBeCloseTo(cardMainOffset(1, 200, "x"), 5);
   });
 
   it("chooses the flow axis from the container aspect ratio", () => {
@@ -91,32 +109,24 @@ describe("queueCoverflowGeometry", () => {
   });
 
   it("reselects live via a fractional active index with transitions off", () => {
-    // As the active position slides from 2 toward 3, card 3 moves toward centre
-    // (smaller offset), grows, and brightens — the live reselection feel.
     const base = cardStyle({
       index: 3,
       activeIndex: 2,
       cardSize: 200,
-      cardSpacing: 190,
       rotation: 5,
     });
     const dragged = cardStyle({
       index: 3,
       activeIndex: 2.7,
       cardSize: 200,
-      cardSpacing: 190,
       rotation: 5,
       dragging: true,
     });
-    expect(base.transform).toContain("translateX(190px)");
+    expect(translateAxis(base.transform, "X")).toBeCloseTo(180, 5);
     expect(base.transform).toContain("scale(1)");
     expect(dragged.transition).toBe("none");
-    // 0.3 card away from centre: offset ~57px (smaller than the resting 190).
-    const draggedX = Number(
-      /translateX\(([\d.]+)px\)/.exec(String(dragged.transform))?.[1] ?? "0",
-    );
-    expect(draggedX).toBeCloseTo(57, 1);
-    // Closer to centre, so it scales up toward the active card.
+    // 0.3 card from centre in the landscape fan: 0.3 * 180 = 54px.
+    expect(translateAxis(dragged.transform, "X")).toBeCloseTo(54, 1);
     const scale = Number(
       /scale\(([\d.]+)\)/.exec(String(dragged.transform))?.[1] ?? "0",
     );
@@ -125,16 +135,11 @@ describe("queueCoverflowGeometry", () => {
   });
 
   it("steps the active index from a drag delta and clamps to bounds", () => {
-    // No movement keeps the starting card.
     expect(stepIndexFromDelta(2, 0, 100, 7)).toBe(2);
-    // Dragging up/left (negative) advances toward later cards.
     expect(stepIndexFromDelta(2, -200, 100, 7)).toBe(4);
-    // Dragging down/right (positive) goes back toward earlier cards.
     expect(stepIndexFromDelta(4, 200, 100, 7)).toBe(2);
-    // Clamped at both ends.
     expect(stepIndexFromDelta(0, 1000, 50, 7)).toBe(0);
     expect(stepIndexFromDelta(6, -1000, 50, 7)).toBe(6);
-    // Degenerate spacing is a no-op, not a crash.
     expect(stepIndexFromDelta(3, 120, 0, 7)).toBe(3);
   });
 });

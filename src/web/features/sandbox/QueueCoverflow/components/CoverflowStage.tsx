@@ -10,7 +10,6 @@ import { useMemo } from "react";
 import type { QueueCoverflowTrack } from "../QueueCoverflowState";
 import {
   type CoverflowAxis,
-  cardSpacingFor,
   cardStyle,
   seededRotation,
 } from "../queueCoverflowGeometry";
@@ -34,7 +33,6 @@ export function CoverflowStage({
   readonly focusable?: boolean;
   readonly onSelect?: (index: number) => void;
 }) {
-  const cardSpacing = cardSpacingFor(cardSize, axis);
   // The card nearest centre carries the "active" card styling live as you drag.
   const nearest = Math.round(activeIndex);
   const rotations = useMemo(
@@ -54,7 +52,6 @@ export function CoverflowStage({
             index,
             activeIndex,
             cardSize,
-            cardSpacing,
             rotation: rotations[index] ?? 0,
             axis,
             dragging,
