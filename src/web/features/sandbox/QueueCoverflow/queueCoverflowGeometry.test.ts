@@ -57,14 +57,14 @@ describe("queueCoverflowGeometry", () => {
     expect(active.transform).toContain("scale(1.08)");
   });
 
-  it("offsets and dims non-active cards by their distance (landscape fan)", () => {
+  it("offsets non-active cards by their distance at full opacity (landscape fan)", () => {
     const neighbor = cardStyle({
       index: 3,
       activeIndex: 2,
       cardSize: 200,
       rotation: 5,
     });
-    expect(neighbor.opacity).toBe(0.55);
+    expect(neighbor.opacity).toBe(1);
     expect(neighbor.zIndex).toBe(100);
     // Landscape uses a uniform fan: 0.9 * 200.
     expect(translateAxis(neighbor.transform, "X")).toBeCloseTo(180, 5);

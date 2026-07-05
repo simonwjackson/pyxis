@@ -22,7 +22,7 @@ export default function CoverflowCardPart() {
 export function Inactive() {
   return (
     <PartStage>
-      <div style={{ width: 200, opacity: 0.55 }}>
+      <div style={{ width: 200 }}>
         {other ? <CoverflowCard track={other} active={false} /> : null}
       </div>
     </PartStage>

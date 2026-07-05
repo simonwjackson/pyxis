@@ -175,7 +175,8 @@ export function cardStyle({
   const proximity = Math.max(0, 1 - distance);
   const main = cardMainOffset(diff, cardSize, axis);
   const scale = 1 + 0.08 * proximity;
-  const opacity = 0.55 + 0.45 * proximity;
+  // Covers always render at full opacity — no dimming of non-active cards.
+  const opacity = 1;
   const zIndex = Math.round(120 - distance * 20);
   // Seeded tilt (portrait damped) easing to upright at centre; the cross-axis
   // lift pops the centred card without shifting it sideways.
