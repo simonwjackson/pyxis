@@ -69,7 +69,6 @@ export function coverflowAxis(
  * Landscape keeps a uniform fan (center === compressed).
  */
 interface CoverflowSpacing {
-  readonly compressed: number;
   readonly center: number;
   readonly softness: number;
   /** An extra "moat" pushed onto every non-active card so the active album
@@ -79,21 +78,32 @@ interface CoverflowSpacing {
 }
 
 const SPACING_PROFILES: Record<CoverflowAxis, CoverflowSpacing> = {
-  y: {
-    compressed: 0.17,
-    center: 0.52,
-    softness: 1,
-    separation: 0.22,
-    separationSoftness: 0.6,
-  },
-  x: {
-    compressed: 0.9,
-    center: 0.9,
-    softness: 1,
-    separation: 0,
-    separationSoftness: 1,
-  },
+  y: { center: 0.52, softness: 1, separation: 0.22, separationSoftness: 0.6 },
+  x: { center: 0.9, softness: 1, separation: 0, separationSoftness: 1 },
 };
+
+// Portrait far-spacing (the tight pack) as a fraction of the cover, scaled by
+// cover size: smaller covers (smaller screens) pack tighter, so more overlap
+// and more albums are visible at once. Landscape keeps its uniform fan.
+const PORTRAIT_COMPRESSED_MIN = 0.1;
+const PORTRAIT_COMPRESSED_MAX = 0.22;
+const PORTRAIT_CARD_MIN = 96;
+const PORTRAIT_CARD_MAX = 360;
+
+function compressedFor(axis: CoverflowAxis, cardSize: number): number {
+  if (axis === "x") return SPACING_PROFILES.x.center;
+  const t = Math.min(
+    1,
+    Math.max(
+      0,
+      (cardSize - PORTRAIT_CARD_MIN) / (PORTRAIT_CARD_MAX - PORTRAIT_CARD_MIN),
+    ),
+  );
+  return (
+    PORTRAIT_COMPRESSED_MIN +
+    (PORTRAIT_COMPRESSED_MAX - PORTRAIT_COMPRESSED_MIN) * t
+  );
+}
 
 /** Drag/step spacing: the effective spacing right at the centre (including the
  * separation moat) so a one-card drag near the active tracks the finger 1:1. */
@@ -113,8 +123,9 @@ export function cardMainOffset(
   cardSize: number,
   axis: CoverflowAxis,
 ): number {
-  const { compressed, center, softness, separation, separationSoftness } =
+  const { center, softness, separation, separationSoftness } =
     SPACING_PROFILES[axis];
+  const compressed = compressedFor(axis, cardSize);
   const gain = (center - compressed) * softness;
   return (
     cardSize *

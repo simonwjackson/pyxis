@@ -81,7 +81,7 @@ describe("queueCoverflowGeometry", () => {
     });
     // Portrait first neighbour clears the active album by the centre spacing
     // plus the separation moat, well beyond the compressed far spacing.
-    expect(translateAxis(neighbor.transform, "Y")).toBeCloseTo(128.28, 1);
+    expect(translateAxis(neighbor.transform, "Y")).toBeCloseTo(127.2, 1);
     expect(neighbor.marginTop).toBe(-100);
     expect(neighbor.transform).not.toContain("translateX");
     expect(neighbor.transform).toContain(`rotate(${5 * PORTRAIT_TILT}deg)`);
@@ -90,17 +90,26 @@ describe("queueCoverflowGeometry", () => {
   it("compresses far portrait cards into a record-bin stack", () => {
     const o1 = cardMainOffset(1, 200, "y");
     const o2 = cardMainOffset(2, 200, "y");
+    const o4 = cardMainOffset(4, 200, "y");
     const o5 = cardMainOffset(5, 200, "y");
     const o6 = cardMainOffset(6, 200, "y");
     // The active album stands on its own: the first gap is the widest.
     expect(o2 - o1).toBeLessThan(o1);
-    // Far gaps compress toward the tight pack, so more cards are visible.
+    // Far gaps compress toward a constant tight spacing, so more are visible.
     expect(o6 - o5).toBeLessThan(o2 - o1);
-    expect(o6 - o5).toBeCloseTo(0.17 * 200, 0);
+    expect(o6 - o5).toBeCloseTo(o5 - o4, 0);
     // Landscape stays a uniform fan (no compression).
     expect(
       cardMainOffset(2, 200, "x") - cardMainOffset(1, 200, "x"),
     ).toBeCloseTo(cardMainOffset(1, 200, "x"), 5);
+  });
+
+  it("packs the far covers tighter as the cover (screen) shrinks", () => {
+    const smallGap = cardMainOffset(6, 120, "y") - cardMainOffset(5, 120, "y");
+    const largeGap = cardMainOffset(6, 360, "y") - cardMainOffset(5, 360, "y");
+    // A smaller cover spends a smaller FRACTION of itself on far spacing, so
+    // non-selected albums overlap more on smaller screens.
+    expect(smallGap / 120).toBeLessThan(largeGap / 360);
   });
 
   it("chooses the flow axis from the container aspect ratio", () => {
