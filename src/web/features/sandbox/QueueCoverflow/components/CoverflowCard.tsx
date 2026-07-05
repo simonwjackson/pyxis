@@ -1,9 +1,11 @@
 /**
  * @module CoverflowCard
  *
- * A single album card in the cover-flow: square artwork with layered shadows
- * plus the title/artist label. Presentational — the stage owns positioning and
- * interaction; this owns the card's own look at a given size and active state.
+ * A single album card in the cover-flow: square artwork with layered shadows.
+ * The title/artist caption is overlaid on the bottom of the ACTIVE cover (with
+ * a gradient scrim) rather than sitting below the card, so with the overlapping
+ * stack the text never spills onto a neighbouring card's art. Non-active cards
+ * are pure artwork. Presentational — the stage owns positioning/interaction.
  */
 
 import type { QueueCoverflowTrack } from "../QueueCoverflowState";
@@ -18,7 +20,7 @@ export function CoverflowCard({
   readonly active: boolean;
 }) {
   return (
-    <>
+    <div style={{ position: "relative", width: "100%" }}>
       <img
         src={track.artwork}
         alt={track.title}
@@ -43,47 +45,54 @@ export function CoverflowCard({
               ].join(", "),
           transition: "box-shadow 0.4s ease",
           display: "block",
-          position: "relative",
         }}
       />
-      <div
-        style={{
-          marginTop: 12,
-          textShadow: "0 1px 3px rgba(0,0,0,0.4), 0 4px 12px rgba(0,0,0,0.15)",
-          textAlign: "center",
-          padding: "0 4px",
-        }}
-      >
+      {active ? (
         <div
           style={{
-            color: active ? "rgba(255,255,255,1)" : "rgba(255,255,255,0.9)",
-            fontSize: Math.max(11, size * 0.06),
-            fontWeight: 600,
-            lineHeight: 1.3,
-            whiteSpace: "nowrap",
-            overflow: "hidden",
-            textOverflow: "ellipsis",
-            letterSpacing: "0.01em",
+            position: "absolute",
+            left: 0,
+            right: 0,
+            bottom: 0,
+            padding: `${size * 0.16}px ${size * 0.06}px ${size * 0.05}px`,
+            background:
+              "linear-gradient(to top, rgba(0,0,0,0.74) 0%, rgba(0,0,0,0.38) 45%, transparent 100%)",
+            textAlign: "center",
+            textShadow: "0 1px 4px rgba(0,0,0,0.5)",
+            pointerEvents: "none",
           }}
         >
-          {track.title}
+          <div
+            style={{
+              color: "rgba(255,255,255,1)",
+              fontSize: Math.max(13, size * 0.08),
+              fontWeight: 600,
+              lineHeight: 1.2,
+              whiteSpace: "nowrap",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              letterSpacing: "0.01em",
+            }}
+          >
+            {track.title}
+          </div>
+          <div
+            style={{
+              color: "rgba(255,255,255,0.72)",
+              fontSize: Math.max(9, size * 0.05),
+              fontWeight: 500,
+              marginTop: size * 0.012,
+              whiteSpace: "nowrap",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              textTransform: "uppercase",
+              letterSpacing: "0.06em",
+            }}
+          >
+            {track.artist}
+          </div>
         </div>
-        <div
-          style={{
-            color: active ? "rgba(255,255,255,0.65)" : "rgba(255,255,255,0.45)",
-            fontSize: Math.max(9, size * 0.048),
-            fontWeight: 500,
-            marginTop: 2,
-            whiteSpace: "nowrap",
-            overflow: "hidden",
-            textOverflow: "ellipsis",
-            textTransform: "uppercase",
-            letterSpacing: "0.06em",
-          }}
-        >
-          {track.artist}
-        </div>
-      </div>
-    </>
+      ) : null}
+    </div>
   );
 }

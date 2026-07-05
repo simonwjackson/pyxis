@@ -136,7 +136,7 @@ export function cardStyle({
     top: "50%",
     width: cardSize,
     marginLeft: -cardSize / 2,
-    marginTop: axis === "y" ? -cardSize / 2 : -cardSize / 2 - 16,
+    marginTop: -cardSize / 2,
     transform: `${translate} rotate(${rotate}deg) scale(${scale})`,
     zIndex,
     opacity,
