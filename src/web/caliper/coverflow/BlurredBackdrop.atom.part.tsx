@@ -9,7 +9,7 @@ const track = QUEUE_COVERFLOW_PREVIEW_TRACKS[0];
 
 export default function BlurredBackdropPart() {
   return (
-    <PartStage contain padding={0}>
+    <PartStage contain width={300} height={200}>
       <BlurredBackdrop artwork={track?.artwork ?? ""} />
     </PartStage>
   );

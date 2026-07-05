@@ -7,7 +7,7 @@ export const note =
 
 export default function QueueTitleBarPart() {
   return (
-    <PartStage contain height={90} padding={0}>
+    <PartStage contain width={300} height={90}>
       <QueueTitleBar visible />
     </PartStage>
   );

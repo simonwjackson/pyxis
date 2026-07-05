@@ -8,7 +8,7 @@ export const surface = true;
 
 export default function QueueCoverflowPagePart() {
   return (
-    <PartStage width="100%" height="100%" contain padding={0}>
+    <PartStage width="100%" height="100%" contain>
       <QueueCoverflowReady
         tracks={QUEUE_COVERFLOW_PREVIEW_TRACKS}
         initialIndex={2}
