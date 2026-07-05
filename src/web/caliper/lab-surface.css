@@ -1,0 +1,11 @@
+/*
+ * Lab-only: re-assert Pyxis's own typeface inside the surface mount.
+ *
+ * Caliper's chrome now owns its font on `.pt-shell` (Geist), which the mounted
+ * Pyxis surface would otherwise inherit. This scopes Pyxis's font back onto the
+ * surface subtree so the app renders in Urbanist while the tool chrome stays
+ * Geist — the same chrome/surface separation korri's scoped surfaces had.
+ */
+[data-lab-surface-mount="pyxis"] {
+  font-family: "Urbanist", system-ui, sans-serif;
+}
