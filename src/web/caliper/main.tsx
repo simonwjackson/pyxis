@@ -10,7 +10,7 @@ if (!root) {
 }
 
 const caliperPackage = "@simonwjackson/caliper";
-const { createCaliperApp } = await import(caliperPackage);
+const { createCaliperApp } = await import(/* @vite-ignore */ caliperPackage);
 
 createCaliperApp(root, {
   adapters: [pyxisLabSurfaceAdapter],
