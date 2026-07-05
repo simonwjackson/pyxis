@@ -3,6 +3,7 @@ import "../index.css";
 import "./lab-surface.css";
 
 import { createCaliperApp } from "pyxis-caliper-runtime";
+import { coverflowLabSurfaceAdapter } from "./coverflow-adapter";
 import { pyxisLabSurfaceAdapter } from "./pyxis-adapter";
 
 const root = document.getElementById("root");
@@ -12,5 +13,5 @@ if (!root) {
 }
 
 createCaliperApp(root, {
-  adapters: [pyxisLabSurfaceAdapter],
+  adapters: [pyxisLabSurfaceAdapter, coverflowLabSurfaceAdapter],
 });

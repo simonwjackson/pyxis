@@ -1,12 +1,24 @@
+/**
+ * @module coverflow-adapter
+ *
+ * Caliper surface adapter for the Queue cover-flow, mounted as its own lab
+ * surface (`themeId=coverflow`, e.g. /lab/none/coverflow/). It renders the real
+ * page through {@link mountCoverflow} and exposes the queue source-state axis
+ * so the design can be driven through every state at true device size.
+ */
+
+import {
+  makeQueueCoverflowFixtureSource,
+  queueCoverflowSourceAtom,
+} from "@app/features/sandbox/QueueCoverflow/queueCoverflowSource";
 import type { RouterHistory } from "@tanstack/history";
 import type * as AtomRegistry from "effect/unstable/reactivity/AtomRegistry";
-import { type MountPyxisOptions, mountPyxis } from "../mountPyxis";
 import {
-  type PyxisLabStateAxis,
-  pyxisAxesForScreen,
-  registerPyxisCaliperRegistry,
-} from "./pyxis-axes";
-import { makePyxisSeedInitialValues } from "./pyxis-seed";
+  coverflowAxesForScreen,
+  registerCoverflowRegistry,
+} from "./coverflow-axes";
+import { mountCoverflow } from "./mountCoverflow";
+import type { PyxisLabStateAxis } from "./pyxis-axes";
 import {
   PYXIS_CALIPER_DEVICES,
   PYXIS_CALIPER_KNOBS,
@@ -15,7 +27,7 @@ import {
   type PyxisCaliperKnob,
 } from "./pyxisConfig";
 
-interface PyxisLabSurfaceAdapter {
+interface CoverflowLabSurfaceAdapter {
   readonly id: string;
   readonly devices: readonly PyxisCaliperDeviceConfig[];
   readonly defaultPxPerMm: number;
@@ -46,42 +58,42 @@ interface PyxisLabSurfaceAdapter {
   ) => { readonly router: unknown; readonly dispose: () => void };
 }
 
-export const pyxisLabSurfaceAdapter: PyxisLabSurfaceAdapter = {
-  id: "pyxis",
+function coverflowSeedInitialValues(): readonly (readonly [
+  unknown,
+  unknown,
+])[] {
+  return [[queueCoverflowSourceAtom, makeQueueCoverflowFixtureSource("Ready")]];
+}
+
+export const coverflowLabSurfaceAdapter: CoverflowLabSurfaceAdapter = {
+  id: "coverflow",
   devices: PYXIS_CALIPER_DEVICES,
   defaultPxPerMm: PYXIS_DEFAULT_PX_PER_MM,
   knobs: PYXIS_CALIPER_KNOBS,
-  screens: [
-    { label: "Home", path: "/", pagePartId: "pyxis.home" },
-    { label: "Search", path: "/search" },
-    { label: "Stations", path: "/stations" },
-    { label: "Settings", path: "/settings" },
-  ],
+  screens: [{ label: "Coverflow", path: "/", pagePartId: "coverflow" }],
   sources: [
     {
-      id: "fixture-home",
-      label: "Fixture home source",
+      id: "fixture-queue",
+      label: "Fixture queue source",
       description:
-        "Pinned Home shelf data through Pyxis's real Effect atom source edge.",
+        "Pinned queue snapshot through Pyxis's real queue-stream source edge.",
     },
   ],
-  axesForScreen: pyxisAxesForScreen,
-  makeSeedInitialValues: async () => makePyxisSeedInitialValues(),
-  makeSeedInitialValuesForBinding: async () => makePyxisSeedInitialValues(),
+  axesForScreen: coverflowAxesForScreen,
+  makeSeedInitialValues: async () => coverflowSeedInitialValues(),
+  makeSeedInitialValuesForBinding: async () => coverflowSeedInitialValues(),
   mountSurface: (host, options) => {
     let unregisterRegistry = () => {};
-    const mountOptions: MountPyxisOptions = {
-      data: { initialValues: options.initialValues as never },
-      ...(options.history ? { navigation: { history: options.history } } : {}),
+    const mounted = mountCoverflow(host, {
+      initialValues: options.initialValues as never,
       onRegistry: (registry: AtomRegistry.AtomRegistry) => {
         unregisterRegistry();
-        unregisterRegistry = registerPyxisCaliperRegistry(registry);
+        unregisterRegistry = registerCoverflowRegistry(registry);
         options.onRegistry?.(registry);
       },
-    };
-    const mounted = mountPyxis(host, mountOptions);
+    });
     return {
-      router: mounted.router,
+      router: null,
       dispose: () => {
         unregisterRegistry();
         mounted.dispose();

@@ -13,12 +13,6 @@ import {
   homeSourceAtom,
   makeHomeFixtureSource,
 } from "@app/features/home/homeSource";
-import {
-  makeQueueCoverflowFixtureSource,
-  QUEUE_COVERFLOW_FIXTURE_STATES,
-  type QueueCoverflowFixtureState,
-  queueCoverflowSourceAtom,
-} from "@app/features/sandbox/QueueCoverflow/queueCoverflowSource";
 import type { Atom } from "effect/unstable/reactivity";
 
 export interface PyxisLabSource {
@@ -53,19 +47,4 @@ const homeLabSource: PyxisLabSource = {
   makeFixture: (state) => makeHomeFixtureSource(state as HomeFixtureState),
 };
 
-const queueLabSource: PyxisLabSource = {
-  axisId: "queue-source-state",
-  label: "Queue source",
-  liveLabel: "Live queue",
-  screenPath: "/sandbox/queue",
-  atom: queueCoverflowSourceAtom as unknown as Atom.Writable<unknown, unknown>,
-  states: QUEUE_COVERFLOW_FIXTURE_STATES,
-  defaultState: "Ready",
-  makeFixture: (state) =>
-    makeQueueCoverflowFixtureSource(state as QueueCoverflowFixtureState),
-};
-
-export const PYXIS_LAB_SOURCES: readonly PyxisLabSource[] = [
-  homeLabSource,
-  queueLabSource,
-];
+export const PYXIS_LAB_SOURCES: readonly PyxisLabSource[] = [homeLabSource];
