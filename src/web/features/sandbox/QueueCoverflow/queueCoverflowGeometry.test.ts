@@ -27,11 +27,11 @@ describe("queueCoverflowGeometry", () => {
   });
 
   it("sizes the portrait card to nearly fill the container width", () => {
-    expect(computeCardSize(179, 319, "y")).toBeCloseTo(150.36, 2);
+    expect(computeCardSize(179, 319, "y")).toBeCloseTo(118.14, 2);
     expect(computeCardSize(179, 319, "y")).toBeGreaterThan(
       computeCardSize(179, 319, "x"),
     );
-    expect(computeCardSize(700, 1200, "y")).toBe(420);
+    expect(computeCardSize(700, 1200, "y")).toBe(320);
   });
 
   it("derives detail size from the smaller container projection", () => {
@@ -54,7 +54,7 @@ describe("queueCoverflowGeometry", () => {
     expect(active.opacity).toBe(1);
     expect(active.zIndex).toBe(120);
     expect(active.transform).toContain("rotate(0deg)");
-    expect(active.transform).toContain("scale(1.08)");
+    expect(active.transform).toContain("scale(1.12)");
   });
 
   it("offsets non-active cards by their distance at full opacity (landscape fan)", () => {
@@ -81,7 +81,7 @@ describe("queueCoverflowGeometry", () => {
     });
     // Portrait first neighbour clears the active album by the centre spacing
     // plus the separation moat, well beyond the compressed far spacing.
-    expect(translateAxis(neighbor.transform, "Y")).toBeCloseTo(112.07, 1);
+    expect(translateAxis(neighbor.transform, "Y")).toBeCloseTo(53.73, 1);
     expect(neighbor.marginTop).toBe(-100);
     expect(neighbor.transform).not.toContain("translateX");
     expect(neighbor.transform).toContain(`rotate(${5 * PORTRAIT_TILT}deg)`);
@@ -141,7 +141,7 @@ describe("queueCoverflowGeometry", () => {
       /scale\(([\d.]+)\)/.exec(String(dragged.transform))?.[1] ?? "0",
     );
     expect(scale).toBeGreaterThan(1);
-    expect(scale).toBeLessThan(1.08);
+    expect(scale).toBeLessThan(1.12);
   });
 
   it("steps the active index from a drag delta and clamps to bounds", () => {

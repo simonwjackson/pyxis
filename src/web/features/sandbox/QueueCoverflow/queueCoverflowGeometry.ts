@@ -21,8 +21,9 @@ export function seededRotation(index: number): number {
  *
  * - Landscape fan (`x`): a fraction of the SMALLER side so several cards read at
  *   once, clamped to stay legible on a handheld and modest on a big display.
- * - Portrait flow (`y`): a large fraction of the WIDTH so the active album
- *   nearly fills the frame and the queue reads as a stack of big covers.
+ * - Portrait flow (`y`): a fraction of the WIDTH large enough that the active
+ *   album dominates, but leaving vertical room for a stack of lips above and
+ *   below it rather than filling the whole frame.
  */
 export function computeCardSize(
   containerWidth: number,
@@ -30,7 +31,7 @@ export function computeCardSize(
   axis: CoverflowAxis = "x",
 ): number {
   if (axis === "y") {
-    return Math.max(96, Math.min(containerWidth * 0.84, 420));
+    return Math.max(88, Math.min(containerWidth * 0.66, 320));
   }
   const base = Math.min(containerWidth, containerHeight) * 0.34;
   return Math.max(64, Math.min(base, 300));
@@ -78,18 +79,18 @@ interface CoverflowSpacing {
 }
 
 const SPACING_PROFILES: Record<CoverflowAxis, CoverflowSpacing> = {
-  y: { center: 0.52, softness: 0.7, separation: 0.22, separationSoftness: 0.6 },
+  y: { center: 0.3, softness: 0.5, separation: 0.08, separationSoftness: 0.5 },
   x: { center: 0.9, softness: 1, separation: 0, separationSoftness: 1 },
 };
 
 // Portrait far-spacing (the tight pack) as a fraction of the cover, scaled by
-// cover size: on small covers (small screens) it collapses to a thin sliver so
+// cover size: on small covers (small screens) it collapses to a thin lip so
 // only a slice of each non-selected album shows and many stack up; big covers
 // ease open. Landscape keeps its uniform fan.
-const PORTRAIT_COMPRESSED_MIN = 0.05;
-const PORTRAIT_COMPRESSED_MAX = 0.2;
-const PORTRAIT_CARD_MIN = 150;
-const PORTRAIT_CARD_MAX = 380;
+const PORTRAIT_COMPRESSED_MIN = 0.04;
+const PORTRAIT_COMPRESSED_MAX = 0.14;
+const PORTRAIT_CARD_MIN = 118;
+const PORTRAIT_CARD_MAX = 280;
 
 function compressedFor(axis: CoverflowAxis, cardSize: number): number {
   if (axis === "x") return SPACING_PROFILES.x.center;
@@ -186,7 +187,7 @@ export function cardStyle({
   // and rises as you drag it in. Fractional activeIndex makes it continuous.
   const proximity = Math.max(0, 1 - distance);
   const main = cardMainOffset(diff, cardSize, axis);
-  const scale = 1 + 0.08 * proximity;
+  const scale = 1 + 0.12 * proximity;
   // Covers always render at full opacity — no dimming of non-active cards.
   const opacity = 1;
   const zIndex = Math.round(120 - distance * 20);
