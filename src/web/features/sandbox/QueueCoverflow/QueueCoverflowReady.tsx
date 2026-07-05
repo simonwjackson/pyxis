@@ -100,8 +100,13 @@ export function QueueCoverflowReady({
   }, [tracks.length, view]);
 
   // ── Touch / pointer drag + wheel scrubbing ──────────────────────────────
+  // The stack follows the finger 1:1 (live dragOffset, transitions off) and
+  // only snaps to the nearest card on release.
   const cardSpacing = cardSpacingFor(cardSize, axis);
+  const [dragOffset, setDragOffset] = useState(0);
+  const [dragging, setDragging] = useState(false);
   const dragStartRef = useRef<{ pos: number; index: number } | null>(null);
+  const dragOffsetRef = useRef(0);
   const draggedRef = useRef(false);
   const wheelAccRef = useRef(0);
   const lastCount = tracks.length;
@@ -113,19 +118,40 @@ export function QueueCoverflowReady({
     if (view !== "queue") return;
     dragStartRef.current = { pos: pointerPos(e), index: activeIndex };
     draggedRef.current = false;
+    dragOffsetRef.current = 0;
+    setDragOffset(0);
+    setDragging(true);
     e.currentTarget.setPointerCapture?.(e.pointerId);
   };
   const onPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
     const start = dragStartRef.current;
     if (!start) return;
-    const delta = pointerPos(e) - start.pos;
-    if (Math.abs(delta) > 6) draggedRef.current = true;
-    setActiveIndex(
-      stepIndexFromDelta(start.index, delta, cardSpacing, lastCount),
-    );
+    const raw = pointerPos(e) - start.pos;
+    if (Math.abs(raw) > 6) draggedRef.current = true;
+    // Allow only a half-card of overshoot past either end, so the stack never
+    // slides into empty space.
+    const maxOff = (start.index + 0.5) * cardSpacing;
+    const minOff = (start.index - (lastCount - 1) - 0.5) * cardSpacing;
+    const clamped = Math.max(minOff, Math.min(raw, maxOff));
+    dragOffsetRef.current = clamped;
+    setDragOffset(clamped);
   };
   const onPointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
+    const start = dragStartRef.current;
+    if (start) {
+      setActiveIndex(
+        stepIndexFromDelta(
+          start.index,
+          dragOffsetRef.current,
+          cardSpacing,
+          lastCount,
+        ),
+      );
+    }
     dragStartRef.current = null;
+    dragOffsetRef.current = 0;
+    setDragOffset(0);
+    setDragging(false);
     e.currentTarget.releasePointerCapture?.(e.pointerId);
   };
   const onWheel = (e: React.WheelEvent<HTMLDivElement>) => {
@@ -191,6 +217,8 @@ export function QueueCoverflowReady({
               activeIndex={activeIndex}
               cardSize={cardSize}
               axis={axis}
+              dragOffset={dragOffset}
+              dragging={dragging}
               focusable={view === "queue"}
               onSelect={selectTrack}
             />

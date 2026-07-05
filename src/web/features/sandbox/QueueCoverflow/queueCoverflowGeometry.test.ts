@@ -90,6 +90,28 @@ describe("queueCoverflowGeometry", () => {
     expect(coverflowAxis(500, 500)).toBe("x");
   });
 
+  it("shifts the whole stack live by the drag offset with transitions off", () => {
+    const base = cardStyle({
+      index: 3,
+      activeIndex: 2,
+      cardSize: 200,
+      cardSpacing: 190,
+      rotation: 5,
+    });
+    const dragged = cardStyle({
+      index: 3,
+      activeIndex: 2,
+      cardSize: 200,
+      cardSpacing: 190,
+      rotation: 5,
+      dragOffset: 40,
+      dragging: true,
+    });
+    expect(base.transform).toContain("translateX(190px)");
+    expect(dragged.transform).toContain("translateX(230px)");
+    expect(dragged.transition).toBe("none");
+  });
+
   it("steps the active index from a drag delta and clamps to bounds", () => {
     // No movement keeps the starting card.
     expect(stepIndexFromDelta(2, 0, 100, 7)).toBe(2);

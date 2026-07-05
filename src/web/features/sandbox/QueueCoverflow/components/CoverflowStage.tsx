@@ -21,6 +21,8 @@ export function CoverflowStage({
   activeIndex,
   cardSize,
   axis = "x",
+  dragOffset = 0,
+  dragging = false,
   focusable = true,
   onSelect,
 }: {
@@ -28,6 +30,8 @@ export function CoverflowStage({
   readonly activeIndex: number;
   readonly cardSize: number;
   readonly axis?: CoverflowAxis;
+  readonly dragOffset?: number;
+  readonly dragging?: boolean;
   readonly focusable?: boolean;
   readonly onSelect?: (index: number) => void;
 }) {
@@ -52,6 +56,8 @@ export function CoverflowStage({
             cardSpacing,
             rotation: rotations[index] ?? 0,
             axis,
+            dragOffset,
+            dragging,
           })}
           onClick={() => onSelect?.(index)}
           onKeyDown={(event) => {

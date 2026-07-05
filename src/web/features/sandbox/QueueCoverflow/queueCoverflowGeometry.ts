@@ -95,6 +95,12 @@ export interface CardStyleInput {
   readonly cardSpacing: number;
   readonly rotation: number;
   readonly axis?: CoverflowAxis;
+  /** Live pixel offset applied to the whole stack while a drag is in progress,
+   * so cards follow the finger 1:1. Zero when not dragging. */
+  readonly dragOffset?: number;
+  /** While true, transitions are suppressed so the drag tracks 1:1; on release
+   * it flips false and cards animate to their snapped positions. */
+  readonly dragging?: boolean;
 }
 
 export function cardStyle({
@@ -104,11 +110,13 @@ export function cardStyle({
   cardSpacing,
   rotation,
   axis = "x",
+  dragOffset = 0,
+  dragging = false,
 }: CardStyleInput): CSSProperties {
   const diff = index - activeIndex;
   const absDiff = Math.abs(diff);
   const isActive = index === activeIndex;
-  const main = diff * cardSpacing;
+  const main = diff * cardSpacing + dragOffset;
   const zIndex = isActive ? 120 : 100 - Math.round(absDiff * 10);
   const scale = isActive ? 1.08 : 1;
   const opacity = isActive ? 1 : 0.55;
@@ -134,7 +142,8 @@ export function cardStyle({
     transform: `${translate} rotate(${rotate}deg) scale(${scale})`,
     zIndex,
     opacity,
-    transition:
-      "transform 0.45s cubic-bezier(0.25, 0.46, 0.45, 0.94), opacity 0.4s ease",
+    transition: dragging
+      ? "none"
+      : "transform 0.45s cubic-bezier(0.25, 0.46, 0.45, 0.94), opacity 0.4s ease",
   };
 }
