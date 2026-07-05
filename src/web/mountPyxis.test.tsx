@@ -4,7 +4,9 @@ import { createMemoryHistory } from "@tanstack/history";
 import type * as AtomRegistry from "effect/unstable/reactivity/AtomRegistry";
 
 beforeAll(() => {
-  GlobalRegistrator.register();
+  if (typeof globalThis.window === "undefined") {
+    GlobalRegistrator.register();
+  }
   window.innerWidth = 1280;
   window.innerHeight = 720;
 });

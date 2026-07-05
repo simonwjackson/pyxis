@@ -14,7 +14,6 @@
  * and `utils.playlist.list.invalidate()` fan-outs.
  */
 
-import { PyxisRpcClient } from "@app/shared/api/rpcClient";
 import { projectQueryResult } from "@app/shared/effect/projectQueryResult";
 import { useAtomValue } from "@effect/atom-react";
 import { useNavigate } from "@tanstack/react-router";
@@ -23,45 +22,9 @@ import { useCallback, useState } from "react";
 import { HOT_SORT_OPTIONS } from "./AlbumShelf";
 import { HomeAlbumShelfState } from "./HomeAlbumShelfState";
 import { HomeState } from "./HomeState";
-import {
-  LIBRARY_ALBUMS_TAG,
-  LIBRARY_HOT_ALBUMS_TAG,
-  PLAYLIST_LIST_TAG,
-} from "./libraryReactivityTags";
+import { homeSourceAtom } from "./homeSource";
 import { PlaylistShelf } from "./PlaylistShelf";
 import type { PlaylistData } from "./types";
-
-const playlistsQueryAtom = PyxisRpcClient.query(
-  "library.playlists.list",
-  undefined,
-  {
-    reactivityKeys: [PLAYLIST_LIST_TAG] as const,
-  },
-);
-
-const hotAlbumsQueryAtom = PyxisRpcClient.query(
-  "library.hotAlbums.list",
-  { includeDismissed: true, limit: 10 },
-  { reactivityKeys: [LIBRARY_HOT_ALBUMS_TAG, LIBRARY_ALBUMS_TAG] as const },
-);
-
-const discoveryAlbumsQueryAtom = PyxisRpcClient.query(
-  "library.albums.list",
-  { placements: ["discovery"] as const },
-  { reactivityKeys: [LIBRARY_ALBUMS_TAG] as const },
-);
-
-const collectionAlbumsQueryAtom = PyxisRpcClient.query(
-  "library.albums.list",
-  { placements: ["collection"] as const },
-  { reactivityKeys: [LIBRARY_ALBUMS_TAG] as const },
-);
-
-const archiveAlbumsQueryAtom = PyxisRpcClient.query(
-  "library.albums.list",
-  { placements: ["archive"] as const },
-  { reactivityKeys: [LIBRARY_ALBUMS_TAG] as const },
-);
 
 export function HomePage() {
   const navigate = useNavigate();
@@ -120,7 +83,8 @@ function HomePlaylistShelfSection({
   readonly onOpenPlaylist: (playlist: PlaylistData) => void;
   readonly onSeeAll: () => void;
 }) {
-  const result = projectQueryResult(useAtomValue(playlistsQueryAtom));
+  const source = useAtomValue(homeSourceAtom);
+  const result = projectQueryResult(useAtomValue(source.playlistsQueryAtom));
   const state = HomeState.playlistShelfFromResult(result);
 
   return (
@@ -133,7 +97,8 @@ function HomePlaylistShelfSection({
 }
 
 function HomeHotShelfSection() {
-  const result = projectQueryResult(useAtomValue(hotAlbumsQueryAtom));
+  const source = useAtomValue(homeSourceAtom);
+  const result = projectQueryResult(useAtomValue(source.hotAlbumsQueryAtom));
   const state = HomeState.albumShelfFromResult(result);
 
   return (
@@ -152,7 +117,10 @@ function HomeDiscoveryShelfSection({
 }: {
   readonly onAddAlbum: () => void;
 }) {
-  const result = projectQueryResult(useAtomValue(discoveryAlbumsQueryAtom));
+  const source = useAtomValue(homeSourceAtom);
+  const result = projectQueryResult(
+    useAtomValue(source.discoveryAlbumsQueryAtom),
+  );
   const state = HomeState.albumShelfFromResult(result);
 
   return (
@@ -182,7 +150,10 @@ function HomeCollectionShelfSection({
   readonly showArchive: boolean;
   readonly onToggleArchive: () => void;
 }) {
-  const result = projectQueryResult(useAtomValue(collectionAlbumsQueryAtom));
+  const source = useAtomValue(homeSourceAtom);
+  const result = projectQueryResult(
+    useAtomValue(source.collectionAlbumsQueryAtom),
+  );
   const state = HomeState.albumShelfFromResult(result);
 
   return (
@@ -204,7 +175,10 @@ function HomeCollectionShelfSection({
 }
 
 function HomeArchiveShelfSection() {
-  const result = projectQueryResult(useAtomValue(archiveAlbumsQueryAtom));
+  const source = useAtomValue(homeSourceAtom);
+  const result = projectQueryResult(
+    useAtomValue(source.archiveAlbumsQueryAtom),
+  );
   const state = HomeState.albumShelfFromResult(result);
 
   return (
