@@ -90,6 +90,7 @@ body {
   font-family: "Urbanist", system-ui, sans-serif;
   background: var(--color-bg);
   color: var(--color-text);
+  font-size: var(--pyxis-font-size, 16px);
   letter-spacing: -0.012em;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -107,13 +108,14 @@ body {
 
 .page-frame {
   flex: 1 1 0%;
-  padding: 2.5rem 1rem;
+  padding: var(--pyxis-page-padding-block, 2.5rem)
+    var(--pyxis-page-padding-inline, 1rem);
 }
 
 @media (min-width: 640px) {
   .page-frame {
-    padding-left: 2rem;
-    padding-right: 2rem;
+    padding-left: var(--pyxis-page-padding-inline-wide, 2rem);
+    padding-right: var(--pyxis-page-padding-inline-wide, 2rem);
   }
 }
 
@@ -151,7 +153,7 @@ body {
 }
 
 .zune-page-title {
-  font-size: clamp(3.25rem, 8vw, 5.75rem);
+  font-size: clamp(3.25rem, calc(8vw * var(--pyxis-title-scale, 1)), 5.75rem);
 }
 
 .zune-heading {
