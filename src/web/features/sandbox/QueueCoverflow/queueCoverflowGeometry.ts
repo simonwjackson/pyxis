@@ -95,11 +95,8 @@ export interface CardStyleInput {
   readonly cardSpacing: number;
   readonly rotation: number;
   readonly axis?: CoverflowAxis;
-  /** Live pixel offset applied to the whole stack while a drag is in progress,
-   * so cards follow the finger 1:1. Zero when not dragging. */
-  readonly dragOffset?: number;
   /** While true, transitions are suppressed so the drag tracks 1:1; on release
-   * it flips false and cards animate to their snapped positions. */
+   * it flips false and cards ease to their snapped positions. */
   readonly dragging?: boolean;
 }
 
@@ -110,22 +107,23 @@ export function cardStyle({
   cardSpacing,
   rotation,
   axis = "x",
-  dragOffset = 0,
   dragging = false,
 }: CardStyleInput): CSSProperties {
   const diff = index - activeIndex;
-  const absDiff = Math.abs(diff);
-  const isActive = index === activeIndex;
-  const main = diff * cardSpacing + dragOffset;
-  const zIndex = isActive ? 120 : 100 - Math.round(absDiff * 10);
-  const scale = isActive ? 1.08 : 1;
-  const opacity = isActive ? 1 : 0.55;
-  // Both flows keep the seeded tilt offset so the stack feels organic; portrait
-  // damps it (PORTRAIT_TILT) so big centered covers only lean subtly, and never
-  // shifts a card sideways (rotation is about the card's own centre). The active
-  // card is always upright and centred.
-  const rotate = isActive ? 0 : rotation * (axis === "y" ? PORTRAIT_TILT : 1);
-  const crossLift = axis === "y" ? 0 : isActive ? -8 : 0;
+  const distance = Math.abs(diff);
+  // 1 when a card is dead-centre, falling to 0 one card away. Drives the live
+  // "reselection" feel: the card nearest centre grows, brightens, straightens,
+  // and rises as you drag it in. Fractional activeIndex makes it continuous.
+  const proximity = Math.max(0, 1 - distance);
+  const main = diff * cardSpacing;
+  const scale = 1 + 0.08 * proximity;
+  const opacity = 0.55 + 0.45 * proximity;
+  const zIndex = Math.round(120 - distance * 20);
+  // Seeded tilt (portrait damped) easing to upright at centre; the cross-axis
+  // lift pops the centred card without shifting it sideways.
+  const rotate =
+    rotation * (axis === "y" ? PORTRAIT_TILT : 1) * Math.min(1, distance);
+  const crossLift = axis === "y" ? 0 : -8 * proximity;
 
   const translate =
     axis === "y"

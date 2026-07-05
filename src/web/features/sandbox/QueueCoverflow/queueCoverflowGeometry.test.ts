@@ -62,7 +62,7 @@ describe("queueCoverflowGeometry", () => {
       rotation: 5,
     });
     expect(neighbor.opacity).toBe(0.55);
-    expect(neighbor.zIndex).toBe(90);
+    expect(neighbor.zIndex).toBe(100);
     expect(neighbor.transform).toContain("translateX(190px)");
     expect(neighbor.transform).toContain("rotate(5deg)");
   });
@@ -90,7 +90,9 @@ describe("queueCoverflowGeometry", () => {
     expect(coverflowAxis(500, 500)).toBe("x");
   });
 
-  it("shifts the whole stack live by the drag offset with transitions off", () => {
+  it("reselects live via a fractional active index with transitions off", () => {
+    // As the active position slides from 2 toward 3, card 3 moves toward centre
+    // (smaller offset), grows, and brightens — the live reselection feel.
     const base = cardStyle({
       index: 3,
       activeIndex: 2,
@@ -100,16 +102,26 @@ describe("queueCoverflowGeometry", () => {
     });
     const dragged = cardStyle({
       index: 3,
-      activeIndex: 2,
+      activeIndex: 2.7,
       cardSize: 200,
       cardSpacing: 190,
       rotation: 5,
-      dragOffset: 40,
       dragging: true,
     });
     expect(base.transform).toContain("translateX(190px)");
-    expect(dragged.transform).toContain("translateX(230px)");
+    expect(base.transform).toContain("scale(1)");
     expect(dragged.transition).toBe("none");
+    // 0.3 card away from centre: offset ~57px (smaller than the resting 190).
+    const draggedX = Number(
+      /translateX\(([\d.]+)px\)/.exec(String(dragged.transform))?.[1] ?? "0",
+    );
+    expect(draggedX).toBeCloseTo(57, 1);
+    // Closer to centre, so it scales up toward the active card.
+    const scale = Number(
+      /scale\(([\d.]+)\)/.exec(String(dragged.transform))?.[1] ?? "0",
+    );
+    expect(scale).toBeGreaterThan(1);
+    expect(scale).toBeLessThan(1.08);
   });
 
   it("steps the active index from a drag delta and clamps to bounds", () => {

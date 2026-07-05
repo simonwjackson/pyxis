@@ -21,21 +21,22 @@ export function CoverflowStage({
   activeIndex,
   cardSize,
   axis = "x",
-  dragOffset = 0,
   dragging = false,
   focusable = true,
   onSelect,
 }: {
   readonly tracks: readonly QueueCoverflowTrack[];
+  /** Fractional while dragging so emphasis interpolates as you pull through. */
   readonly activeIndex: number;
   readonly cardSize: number;
   readonly axis?: CoverflowAxis;
-  readonly dragOffset?: number;
   readonly dragging?: boolean;
   readonly focusable?: boolean;
   readonly onSelect?: (index: number) => void;
 }) {
   const cardSpacing = cardSpacingFor(cardSize, axis);
+  // The card nearest centre carries the "active" card styling live as you drag.
+  const nearest = Math.round(activeIndex);
   const rotations = useMemo(
     () => tracks.map((_, i) => seededRotation(i)),
     [tracks],
@@ -56,7 +57,6 @@ export function CoverflowStage({
             cardSpacing,
             rotation: rotations[index] ?? 0,
             axis,
-            dragOffset,
             dragging,
           })}
           onClick={() => onSelect?.(index)}
@@ -70,7 +70,7 @@ export function CoverflowStage({
           <CoverflowCard
             track={track}
             size={cardSize}
-            active={index === activeIndex}
+            active={index === nearest}
           />
         </div>
       ))}

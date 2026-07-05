@@ -176,6 +176,13 @@ export function QueueCoverflowReady({
     else setActiveIndex(index);
   };
 
+  // While dragging, the active position is fractional so card emphasis (scale,
+  // opacity, tilt, z) reselects live; on release it settles to an integer.
+  const scrollIndex =
+    dragging && cardSpacing > 0
+      ? activeIndex - dragOffset / cardSpacing
+      : activeIndex;
+
   return (
     <div
       ref={rootRef}
@@ -214,10 +221,9 @@ export function QueueCoverflowReady({
           >
             <CoverflowStage
               tracks={tracks}
-              activeIndex={activeIndex}
+              activeIndex={scrollIndex}
               cardSize={cardSize}
               axis={axis}
-              dragOffset={dragOffset}
               dragging={dragging}
               focusable={view === "queue"}
               onSelect={selectTrack}
