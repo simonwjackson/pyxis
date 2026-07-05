@@ -8,23 +8,30 @@
 
 import { useMemo } from "react";
 import type { QueueCoverflowTrack } from "../QueueCoverflowState";
-import { cardStyle, seededRotation } from "../queueCoverflowGeometry";
+import {
+  type CoverflowAxis,
+  cardSpacingFor,
+  cardStyle,
+  seededRotation,
+} from "../queueCoverflowGeometry";
 import { CoverflowCard } from "./CoverflowCard";
 
 export function CoverflowStage({
   tracks,
   activeIndex,
   cardSize,
+  axis = "x",
   focusable = true,
   onSelect,
 }: {
   readonly tracks: readonly QueueCoverflowTrack[];
   readonly activeIndex: number;
   readonly cardSize: number;
+  readonly axis?: CoverflowAxis;
   readonly focusable?: boolean;
   readonly onSelect?: (index: number) => void;
 }) {
-  const cardSpacing = cardSize * 0.95;
+  const cardSpacing = cardSpacingFor(cardSize, axis);
   const rotations = useMemo(
     () => tracks.map((_, i) => seededRotation(i)),
     [tracks],
@@ -44,6 +51,7 @@ export function CoverflowStage({
             cardSize,
             cardSpacing,
             rotation: rotations[index] ?? 0,
+            axis,
           })}
           onClick={() => onSelect?.(index)}
           onKeyDown={(event) => {

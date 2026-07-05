@@ -17,7 +17,11 @@ import { CoverflowDetail } from "./components/CoverflowDetail";
 import { CoverflowStage } from "./components/CoverflowStage";
 import { QueueTitleBar } from "./components/QueueTitleBar";
 import type { QueueCoverflowTrack } from "./QueueCoverflowState";
-import { computeCardSize, computeDetailSize } from "./queueCoverflowGeometry";
+import {
+  computeCardSize,
+  computeDetailSize,
+  coverflowAxis,
+} from "./queueCoverflowGeometry";
 
 interface Size {
   readonly width: number;
@@ -60,6 +64,9 @@ export function QueueCoverflowReady({
   const measured = width > 0 && height > 0;
   const cardSize = computeCardSize(width, height);
   const detailSize = computeDetailSize(width, height);
+  // Reflow from the container's own aspect ratio: a wide frame fans the cards
+  // horizontally; a tall frame flows them top-to-bottom. No screen media query.
+  const axis = coverflowAxis(width, height);
 
   const [activeIndex, setActiveIndex] = useState(initialIndex);
   const [view, setView] = useState<"queue" | "detail">("queue");
@@ -80,8 +87,9 @@ export function QueueCoverflowReady({
         return;
       }
       if (view !== "queue") return;
-      if (e.key === "ArrowLeft") setActiveIndex((p) => Math.max(0, p - 1));
-      else if (e.key === "ArrowRight")
+      if (e.key === "ArrowLeft" || e.key === "ArrowUp")
+        setActiveIndex((p) => Math.max(0, p - 1));
+      else if (e.key === "ArrowRight" || e.key === "ArrowDown")
         setActiveIndex((p) => Math.min(Math.max(0, tracks.length - 1), p + 1));
       else if (e.key === "Enter") setView("detail");
     };
@@ -128,6 +136,7 @@ export function QueueCoverflowReady({
               tracks={tracks}
               activeIndex={activeIndex}
               cardSize={cardSize}
+              axis={axis}
               focusable={view === "queue"}
               onSelect={selectTrack}
             />

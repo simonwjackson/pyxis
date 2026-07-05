@@ -3,6 +3,7 @@ import {
   cardStyle,
   computeCardSize,
   computeDetailSize,
+  coverflowAxis,
   seededRotation,
 } from "./queueCoverflowGeometry.js";
 
@@ -51,5 +52,24 @@ describe("queueCoverflowGeometry", () => {
     expect(neighbor.zIndex).toBe(90);
     expect(neighbor.transform).toContain("translateX(190px)");
     expect(neighbor.transform).toContain("rotate(5deg)");
+  });
+
+  it("reflows the offset onto the Y axis in a portrait container", () => {
+    const neighbor = cardStyle({
+      index: 3,
+      activeIndex: 2,
+      cardSize: 200,
+      cardSpacing: 190,
+      rotation: 5,
+      axis: "y",
+    });
+    expect(neighbor.transform).toContain("translateY(190px)");
+    expect(neighbor.marginTop).toBe(-100);
+  });
+
+  it("chooses the flow axis from the container aspect ratio", () => {
+    expect(coverflowAxis(1000, 600)).toBe("x");
+    expect(coverflowAxis(600, 1000)).toBe("y");
+    expect(coverflowAxis(500, 500)).toBe("x");
   });
 });

@@ -35,12 +35,31 @@ export function computeDetailSize(
   return Math.min(containerWidth * 0.55, containerHeight * 0.75);
 }
 
+/** Flow direction of the cover-flow: cards fan horizontally in a landscape
+ * container and reflow vertically (top-to-bottom) in a portrait one. Derived
+ * from the container's own aspect ratio — never a screen media query. */
+export type CoverflowAxis = "x" | "y";
+
+export function coverflowAxis(
+  containerWidth: number,
+  containerHeight: number,
+): CoverflowAxis {
+  return containerHeight > containerWidth ? "y" : "x";
+}
+
+/** Neighbour-to-neighbour spacing. Horizontal fans overlap the artwork edges;
+ * vertical flow leaves room for each card's label. */
+export function cardSpacingFor(cardSize: number, axis: CoverflowAxis): number {
+  return cardSize * (axis === "y" ? 1.08 : 0.95);
+}
+
 export interface CardStyleInput {
   readonly index: number;
   readonly activeIndex: number;
   readonly cardSize: number;
   readonly cardSpacing: number;
   readonly rotation: number;
+  readonly axis?: CoverflowAxis;
 }
 
 export function cardStyle({
@@ -49,16 +68,22 @@ export function cardStyle({
   cardSize,
   cardSpacing,
   rotation,
+  axis = "x",
 }: CardStyleInput): CSSProperties {
   const diff = index - activeIndex;
   const absDiff = Math.abs(diff);
   const isActive = index === activeIndex;
-  const translateX = diff * cardSpacing;
+  const main = diff * cardSpacing;
+  const lift = isActive ? -8 : 0;
   const zIndex = isActive ? 120 : 100 - Math.round(absDiff * 10);
   const rotate = isActive ? 0 : rotation;
   const scale = isActive ? 1.08 : 1;
-  const translateY = isActive ? -8 : 0;
   const opacity = isActive ? 1 : 0.55;
+
+  const translate =
+    axis === "y"
+      ? `translateY(${main}px) translateX(${lift}px)`
+      : `translateX(${main}px) translateY(${lift}px)`;
 
   return {
     position: "absolute",
@@ -66,8 +91,8 @@ export function cardStyle({
     top: "50%",
     width: cardSize,
     marginLeft: -cardSize / 2,
-    marginTop: -cardSize / 2 - 16,
-    transform: `translateX(${translateX}px) translateY(${translateY}px) rotate(${rotate}deg) scale(${scale})`,
+    marginTop: axis === "y" ? -cardSize / 2 : -cardSize / 2 - 16,
+    transform: `${translate} rotate(${rotate}deg) scale(${scale})`,
     zIndex,
     opacity,
     transition:
