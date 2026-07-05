@@ -1,19 +1,21 @@
 import { describe, expect, it } from "bun:test";
 import {
   cardStyle,
+  computeCardSize,
   computeDetailSize,
-  computeViewportCardSize,
   seededRotation,
 } from "./queueCoverflowGeometry.js";
 
 describe("queueCoverflowGeometry", () => {
-  it("clamps the viewport card size between 120 and 360", () => {
-    expect(computeViewportCardSize(200, 200)).toBe(120);
-    expect(computeViewportCardSize(4000, 4000)).toBe(360);
-    expect(computeViewportCardSize(1000, 800)).toBeCloseTo(256, 5);
+  it("sizes the card from the container's smaller side, clamped 64..300", () => {
+    expect(computeCardSize(120, 120)).toBe(64);
+    expect(computeCardSize(4000, 4000)).toBe(300);
+    expect(computeCardSize(1000, 800)).toBeCloseTo(272, 5);
+    // A tiny handheld frame (e.g. NW-A306 portrait) stays legible, not blown up.
+    expect(computeCardSize(179, 319)).toBeCloseTo(64, 5);
   });
 
-  it("derives detail size from the smaller viewport projection", () => {
+  it("derives detail size from the smaller container projection", () => {
     expect(computeDetailSize(1000, 1000)).toBe(550);
     expect(computeDetailSize(2000, 400)).toBe(300);
   });

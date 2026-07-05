@@ -50,6 +50,13 @@ export function mountCoverflow(
   host: HTMLElement,
   options: MountCoverflowOptions = {},
 ): MountedCoverflow {
+  // Fill the lab's sized device frame (`.lab-compose-screen`) and become the
+  // positioned containing block for the surface, so the surface sizes itself
+  // from the true device px box rather than the zoomed board or the window.
+  host.style.position = "relative";
+  host.style.width = "100%";
+  host.style.height = "100%";
+  host.style.overflow = "hidden";
   const root = createRoot(host);
   root.render(
     <StrictMode>
