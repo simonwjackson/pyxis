@@ -196,6 +196,13 @@ export function QueueCoverflowReady({
   const showCaptionBelow =
     captionVariant === "below" || captionVariant === "editorial";
 
+  // The stack clips to its own area so covers can never spill onto the caption,
+  // with a soft edge fade so the outermost covers dissolve instead of hard-cut.
+  const stackFadeMask =
+    axis === "y"
+      ? "linear-gradient(to bottom, transparent 0%, #000 9%, #000 91%, transparent 100%)"
+      : "linear-gradient(to right, transparent 0%, #000 9%, #000 91%, transparent 100%)";
+
   return (
     <div
       style={{
@@ -243,6 +250,9 @@ export function QueueCoverflowReady({
             position: "relative",
             flex: 1,
             minHeight: 0,
+            overflow: "hidden",
+            maskImage: stackFadeMask,
+            WebkitMaskImage: stackFadeMask,
             touchAction: "none",
             cursor: view === "queue" ? "grab" : "default",
           }}
