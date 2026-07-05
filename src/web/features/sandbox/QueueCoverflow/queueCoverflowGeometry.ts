@@ -84,6 +84,10 @@ export function stepIndexFromDelta(
   return Math.min(Math.max(0, startIndex - steps), maxIndex);
 }
 
+/** How much of the seeded fan tilt the portrait stack keeps — subtle, so big
+ * centred covers lean just enough to read as an organic offset stack. */
+export const PORTRAIT_TILT = 0.45;
+
 export interface CardStyleInput {
   readonly index: number;
   readonly activeIndex: number;
@@ -108,9 +112,11 @@ export function cardStyle({
   const zIndex = isActive ? 120 : 100 - Math.round(absDiff * 10);
   const scale = isActive ? 1.08 : 1;
   const opacity = isActive ? 1 : 0.55;
-  // Portrait keeps every cover centered and upright (a clean stack of big
-  // covers); the landscape fan tilts its neighbours and pops the active card up.
-  const rotate = axis === "y" ? 0 : isActive ? 0 : rotation;
+  // Both flows keep the seeded tilt offset so the stack feels organic; portrait
+  // damps it (PORTRAIT_TILT) so big centered covers only lean subtly, and never
+  // shifts a card sideways (rotation is about the card's own centre). The active
+  // card is always upright and centred.
+  const rotate = isActive ? 0 : rotation * (axis === "y" ? PORTRAIT_TILT : 1);
   const crossLift = axis === "y" ? 0 : isActive ? -8 : 0;
 
   const translate =

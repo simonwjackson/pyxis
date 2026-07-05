@@ -4,6 +4,7 @@ import {
   computeCardSize,
   computeDetailSize,
   coverflowAxis,
+  PORTRAIT_TILT,
   seededRotation,
   stepIndexFromDelta,
 } from "./queueCoverflowGeometry.js";
@@ -77,9 +78,10 @@ describe("queueCoverflowGeometry", () => {
     });
     expect(neighbor.transform).toContain("translateY(190px)");
     expect(neighbor.marginTop).toBe(-100);
-    // Portrait covers stay centered and upright: no sideways nudge, no tilt.
+    // Portrait covers stay centered (no sideways nudge) but keep a subtle,
+    // damped tilt offset rather than the full landscape fan angle.
     expect(neighbor.transform).not.toContain("translateX");
-    expect(neighbor.transform).toContain("rotate(0deg)");
+    expect(neighbor.transform).toContain(`rotate(${5 * PORTRAIT_TILT}deg)`);
   });
 
   it("chooses the flow axis from the container aspect ratio", () => {
