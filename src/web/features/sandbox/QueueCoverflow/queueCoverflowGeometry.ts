@@ -85,16 +85,18 @@ export function cardStyle({
   const absDiff = Math.abs(diff);
   const isActive = index === activeIndex;
   const main = diff * cardSpacing;
-  const lift = isActive ? -8 : 0;
   const zIndex = isActive ? 120 : 100 - Math.round(absDiff * 10);
-  const rotate = isActive ? 0 : rotation;
   const scale = isActive ? 1.08 : 1;
   const opacity = isActive ? 1 : 0.55;
+  // Portrait keeps every cover centered and upright (a clean stack of big
+  // covers); the landscape fan tilts its neighbours and pops the active card up.
+  const rotate = axis === "y" ? 0 : isActive ? 0 : rotation;
+  const crossLift = axis === "y" ? 0 : isActive ? -8 : 0;
 
   const translate =
     axis === "y"
-      ? `translateY(${main}px) translateX(${lift}px)`
-      : `translateX(${main}px) translateY(${lift}px)`;
+      ? `translateY(${main}px)`
+      : `translateX(${main}px) translateY(${crossLift}px)`;
 
   return {
     position: "absolute",

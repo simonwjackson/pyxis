@@ -76,6 +76,9 @@ describe("queueCoverflowGeometry", () => {
     });
     expect(neighbor.transform).toContain("translateY(190px)");
     expect(neighbor.marginTop).toBe(-100);
+    // Portrait covers stay centered and upright: no sideways nudge, no tilt.
+    expect(neighbor.transform).not.toContain("translateX");
+    expect(neighbor.transform).toContain("rotate(0deg)");
   });
 
   it("chooses the flow axis from the container aspect ratio", () => {
