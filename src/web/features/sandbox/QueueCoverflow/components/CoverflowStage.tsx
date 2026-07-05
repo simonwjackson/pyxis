@@ -1,0 +1,65 @@
+/**
+ * @module CoverflowStage
+ *
+ * The tilted cover-flow row: each track is absolutely positioned relative to
+ * the active one via the pure geometry, wrapping a {@link CoverflowCard}. Owns
+ * layout + per-card selection; not data fetching.
+ */
+
+import { useMemo } from "react";
+import type { QueueCoverflowTrack } from "../QueueCoverflowState";
+import { cardStyle, seededRotation } from "../queueCoverflowGeometry";
+import { CoverflowCard } from "./CoverflowCard";
+
+export function CoverflowStage({
+  tracks,
+  activeIndex,
+  cardSize,
+  focusable = true,
+  onSelect,
+}: {
+  readonly tracks: readonly QueueCoverflowTrack[];
+  readonly activeIndex: number;
+  readonly cardSize: number;
+  readonly focusable?: boolean;
+  readonly onSelect?: (index: number) => void;
+}) {
+  const cardSpacing = cardSize * 0.95;
+  const rotations = useMemo(
+    () => tracks.map((_, i) => seededRotation(i)),
+    [tracks],
+  );
+
+  return (
+    <>
+      {tracks.map((track, index) => (
+        // biome-ignore lint/a11y/useSemanticElements: cards are absolute-positioned rich media tiles; native button layout would distort the surface.
+        <div
+          key={track.id}
+          role="button"
+          tabIndex={focusable ? 0 : -1}
+          style={cardStyle({
+            index,
+            activeIndex,
+            cardSize,
+            cardSpacing,
+            rotation: rotations[index] ?? 0,
+          })}
+          onClick={() => onSelect?.(index)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" || event.key === " ") {
+              event.preventDefault();
+              onSelect?.(index);
+            }
+          }}
+        >
+          <CoverflowCard
+            track={track}
+            size={cardSize}
+            active={index === activeIndex}
+          />
+        </div>
+      ))}
+    </>
+  );
+}

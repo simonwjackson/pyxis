@@ -14,4 +14,5 @@ if (!root) {
 
 createCaliperApp(root, {
   adapters: [pyxisLabSurfaceAdapter, coverflowLabSurfaceAdapter],
+  partsGlob: import.meta.glob("./coverflow/**/*.part.tsx", { eager: true }),
 });

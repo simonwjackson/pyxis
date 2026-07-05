@@ -7,6 +7,10 @@
  */
 
 import type { ApiQueueState } from "../../../../api/contracts/queue.js";
+import {
+  colorFromId,
+  type QueueCoverflowTrack,
+} from "./QueueCoverflowState.js";
 
 export const QUEUE_COVERFLOW_FIXTURE_TRACKS: ApiQueueState["items"] = [
   {
@@ -79,3 +83,19 @@ export const QUEUE_COVERFLOW_FIXTURE_STATE: ApiQueueState = {
   currentIndex: 2,
   context: { type: "manual" },
 };
+
+/**
+ * The fixture queue projected into the view-model cover-flow track shape, for
+ * catalog part previews that render presentational components directly.
+ */
+export const QUEUE_COVERFLOW_PREVIEW_TRACKS: readonly QueueCoverflowTrack[] =
+  QUEUE_COVERFLOW_FIXTURE_TRACKS.filter(
+    (item): item is typeof item & { artworkUrl: string } =>
+      item.artworkUrl !== null,
+  ).map((item) => ({
+    id: item.id,
+    title: item.title,
+    artist: item.artist,
+    artwork: item.artworkUrl,
+    dominantColor: colorFromId(item.id),
+  }));
