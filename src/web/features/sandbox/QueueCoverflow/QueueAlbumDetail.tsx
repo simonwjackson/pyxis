@@ -75,6 +75,8 @@ function Kicker({ children }: { readonly children: React.ReactNode }) {
         fontWeight: 600,
         letterSpacing: "0.16em",
         textTransform: "uppercase",
+        maxWidth: "100%",
+        overflowWrap: "anywhere",
       }}
     >
       {children}
@@ -89,8 +91,14 @@ function AlbumTitle({ size }: { readonly size: string }) {
         fontSize: size,
         fontWeight: 300,
         letterSpacing: "-0.025em",
-        lineHeight: 1.0,
+        // Room for descenders (g/y/p) so large display text never clips, and
+        // wrap anywhere so a long/unbreakable title can never overflow.
+        lineHeight: 1.1,
         textTransform: "lowercase",
+        maxWidth: "100%",
+        overflowWrap: "anywhere",
+        wordBreak: "break-word",
+        paddingBottom: "0.08em",
       }}
     >
       {ALBUM.title}
@@ -105,6 +113,8 @@ function Meta() {
         color: "rgba(255,255,255,0.5)",
         fontSize: "var(--pyxis-text-body)",
         fontWeight: 500,
+        maxWidth: "100%",
+        overflowWrap: "anywhere",
       }}
     >
       {ALBUM.year} · {ALBUM.songCount} songs · {ALBUM.runtimeMin} min
@@ -241,14 +251,7 @@ function SongsReveal() {
               >
                 {i + 1}
               </span>
-              <span
-                style={{
-                  flex: 1,
-                  whiteSpace: "nowrap",
-                  overflow: "hidden",
-                  textOverflow: "ellipsis",
-                }}
-              >
+              <span style={{ flex: 1, minWidth: 0, overflowWrap: "anywhere" }}>
                 {t.title}
               </span>
             </div>
@@ -309,9 +312,7 @@ function CoverShelf({ label }: { readonly label: string }) {
                 color: "rgba(255,255,255,0.8)",
                 fontSize: "var(--pyxis-text-fine)",
                 textTransform: "lowercase",
-                whiteSpace: "nowrap",
-                overflow: "hidden",
-                textOverflow: "ellipsis",
+                overflowWrap: "anywhere",
               }}
             >
               {t.title}
@@ -448,7 +449,8 @@ function MarqueeDetail() {
               color: "rgba(255,255,255,0.55)",
               fontSize: "var(--pyxis-text-body)",
               lineHeight: 1.4,
-              maxWidth: "46ch",
+              maxWidth: "min(46ch, 100%)",
+              overflowWrap: "anywhere",
             }}
           >
             Warm, unhurried and built for the last hour of daylight — the pair's
