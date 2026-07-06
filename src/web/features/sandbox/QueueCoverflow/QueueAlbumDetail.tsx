@@ -534,7 +534,9 @@ function TurntableDetail() {
     row
       ? Math.max(120, Math.min((h || 320) * 0.82, (w || 320) * 0.42, 520))
       : roomy
-        ? Math.max(120, Math.min((w || 320) * 0.62, (h || 320) * 0.42, 520))
+        ? // Portrait roomy: the disc shares a fixed hero region with the
+          // identity, so keep it small enough to leave room (no overlap).
+          Math.max(120, Math.min((w || 320) * 0.55, (h || 320) * 0.32, 460))
         : Math.max(120, Math.min(Math.min(w || 320, h || 320) * 0.62, 520)),
   );
 
@@ -644,12 +646,13 @@ function TurntableDetail() {
             alignItems: "center",
             justifyContent: "center",
             textAlign: "center",
-            gap: "clamp(var(--pyxis-space-5), 5cqh, calc(var(--pyxis-base) * 3))",
+            gap: "clamp(var(--pyxis-space-4), 4cqh, calc(var(--pyxis-base) * 2.4))",
           }}
         >
-          {record}
+          <div style={{ flexShrink: 0 }}>{record}</div>
           <div
             style={{
+              flexShrink: 0,
               display: "flex",
               flexDirection: "column",
               alignItems: "center",
