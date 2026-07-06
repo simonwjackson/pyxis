@@ -102,15 +102,21 @@ const scrollStyle: React.CSSProperties = {
   display: "flex",
   flexDirection: "column",
   gap: "var(--pyxis-space-6)",
-  padding: "var(--pyxis-space-6) var(--pyxis-space-5)",
+  padding: "var(--pyxis-space-5) var(--pyxis-space-4)",
 };
+
+/* Column min is CONTAINER-relative (cqi), not base-relative. Base floors at a
+ * px value for legibility, so `base * 7` is a fixed ~98px that can't shrink --
+ * on the 179px Sony device that collapses the grid to one giant column. A cqi
+ * clamp instead yields ~2 columns on the Sony, 3 on the compact phone, and
+ * more as the frame grows, never one-per-row. */
+const COL_MIN = "clamp(60px, 26cqi, 128px)";
 
 const GRID: React.CSSProperties = {
   display: "grid",
-  gridTemplateColumns:
-    "repeat(auto-fill, minmax(calc(var(--pyxis-base) * 7), 1fr))",
-  columnGap: "var(--pyxis-space-3)",
-  rowGap: "calc(var(--pyxis-base) * 3.4)",
+  gridTemplateColumns: `repeat(auto-fill, minmax(${COL_MIN}, 1fr))`,
+  columnGap: "var(--pyxis-space-2)",
+  rowGap: "calc(var(--pyxis-base) * 2.6)",
 };
 
 function Kicker({
@@ -364,7 +370,7 @@ function IdleBody() {
           overflowX: "auto",
           scrollbarWidth: "none",
           paddingTop: "var(--pyxis-space-3)",
-          paddingBottom: "calc(var(--pyxis-base) * 3.4)",
+          paddingBottom: "calc(var(--pyxis-base) * 2.6)",
         }}
       >
         {BASE.map((t, i) => (
@@ -373,7 +379,7 @@ function IdleBody() {
             className="qs-tile"
             style={
               {
-                width: "calc(var(--pyxis-base) * 8)",
+                width: COL_MIN,
                 flexShrink: 0,
                 ["--rot" as string]: `${tilt(i)}deg`,
               } as React.CSSProperties
