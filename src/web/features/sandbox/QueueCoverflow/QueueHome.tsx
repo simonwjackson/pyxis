@@ -23,10 +23,19 @@ import { useEffect, useState } from "react";
 import { BlurredBackdrop } from "./components/BlurredBackdrop";
 import { QUEUE_COVERFLOW_PREVIEW_TRACKS } from "./QueueCoverflowFixtures";
 import type { QueueCoverflowTrack } from "./QueueCoverflowState";
+import { seededRotation } from "./queueCoverflowGeometry";
 
 export type QueueHomeVariant = "shelves" | "editorial" | "carousel";
 
 const ALBUMS = QUEUE_COVERFLOW_PREVIEW_TRACKS;
+
+/** The coverflow deck's signature off-center tilt, reused verbatim but eased to
+ * ~0.6x so it reads as "slightly off" in neat rows/grids rather than a fanned
+ * stack. Deterministic per index, so a given slot always rests at the same
+ * angle. */
+function tilt(index: number): number {
+  return Math.round(seededRotation(index) * 0.6 * 100) / 100;
+}
 
 const rootStyle: React.CSSProperties = {
   position: "absolute",
@@ -69,9 +78,13 @@ const HOVER_CSS = `
   opacity: 1;
   transform: none;
 }
+.qh-tile-art {
+  transform: rotate(var(--rot, 0deg));
+  transition: transform 0.35s ease;
+}
 .qh-tile:hover .qh-tile-art,
 .qh-tile:focus-within .qh-tile-art {
-  transform: scale(1.04);
+  transform: rotate(var(--rot, 0deg)) scale(1.05);
 }
 `;
 
@@ -128,12 +141,14 @@ function Cover({
   radius = "var(--pyxis-space-1)",
   onSelect,
   className,
+  rotate,
 }: {
   readonly track: QueueCoverflowTrack;
   readonly size: string;
   readonly radius?: string;
   readonly onSelect?: () => void;
   readonly className?: string;
+  readonly rotate?: number;
 }) {
   return (
     <div
@@ -155,6 +170,7 @@ function Cover({
         overflow: "hidden",
         boxShadow: coverShadow,
         cursor: onSelect ? "pointer" : undefined,
+        transform: rotate != null ? `rotate(${rotate}deg)` : undefined,
         transition: "width 0.35s ease, transform 0.35s ease",
       }}
     >
@@ -255,15 +271,21 @@ function Shelf({
           overflowX: "auto",
           scrollbarWidth: "none",
           paddingInline: "var(--pyxis-space-5)",
-          paddingTop: "var(--pyxis-space-1)",
+          paddingTop: "var(--pyxis-space-4)",
           paddingBottom: "calc(var(--pyxis-base) * 3.4)",
         }}
       >
-        {ALBUMS.map((t) => (
+        {ALBUMS.map((t, i) => (
           <div
             key={`${label}-${t.id}`}
             className="qh-tile"
-            style={{ width: coverSize, flexShrink: 0 }}
+            style={
+              {
+                width: coverSize,
+                flexShrink: 0,
+                "--rot": `${tilt(i)}deg`,
+              } as React.CSSProperties
+            }
           >
             <Cover
               className="qh-tile-art"
@@ -334,6 +356,7 @@ function ShelvesHome({
           track={hero}
           size="min(42cqw, calc(var(--pyxis-base) * 15))"
           radius="var(--pyxis-space-2)"
+          rotate={tilt(0)}
           onSelect={() => onSelect(hero)}
         />
         <div
@@ -423,6 +446,7 @@ function EditorialHome({
           track={pick}
           size="min(58cqw, calc(var(--pyxis-base) * 20))"
           radius="var(--pyxis-space-2)"
+          rotate={tilt(featured)}
           onSelect={() => onSelect(featured)}
         />
         <div
@@ -463,7 +487,11 @@ function EditorialHome({
           }}
         >
           {ALBUMS.map((t, i) => (
-            <div key={t.id} className="qh-tile">
+            <div
+              key={t.id}
+              className="qh-tile"
+              style={{ "--rot": `${tilt(i)}deg` } as React.CSSProperties}
+            >
               <Cover
                 className="qh-tile-art"
                 track={t}
@@ -507,6 +535,7 @@ function CarouselHome({
           overflowX: "auto",
           scrollbarWidth: "none",
           paddingInline: "var(--pyxis-space-5)",
+          paddingBlock: "var(--pyxis-space-3)",
         }}
       >
         {ALBUMS.map((t, i) => (
@@ -519,6 +548,7 @@ function CarouselHome({
                 : "calc(var(--pyxis-base) * 11)"
             }
             radius="var(--pyxis-space-2)"
+            rotate={tilt(i)}
             onSelect={() => onSelect(i)}
           />
         ))}
