@@ -10,7 +10,13 @@
  * sizes and the reflow axis come from the container; no screen media queries.
  */
 
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import {
+  type ReactNode,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 import { BlurredBackdrop } from "./components/BlurredBackdrop";
 import { CoverflowCaption } from "./components/CoverflowCaption";
 import { CoverflowDetail } from "./components/CoverflowDetail";
@@ -66,10 +72,15 @@ export function QueueCoverflowReady({
   tracks,
   initialIndex,
   captionVariant = "editorial",
+  header,
 }: {
   readonly tracks: readonly QueueCoverflowTrack[];
   readonly initialIndex: number;
   readonly captionVariant?: CoverflowCaptionVariant;
+  /** Optional fixed slot rendered above the deck (e.g. a search field). It sits
+   * outside the stack's pointer-capture region, so its own inputs stay usable
+   * while the covers below keep the pull-up/push-down scrub. */
+  readonly header?: ReactNode;
 }) {
   const stackRef = useRef<HTMLDivElement>(null);
   const { width, height } = useContainerSize(stackRef);
@@ -229,6 +240,10 @@ export function QueueCoverflowReady({
           transition: "opacity 0.5s ease",
         }}
       >
+        {header ? (
+          <div style={{ flexShrink: 0, userSelect: "text" }}>{header}</div>
+        ) : null}
+
         {showCaptionAbove ? (
           <div style={captionSlotStyle}>
             <CoverflowCaption
