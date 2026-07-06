@@ -12,7 +12,6 @@
  *   - "turntable" the album as a record half-pulled from its sleeve
  */
 
-import { motion } from "framer-motion";
 import { useLayoutEffect, useRef, useState } from "react";
 import { BlurredBackdrop } from "./components/BlurredBackdrop";
 import { VinylRecord } from "./components/VinylRecord";
@@ -575,15 +574,6 @@ function RecordHeroArt({ recordPx }: { readonly recordPx: number }) {
   );
 }
 
-// Framer layout tween used for the orientation switch and while resizing, so
-// the record and identity glide to their new places instead of snapping.
-const LAYOUT_TRANSITION = {
-  layout: {
-    duration: 0.45,
-    ease: [0.4, 0, 0.2, 1] as [number, number, number, number],
-  },
-};
-
 function TurntableDetail() {
   const ref = useRef<HTMLDivElement>(null);
   const { w, h } = useBoxSize(ref);
@@ -597,59 +587,71 @@ function TurntableDetail() {
       : Math.max(120, Math.min(Math.min(w || 320, h || 320) * 0.62, 520)),
   );
 
-  // Single element tree: the SAME record + identity persist across the
-  // orientation change, so Framer's layout animation can tween the reflow.
+  const identity = (
+    <div
+      style={{
+        flex: "0 0 auto",
+        minWidth: 0,
+        maxWidth: "calc(var(--pyxis-base) * 34)",
+        display: "flex",
+        flexDirection: "column",
+        gap: "var(--pyxis-space-1)",
+        alignItems: row ? "flex-start" : "center",
+        textAlign: row ? "left" : "center",
+      }}
+    >
+      <Kicker>{ALBUM.artist}</Kicker>
+      <AlbumTitle size="var(--pyxis-text-heading)" />
+      <Meta />
+      <Transport compact />
+    </div>
+  );
+
+  if (row) {
+    return (
+      <div
+        ref={ref}
+        style={{
+          minHeight: "100%",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          gap: "var(--pyxis-space-5)",
+          padding: "var(--pyxis-space-5)",
+        }}
+      >
+        <div style={{ flexShrink: 0, display: "grid", placeItems: "center" }}>
+          <RecordHeroArt recordPx={recordPx} />
+        </div>
+        {identity}
+      </div>
+    );
+  }
+
   return (
-    <motion.div
+    <div
       ref={ref}
-      layout
-      layoutDependency={row}
-      transition={LAYOUT_TRANSITION}
       style={{
         minHeight: "100%",
         display: "flex",
-        flexDirection: row ? "row" : "column",
+        flexDirection: "column",
         alignItems: "center",
         justifyContent: "center",
-        gap: "var(--pyxis-space-5)",
-        padding: "var(--pyxis-space-5)",
+        padding: "var(--pyxis-space-6) var(--pyxis-space-5)",
       }}
     >
-      <motion.div
-        layout
-        layoutDependency={row}
-        transition={LAYOUT_TRANSITION}
+      <div
         style={{
-          flex: row ? "0 0 auto" : "1 1 auto",
+          width: "100%",
+          flex: 1,
+          minHeight: "min(60cqh, calc(var(--pyxis-base) * 26))",
           display: "grid",
           placeItems: "center",
-          minHeight: row
-            ? undefined
-            : "min(60cqh, calc(var(--pyxis-base) * 26))",
         }}
       >
         <RecordHeroArt recordPx={recordPx} />
-      </motion.div>
-      <motion.div
-        layout="position"
-        layoutDependency={row}
-        transition={LAYOUT_TRANSITION}
-        style={{
-          flex: "0 0 auto",
-          minWidth: 0,
-          maxWidth: "calc(var(--pyxis-base) * 34)",
-          display: "flex",
-          flexDirection: "column",
-          gap: "var(--pyxis-space-1)",
-          alignItems: row ? "flex-start" : "center",
-          textAlign: row ? "left" : "center",
-        }}
-      >
-        <Kicker>{ALBUM.artist}</Kicker>
-        <AlbumTitle size="var(--pyxis-text-heading)" />
-        <Meta />
-        <Transport compact />
-      </motion.div>
-    </motion.div>
+      </div>
+      {identity}
+    </div>
   );
 }
