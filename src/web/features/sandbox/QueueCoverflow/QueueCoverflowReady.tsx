@@ -65,7 +65,7 @@ const captionSlotStyle: React.CSSProperties = {
 export function QueueCoverflowReady({
   tracks,
   initialIndex,
-  captionVariant = "below",
+  captionVariant = "editorial",
 }: {
   readonly tracks: readonly QueueCoverflowTrack[];
   readonly initialIndex: number;
