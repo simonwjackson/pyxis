@@ -646,7 +646,7 @@ function TurntableDetail() {
             alignItems: "center",
             justifyContent: "center",
             textAlign: "center",
-            gap: "clamp(var(--pyxis-space-4), 4cqh, calc(var(--pyxis-base) * 2.4))",
+            gap: "clamp(var(--pyxis-space-5), 8cqh, calc(var(--pyxis-base) * 3.5))",
           }}
         >
           <div style={{ flexShrink: 0 }}>{record}</div>
