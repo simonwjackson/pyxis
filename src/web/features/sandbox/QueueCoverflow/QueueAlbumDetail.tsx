@@ -557,55 +557,121 @@ function TurntableDetail() {
     </>
   );
 
-  // ── Roomy: stable regions, nothing shifts on toggle ──────────────────────
-  if (roomy && row) {
-    // Record centered on the left (fixed); identity + tracklist fill the right
-    // column top-down, so opening the list never moves the record.
-    return (
-      <div
-        ref={ref}
-        style={{
-          height: "100%",
-          display: "flex",
-          flexDirection: "row",
-          alignItems: "stretch",
-          gap: "clamp(var(--pyxis-space-6), 5cqw, calc(var(--pyxis-base) * 4))",
-          padding: "var(--pyxis-space-5)",
-        }}
-      >
-        <div style={{ flexShrink: 0, display: "grid", placeItems: "center" }}>
-          {record}
-        </div>
+  // The measured box is a stable wrapper that always fills the fixed part
+  // frame, so w/h track the FRAME regardless of which inner layout renders or
+  // whether the tracklist is open. Measuring the content instead let an open
+  // list grow the box until h > w, flipping a landscape frame into portrait.
+  const inner = (() => {
+    // ── Roomy: stable regions, nothing shifts on toggle ──────────────────────
+    if (roomy && row) {
+      // Record centered on the left (fixed); identity + tracklist fill the right
+      // column top-down, so opening the list never moves the record.
+      return (
         <div
           style={{
-            flex: "1 1 auto",
-            minWidth: 0,
-            minHeight: 0,
-            maxWidth: "calc(var(--pyxis-base) * 40)",
+            height: "100%",
             display: "flex",
-            flexDirection: "column",
+            flexDirection: "row",
+            alignItems: "stretch",
+            gap: "clamp(var(--pyxis-space-6), 5cqw, calc(var(--pyxis-base) * 4))",
+            padding: "var(--pyxis-space-5)",
           }}
         >
-          {/* Two fixed regions: identity (centered) over tracklist. Neither
-           * resizes on toggle, so the identity never moves either. */}
-          <div
-            style={{
-              flex: "1 1 0",
-              minHeight: 0,
-              display: "flex",
-              flexDirection: "column",
-              justifyContent: "center",
-              alignItems: "flex-start",
-              textAlign: "left",
-              gap: "var(--pyxis-space-1)",
-            }}
-          >
-            {identityCore}
+          <div style={{ flexShrink: 0, display: "grid", placeItems: "center" }}>
+            {record}
           </div>
           <div
             style={{
-              flex: "1 1 0",
+              flex: "1 1 auto",
+              minWidth: 0,
               minHeight: 0,
+              maxWidth: "calc(var(--pyxis-base) * 40)",
+              display: "flex",
+              flexDirection: "column",
+            }}
+          >
+            {/* Two fixed regions: identity (centered) over tracklist. Neither
+             * resizes on toggle, so the identity never moves either. */}
+            <div
+              style={{
+                flex: "1 1 0",
+                minHeight: 0,
+                display: "flex",
+                flexDirection: "column",
+                justifyContent: "center",
+                alignItems: "flex-start",
+                textAlign: "left",
+                gap: "var(--pyxis-space-1)",
+              }}
+            >
+              {identityCore}
+            </div>
+            <div
+              style={{
+                flex: "1 1 0",
+                minHeight: 0,
+                display: "flex",
+                flexDirection: "column",
+              }}
+            >
+              <SongsToggle open={listOpen} onToggle={toggleSongs} />
+              {listOpen && (
+                <div style={{ flex: 1, minHeight: 0, overflowY: "auto" }}>
+                  <SongsList />
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    if (roomy) {
+      // Portrait roomy: a fixed hero region (record + identity, centered) over a
+      // fixed tracklist region. The regions never resize on toggle, so the
+      // record stays put; the list just fills / scrolls its own region.
+      return (
+        <div
+          style={{
+            height: "100%",
+            display: "flex",
+            flexDirection: "column",
+            gap: "var(--pyxis-space-4)",
+            padding: "var(--pyxis-space-6) var(--pyxis-space-5)",
+          }}
+        >
+          <div
+            style={{
+              flex: "3 1 0",
+              minHeight: 0,
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              justifyContent: "center",
+              textAlign: "center",
+              gap: "clamp(var(--pyxis-space-5), 8cqh, calc(var(--pyxis-base) * 3.5))",
+            }}
+          >
+            <div style={{ flexShrink: 0 }}>{record}</div>
+            <div
+              style={{
+                flexShrink: 0,
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                gap: "var(--pyxis-space-1)",
+              }}
+            >
+              {identityCore}
+            </div>
+          </div>
+          <div
+            style={{
+              flex: "2 1 0",
+              minHeight: 0,
+              width: "100%",
+              maxWidth: "calc(var(--pyxis-base) * 34)",
+              marginInline: "auto",
               display: "flex",
               flexDirection: "column",
             }}
@@ -618,138 +684,117 @@ function TurntableDetail() {
             )}
           </div>
         </div>
-      </div>
-    );
-  }
+      );
+    }
 
-  if (roomy) {
-    // Portrait roomy: a fixed hero region (record + identity, centered) over a
-    // fixed tracklist region. The regions never resize on toggle, so the
-    // record stays put; the list just fills / scrolls its own region.
-    return (
+    // ── Constrained: reflow to make room (art shifts aside / scrolls) ─────────
+    const identity = (
       <div
-        ref={ref}
         style={{
-          height: "100%",
+          flex: "0 0 auto",
+          minWidth: 0,
+          width: row ? "auto" : "100%",
+          maxWidth: "calc(var(--pyxis-base) * 34)",
           display: "flex",
           flexDirection: "column",
-          gap: "var(--pyxis-space-4)",
+          gap: "var(--pyxis-space-1)",
+          alignItems: row ? "flex-start" : "center",
+          textAlign: row ? "left" : "center",
+        }}
+      >
+        {identityCore}
+        <div style={{ width: "100%", textAlign: "left" }}>
+          <SongsReveal open={listOpen} onToggle={toggleSongs} />
+        </div>
+      </div>
+    );
+
+    // ── Constrained landscape: the record stays centered in the frame; the
+    // tracklist opens (and scrolls) inside the right column, so the art never
+    // shifts up on toggle. ──────────────────────────────────────────────────
+    if (row) {
+      return (
+        <div
+          style={{
+            height: "100%",
+            display: "flex",
+            alignItems: "stretch",
+            justifyContent: "center",
+            gap: "clamp(var(--pyxis-space-6), 5cqw, calc(var(--pyxis-base) * 4))",
+            padding: "var(--pyxis-space-5)",
+          }}
+        >
+          <div style={{ flexShrink: 0, display: "grid", placeItems: "center" }}>
+            {record}
+          </div>
+          <div
+            style={{
+              flex: "1 1 auto",
+              minWidth: 0,
+              minHeight: 0,
+              maxWidth: "calc(var(--pyxis-base) * 34)",
+              display: "flex",
+              flexDirection: "column",
+              justifyContent: listOpen ? "flex-start" : "center",
+              gap: "var(--pyxis-space-2)",
+            }}
+          >
+            <div
+              style={{
+                flexShrink: 0,
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "flex-start",
+                textAlign: "left",
+                gap: "var(--pyxis-space-1)",
+              }}
+            >
+              {identityCore}
+            </div>
+            <SongsToggle open={listOpen} onToggle={toggleSongs} />
+            {listOpen && (
+              <div style={{ flex: "1 1 0", minHeight: 0, overflowY: "auto" }}>
+                <SongsList />
+              </div>
+            )}
+          </div>
+        </div>
+      );
+    }
+
+    // ── Constrained portrait: reflow (art shifts aside / scrolls). ───────────
+    return (
+      <div
+        style={{
+          height: "100%",
+          overflowY: "auto",
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: listOpen ? "flex-start" : "center",
+          gap: "clamp(var(--pyxis-space-5), 5cqh, calc(var(--pyxis-base) * 3))",
           padding: "var(--pyxis-space-6) var(--pyxis-space-5)",
         }}
       >
         <div
           style={{
-            flex: "3 1 0",
-            minHeight: 0,
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            justifyContent: "center",
-            textAlign: "center",
-            gap: "clamp(var(--pyxis-space-5), 8cqh, calc(var(--pyxis-base) * 3.5))",
-          }}
-        >
-          <div style={{ flexShrink: 0 }}>{record}</div>
-          <div
-            style={{
-              flexShrink: 0,
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-              gap: "var(--pyxis-space-1)",
-            }}
-          >
-            {identityCore}
-          </div>
-        </div>
-        <div
-          style={{
-            flex: "2 1 0",
-            minHeight: 0,
             width: "100%",
-            maxWidth: "calc(var(--pyxis-base) * 34)",
-            marginInline: "auto",
-            display: "flex",
-            flexDirection: "column",
+            flex: listOpen ? "0 0 auto" : 1,
+            minHeight: "min(60cqh, calc(var(--pyxis-base) * 26))",
+            display: "grid",
+            placeItems: "center",
           }}
         >
-          <SongsToggle open={listOpen} onToggle={toggleSongs} />
-          {listOpen && (
-            <div style={{ flex: 1, minHeight: 0, overflowY: "auto" }}>
-              <SongsList />
-            </div>
-          )}
+          {record}
         </div>
-      </div>
-    );
-  }
-
-  // ── Constrained: reflow to make room (art shifts aside / scrolls) ─────────
-  const identity = (
-    <div
-      style={{
-        flex: "0 0 auto",
-        minWidth: 0,
-        width: row ? "auto" : "100%",
-        maxWidth: "calc(var(--pyxis-base) * 34)",
-        display: "flex",
-        flexDirection: "column",
-        gap: "var(--pyxis-space-1)",
-        alignItems: row ? "flex-start" : "center",
-        textAlign: row ? "left" : "center",
-      }}
-    >
-      {identityCore}
-      <div style={{ width: "100%", textAlign: "left" }}>
-        <SongsReveal open={listOpen} onToggle={toggleSongs} />
-      </div>
-    </div>
-  );
-
-  if (row) {
-    return (
-      <div
-        ref={ref}
-        style={{
-          minHeight: "100%",
-          display: "flex",
-          alignItems: listOpen ? "flex-start" : "center",
-          justifyContent: "center",
-          gap: "clamp(var(--pyxis-space-6), 5cqw, calc(var(--pyxis-base) * 4))",
-          padding: "var(--pyxis-space-5)",
-        }}
-      >
-        <div style={{ flexShrink: 0 }}>{record}</div>
         {identity}
       </div>
     );
-  }
+  })();
 
   return (
-    <div
-      ref={ref}
-      style={{
-        minHeight: "100%",
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        justifyContent: listOpen ? "flex-start" : "center",
-        gap: "clamp(var(--pyxis-space-5), 5cqh, calc(var(--pyxis-base) * 3))",
-        padding: "var(--pyxis-space-6) var(--pyxis-space-5)",
-      }}
-    >
-      <div
-        style={{
-          width: "100%",
-          flex: listOpen ? "0 0 auto" : 1,
-          minHeight: "min(60cqh, calc(var(--pyxis-base) * 26))",
-          display: "grid",
-          placeItems: "center",
-        }}
-      >
-        {record}
-      </div>
-      {identity}
+    <div ref={ref} style={{ width: "100%", height: "100%" }}>
+      {inner}
     </div>
   );
 }
