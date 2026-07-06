@@ -62,6 +62,62 @@ export const PYXIS_CALIPER_DEVICES = [
   },
 ] as const satisfies readonly PyxisCaliperDeviceConfig[];
 
+/**
+ * Coverflow / queue surfaces use the generalized intrinsic-design generator
+ * (adopted from korri's Shift): five systemic knobs feed one clamped base from
+ * which the whole modular type + space scale derives (see intrinsic.css). These
+ * write the --pyxis-* generator vars the recipe reads. Values match Shift's.
+ */
+export const COVERFLOW_INTRINSIC_KNOBS = [
+  {
+    id: "base",
+    label: "BASE",
+    cssVar: "--pyxis-base-cqi",
+    min: 0.5,
+    max: 6,
+    step: 0.1,
+    default: 1.8,
+  },
+  {
+    id: "min",
+    label: "MIN",
+    cssVar: "--pyxis-base-min",
+    min: 8,
+    max: 24,
+    step: 1,
+    default: 14,
+    unit: "px",
+  },
+  {
+    id: "ceil",
+    label: "CEIL",
+    cssVar: "--pyxis-base-cqh",
+    min: 1,
+    max: 12,
+    step: 0.1,
+    default: 4,
+  },
+  {
+    id: "ratio",
+    label: "RATIO",
+    cssVar: "--pyxis-type-ratio",
+    min: 1.1,
+    max: 1.6,
+    step: 0.01,
+    default: 1.44,
+  },
+  {
+    id: "space",
+    label: "SPACE",
+    cssVar: "--pyxis-space-unit",
+    min: 0.2,
+    max: 1.2,
+    step: 0.05,
+    default: 0.2,
+    unit: "em",
+  },
+] as const satisfies readonly PyxisCaliperKnob[];
+
 export const PYXIS_CALIPER_KNOBS = [
   {
     id: "font-size",

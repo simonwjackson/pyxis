@@ -20,8 +20,8 @@ import {
 import { mountCoverflow } from "./mountCoverflow";
 import type { PyxisLabStateAxis } from "./pyxis-axes";
 import {
+  COVERFLOW_INTRINSIC_KNOBS,
   PYXIS_CALIPER_DEVICES,
-  PYXIS_CALIPER_KNOBS,
   PYXIS_DEFAULT_PX_PER_MM,
   type PyxisCaliperDeviceConfig,
   type PyxisCaliperKnob,
@@ -69,7 +69,7 @@ export const coverflowLabSurfaceAdapter: CoverflowLabSurfaceAdapter = {
   id: "coverflow",
   devices: PYXIS_CALIPER_DEVICES,
   defaultPxPerMm: PYXIS_DEFAULT_PX_PER_MM,
-  knobs: PYXIS_CALIPER_KNOBS,
+  knobs: COVERFLOW_INTRINSIC_KNOBS,
   screens: [{ label: "Coverflow", path: "/", pagePartId: "coverflow" }],
   sources: [
     {

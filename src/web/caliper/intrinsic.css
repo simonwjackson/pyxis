@@ -1,0 +1,71 @@
+/*
+ * Pyxis intrinsic-design recipe (adopted from korri's @korri/intrinsic-design,
+ * as used by the Shift surface). The WHOLE adaptive scale is derived from a
+ * handful of systemic knobs instead of per-component values:
+ *
+ *   BASE  --pyxis-base-cqi   fluid anchor, × 1cqi of the surface's container
+ *   MIN   --pyxis-base-min   absolute px floor (legibility)
+ *   CEIL  --pyxis-base-cqh   height-relative ceiling, × 1cqh (wide-short frames)
+ *   RATIO --pyxis-type-ratio modular type ratio (step = base · ratioⁿ)
+ *   SPACE --pyxis-space-unit space step unit (em, so it tracks text)
+ *
+ * A surface element carries `.pyxis-intrinsic` so the scale re-derives against
+ * its OWN container (its cqi/cqh). The lab's knob sliders write these same vars
+ * on the stage; they cascade in. Defaults match Shift's committed values.
+ */
+
+:where(.pyxis-intrinsic) {
+  --pyxis-snap: 0.02px;
+  --pyxis-ratio: var(--pyxis-type-ratio, 1.44);
+
+  /* Width-driven, height-capped base (no fixed px ceiling): grows with the
+   * container width (cqi), never taller than CEIL% of its height (cqh), never
+   * below the MIN px floor. */
+  --pyxis-base: round(
+    max(
+      var(--pyxis-base-min, 14px),
+      min(
+        calc(var(--pyxis-base-cqi, 1.8) * 1cqi),
+        calc(var(--pyxis-base-cqh, 4) * 1cqh)
+      )
+    ),
+    var(--pyxis-snap)
+  );
+
+  /* Modular type scale: base · ratioⁿ. */
+  --pyxis-text-dn1: round(
+    calc(var(--pyxis-base) / var(--pyxis-ratio)),
+    var(--pyxis-snap)
+  );
+  --pyxis-text-0: round(var(--pyxis-base), var(--pyxis-snap));
+  --pyxis-text-up1: round(
+    calc(var(--pyxis-base) * var(--pyxis-ratio)),
+    var(--pyxis-snap)
+  );
+  --pyxis-text-up2: round(
+    calc(var(--pyxis-base) * var(--pyxis-ratio) * var(--pyxis-ratio)),
+    var(--pyxis-snap)
+  );
+  --pyxis-text-up3: round(
+    calc(
+      var(--pyxis-base) * var(--pyxis-ratio) * var(--pyxis-ratio) *
+        var(--pyxis-ratio)
+    ),
+    var(--pyxis-snap)
+  );
+
+  /* Linear em space steps (track the text). */
+  --pyxis-space-1: calc(var(--pyxis-space-unit, 0.2em) * 1);
+  --pyxis-space-2: calc(var(--pyxis-space-unit, 0.2em) * 2);
+  --pyxis-space-3: calc(var(--pyxis-space-unit, 0.2em) * 3);
+  --pyxis-space-4: calc(var(--pyxis-space-unit, 0.2em) * 4);
+  --pyxis-space-5: calc(var(--pyxis-space-unit, 0.2em) * 5);
+  --pyxis-space-6: calc(var(--pyxis-space-unit, 0.2em) * 6);
+
+  /* Semantic aliases. */
+  --pyxis-text-fine: var(--pyxis-text-dn1);
+  --pyxis-text-body: var(--pyxis-text-0);
+  --pyxis-text-title: var(--pyxis-text-up1);
+  --pyxis-text-heading: var(--pyxis-text-up2);
+  --pyxis-text-display: var(--pyxis-text-up3);
+}
