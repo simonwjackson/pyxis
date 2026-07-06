@@ -200,6 +200,80 @@ function Transport({ compact = false }: { readonly compact?: boolean }) {
  * only exists once the listener explicitly opens it. Controlled so the host can
  * react to the open state (e.g. top-align the surface so the list is
  * reachable). */
+function SongsToggle({
+  open,
+  onToggle,
+}: {
+  readonly open: boolean;
+  readonly onToggle: () => void;
+}) {
+  return (
+    <div
+      role="button"
+      tabIndex={0}
+      onClick={onToggle}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onToggle();
+        }
+      }}
+      style={{
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        padding: "var(--pyxis-space-2) 0",
+        borderTop: "1px solid rgba(255,255,255,0.1)",
+        color: "rgba(255,255,255,0.6)",
+        fontSize: "var(--pyxis-text-fine)",
+        fontWeight: 600,
+        letterSpacing: "0.14em",
+        textTransform: "uppercase",
+        cursor: "pointer",
+      }}
+    >
+      <span>{ALBUM.songCount} songs</span>
+      <span>{open ? "▲ hide" : "▼ show"}</span>
+    </div>
+  );
+}
+
+function SongsList() {
+  return (
+    <div style={{ paddingBottom: "var(--pyxis-space-4)" }}>
+      {TRACKS.map((t, i) => (
+        <div
+          key={t.id}
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "var(--pyxis-space-3)",
+            padding: "var(--pyxis-space-2) 0",
+            color: "rgba(255,255,255,0.85)",
+            fontSize: "var(--pyxis-text-body)",
+            textAlign: "left",
+          }}
+        >
+          <span
+            style={{
+              color: "rgba(255,255,255,0.35)",
+              fontVariantNumeric: "tabular-nums",
+              width: "2ch",
+            }}
+          >
+            {i + 1}
+          </span>
+          <span style={{ flex: 1, minWidth: 0, overflowWrap: "anywhere" }}>
+            {t.title}
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/** Inline show/hide used in CONSTRAINED spaces: the bar plus, when open, the
+ * list expanding in place (the host top-aligns and scrolls to reach it). */
 function SongsReveal({
   open,
   onToggle,
@@ -209,63 +283,8 @@ function SongsReveal({
 }) {
   return (
     <div style={{ marginTop: "var(--pyxis-space-5)" }}>
-      <div
-        role="button"
-        tabIndex={0}
-        onClick={onToggle}
-        onKeyDown={(e) => {
-          if (e.key === "Enter" || e.key === " ") {
-            e.preventDefault();
-            onToggle();
-          }
-        }}
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          padding: "var(--pyxis-space-2) 0",
-          borderTop: "1px solid rgba(255,255,255,0.1)",
-          color: "rgba(255,255,255,0.6)",
-          fontSize: "var(--pyxis-text-fine)",
-          fontWeight: 600,
-          letterSpacing: "0.14em",
-          textTransform: "uppercase",
-          cursor: "pointer",
-        }}
-      >
-        <span>{ALBUM.songCount} songs</span>
-        <span>{open ? "▲ hide" : "▼ show"}</span>
-      </div>
-      {open && (
-        <div style={{ paddingBottom: "var(--pyxis-space-4)" }}>
-          {TRACKS.map((t, i) => (
-            <div
-              key={t.id}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "var(--pyxis-space-3)",
-                padding: "var(--pyxis-space-2) 0",
-                color: "rgba(255,255,255,0.85)",
-                fontSize: "var(--pyxis-text-body)",
-              }}
-            >
-              <span
-                style={{
-                  color: "rgba(255,255,255,0.35)",
-                  fontVariantNumeric: "tabular-nums",
-                  width: "2ch",
-                }}
-              >
-                {i + 1}
-              </span>
-              <span style={{ flex: 1, minWidth: 0, overflowWrap: "anywhere" }}>
-                {t.title}
-              </span>
-            </div>
-          ))}
-        </div>
-      )}
+      <SongsToggle open={open} onToggle={onToggle} />
+      {open && <SongsList />}
     </div>
   );
 }
@@ -505,22 +524,164 @@ function TurntableDetail() {
   const { w, h } = useBoxSize(ref);
   // Wider than tall: lay the record beside the identity instead of above it.
   const row = w > 0 && w > h;
-  // Size the disc from whichever axis is the binding constraint so it always
-  // fits beside/above the identity.
+  // "Roomy" = both axes have real room. On roomy surfaces the tracklist shows
+  // within a dedicated region without ever moving the record/identity; only
+  // constrained surfaces reflow (shift the art aside) to make room.
+  const roomy = Math.min(w || 0, h || 0) >= 480;
+  // Size the disc so it fits its region. Roomy portrait leaves room below the
+  // record for the identity within the hero region.
   const recordPx = Math.round(
     row
       ? Math.max(120, Math.min((h || 320) * 0.82, (w || 320) * 0.42, 520))
-      : Math.max(120, Math.min(Math.min(w || 320, h || 320) * 0.62, 520)),
+      : roomy
+        ? Math.max(120, Math.min((w || 320) * 0.62, (h || 320) * 0.42, 520))
+        : Math.max(120, Math.min(Math.min(w || 320, h || 320) * 0.62, 520)),
   );
 
-  // The tracklist is a short-lived, inline show/hide below the identity. While
-  // it's open the surface top-aligns so the (potentially long) list is fully
-  // reachable via scroll; closed, the record stays a centered hero.
-  const [songsOpen, setSongsOpen] = useState(false);
-  const toggleSongs = () => setSongsOpen((v) => !v);
+  // Default the list open on roomy surfaces (there's space to just show it) and
+  // closed on constrained ones; a user toggle overrides the default.
+  const [userToggled, setUserToggled] = useState<boolean | null>(null);
+  const listOpen = userToggled ?? roomy;
+  const toggleSongs = () => setUserToggled(!listOpen);
 
   const record = <RecordHeroArt recordPx={recordPx} />;
 
+  const identityCore = (
+    <>
+      <Kicker>{ALBUM.artist}</Kicker>
+      <AlbumTitle size="var(--pyxis-text-heading)" />
+      <Meta />
+      <Transport compact />
+    </>
+  );
+
+  // ── Roomy: stable regions, nothing shifts on toggle ──────────────────────
+  if (roomy && row) {
+    // Record centered on the left (fixed); identity + tracklist fill the right
+    // column top-down, so opening the list never moves the record.
+    return (
+      <div
+        ref={ref}
+        style={{
+          height: "100%",
+          display: "flex",
+          flexDirection: "row",
+          alignItems: "stretch",
+          gap: "clamp(var(--pyxis-space-6), 5cqw, calc(var(--pyxis-base) * 4))",
+          padding: "var(--pyxis-space-5)",
+        }}
+      >
+        <div style={{ flexShrink: 0, display: "grid", placeItems: "center" }}>
+          {record}
+        </div>
+        <div
+          style={{
+            flex: "1 1 auto",
+            minWidth: 0,
+            minHeight: 0,
+            maxWidth: "calc(var(--pyxis-base) * 40)",
+            display: "flex",
+            flexDirection: "column",
+          }}
+        >
+          {/* Two fixed regions: identity (centered) over tracklist. Neither
+           * resizes on toggle, so the identity never moves either. */}
+          <div
+            style={{
+              flex: "1 1 0",
+              minHeight: 0,
+              display: "flex",
+              flexDirection: "column",
+              justifyContent: "center",
+              alignItems: "flex-start",
+              textAlign: "left",
+              gap: "var(--pyxis-space-1)",
+            }}
+          >
+            {identityCore}
+          </div>
+          <div
+            style={{
+              flex: "1 1 0",
+              minHeight: 0,
+              display: "flex",
+              flexDirection: "column",
+            }}
+          >
+            <SongsToggle open={listOpen} onToggle={toggleSongs} />
+            {listOpen && (
+              <div style={{ flex: 1, minHeight: 0, overflowY: "auto" }}>
+                <SongsList />
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (roomy) {
+    // Portrait roomy: a fixed hero region (record + identity, centered) over a
+    // fixed tracklist region. The regions never resize on toggle, so the
+    // record stays put; the list just fills / scrolls its own region.
+    return (
+      <div
+        ref={ref}
+        style={{
+          height: "100%",
+          display: "flex",
+          flexDirection: "column",
+          gap: "var(--pyxis-space-4)",
+          padding: "var(--pyxis-space-6) var(--pyxis-space-5)",
+        }}
+      >
+        <div
+          style={{
+            flex: "3 1 0",
+            minHeight: 0,
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+            textAlign: "center",
+            gap: "var(--pyxis-space-3)",
+          }}
+        >
+          {record}
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              gap: "var(--pyxis-space-1)",
+            }}
+          >
+            {identityCore}
+          </div>
+        </div>
+        <div
+          style={{
+            flex: "2 1 0",
+            minHeight: 0,
+            width: "100%",
+            maxWidth: "calc(var(--pyxis-base) * 34)",
+            marginInline: "auto",
+            display: "flex",
+            flexDirection: "column",
+          }}
+        >
+          <SongsToggle open={listOpen} onToggle={toggleSongs} />
+          {listOpen && (
+            <div style={{ flex: 1, minHeight: 0, overflowY: "auto" }}>
+              <SongsList />
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // ── Constrained: reflow to make room (art shifts aside / scrolls) ─────────
   const identity = (
     <div
       style={{
@@ -535,12 +696,9 @@ function TurntableDetail() {
         textAlign: row ? "left" : "center",
       }}
     >
-      <Kicker>{ALBUM.artist}</Kicker>
-      <AlbumTitle size="var(--pyxis-text-heading)" />
-      <Meta />
-      <Transport compact />
+      {identityCore}
       <div style={{ width: "100%", textAlign: "left" }}>
-        <SongsReveal open={songsOpen} onToggle={toggleSongs} />
+        <SongsReveal open={listOpen} onToggle={toggleSongs} />
       </div>
     </div>
   );
@@ -552,7 +710,7 @@ function TurntableDetail() {
         style={{
           minHeight: "100%",
           display: "flex",
-          alignItems: songsOpen ? "flex-start" : "center",
+          alignItems: listOpen ? "flex-start" : "center",
           justifyContent: "center",
           gap: "clamp(var(--pyxis-space-6), 5cqw, calc(var(--pyxis-base) * 4))",
           padding: "var(--pyxis-space-5)",
@@ -572,14 +730,14 @@ function TurntableDetail() {
         display: "flex",
         flexDirection: "column",
         alignItems: "center",
-        justifyContent: songsOpen ? "flex-start" : "center",
+        justifyContent: listOpen ? "flex-start" : "center",
         padding: "var(--pyxis-space-6) var(--pyxis-space-5)",
       }}
     >
       <div
         style={{
           width: "100%",
-          flex: songsOpen ? "0 0 auto" : 1,
+          flex: listOpen ? "0 0 auto" : 1,
           minHeight: "min(60cqh, calc(var(--pyxis-base) * 26))",
           display: "grid",
           placeItems: "center",
