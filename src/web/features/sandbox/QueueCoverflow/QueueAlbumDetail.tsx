@@ -644,7 +644,7 @@ function TurntableDetail() {
             alignItems: "center",
             justifyContent: "center",
             textAlign: "center",
-            gap: "var(--pyxis-space-3)",
+            gap: "clamp(var(--pyxis-space-5), 5cqh, calc(var(--pyxis-base) * 3))",
           }}
         >
           {record}
@@ -731,6 +731,7 @@ function TurntableDetail() {
         flexDirection: "column",
         alignItems: "center",
         justifyContent: listOpen ? "flex-start" : "center",
+        gap: "clamp(var(--pyxis-space-5), 5cqh, calc(var(--pyxis-base) * 3))",
         padding: "var(--pyxis-space-6) var(--pyxis-space-5)",
       }}
     >
