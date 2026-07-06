@@ -549,7 +549,7 @@ function TurntableDetail() {
           display: "flex",
           alignItems: songsOpen ? "flex-start" : "center",
           justifyContent: "center",
-          gap: "var(--pyxis-space-5)",
+          gap: "clamp(var(--pyxis-space-6), 5cqw, calc(var(--pyxis-base) * 4))",
           padding: "var(--pyxis-space-5)",
         }}
       >
