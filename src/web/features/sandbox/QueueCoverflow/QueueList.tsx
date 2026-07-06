@@ -1,10 +1,11 @@
 /**
  * @module QueueList
  *
- * Modern, flat, art-forward queue list matching the coverflow's language:
- * neutral dark ground, generous whitespace, editorial type (uppercase kicker +
- * big lowercase title), hairline separators. No skeuomorphism, no theme tokens.
- * Container-query sized for intrinsic scaling.
+ * Modern, art-forward queue list. Every size derives from the intrinsic-design
+ * generator (see caliper/intrinsic.css): text from the modular scale
+ * (--pyxis-text-*), spacing from the em space steps (--pyxis-space-*), covers
+ * bounded against the base (--pyxis-base). The five systemic knobs
+ * (BASE/MIN/CEIL/RATIO/SPACE) drive the whole design — no per-component values.
  */
 
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
@@ -19,7 +20,6 @@ const rootStyle: React.CSSProperties = {
   overflow: "hidden",
   containerType: "size",
   background: "#0b0b0e",
-  fontFamily: "'Urbanist', system-ui, sans-serif",
 };
 
 const scrollStyle: React.CSSProperties = {
@@ -28,7 +28,14 @@ const scrollStyle: React.CSSProperties = {
   zIndex: 1,
   overflowY: "auto",
   WebkitOverflowScrolling: "touch",
+  fontFamily: "'Urbanist', system-ui, sans-serif",
+  // Anchor the whole surface to the generator's body step so every em (space,
+  // icon sizes) tracks the one container-derived scale.
+  fontSize: "var(--pyxis-text-body)",
 };
+
+const HAIR = "rgba(255,255,255,0.09)";
+const coverShadow = "0 1px 2px rgba(0,0,0,0.3), 0 8px 20px rgba(0,0,0,0.35)";
 
 function useDebouncedValue<T>(value: T, delayMs: number): T {
   const [debounced, setDebounced] = useState(value);
@@ -55,9 +62,6 @@ function useLandscape(ref: React.RefObject<HTMLElement | null>): boolean {
   return landscape;
 }
 
-const HAIR = "rgba(255,255,255,0.09)";
-const coverShadow = "0 1px 2px rgba(0,0,0,0.3), 0 8px 20px rgba(0,0,0,0.35)";
-
 export function QueueList({
   tracks,
   variant,
@@ -72,7 +76,7 @@ export function QueueList({
   return (
     <div ref={rootRef} style={rootStyle}>
       <BlurredBackdrop artwork={activeArtwork} />
-      <div style={scrollStyle}>
+      <div className="pyxis-intrinsic" style={scrollStyle}>
         {tracks.map((track, index) => (
           <Row
             key={track.id}
@@ -115,7 +119,7 @@ function Kicker({
     <div
       style={{
         color: "rgba(255,255,255,0.5)",
-        fontSize: "2.7cqmin",
+        fontSize: "var(--pyxis-text-fine)",
         fontWeight: 600,
         letterSpacing: "0.16em",
         textTransform: "uppercase",
@@ -142,7 +146,7 @@ function Title({
     <div
       style={{
         color: active ? "rgba(255,255,255,0.98)" : "rgba(255,255,255,0.82)",
-        fontSize: `calc(${size} * var(--pyxis-title-scale, 1))`,
+        fontSize: size,
         fontWeight: 300,
         letterSpacing: "-0.02em",
         lineHeight: 1.04,
@@ -160,7 +164,7 @@ function Title({
 function Cover({
   track,
   size,
-  radius = "1.4cqmin",
+  radius = "var(--pyxis-space-1)",
 }: {
   readonly track: QueueCoverflowTrack;
   readonly size: string;
@@ -219,25 +223,29 @@ function Row({
         style={{
           display: "flex",
           alignItems: "center",
-          gap: "5cqmin",
-          padding: "4.5cqmin 6cqmin",
+          gap: "var(--pyxis-space-4)",
+          padding: "var(--pyxis-space-4) var(--pyxis-space-5)",
           borderBottom: last ? undefined : `1px solid ${HAIR}`,
           background: activeBg,
           cursor: "pointer",
           transition: "background 0.2s ease",
         }}
       >
-        <Cover track={track} size="30cqmin" />
+        <Cover track={track} size="calc(var(--pyxis-base) * 4.5)" />
         <div
           style={{
             minWidth: 0,
             display: "flex",
             flexDirection: "column",
-            gap: "1.4cqmin",
+            gap: "var(--pyxis-space-1)",
           }}
         >
           <Kicker track={track} index={index} count={count} />
-          <Title text={track.title} size="7cqmin" active={active} />
+          <Title
+            text={track.title}
+            size="var(--pyxis-text-heading)"
+            active={active}
+          />
         </div>
       </div>
     );
@@ -253,45 +261,32 @@ function Row({
           style={{
             display: "flex",
             alignItems: "center",
-            gap: "10cqmin",
-            padding: "6cqmin 7cqmin",
+            gap: "var(--pyxis-space-6)",
+            padding: "var(--pyxis-space-5) var(--pyxis-space-6)",
             borderBottom: last ? undefined : `1px solid ${HAIR}`,
             background: activeBg,
             cursor: "pointer",
           }}
         >
-          <div
-            style={{
-              height: "min(72cqh, 46cqw)",
-              aspectRatio: "1",
-              flexShrink: 0,
-              borderRadius: "2cqmin",
-              overflow: "hidden",
-              boxShadow: coverShadow,
-            }}
-          >
-            <img
-              src={track.artwork}
-              alt={track.title}
-              draggable={false}
-              style={{
-                width: "100%",
-                height: "100%",
-                objectFit: "cover",
-                display: "block",
-              }}
-            />
-          </div>
+          <Cover
+            track={track}
+            size="min(72cqh, calc(var(--pyxis-base) * 12))"
+            radius="var(--pyxis-space-2)"
+          />
           <div
             style={{
               minWidth: 0,
               display: "flex",
               flexDirection: "column",
-              gap: "2cqmin",
+              gap: "var(--pyxis-space-2)",
             }}
           >
             <Kicker track={track} index={index} count={count} />
-            <Title text={track.title} size="7cqmin" active={active} />
+            <Title
+              text={track.title}
+              size="var(--pyxis-text-heading)"
+              active={active}
+            />
           </div>
         </div>
       );
@@ -300,93 +295,94 @@ function Row({
       <div
         {...pressProps(onSelect)}
         style={{
-          padding: "6cqmin 6cqmin 5cqmin",
+          padding:
+            "var(--pyxis-space-5) var(--pyxis-space-5) var(--pyxis-space-4)",
           borderBottom: last ? undefined : `1px solid ${HAIR}`,
           background: activeBg,
           cursor: "pointer",
         }}
       >
         <div style={{ width: "100%" }}>
-          <Cover track={track} size="100%" radius="2cqmin" />
+          <Cover track={track} size="100%" radius="var(--pyxis-space-2)" />
         </div>
         <div
           style={{
-            marginTop: "5.5cqmin",
+            marginTop: "var(--pyxis-space-3)",
             display: "flex",
             flexDirection: "column",
-            gap: "1.6cqmin",
+            gap: "var(--pyxis-space-2)",
           }}
         >
           <Kicker track={track} index={index} count={count} />
-          <Title text={track.title} size="8.5cqmin" active={active} />
+          <Title
+            text={track.title}
+            size="var(--pyxis-text-display)"
+            active={active}
+          />
         </div>
       </div>
     );
   }
 
   // compact
-  if (variant === "compact") {
-    return (
+  return (
+    <div
+      {...pressProps(onSelect)}
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: "var(--pyxis-space-3)",
+        padding: "var(--pyxis-space-3) var(--pyxis-space-5)",
+        borderBottom: last ? undefined : `1px solid ${HAIR}`,
+        background: activeBg,
+        cursor: "pointer",
+      }}
+    >
+      <Cover track={track} size="calc(var(--pyxis-base) * 2.4)" />
       <div
-        {...pressProps(onSelect)}
         style={{
+          flex: 1,
+          minWidth: 0,
           display: "flex",
-          alignItems: "center",
-          gap: "3.5cqmin",
-          padding: "2.8cqmin 6cqmin",
-          borderBottom: last ? undefined : `1px solid ${HAIR}`,
-          background: activeBg,
-          cursor: "pointer",
+          flexDirection: "column",
+          gap: "var(--pyxis-space-1)",
         }}
       >
-        <Cover track={track} size="13cqmin" radius="1cqmin" />
         <div
           style={{
-            flex: 1,
-            minWidth: 0,
-            display: "flex",
-            flexDirection: "column",
-            gap: "0.8cqmin",
+            color: active ? "#fff" : "rgba(255,255,255,0.9)",
+            fontSize: "var(--pyxis-text-title)",
+            fontWeight: 500,
+            whiteSpace: "nowrap",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
           }}
         >
-          <div
-            style={{
-              color: active ? "#fff" : "rgba(255,255,255,0.9)",
-              fontSize: "calc(4cqmin * var(--pyxis-title-scale, 1))",
-              fontWeight: 500,
-              whiteSpace: "nowrap",
-              overflow: "hidden",
-              textOverflow: "ellipsis",
-            }}
-          >
-            {track.title}
-          </div>
-          <div
-            style={{
-              color: "rgba(255,255,255,0.45)",
-              fontSize: "3cqmin",
-              fontWeight: 500,
-              whiteSpace: "nowrap",
-              overflow: "hidden",
-              textOverflow: "ellipsis",
-            }}
-          >
-            {track.artist}
-          </div>
+          {track.title}
         </div>
         <div
           style={{
-            color: "rgba(255,255,255,0.35)",
-            fontSize: "3cqmin",
-            fontWeight: 600,
-            fontVariantNumeric: "tabular-nums",
+            color: "rgba(255,255,255,0.45)",
+            fontSize: "var(--pyxis-text-fine)",
+            fontWeight: 500,
+            whiteSpace: "nowrap",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
           }}
         >
-          {String(index + 1).padStart(2, "0")}
+          {track.artist}
         </div>
       </div>
-    );
-  }
-
-  return null;
+      <div
+        style={{
+          color: "rgba(255,255,255,0.35)",
+          fontSize: "var(--pyxis-text-fine)",
+          fontWeight: 600,
+          fontVariantNumeric: "tabular-nums",
+        }}
+      >
+        {String(index + 1).padStart(2, "0")}
+      </div>
+    </div>
+  );
 }
