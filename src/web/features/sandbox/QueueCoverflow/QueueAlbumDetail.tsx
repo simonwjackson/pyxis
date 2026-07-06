@@ -12,6 +12,7 @@
  *   - "turntable" the album as a record half-pulled from its sleeve
  */
 
+import { motion } from "framer-motion";
 import { useLayoutEffect, useRef, useState } from "react";
 import { BlurredBackdrop } from "./components/BlurredBackdrop";
 import { VinylRecord } from "./components/VinylRecord";
@@ -510,75 +511,9 @@ function MarqueeDetail() {
 
 /* ── Turntable: the album as a record pulled from its sleeve ─────────────── */
 
-function RecordArt({
-  coverPx,
-  reservePeek = false,
-}: {
-  readonly coverPx: number;
-  readonly reservePeek?: boolean;
-}) {
-  const vinylPx = Math.round(coverPx * 0.96);
-  return (
-    <div
-      style={{
-        position: "relative",
-        // Never shrink: the record + cover are absolutely positioned, so a
-        // collapsing box would let its art overflow under the identity text.
-        flexShrink: 0,
-        width: reservePeek ? Math.round(coverPx * 1.42) : coverPx,
-        height: coverPx,
-      }}
-    >
-      {/* Record slid out to the right, behind the sleeve. */}
-      <div
-        style={{
-          position: "absolute",
-          left: coverPx * 0.42,
-          top: coverPx * 0.02,
-          animation: "vinyl-spin 8s linear infinite",
-        }}
-      >
-        <VinylRecord
-          size={vinylPx}
-          color={ALBUM.color}
-          title={ALBUM.title}
-          artist={ALBUM.artist}
-          spinning={false}
-        />
-      </div>
-      {/* The sleeve / cover in front. */}
-      <div
-        style={{
-          position: "absolute",
-          left: 0,
-          top: 0,
-          width: coverPx,
-          height: coverPx,
-          borderRadius: "var(--pyxis-space-2)",
-          overflow: "hidden",
-          boxShadow: coverShadow,
-        }}
-      >
-        <img
-          src={ALBUM.artwork}
-          alt={ALBUM.title}
-          draggable={false}
-          style={{
-            width: "100%",
-            height: "100%",
-            objectFit: "cover",
-            display: "block",
-          }}
-        />
-      </div>
-    </div>
-  );
-}
-
-/** Portrait hero: the same relationship as landscape — sleeve to the LEFT of the
- * disc — but the sleeve sits BEHIND the record, slightly rotated. Everything is
- * fully opaque: the opaque disc covers the overlap so nothing shows through. The
- * record is centered on screen; the sleeve may bleed off the left edge. */
+/** One record composition used in BOTH orientations: sleeve to the LEFT of the
+ * disc, behind it, slightly rotated; the opaque disc covers the overlap so
+ * nothing shows through. The sleeve may bleed off the left edge. */
 function RecordHeroArt({ recordPx }: { readonly recordPx: number }) {
   // Sleeve is a touch larger than the disc, so the record is never bigger.
   const coverPx = Math.round(recordPx * 1.04);
@@ -640,93 +575,78 @@ function RecordHeroArt({ recordPx }: { readonly recordPx: number }) {
   );
 }
 
+// Framer layout tween used for the orientation switch and while resizing, so
+// the record and identity glide to their new places instead of snapping.
+const LAYOUT_TRANSITION = {
+  layout: {
+    duration: 0.45,
+    ease: [0.4, 0, 0.2, 1] as [number, number, number, number],
+  },
+};
+
 function TurntableDetail() {
   const ref = useRef<HTMLDivElement>(null);
   const { w, h } = useBoxSize(ref);
-  // Wider than tall: the centered record + stacked identity can't fit, so lay
-  // the record beside the identity and size it to the container height.
+  // Wider than tall: lay the record beside the identity instead of above it.
   const row = w > 0 && w > h;
-  // In row mode the record + its slid-out peek (~1.42x the cover) must fit the
-  // width beside the identity, not just the height — otherwise the art overflows
-  // under the text. Cap by both axes.
-  const coverPx = Math.round(
+  // Size the disc from whichever axis is the binding constraint so it always
+  // fits beside/above the identity.
+  const recordPx = Math.round(
     row
       ? Math.max(120, Math.min((h || 320) * 0.82, (w || 320) * 0.42, 520))
       : Math.max(120, Math.min(Math.min(w || 320, h || 320) * 0.62, 520)),
   );
 
-  if (row) {
-    return (
-      <div
-        ref={ref}
-        style={{
-          minHeight: "100%",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          gap: "var(--pyxis-space-5)",
-          padding: "var(--pyxis-space-5)",
-        }}
-      >
-        <RecordArt coverPx={coverPx} reservePeek />
-        <div
-          style={{
-            flex: "1 1 auto",
-            minWidth: 0,
-            maxWidth: "calc(var(--pyxis-base) * 34)",
-            display: "flex",
-            flexDirection: "column",
-            gap: "var(--pyxis-space-1)",
-          }}
-        >
-          <Kicker>{ALBUM.artist}</Kicker>
-          <AlbumTitle size="var(--pyxis-text-heading)" />
-          <Meta />
-          <Transport compact />
-        </div>
-      </div>
-    );
-  }
-
+  // Single element tree: the SAME record + identity persist across the
+  // orientation change, so Framer's layout animation can tween the reflow.
   return (
-    <div
+    <motion.div
       ref={ref}
+      layout
+      transition={LAYOUT_TRANSITION}
       style={{
         minHeight: "100%",
         display: "flex",
-        flexDirection: "column",
+        flexDirection: row ? "row" : "column",
         alignItems: "center",
         justifyContent: "center",
-        padding: "var(--pyxis-space-6) var(--pyxis-space-5)",
+        gap: "var(--pyxis-space-5)",
+        padding: "var(--pyxis-space-5)",
       }}
     >
-      <div
+      <motion.div
+        layout
+        transition={LAYOUT_TRANSITION}
         style={{
-          width: "100%",
-          flex: 1,
-          minHeight: "min(60cqh, calc(var(--pyxis-base) * 26))",
+          flex: row ? "0 0 auto" : "1 1 auto",
           display: "grid",
           placeItems: "center",
+          minHeight: row
+            ? undefined
+            : "min(60cqh, calc(var(--pyxis-base) * 26))",
         }}
       >
-        <RecordHeroArt recordPx={coverPx} />
-      </div>
-      <div
+        <RecordHeroArt recordPx={recordPx} />
+      </motion.div>
+      <motion.div
+        layout="position"
+        transition={LAYOUT_TRANSITION}
         style={{
+          flex: "0 0 auto",
+          minWidth: 0,
+          maxWidth: "calc(var(--pyxis-base) * 34)",
           display: "flex",
           flexDirection: "column",
-          alignItems: "center",
-          textAlign: "center",
           gap: "var(--pyxis-space-1)",
+          alignItems: row ? "flex-start" : "center",
+          textAlign: row ? "left" : "center",
         }}
       >
         <Kicker>{ALBUM.artist}</Kicker>
         <AlbumTitle size="var(--pyxis-text-heading)" />
-        <div style={{ marginTop: "var(--pyxis-space-1)" }}>
-          <Meta />
-        </div>
+        <Meta />
         <Transport compact />
-      </div>
-    </div>
+      </motion.div>
+    </motion.div>
   );
 }
