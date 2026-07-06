@@ -7,7 +7,7 @@
  * Container-query sized for intrinsic scaling.
  */
 
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { BlurredBackdrop } from "./components/BlurredBackdrop";
 import type { QueueCoverflowTrack } from "./QueueCoverflowState";
 
@@ -39,6 +39,22 @@ function useDebouncedValue<T>(value: T, delayMs: number): T {
   return debounced;
 }
 
+/** Watch the surface's own box so layout reflows from the container, not the
+ * screen. Landscape when the container is wider than it is tall. */
+function useLandscape(ref: React.RefObject<HTMLElement | null>): boolean {
+  const [landscape, setLandscape] = useState(false);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const measure = () => setLandscape(el.clientWidth > el.clientHeight);
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [ref]);
+  return landscape;
+}
+
 const HAIR = "rgba(255,255,255,0.09)";
 const coverShadow = "0 1px 2px rgba(0,0,0,0.3), 0 8px 20px rgba(0,0,0,0.35)";
 
@@ -50,9 +66,11 @@ export function QueueList({
   readonly variant: QueueListVariant;
 }) {
   const [selected, setSelected] = useState(0);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const landscape = useLandscape(rootRef);
   const activeArtwork = useDebouncedValue(tracks[selected]?.artwork ?? "", 450);
   return (
-    <div style={rootStyle}>
+    <div ref={rootRef} style={rootStyle}>
       <BlurredBackdrop artwork={activeArtwork} />
       <div style={scrollStyle}>
         {tracks.map((track, index) => (
@@ -62,6 +80,7 @@ export function QueueList({
             index={index}
             count={tracks.length}
             variant={variant}
+            landscape={landscape}
             active={index === selected}
             onSelect={() => setSelected(index)}
           />
@@ -178,6 +197,7 @@ function Row({
   index,
   count,
   variant,
+  landscape,
   active,
   onSelect,
 }: {
@@ -185,6 +205,7 @@ function Row({
   readonly index: number;
   readonly count: number;
   readonly variant: QueueListVariant;
+  readonly landscape: boolean;
   readonly active: boolean;
   readonly onSelect: () => void;
 }) {
@@ -223,6 +244,58 @@ function Row({
   }
 
   if (variant === "bleed") {
+    // Landscape: a full-width square cover is taller than the frame, so lay the
+    // cover beside the caption and cap it to the container height instead.
+    if (landscape) {
+      return (
+        <div
+          {...pressProps(onSelect)}
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "6cqmin",
+            padding: "6cqmin 7cqmin",
+            borderBottom: last ? undefined : `1px solid ${HAIR}`,
+            background: activeBg,
+            cursor: "pointer",
+          }}
+        >
+          <div
+            style={{
+              height: "min(72cqh, 46cqw)",
+              aspectRatio: "1",
+              flexShrink: 0,
+              borderRadius: "2cqmin",
+              overflow: "hidden",
+              boxShadow: coverShadow,
+            }}
+          >
+            <img
+              src={track.artwork}
+              alt={track.title}
+              draggable={false}
+              style={{
+                width: "100%",
+                height: "100%",
+                objectFit: "cover",
+                display: "block",
+              }}
+            />
+          </div>
+          <div
+            style={{
+              minWidth: 0,
+              display: "flex",
+              flexDirection: "column",
+              gap: "2cqmin",
+            }}
+          >
+            <Kicker track={track} index={index} count={count} />
+            <Title text={track.title} size="7cqmin" active={active} />
+          </div>
+        </div>
+      );
+    }
     return (
       <div
         {...pressProps(onSelect)}
