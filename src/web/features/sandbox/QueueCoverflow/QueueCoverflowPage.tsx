@@ -70,13 +70,13 @@ function QueueCoverflowMessage({
         gap: 8,
         padding: 24,
         textAlign: "center",
-        background: "var(--color-bg, #0d0d0d)",
+        background: "#0d0d0d",
         fontFamily: "'Urbanist', system-ui, sans-serif",
       }}
     >
       <div
         style={{
-          color: "var(--color-text, rgba(255,255,255,0.92))",
+          color: "rgba(255,255,255,0.92)",
           fontSize: 18,
           fontWeight: 600,
           letterSpacing: "0.01em",
@@ -87,7 +87,7 @@ function QueueCoverflowMessage({
       {detail ? (
         <div
           style={{
-            color: "var(--color-text-muted, rgba(255,255,255,0.5))",
+            color: "rgba(255,255,255,0.5)",
             fontSize: 13,
             maxWidth: 260,
             lineHeight: 1.4,
