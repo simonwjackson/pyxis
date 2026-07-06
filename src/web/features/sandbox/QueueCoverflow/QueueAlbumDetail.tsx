@@ -15,6 +15,7 @@
 import { useLayoutEffect, useRef, useState } from "react";
 import { BlurredBackdrop } from "./components/BlurredBackdrop";
 import { VinylRecord } from "./components/VinylRecord";
+import { randomPressing } from "./pressings";
 import { QUEUE_COVERFLOW_PREVIEW_TRACKS } from "./QueueCoverflowFixtures";
 import { colorFromId, type QueueCoverflowTrack } from "./QueueCoverflowState";
 
@@ -435,6 +436,9 @@ function MarqueeDetail() {
  * disc, behind it, slightly rotated; the opaque disc covers the overlap so
  * nothing shows through. The sleeve may bleed off the left edge. */
 function RecordHeroArt({ recordPx }: { readonly recordPx: number }) {
+  // Pick a stylized pressing once per mount so the vinyl looks different each
+  // page load; stays stable across resizes within a session.
+  const [pressing] = useState(randomPressing);
   // Sleeve is a touch larger than the disc, so the record is never bigger.
   const coverPx = Math.round(recordPx * 1.04);
   // How far the sleeve's right edge reaches into the disc (behind it).
@@ -489,6 +493,7 @@ function RecordHeroArt({ recordPx }: { readonly recordPx: number }) {
           title={ALBUM.title}
           artist={ALBUM.artist}
           spinning={false}
+          pressingSrc={pressing}
         />
       </div>
     </div>

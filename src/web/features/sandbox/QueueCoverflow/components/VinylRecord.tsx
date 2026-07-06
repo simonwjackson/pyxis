@@ -12,12 +12,16 @@ export function VinylRecord({
   title,
   artist,
   spinning,
+  pressingSrc,
 }: {
   readonly size: number;
   readonly color: string;
   readonly title: string;
   readonly artist: string;
   readonly spinning: boolean;
+  /** Optional stylized vinyl artwork drawn as the disc surface (colored /
+   * marbled pressing). The center label still renders on top. */
+  readonly pressingSrc?: string;
 }) {
   const labelRadius = size * 0.18;
   const textPathRadius = labelRadius * 0.68;
@@ -44,6 +48,34 @@ export function VinylRecord({
         ].join(", "),
       }}
     >
+      {/* Stylized pressing surface (colored/marbled vinyl). Sits above the base
+       * gradient but below the grooves, sheen and center label. The image disc
+       * has a small margin, so scale it up to fill the circular clip. */}
+      {pressingSrc && (
+        <div
+          style={{
+            position: "absolute",
+            inset: 0,
+            borderRadius: "50%",
+            overflow: "hidden",
+          }}
+        >
+          <img
+            src={pressingSrc}
+            alt=""
+            aria-hidden="true"
+            draggable={false}
+            style={{
+              width: "100%",
+              height: "100%",
+              objectFit: "cover",
+              transform: "scale(1.22)",
+              display: "block",
+            }}
+          />
+        </div>
+      )}
+
       {/* Groove lines */}
       <svg
         aria-hidden="true"
