@@ -7,7 +7,8 @@
  * Container-query sized for intrinsic scaling.
  */
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { BlurredBackdrop } from "./components/BlurredBackdrop";
 import type { QueueCoverflowTrack } from "./QueueCoverflowState";
 
 export type QueueListVariant = "editorial" | "bleed" | "compact";
@@ -15,12 +16,28 @@ export type QueueListVariant = "editorial" | "bleed" | "compact";
 const rootStyle: React.CSSProperties = {
   position: "absolute",
   inset: 0,
-  overflowY: "auto",
+  overflow: "hidden",
   containerType: "size",
-  background: "linear-gradient(180deg, #101014 0%, #0b0b0e 100%)",
+  background: "#0b0b0e",
   fontFamily: "'Urbanist', system-ui, sans-serif",
+};
+
+const scrollStyle: React.CSSProperties = {
+  position: "absolute",
+  inset: 0,
+  zIndex: 1,
+  overflowY: "auto",
   WebkitOverflowScrolling: "touch",
 };
+
+function useDebouncedValue<T>(value: T, delayMs: number): T {
+  const [debounced, setDebounced] = useState(value);
+  useEffect(() => {
+    const id = setTimeout(() => setDebounced(value), delayMs);
+    return () => clearTimeout(id);
+  }, [value, delayMs]);
+  return debounced;
+}
 
 const HAIR = "rgba(255,255,255,0.09)";
 const coverShadow = "0 1px 2px rgba(0,0,0,0.3), 0 8px 20px rgba(0,0,0,0.35)";
@@ -33,19 +50,23 @@ export function QueueList({
   readonly variant: QueueListVariant;
 }) {
   const [selected, setSelected] = useState(0);
+  const activeArtwork = useDebouncedValue(tracks[selected]?.artwork ?? "", 450);
   return (
     <div style={rootStyle}>
-      {tracks.map((track, index) => (
-        <Row
-          key={track.id}
-          track={track}
-          index={index}
-          count={tracks.length}
-          variant={variant}
-          active={index === selected}
-          onSelect={() => setSelected(index)}
-        />
-      ))}
+      <BlurredBackdrop artwork={activeArtwork} />
+      <div style={scrollStyle}>
+        {tracks.map((track, index) => (
+          <Row
+            key={track.id}
+            track={track}
+            index={index}
+            count={tracks.length}
+            variant={variant}
+            active={index === selected}
+            onSelect={() => setSelected(index)}
+          />
+        ))}
+      </div>
     </div>
   );
 }
