@@ -575,6 +575,64 @@ function RecordArt({
   );
 }
 
+/** Portrait hero: the opaque record is centered on screen over the ground; the
+ * sleeve sits in front, off to the left, overlapping only the record's left rim
+ * so the disc reads as sliding out of it. The sleeve is free to run off-screen
+ * (the root clips it) — the record stays centered. No opacity blending. */
+function RecordHeroArt({ recordPx }: { readonly recordPx: number }) {
+  // Sleeve is a touch larger than the disc (as real vinyl is), so the record is
+  // never bigger than its sleeve.
+  const coverPx = Math.round(recordPx * 1.08);
+  const overlap = Math.round(recordPx * 0.16);
+  return (
+    <div style={{ position: "relative", width: recordPx, height: recordPx }}>
+      {/* Record: centered, behind, spinning — the hero. */}
+      <div
+        style={{
+          position: "absolute",
+          inset: 0,
+          zIndex: 1,
+          animation: "vinyl-spin 8s linear infinite",
+        }}
+      >
+        <VinylRecord
+          size={recordPx}
+          color={ALBUM.color}
+          title={ALBUM.title}
+          artist={ALBUM.artist}
+          spinning={false}
+        />
+      </div>
+      {/* Sleeve: in front, off to the left, disc emerging from its mouth. */}
+      <div
+        style={{
+          position: "absolute",
+          left: overlap - coverPx,
+          top: Math.round((recordPx - coverPx) / 2),
+          width: coverPx,
+          height: coverPx,
+          zIndex: 2,
+          borderRadius: "var(--pyxis-space-2)",
+          overflow: "hidden",
+          boxShadow: coverShadow,
+        }}
+      >
+        <img
+          src={ALBUM.artwork}
+          alt={ALBUM.title}
+          draggable={false}
+          style={{
+            width: "100%",
+            height: "100%",
+            objectFit: "cover",
+            display: "block",
+          }}
+        />
+      </div>
+    </div>
+  );
+}
+
 function TurntableDetail() {
   const ref = useRef<HTMLDivElement>(null);
   const { w, h } = useBoxSize(ref);
@@ -644,7 +702,7 @@ function TurntableDetail() {
           placeItems: "center",
         }}
       >
-        <RecordArt coverPx={coverPx} />
+        <RecordHeroArt recordPx={coverPx} />
       </div>
       <div
         style={{
