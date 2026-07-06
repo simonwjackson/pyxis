@@ -20,13 +20,21 @@ const modules = import.meta.glob<PartModule>("./coverflow/**/*.part.tsx", {
   eager: true,
 });
 
-const param = new URLSearchParams(location.search).get("part") ?? "";
+const search = new URLSearchParams(location.search);
+const param = search.get("part") ?? "";
 const key = param.startsWith("./") ? param : `./${param}`;
 const mod = modules[key];
 const Part = mod?.default;
 
 const el = document.getElementById("root");
 if (!el) throw new Error("Missing #root");
+
+// Apply lab-knob CSS vars from the query, e.g. `&vars=--pyxis-title-scale:1.3`,
+// so knob wiring can be screenshotted without the full lab knob UI.
+for (const pair of (search.get("vars") ?? "").split(",")) {
+  const [name, value] = pair.split(":");
+  if (name?.startsWith("--") && value) el.style.setProperty(name, value);
+}
 
 createRoot(el).render(
   Part ? (

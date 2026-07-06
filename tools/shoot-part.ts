@@ -32,7 +32,8 @@ try {
         viewport: { width: vp.width, height: vp.height },
         deviceScaleFactor: 2,
       });
-      const url = `${baseUrl}/preview.html?part=${encodeURIComponent(part)}`;
+      const vars = process.env.VARS ? `&vars=${encodeURIComponent(process.env.VARS)}` : "";
+      const url = `${baseUrl}/preview.html?part=${encodeURIComponent(part)}${vars}`;
       await page.goto(url, { waitUntil: "networkidle", timeout: 30_000 });
       await page.waitForTimeout(900);
       const safe = part.replace(/[^a-z0-9]+/gi, "_");

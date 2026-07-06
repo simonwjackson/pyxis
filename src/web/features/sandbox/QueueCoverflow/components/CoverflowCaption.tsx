@@ -39,7 +39,8 @@ export function CoverflowCaption({
         <div
           style={{
             color: "rgba(255,255,255,0.96)",
-            fontSize: "clamp(20px, 8cqmin, 52px)",
+            fontSize:
+              "calc(clamp(20px, 8cqmin, 52px) * var(--pyxis-title-scale, 1))",
             fontWeight: 300,
             letterSpacing: "-0.02em",
             lineHeight: 1.02,
@@ -60,7 +61,8 @@ export function CoverflowCaption({
       <div
         style={{
           color: "rgba(255,255,255,0.98)",
-          fontSize: "clamp(15px, 5cqmin, 30px)",
+          fontSize:
+            "calc(clamp(15px, 5cqmin, 30px) * var(--pyxis-title-scale, 1))",
           fontWeight: 600,
           letterSpacing: "0.01em",
           lineHeight: 1.15,

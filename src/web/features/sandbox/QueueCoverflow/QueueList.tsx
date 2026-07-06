@@ -142,7 +142,7 @@ function Title({
     <div
       style={{
         color: active ? "rgba(255,255,255,0.98)" : "rgba(255,255,255,0.82)",
-        fontSize: size,
+        fontSize: `calc(${size} * var(--pyxis-title-scale, 1))`,
         fontWeight: 300,
         letterSpacing: "-0.02em",
         lineHeight: 1.04,
@@ -352,7 +352,7 @@ function Row({
           <div
             style={{
               color: active ? "#fff" : "rgba(255,255,255,0.9)",
-              fontSize: "4cqmin",
+              fontSize: "calc(4cqmin * var(--pyxis-title-scale, 1))",
               fontWeight: 500,
               whiteSpace: "nowrap",
               overflow: "hidden",
