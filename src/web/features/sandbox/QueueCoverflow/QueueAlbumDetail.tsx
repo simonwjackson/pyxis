@@ -7,19 +7,18 @@
  * gesture. Sizes derive from the intrinsic-design generator (--pyxis-text-*,
  * --pyxis-space-*, --pyxis-base); color comes from BlurredBackdrop.
  *
- *   - "sleeve"    immersive centered cover, identity + transport below
  *   - "marquee"   editorial cover-beside-identity + "more from" cover shelf
- *   - "turntable" the album as a record half-pulled from its sleeve
+ *   - "turntable" the album as a record half-pulled from its sleeve, with an
+ *                 inline show/hide tracklist below the identity
  */
 
-import { AnimatePresence, motion } from "framer-motion";
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import { BlurredBackdrop } from "./components/BlurredBackdrop";
 import { VinylRecord } from "./components/VinylRecord";
 import { QUEUE_COVERFLOW_PREVIEW_TRACKS } from "./QueueCoverflowFixtures";
 import { colorFromId, type QueueCoverflowTrack } from "./QueueCoverflowState";
 
-export type QueueAlbumDetailVariant = "sleeve" | "marquee" | "turntable";
+export type QueueAlbumDetailVariant = "marquee" | "turntable";
 
 const TRACKS = QUEUE_COVERFLOW_PREVIEW_TRACKS;
 const ALBUM = {
@@ -197,19 +196,26 @@ function Transport({ compact = false }: { readonly compact?: boolean }) {
 }
 
 /** Collapsed-by-default songs affordance. The list is NOT the default view; it
- * only exists once the listener explicitly opens it. */
-function SongsReveal() {
-  const [open, setOpen] = useState(false);
+ * only exists once the listener explicitly opens it. Controlled so the host can
+ * react to the open state (e.g. top-align the surface so the list is
+ * reachable). */
+function SongsReveal({
+  open,
+  onToggle,
+}: {
+  readonly open: boolean;
+  readonly onToggle: () => void;
+}) {
   return (
     <div style={{ marginTop: "var(--pyxis-space-5)" }}>
       <div
         role="button"
         tabIndex={0}
-        onClick={() => setOpen((v) => !v)}
+        onClick={onToggle}
         onKeyDown={(e) => {
           if (e.key === "Enter" || e.key === " ") {
             e.preventDefault();
-            setOpen((v) => !v);
+            onToggle();
           }
         }}
         style={{
@@ -363,104 +369,12 @@ export function QueueAlbumDetail({
 }: {
   readonly variant: QueueAlbumDetailVariant;
 }) {
-  const [songsOpen, setSongsOpen] = useState(false);
   return (
     <div style={rootStyle}>
       <BlurredBackdrop artwork={ALBUM.artwork} />
       <div className="pyxis-intrinsic" style={scrollStyle}>
-        {variant === "sleeve" && <SleeveDetail />}
         {variant === "marquee" && <MarqueeDetail />}
-        {variant === "turntable" && (
-          <TurntableDetail onShowSongs={() => setSongsOpen(true)} />
-        )}
-      </div>
-      {variant === "turntable" && (
-        <SongsSheet open={songsOpen} onClose={() => setSongsOpen(false)} />
-      )}
-    </div>
-  );
-}
-
-/* ── Sleeve: immersive centered cover ───────────────────────────────────── */
-
-function SleeveDetail() {
-  const ref = useRef<HTMLDivElement>(null);
-  const { w, h } = useBoxSize(ref);
-  // Wider than tall: a vertical cover-on-top stack can't fit, so lay the cover
-  // beside the identity and cap it to the container height instead.
-  const row = w > 0 && w > h;
-
-  if (row) {
-    return (
-      <div
-        ref={ref}
-        style={{
-          minHeight: "100%",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          gap: "var(--pyxis-space-5)",
-          padding: "var(--pyxis-space-5)",
-        }}
-      >
-        <CoverArt
-          size="min(46cqw, 84cqh, calc(var(--pyxis-base) * 18))"
-          radius="var(--pyxis-space-2)"
-        />
-        <div
-          style={{
-            flex: "1 1 auto",
-            minWidth: 0,
-            maxWidth: "calc(var(--pyxis-base) * 34)",
-            display: "flex",
-            flexDirection: "column",
-            gap: "var(--pyxis-space-1)",
-          }}
-        >
-          <Kicker>{ALBUM.artist}</Kicker>
-          <AlbumTitle size="var(--pyxis-text-heading)" />
-          <Meta />
-          <Transport />
-          <SongsReveal />
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div
-      ref={ref}
-      style={{
-        minHeight: "100%",
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        textAlign: "center",
-        padding: "var(--pyxis-space-6) var(--pyxis-space-5)",
-      }}
-    >
-      <CoverArt
-        size="min(72cqmin, calc(var(--pyxis-base) * 26))"
-        radius="var(--pyxis-space-2)"
-      />
-      <div
-        style={{
-          marginTop: "var(--pyxis-space-4)",
-          display: "flex",
-          flexDirection: "column",
-          gap: "var(--pyxis-space-1)",
-          alignItems: "center",
-        }}
-      >
-        <Kicker>{ALBUM.artist}</Kicker>
-        <AlbumTitle size="var(--pyxis-text-display)" />
-        <div style={{ marginTop: "var(--pyxis-space-1)" }}>
-          <Meta />
-        </div>
-      </div>
-      <Transport />
-      <div style={{ width: "100%", maxWidth: "calc(var(--pyxis-base) * 30)" }}>
-        <SongsReveal />
+        {variant === "turntable" && <TurntableDetail />}
       </div>
     </div>
   );
@@ -581,232 +495,7 @@ function RecordHeroArt({ recordPx }: { readonly recordPx: number }) {
   );
 }
 
-/** Subtle, album-first affordance into the tracklist. Small on purpose: the
- * album is the hero, songs are a peek. */
-function SongsTrigger({ onOpen }: { readonly onOpen: () => void }) {
-  return (
-    <button
-      type="button"
-      onClick={onOpen}
-      style={{
-        marginTop: "var(--pyxis-space-3)",
-        display: "inline-flex",
-        alignItems: "center",
-        gap: "var(--pyxis-space-1)",
-        padding: "var(--pyxis-space-1) var(--pyxis-space-3)",
-        borderRadius: "999px",
-        border: "1px solid rgba(255,255,255,0.22)",
-        background: "transparent",
-        color: "rgba(255,255,255,0.72)",
-        fontFamily: "inherit",
-        fontSize: "var(--pyxis-text-fine)",
-        fontWeight: 600,
-        letterSpacing: "0.12em",
-        textTransform: "uppercase",
-        cursor: "pointer",
-      }}
-    >
-      ▾ {ALBUM.songCount} songs
-    </button>
-  );
-}
-
-/** Short-lived tracklist: a bottom sheet that slides up over a dimmed album and
- * dismisses straight back to it (scrim tap, close button, or Escape). The album
- * is never replaced — the listener peeks the songs and returns. */
-function SongsSheet({
-  open,
-  onClose,
-}: {
-  readonly open: boolean;
-  readonly onClose: () => void;
-}) {
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [open, onClose]);
-
-  return (
-    <AnimatePresence>
-      {open && (
-        <motion.div
-          key="songs-scrim"
-          className="pyxis-intrinsic"
-          onClick={onClose}
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          transition={{ duration: 0.2 }}
-          style={{
-            position: "absolute",
-            inset: 0,
-            zIndex: 5,
-            display: "flex",
-            alignItems: "flex-end",
-            background: "rgba(6,6,9,0.55)",
-            backdropFilter: "blur(4px)",
-            WebkitBackdropFilter: "blur(4px)",
-            fontFamily: "'Urbanist', system-ui, sans-serif",
-          }}
-        >
-          <motion.div
-            role="dialog"
-            aria-modal="true"
-            aria-label={`${ALBUM.title} tracklist`}
-            onClick={(e) => e.stopPropagation()}
-            initial={{ y: "100%" }}
-            animate={{ y: 0 }}
-            exit={{ y: "100%" }}
-            transition={{ type: "spring", damping: 34, stiffness: 340 }}
-            style={{
-              width: "100%",
-              maxHeight: "82cqh",
-              display: "flex",
-              flexDirection: "column",
-              background: "#141417",
-              borderTopLeftRadius: "22px",
-              borderTopRightRadius: "22px",
-              boxShadow: "0 -14px 48px rgba(0,0,0,0.55)",
-              overflow: "hidden",
-              color: "#fff",
-            }}
-          >
-            <div
-              style={{
-                display: "grid",
-                placeItems: "center",
-                padding: "var(--pyxis-space-2) 0 var(--pyxis-space-1)",
-              }}
-            >
-              <div
-                style={{
-                  width: "calc(var(--pyxis-base) * 3)",
-                  height: "calc(var(--pyxis-base) * 0.4)",
-                  borderRadius: "999px",
-                  background: "rgba(255,255,255,0.2)",
-                }}
-              />
-            </div>
-            <div
-              style={{
-                display: "flex",
-                alignItems: "flex-start",
-                justifyContent: "space-between",
-                gap: "var(--pyxis-space-3)",
-                padding:
-                  "var(--pyxis-space-2) var(--pyxis-space-5) var(--pyxis-space-3)",
-              }}
-            >
-              <div style={{ minWidth: 0 }}>
-                <div
-                  style={{
-                    fontSize: "var(--pyxis-text-title)",
-                    fontWeight: 700,
-                    lineHeight: 1.1,
-                    overflowWrap: "anywhere",
-                  }}
-                >
-                  {ALBUM.title}
-                </div>
-                <div
-                  style={{
-                    fontSize: "var(--pyxis-text-fine)",
-                    color: "rgba(255,255,255,0.55)",
-                    letterSpacing: "0.04em",
-                    marginTop: "var(--pyxis-space-1)",
-                  }}
-                >
-                  {ALBUM.songCount} songs · {ALBUM.runtimeMin} min
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={onClose}
-                aria-label="Back to album"
-                style={{
-                  flexShrink: 0,
-                  width: "calc(var(--pyxis-base) * 2.6)",
-                  height: "calc(var(--pyxis-base) * 2.6)",
-                  display: "grid",
-                  placeItems: "center",
-                  borderRadius: "999px",
-                  border: "none",
-                  background: "rgba(255,255,255,0.12)",
-                  color: "#fff",
-                  fontSize: "var(--pyxis-text-body)",
-                  cursor: "pointer",
-                }}
-              >
-                ✕
-              </button>
-            </div>
-            <div
-              style={{
-                overflowY: "auto",
-                WebkitOverflowScrolling: "touch",
-                padding: "0 var(--pyxis-space-3) var(--pyxis-space-5)",
-              }}
-            >
-              {TRACKS.map((t, i) => (
-                <div
-                  key={t.id}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "var(--pyxis-space-3)",
-                    padding: "var(--pyxis-space-2)",
-                    borderRadius: "12px",
-                  }}
-                >
-                  <span
-                    style={{
-                      color: "rgba(255,255,255,0.35)",
-                      fontVariantNumeric: "tabular-nums",
-                      width: "2.5ch",
-                      textAlign: "right",
-                      flexShrink: 0,
-                    }}
-                  >
-                    {i + 1}
-                  </span>
-                  <span
-                    style={{
-                      flex: 1,
-                      minWidth: 0,
-                      overflowWrap: "anywhere",
-                      fontSize: "var(--pyxis-text-body)",
-                    }}
-                  >
-                    {t.title}
-                  </span>
-                  <span
-                    style={{
-                      flexShrink: 0,
-                      color: "rgba(255,255,255,0.4)",
-                      fontSize: "var(--pyxis-text-fine)",
-                    }}
-                  >
-                    ▶
-                  </span>
-                </div>
-              ))}
-            </div>
-          </motion.div>
-        </motion.div>
-      )}
-    </AnimatePresence>
-  );
-}
-
-function TurntableDetail({
-  onShowSongs,
-}: {
-  readonly onShowSongs: () => void;
-}) {
+function TurntableDetail() {
   const ref = useRef<HTMLDivElement>(null);
   const { w, h } = useBoxSize(ref);
   // Wider than tall: lay the record beside the identity instead of above it.
@@ -819,30 +508,20 @@ function TurntableDetail({
       : Math.max(120, Math.min(Math.min(w || 320, h || 320) * 0.62, 520)),
   );
 
-  // The record itself is the primary way into the tracklist — tap it to peek.
-  const record = (
-    <div
-      role="button"
-      tabIndex={0}
-      aria-label="Show tracklist"
-      onClick={onShowSongs}
-      onKeyDown={(e) => {
-        if (e.key === "Enter" || e.key === " ") {
-          e.preventDefault();
-          onShowSongs();
-        }
-      }}
-      style={{ display: "grid", placeItems: "center", cursor: "pointer" }}
-    >
-      <RecordHeroArt recordPx={recordPx} />
-    </div>
-  );
+  // The tracklist is a short-lived, inline show/hide below the identity. While
+  // it's open the surface top-aligns so the (potentially long) list is fully
+  // reachable via scroll; closed, the record stays a centered hero.
+  const [songsOpen, setSongsOpen] = useState(false);
+  const toggleSongs = () => setSongsOpen((v) => !v);
+
+  const record = <RecordHeroArt recordPx={recordPx} />;
 
   const identity = (
     <div
       style={{
         flex: "0 0 auto",
         minWidth: 0,
+        width: row ? "auto" : "100%",
         maxWidth: "calc(var(--pyxis-base) * 34)",
         display: "flex",
         flexDirection: "column",
@@ -855,7 +534,9 @@ function TurntableDetail({
       <AlbumTitle size="var(--pyxis-text-heading)" />
       <Meta />
       <Transport compact />
-      <SongsTrigger onOpen={onShowSongs} />
+      <div style={{ width: "100%", textAlign: "left" }}>
+        <SongsReveal open={songsOpen} onToggle={toggleSongs} />
+      </div>
     </div>
   );
 
@@ -866,7 +547,7 @@ function TurntableDetail({
         style={{
           minHeight: "100%",
           display: "flex",
-          alignItems: "center",
+          alignItems: songsOpen ? "flex-start" : "center",
           justifyContent: "center",
           gap: "var(--pyxis-space-5)",
           padding: "var(--pyxis-space-5)",
@@ -886,14 +567,14 @@ function TurntableDetail({
         display: "flex",
         flexDirection: "column",
         alignItems: "center",
-        justifyContent: "center",
+        justifyContent: songsOpen ? "flex-start" : "center",
         padding: "var(--pyxis-space-6) var(--pyxis-space-5)",
       }}
     >
       <div
         style={{
           width: "100%",
-          flex: 1,
+          flex: songsOpen ? "0 0 auto" : 1,
           minHeight: "min(60cqh, calc(var(--pyxis-base) * 26))",
           display: "grid",
           placeItems: "center",
