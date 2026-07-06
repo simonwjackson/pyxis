@@ -311,6 +311,7 @@ export function QueueCoverflowReady({
           track={activeTrack}
           detailSize={detailSize}
           open={view === "detail"}
+          axis={axis}
         />
       </div>
 

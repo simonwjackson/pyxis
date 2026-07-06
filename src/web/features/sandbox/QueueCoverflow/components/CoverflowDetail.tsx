@@ -8,6 +8,7 @@
  */
 
 import type { QueueCoverflowTrack } from "../QueueCoverflowState";
+import type { CoverflowAxis } from "../queueCoverflowGeometry";
 import { Tonearm } from "./Tonearm";
 import { VinylRecord } from "./VinylRecord";
 
@@ -15,12 +16,21 @@ export function CoverflowDetail({
   track,
   detailSize,
   open,
+  axis = "x",
 }: {
   readonly track: QueueCoverflowTrack | undefined;
   readonly detailSize: number;
   readonly open: boolean;
+  /** Landscape slides the record out to the side; portrait slides it down, so
+   * the turntable always fits the frame. Driven by the container aspect. */
+  readonly axis?: CoverflowAxis;
 }) {
   const vinylSize = detailSize;
+  const vertical = axis === "y";
+  // The vinyl's resting (closed) and engaged (open) offsets along the slide axis.
+  const slideClosed = detailSize * 0.2;
+  const slideOpen = detailSize * 0.52;
+  const crossCentre = (detailSize - vinylSize) / 2;
 
   return (
     <div
@@ -32,21 +42,22 @@ export function CoverflowDetail({
         transition: "transform 0.6s cubic-bezier(0.25, 0.46, 0.45, 0.94)",
       }}
     >
-      {/* Assembly */}
+      {/* Assembly — grows along the slide axis to make room for the record */}
       <div
         style={{
           position: "relative",
-          width: detailSize + vinylSize * 0.55,
-          height: detailSize,
+          width: vertical ? detailSize : detailSize + vinylSize * 0.55,
+          height: vertical ? detailSize + vinylSize * 0.55 : detailSize,
         }}
       >
-        {/* Vinyl — behind album, slid right */}
+        {/* Vinyl — behind album, slides out to the side or down */}
         <div
           style={{
             position: "absolute",
-            top: (detailSize - vinylSize) / 2,
-            left: open ? detailSize * 0.52 : detailSize * 0.2,
-            transition: "left 0.7s cubic-bezier(0.25, 0.46, 0.45, 0.94)",
+            top: vertical ? (open ? slideOpen : slideClosed) : crossCentre,
+            left: vertical ? crossCentre : open ? slideOpen : slideClosed,
+            transition:
+              "top 0.7s cubic-bezier(0.25, 0.46, 0.45, 0.94), left 0.7s cubic-bezier(0.25, 0.46, 0.45, 0.94)",
             zIndex: 1,
           }}
         >
