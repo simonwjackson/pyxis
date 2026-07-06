@@ -603,6 +603,7 @@ function TurntableDetail() {
     <motion.div
       ref={ref}
       layout
+      layoutDependency={row}
       transition={LAYOUT_TRANSITION}
       style={{
         minHeight: "100%",
@@ -616,6 +617,7 @@ function TurntableDetail() {
     >
       <motion.div
         layout
+        layoutDependency={row}
         transition={LAYOUT_TRANSITION}
         style={{
           flex: row ? "0 0 auto" : "1 1 auto",
@@ -630,6 +632,7 @@ function TurntableDetail() {
       </motion.div>
       <motion.div
         layout="position"
+        layoutDependency={row}
         transition={LAYOUT_TRANSITION}
         style={{
           flex: "0 0 auto",
