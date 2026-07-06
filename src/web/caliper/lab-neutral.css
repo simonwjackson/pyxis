@@ -1,0 +1,44 @@
+/*
+ * Lab-only theme isolation.
+ *
+ * The Pyxis app stylesheet (../index.css) is imported so the real `pyxis` app
+ * surface renders with its Tailwind theme + :root tokens. But that stylesheet
+ * also paints GLOBAL chrome — a warm body ground (#1a1714), a magenta
+ * ::selection, and a warm scrollbar — which bleeds into every lab surface,
+ * including the neutral coverflow / queue explorations.
+ *
+ * Keep the tokens (the pyxis surface needs them) but neutralize the global
+ * chrome here, and re-assert the warm theme ONLY inside the actual Pyxis app
+ * surface subtree. Imported last so it wins the cascade.
+ */
+
+body {
+  background: #0b0b0e;
+  color: #ede8e3;
+  letter-spacing: normal;
+}
+
+::selection {
+  background: rgba(255, 255, 255, 0.22);
+  color: #ffffff;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.16);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+/* The real Pyxis app surface keeps its own warm theme. */
+[data-lab-surface-mount="pyxis"] {
+  background: var(--color-bg);
+  color: var(--color-text);
+  letter-spacing: -0.012em;
+}
+
+[data-lab-surface-mount="pyxis"] ::selection {
+  background: color-mix(in srgb, var(--color-primary) 40%, transparent);
+  color: var(--color-text);
+}

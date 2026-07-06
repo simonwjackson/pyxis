@@ -1,6 +1,7 @@
 import "@simonwjackson/caliper/style.css";
 import "../index.css";
 import "./lab-surface.css";
+import "./lab-neutral.css";
 
 import { createCaliperApp } from "pyxis-caliper-runtime";
 import { coverflowLabSurfaceAdapter } from "./coverflow-adapter";
