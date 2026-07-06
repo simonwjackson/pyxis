@@ -16,10 +16,16 @@ if (!baseUrl || !outDir || parts.length === 0) {
   process.exit(1);
 }
 
-const viewports = [
-  { name: "portrait", width: 412, height: 900 },
-  { name: "landscape", width: 900, height: 520 },
-];
+// Override with SIZES="879x169,900x520" to check specific container aspects.
+const viewports = process.env.SIZES
+  ? process.env.SIZES.split(",").map((s) => {
+      const [w, h] = s.trim().split("x").map(Number);
+      return { name: `${w}x${h}`, width: w ?? 412, height: h ?? 900 };
+    })
+  : [
+      { name: "portrait", width: 412, height: 900 },
+      { name: "landscape", width: 900, height: 520 },
+    ];
 
 const browser = await chromium.launch({
   executablePath: process.env.PW_CHROME || undefined,
@@ -32,7 +38,9 @@ try {
         viewport: { width: vp.width, height: vp.height },
         deviceScaleFactor: 2,
       });
-      const vars = process.env.VARS ? `&vars=${encodeURIComponent(process.env.VARS)}` : "";
+      const vars = process.env.VARS
+        ? `&vars=${encodeURIComponent(process.env.VARS)}`
+        : "";
       const url = `${baseUrl}/preview.html?part=${encodeURIComponent(part)}${vars}`;
       await page.goto(url, { waitUntil: "networkidle", timeout: 30_000 });
       await page.waitForTimeout(900);

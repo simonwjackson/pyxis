@@ -377,8 +377,52 @@ export function QueueAlbumDetail({
 /* ── Sleeve: immersive centered cover ───────────────────────────────────── */
 
 function SleeveDetail() {
+  const ref = useRef<HTMLDivElement>(null);
+  const { w, h } = useBoxSize(ref);
+  // Wider than tall: a vertical cover-on-top stack can't fit, so lay the cover
+  // beside the identity and cap it to the container height instead.
+  const row = w > 0 && w > h;
+
+  if (row) {
+    return (
+      <div
+        ref={ref}
+        style={{
+          minHeight: "100%",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          gap: "var(--pyxis-space-5)",
+          padding: "var(--pyxis-space-5)",
+        }}
+      >
+        <CoverArt
+          size="min(46cqw, 84cqh, calc(var(--pyxis-base) * 18))"
+          radius="var(--pyxis-space-2)"
+        />
+        <div
+          style={{
+            flex: "1 1 auto",
+            minWidth: 0,
+            maxWidth: "calc(var(--pyxis-base) * 34)",
+            display: "flex",
+            flexDirection: "column",
+            gap: "var(--pyxis-space-1)",
+          }}
+        >
+          <Kicker>{ALBUM.artist}</Kicker>
+          <AlbumTitle size="var(--pyxis-text-heading)" />
+          <Meta />
+          <Transport />
+          <SongsReveal />
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div
+      ref={ref}
       style={{
         minHeight: "100%",
         display: "flex",
@@ -429,7 +473,7 @@ function MarqueeDetail() {
         }}
       >
         <CoverArt
-          size="min(52cqw, calc(var(--pyxis-base) * 22))"
+          size="min(52cqw, 84cqh, calc(var(--pyxis-base) * 22))"
           radius="var(--pyxis-space-2)"
         />
         <div
@@ -466,15 +510,115 @@ function MarqueeDetail() {
 
 /* ── Turntable: the album as a record pulled from its sleeve ─────────────── */
 
-function TurntableDetail() {
-  const stageRef = useRef<HTMLDivElement>(null);
-  const { w, h } = useBoxSize(stageRef);
-  const basis = Math.min(w || 320, h || 320);
-  const coverPx = Math.round(Math.max(160, Math.min(basis * 0.62, 520)));
+function RecordArt({
+  coverPx,
+  reservePeek = false,
+}: {
+  readonly coverPx: number;
+  readonly reservePeek?: boolean;
+}) {
   const vinylPx = Math.round(coverPx * 0.96);
+  return (
+    <div
+      style={{
+        position: "relative",
+        width: reservePeek ? Math.round(coverPx * 1.42) : coverPx,
+        height: coverPx,
+      }}
+    >
+      {/* Record slid out to the right, behind the sleeve. */}
+      <div
+        style={{
+          position: "absolute",
+          left: coverPx * 0.42,
+          top: coverPx * 0.02,
+          animation: "vinyl-spin 8s linear infinite",
+        }}
+      >
+        <VinylRecord
+          size={vinylPx}
+          color={ALBUM.color}
+          title={ALBUM.title}
+          artist={ALBUM.artist}
+          spinning={false}
+        />
+      </div>
+      {/* The sleeve / cover in front. */}
+      <div
+        style={{
+          position: "absolute",
+          left: 0,
+          top: 0,
+          width: coverPx,
+          height: coverPx,
+          borderRadius: "var(--pyxis-space-2)",
+          overflow: "hidden",
+          boxShadow: coverShadow,
+        }}
+      >
+        <img
+          src={ALBUM.artwork}
+          alt={ALBUM.title}
+          draggable={false}
+          style={{
+            width: "100%",
+            height: "100%",
+            objectFit: "cover",
+            display: "block",
+          }}
+        />
+      </div>
+    </div>
+  );
+}
+
+function TurntableDetail() {
+  const ref = useRef<HTMLDivElement>(null);
+  const { w, h } = useBoxSize(ref);
+  // Wider than tall: the centered record + stacked identity can't fit, so lay
+  // the record beside the identity and size it to the container height.
+  const row = w > 0 && w > h;
+  const basis = row ? h || 320 : Math.min(w || 320, h || 320);
+  const coverPx = Math.round(
+    Math.max(120, Math.min(basis * (row ? 0.82 : 0.62), 520)),
+  );
+
+  if (row) {
+    return (
+      <div
+        ref={ref}
+        style={{
+          minHeight: "100%",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          gap: "var(--pyxis-space-5)",
+          padding: "var(--pyxis-space-5)",
+        }}
+      >
+        <RecordArt coverPx={coverPx} reservePeek />
+        <div
+          style={{
+            flex: "1 1 auto",
+            minWidth: 0,
+            maxWidth: "calc(var(--pyxis-base) * 34)",
+            display: "flex",
+            flexDirection: "column",
+            gap: "var(--pyxis-space-1)",
+          }}
+        >
+          <Kicker>{ALBUM.artist}</Kicker>
+          <AlbumTitle size="var(--pyxis-text-heading)" />
+          <Meta />
+          <Transport compact />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div
+      ref={ref}
       style={{
         minHeight: "100%",
         display: "flex",
@@ -485,7 +629,6 @@ function TurntableDetail() {
       }}
     >
       <div
-        ref={stageRef}
         style={{
           width: "100%",
           flex: 1,
@@ -494,47 +637,7 @@ function TurntableDetail() {
           placeItems: "center",
         }}
       >
-        <div style={{ position: "relative", width: coverPx, height: coverPx }}>
-          {/* Record slid out to the right, behind the sleeve. */}
-          <div
-            style={{
-              position: "absolute",
-              left: coverPx * 0.42,
-              top: coverPx * 0.02,
-              animation: "vinyl-spin 8s linear infinite",
-            }}
-          >
-            <VinylRecord
-              size={vinylPx}
-              color={ALBUM.color}
-              title={ALBUM.title}
-              artist={ALBUM.artist}
-              spinning={false}
-            />
-          </div>
-          {/* The sleeve / cover in front. */}
-          <div
-            style={{
-              position: "absolute",
-              inset: 0,
-              borderRadius: "var(--pyxis-space-2)",
-              overflow: "hidden",
-              boxShadow: coverShadow,
-            }}
-          >
-            <img
-              src={ALBUM.artwork}
-              alt={ALBUM.title}
-              draggable={false}
-              style={{
-                width: "100%",
-                height: "100%",
-                objectFit: "cover",
-                display: "block",
-              }}
-            />
-          </div>
-        </div>
+        <RecordArt coverPx={coverPx} />
       </div>
       <div
         style={{
