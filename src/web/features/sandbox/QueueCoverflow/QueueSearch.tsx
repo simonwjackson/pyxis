@@ -8,13 +8,16 @@
  * push down to scrub through them; on a wider frame they flow horizontally.
  * The only addition is a minimal search field in the deck's header slot.
  *
- * Three states of one surface:
- *   - "idle"     the field over a deck of RECENT covers
- *   - "loading"  the field (status: searching) over the deck
- *   - "results"  the field (status: N results) over the deck of matches
+ * The search chrome is deliberately de-emphasized. At rest there is NO input
+ * box: the query reads as editorial text (a light heading + kicker, like the
+ * deck's caption) next to a lone search icon. Tapping the icon enters a
+ * distinct "active" state where the input opens; leaving it returns to the
+ * editorial text. So the art stays the subject and search is a quiet affordance.
  *
- * Rendered with no `forcedState` it is live: type to debounce, see the status
- * flip to searching then to a result count, and the deck repopulate.
+ * Three content states, independent of active/resting:
+ *   - "idle"     a deck of RECENT covers
+ *   - "loading"  status reads "searching"
+ *   - "results"  status reads "N results"
  */
 
 import { useEffect, useRef, useState } from "react";
@@ -78,22 +81,100 @@ function SearchGlyph() {
   );
 }
 
-/** The minimal chrome: one hairline field plus a tiny status kicker. Wrapped in
- * `.pyxis-intrinsic` so its type/space derive from the deck's own container. */
-function SearchField({
-  value,
-  onChange,
-  onClear,
+const KICKER: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  gap: "var(--pyxis-space-1)",
+  color: "rgba(255,255,255,0.5)",
+  fontSize: "var(--pyxis-text-fine)",
+  fontWeight: 600,
+  letterSpacing: "0.16em",
+  textTransform: "uppercase",
+};
+
+const HEADER_PAD =
+  "var(--pyxis-space-4) var(--pyxis-space-4) var(--pyxis-space-2)";
+
+/** Resting header: the search area as quiet editorial text + a lone icon. No
+ * box. Tapping anywhere on it enters the active input state. Wrapped in
+ * `.pyxis-intrinsic` so type/space derive from the deck's own container. */
+function RestingHeader({
+  query,
   status,
   loading,
+  onOpen,
+}: {
+  readonly query: string;
+  readonly status: string;
+  readonly loading: boolean;
+  readonly onOpen: () => void;
+}) {
+  return (
+    <div
+      className="pyxis-intrinsic"
+      style={{
+        fontFamily: "'Urbanist', system-ui, sans-serif",
+        fontSize: "var(--pyxis-text-body)",
+        padding: HEADER_PAD,
+      }}
+    >
+      <style>{FIELD_CSS}</style>
+      <button
+        type="button"
+        onClick={onOpen}
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: "var(--pyxis-space-3)",
+          width: "100%",
+          background: "transparent",
+          border: "none",
+          padding: 0,
+          margin: 0,
+          cursor: "pointer",
+          textAlign: "left",
+        }}
+      >
+        <SearchGlyph />
+        <div style={{ minWidth: 0, flex: 1 }}>
+          <div style={KICKER}>
+            {loading && <span className="qs-dot">●</span>}
+            <span>{status}</span>
+          </div>
+          <div
+            style={{
+              color:
+                query === ""
+                  ? "rgba(255,255,255,0.32)"
+                  : "rgba(255,255,255,0.9)",
+              fontSize: "var(--pyxis-text-title)",
+              fontWeight: 300,
+              letterSpacing: "-0.01em",
+              textTransform: "lowercase",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+            }}
+          >
+            {query === "" ? "search" : query}
+          </div>
+        </div>
+      </button>
+    </div>
+  );
+}
+
+/** Active header: the input, only present while you are "in search". */
+function ActiveHeader({
+  value,
+  onChange,
+  onClose,
   readOnly,
   inputRef,
 }: {
   readonly value: string;
   readonly onChange: (v: string) => void;
-  readonly onClear: () => void;
-  readonly status: string;
-  readonly loading: boolean;
+  readonly onClose: () => void;
   readonly readOnly: boolean;
   readonly inputRef: React.RefObject<HTMLInputElement | null>;
 }) {
@@ -103,8 +184,7 @@ function SearchField({
       style={{
         fontFamily: "'Urbanist', system-ui, sans-serif",
         fontSize: "var(--pyxis-text-body)",
-        padding:
-          "var(--pyxis-space-4) var(--pyxis-space-4) var(--pyxis-space-2)",
+        padding: HEADER_PAD,
       }}
     >
       <style>{FIELD_CSS}</style>
@@ -114,7 +194,7 @@ function SearchField({
           alignItems: "center",
           gap: "var(--pyxis-space-3)",
           paddingBottom: "var(--pyxis-space-2)",
-          borderBottom: "1px solid rgba(255,255,255,0.14)",
+          borderBottom: "1px solid rgba(255,255,255,0.24)",
         }}
       >
         <SearchGlyph />
@@ -123,8 +203,13 @@ function SearchField({
           className="qs-field"
           value={value}
           onChange={(e) => onChange(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === "Escape") onClose();
+          }}
           placeholder="search"
           readOnly={readOnly}
+          // biome-ignore lint/a11y/noAutofocus: entering the search state should place the caret in the field.
+          autoFocus
           style={{
             flex: 1,
             minWidth: 0,
@@ -134,41 +219,23 @@ function SearchField({
             letterSpacing: "-0.01em",
           }}
         />
-        {value.trim() !== "" && (
-          <button
-            type="button"
-            onClick={onClear}
-            style={{
-              background: "transparent",
-              border: "none",
-              cursor: "pointer",
-              padding: 0,
-              color: "rgba(255,255,255,0.5)",
-              fontSize: "var(--pyxis-text-fine)",
-              fontWeight: 600,
-              letterSpacing: "0.16em",
-              textTransform: "uppercase",
-            }}
-          >
-            Clear
-          </button>
-        )}
-      </div>
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: "var(--pyxis-space-1)",
-          paddingTop: "var(--pyxis-space-2)",
-          color: "rgba(255,255,255,0.5)",
-          fontSize: "var(--pyxis-text-fine)",
-          fontWeight: 600,
-          letterSpacing: "0.16em",
-          textTransform: "uppercase",
-        }}
-      >
-        {loading && <span className="qs-dot">●</span>}
-        <span>{status}</span>
+        <button
+          type="button"
+          onClick={onClose}
+          style={{
+            background: "transparent",
+            border: "none",
+            cursor: "pointer",
+            padding: 0,
+            color: "rgba(255,255,255,0.6)",
+            fontSize: "var(--pyxis-text-fine)",
+            fontWeight: 600,
+            letterSpacing: "0.16em",
+            textTransform: "uppercase",
+          }}
+        >
+          Done
+        </button>
       </div>
     </div>
   );
@@ -177,13 +244,18 @@ function SearchField({
 export function QueueSearch({
   forcedState,
   forcedQuery,
+  forcedActive,
 }: {
   readonly forcedState?: QueueSearchState;
   readonly forcedQuery?: string;
+  /** Force the input open (active) or closed (resting) for template snapshots.
+   * Omitted = interactive: tapping the icon opens it, Done/Enter closes it. */
+  readonly forcedActive?: boolean;
 }) {
   const [raw, setRaw] = useState(forcedQuery ?? "");
   const debounced = useDebounced(raw, 320);
   const [settling, setSettling] = useState(false);
+  const [active, setActive] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const pending = raw.trim() !== debounced.trim();
@@ -205,8 +277,10 @@ export function QueueSearch({
     state === "idle"
       ? "recent"
       : state === "loading"
-        ? `searching · ${query}`
-        : `${TOTAL} results · ${query}`;
+        ? "searching"
+        : `${TOTAL} results`;
+
+  const isActive = forcedActive ?? active;
 
   return (
     <QueueCoverflowReady
@@ -217,18 +291,22 @@ export function QueueSearch({
       initialIndex={0}
       captionVariant="editorial"
       header={
-        <SearchField
-          value={forcedQuery ?? raw}
-          onChange={setRaw}
-          onClear={() => {
-            setRaw("");
-            inputRef.current?.focus();
-          }}
-          status={status}
-          loading={state === "loading"}
-          readOnly={forcedQuery != null}
-          inputRef={inputRef}
-        />
+        isActive ? (
+          <ActiveHeader
+            value={forcedQuery ?? raw}
+            onChange={setRaw}
+            onClose={() => setActive(false)}
+            readOnly={forcedQuery != null}
+            inputRef={inputRef}
+          />
+        ) : (
+          <RestingHeader
+            query={query}
+            status={status}
+            loading={state === "loading"}
+            onOpen={() => setActive(true)}
+          />
+        )
       }
     />
   );
