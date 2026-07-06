@@ -253,7 +253,7 @@ function Row({
           style={{
             display: "flex",
             alignItems: "center",
-            gap: "6cqmin",
+            gap: "10cqmin",
             padding: "6cqmin 7cqmin",
             borderBottom: last ? undefined : `1px solid ${HAIR}`,
             background: activeBg,
@@ -311,7 +311,7 @@ function Row({
         </div>
         <div
           style={{
-            marginTop: "3.5cqmin",
+            marginTop: "5.5cqmin",
             display: "flex",
             flexDirection: "column",
             gap: "1.6cqmin",
