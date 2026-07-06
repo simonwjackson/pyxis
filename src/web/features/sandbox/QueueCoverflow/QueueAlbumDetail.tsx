@@ -575,43 +575,27 @@ function RecordArt({
   );
 }
 
-/** Portrait hero: the opaque record is centered on screen over the ground; the
- * sleeve sits in front, off to the left, overlapping only the record's left rim
- * so the disc reads as sliding out of it. The sleeve is free to run off-screen
- * (the root clips it) — the record stays centered. No opacity blending. */
+/** Portrait hero: the same relationship as landscape — sleeve to the LEFT of the
+ * disc — but the sleeve sits BEHIND the record, slightly rotated. Everything is
+ * fully opaque: the opaque disc covers the overlap so nothing shows through. The
+ * record is centered on screen; the sleeve may bleed off the left edge. */
 function RecordHeroArt({ recordPx }: { readonly recordPx: number }) {
-  // Sleeve is a touch larger than the disc (as real vinyl is), so the record is
-  // never bigger than its sleeve.
-  const coverPx = Math.round(recordPx * 1.08);
-  const overlap = Math.round(recordPx * 0.16);
+  // Sleeve is a touch larger than the disc, so the record is never bigger.
+  const coverPx = Math.round(recordPx * 1.04);
+  // How far the sleeve's right edge reaches into the disc (behind it).
+  const sleeveRight = Math.round(recordPx * 0.32);
   return (
     <div style={{ position: "relative", width: recordPx, height: recordPx }}>
-      {/* Record: centered, behind, spinning — the hero. */}
+      {/* Sleeve: behind the disc, off to the left, slightly rotated. */}
       <div
         style={{
           position: "absolute",
-          inset: 0,
-          zIndex: 1,
-          animation: "vinyl-spin 8s linear infinite",
-        }}
-      >
-        <VinylRecord
-          size={recordPx}
-          color={ALBUM.color}
-          title={ALBUM.title}
-          artist={ALBUM.artist}
-          spinning={false}
-        />
-      </div>
-      {/* Sleeve: in front, off to the left, disc emerging from its mouth. */}
-      <div
-        style={{
-          position: "absolute",
-          left: overlap - coverPx,
+          left: sleeveRight - coverPx,
           top: Math.round((recordPx - coverPx) / 2),
           width: coverPx,
           height: coverPx,
-          zIndex: 2,
+          zIndex: 1,
+          transform: "rotate(-8deg)",
           borderRadius: "var(--pyxis-space-2)",
           overflow: "hidden",
           boxShadow: coverShadow,
@@ -627,6 +611,26 @@ function RecordHeroArt({ recordPx }: { readonly recordPx: number }) {
             objectFit: "cover",
             display: "block",
           }}
+        />
+      </div>
+      {/* Record: in front, centered, spinning — the hero. The opaque circular
+       * backing guarantees the sleeve behind never shows through the disc. */}
+      <div
+        style={{
+          position: "absolute",
+          inset: 0,
+          zIndex: 2,
+          borderRadius: "50%",
+          background: "#131313",
+          animation: "vinyl-spin 8s linear infinite",
+        }}
+      >
+        <VinylRecord
+          size={recordPx}
+          color={ALBUM.color}
+          title={ALBUM.title}
+          artist={ALBUM.artist}
+          spinning={false}
         />
       </div>
     </div>
