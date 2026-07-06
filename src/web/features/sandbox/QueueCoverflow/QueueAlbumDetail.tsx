@@ -522,6 +522,9 @@ function RecordArt({
     <div
       style={{
         position: "relative",
+        // Never shrink: the record + cover are absolutely positioned, so a
+        // collapsing box would let its art overflow under the identity text.
+        flexShrink: 0,
         width: reservePeek ? Math.round(coverPx * 1.42) : coverPx,
         height: coverPx,
       }}
@@ -578,9 +581,13 @@ function TurntableDetail() {
   // Wider than tall: the centered record + stacked identity can't fit, so lay
   // the record beside the identity and size it to the container height.
   const row = w > 0 && w > h;
-  const basis = row ? h || 320 : Math.min(w || 320, h || 320);
+  // In row mode the record + its slid-out peek (~1.42x the cover) must fit the
+  // width beside the identity, not just the height — otherwise the art overflows
+  // under the text. Cap by both axes.
   const coverPx = Math.round(
-    Math.max(120, Math.min(basis * (row ? 0.82 : 0.62), 520)),
+    row
+      ? Math.max(120, Math.min((h || 320) * 0.82, (w || 320) * 0.42, 520))
+      : Math.max(120, Math.min(Math.min(w || 320, h || 320) * 0.62, 520)),
   );
 
   if (row) {
