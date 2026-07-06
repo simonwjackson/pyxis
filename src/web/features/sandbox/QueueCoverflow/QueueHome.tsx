@@ -11,6 +11,12 @@
  *   - "shelves"   hero + horizontal cover shelves (classic browse)
  *   - "editorial" magazine masthead + featured pick + auto-fill gallery
  *   - "carousel"  coverflow-forward hero carousel + compact shelves
+ *
+ * Pre-selection the art stands alone: non-focused covers carry NO text. The
+ * only detail shown is for the prominent/focused album (hero, featured pick,
+ * centered carousel item). Everything else reveals its title/artist only on
+ * hover or keyboard focus, in its own reserved region below the cover -- never
+ * painted over the art, never shifting neighbors.
  */
 
 import { useEffect, useState } from "react";
@@ -42,6 +48,71 @@ const scrollStyle: React.CSSProperties = {
 
 const coverShadow = "0 1px 2px rgba(0,0,0,0.3), 0 10px 26px rgba(0,0,0,0.4)";
 
+/* Hover/focus reveal for non-focused tiles. Captions sit in reserved space
+ * below the cover (the shelf paddingBottom / grid row-gap), absolutely placed
+ * so revealing them never reflows neighbors and never covers the art. */
+const HOVER_CSS = `
+.qh-tile { position: relative; }
+.qh-tile-cap {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  padding-top: var(--pyxis-space-1);
+  opacity: 0;
+  transform: translateY(-6px);
+  transition: opacity 0.2s ease, transform 0.2s ease;
+  pointer-events: none;
+}
+.qh-tile:hover .qh-tile-cap,
+.qh-tile:focus-within .qh-tile-cap {
+  opacity: 1;
+  transform: none;
+}
+.qh-tile:hover .qh-tile-art,
+.qh-tile:focus-within .qh-tile-art {
+  transform: scale(1.04);
+}
+`;
+
+/** Title + artist shown only on hover/focus, in reserved space below a cover. */
+function TileCaption({
+  title,
+  artist,
+}: {
+  readonly title: string;
+  readonly artist: string;
+}) {
+  return (
+    <div className="qh-tile-cap">
+      <div
+        style={{
+          color: "rgba(255,255,255,0.9)",
+          fontSize: "var(--pyxis-text-body)",
+          fontWeight: 500,
+          textTransform: "lowercase",
+          whiteSpace: "nowrap",
+          overflow: "hidden",
+          textOverflow: "ellipsis",
+        }}
+      >
+        {title}
+      </div>
+      <div
+        style={{
+          color: "rgba(255,255,255,0.45)",
+          fontSize: "var(--pyxis-text-fine)",
+          whiteSpace: "nowrap",
+          overflow: "hidden",
+          textOverflow: "ellipsis",
+        }}
+      >
+        {artist}
+      </div>
+    </div>
+  );
+}
+
 function useDebounced<T>(value: T, delayMs: number): T {
   const [v, setV] = useState(value);
   useEffect(() => {
@@ -56,14 +127,17 @@ function Cover({
   size,
   radius = "var(--pyxis-space-1)",
   onSelect,
+  className,
 }: {
   readonly track: QueueCoverflowTrack;
   readonly size: string;
   readonly radius?: string;
   readonly onSelect?: () => void;
+  readonly className?: string;
 }) {
   return (
     <div
+      className={className}
       onClick={onSelect}
       onKeyDown={(e) => {
         if (onSelect && (e.key === "Enter" || e.key === " ")) {
@@ -181,44 +255,23 @@ function Shelf({
           overflowX: "auto",
           scrollbarWidth: "none",
           paddingInline: "var(--pyxis-space-5)",
-          paddingBottom: "var(--pyxis-space-2)",
+          paddingTop: "var(--pyxis-space-1)",
+          paddingBottom: "calc(var(--pyxis-base) * 3.4)",
         }}
       >
         {ALBUMS.map((t) => (
           <div
             key={`${label}-${t.id}`}
-            style={{
-              width: coverSize,
-              flexShrink: 0,
-              display: "flex",
-              flexDirection: "column",
-              gap: "var(--pyxis-space-1)",
-            }}
+            className="qh-tile"
+            style={{ width: coverSize, flexShrink: 0 }}
           >
-            <Cover track={t} size={coverSize} onSelect={() => onSelect(t)} />
-            <div
-              style={{
-                color: "rgba(255,255,255,0.88)",
-                fontSize: "var(--pyxis-text-body)",
-                fontWeight: 500,
-                whiteSpace: "nowrap",
-                overflow: "hidden",
-                textOverflow: "ellipsis",
-              }}
-            >
-              {t.title}
-            </div>
-            <div
-              style={{
-                color: "rgba(255,255,255,0.45)",
-                fontSize: "var(--pyxis-text-fine)",
-                whiteSpace: "nowrap",
-                overflow: "hidden",
-                textOverflow: "ellipsis",
-              }}
-            >
-              {t.artist}
-            </div>
+            <Cover
+              className="qh-tile-art"
+              track={t}
+              size={coverSize}
+              onSelect={() => onSelect(t)}
+            />
+            <TileCaption title={t.title} artist={t.artist} />
           </div>
         ))}
       </div>
@@ -233,6 +286,7 @@ export function QueueHome({ variant }: { readonly variant: QueueHomeVariant }) {
 
   return (
     <div style={rootStyle}>
+      <style>{HOVER_CSS}</style>
       <BlurredBackdrop artwork={heroArtwork} />
       <div className="pyxis-intrinsic" style={scrollStyle}>
         {variant === "shelves" && (
@@ -404,43 +458,19 @@ function EditorialHome({
             display: "grid",
             gridTemplateColumns:
               "repeat(auto-fill, minmax(calc(var(--pyxis-base) * 7), 1fr))",
-            gap: "var(--pyxis-space-4) var(--pyxis-space-3)",
+            columnGap: "var(--pyxis-space-3)",
+            rowGap: "calc(var(--pyxis-base) * 3.4)",
           }}
         >
           {ALBUMS.map((t, i) => (
-            <div
-              key={t.id}
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                gap: "var(--pyxis-space-1)",
-              }}
-            >
-              <Cover track={t} size="100%" onSelect={() => onSelect(i)} />
-              <div
-                style={{
-                  color: "rgba(255,255,255,0.85)",
-                  fontSize: "var(--pyxis-text-body)",
-                  fontWeight: 500,
-                  textTransform: "lowercase",
-                  whiteSpace: "nowrap",
-                  overflow: "hidden",
-                  textOverflow: "ellipsis",
-                }}
-              >
-                {t.title}
-              </div>
-              <div
-                style={{
-                  color: "rgba(255,255,255,0.42)",
-                  fontSize: "var(--pyxis-text-fine)",
-                  whiteSpace: "nowrap",
-                  overflow: "hidden",
-                  textOverflow: "ellipsis",
-                }}
-              >
-                {t.artist}
-              </div>
+            <div key={t.id} className="qh-tile">
+              <Cover
+                className="qh-tile-art"
+                track={t}
+                size="100%"
+                onSelect={() => onSelect(i)}
+              />
+              <TileCaption title={t.title} artist={t.artist} />
             </div>
           ))}
         </div>
