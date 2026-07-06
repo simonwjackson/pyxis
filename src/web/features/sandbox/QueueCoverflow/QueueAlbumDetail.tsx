@@ -584,6 +584,9 @@ function RecordHeroArt({ recordPx }: { readonly recordPx: number }) {
   const coverPx = Math.round(recordPx * 1.04);
   // How far the sleeve's right edge reaches into the disc (behind it).
   const sleeveRight = Math.round(recordPx * 0.32);
+  // Keep the tilt subtle (<=3deg) and drop the sleeve slightly so it still
+  // reads as tucked below-left behind the disc despite the gentler angle.
+  const top = Math.round((recordPx - coverPx) / 2 + recordPx * 0.05);
   return (
     <div style={{ position: "relative", width: recordPx, height: recordPx }}>
       {/* Sleeve: behind the disc, off to the left, slightly rotated. */}
@@ -591,11 +594,11 @@ function RecordHeroArt({ recordPx }: { readonly recordPx: number }) {
         style={{
           position: "absolute",
           left: sleeveRight - coverPx,
-          top: Math.round((recordPx - coverPx) / 2),
+          top,
           width: coverPx,
           height: coverPx,
           zIndex: 1,
-          transform: "rotate(-8deg)",
+          transform: "rotate(-3deg)",
           borderRadius: "var(--pyxis-space-2)",
           overflow: "hidden",
           boxShadow: coverShadow,
