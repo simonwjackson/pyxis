@@ -80,6 +80,28 @@
           bunNix = ./bun.nix;
         };
 
+        # Keep the production build independent from test/design tooling. In
+        # particular, Caliper is an SSH git dependency that cannot be fetched
+        # in the Nix sandbox, and Playwright can deadlock Bun's isolated linker.
+        postPatch = ''
+          node --input-type=module <<'EOF'
+          import { readFileSync, writeFileSync } from "node:fs";
+
+          const path = "package.json";
+          const manifest = JSON.parse(readFileSync(path, "utf8"));
+          const buildDependencies = [
+            "@tanstack/router-plugin",
+            "@vitejs/plugin-react",
+            "vite",
+          ];
+          manifest.devDependencies = Object.fromEntries(
+            buildDependencies.map((name) => [name, manifest.devDependencies[name]]),
+          );
+          writeFileSync(path, `''${JSON.stringify(manifest, null, 2)}\n`);
+          EOF
+          sed -i '\|"@simonwjackson/caliper"|d' bun.lock
+        '';
+
         buildPhase = ''
           runHook preBuild
           bun x vite build
@@ -93,7 +115,7 @@
           cp -r server $out/lib/pyxis/
           cp -r src $out/lib/pyxis/
           cp -r node_modules $out/lib/pyxis/
-          cp package.json $out/lib/pyxis/
+          cp package.json tsconfig.json $out/lib/pyxis/
           makeWrapper ${pkgs.bun}/bin/bun $out/bin/pyxis \
             --prefix PATH : ${pkgs.lib.makeBinPath [pkgs.yt-dlp pkgs.ffmpeg-headless]} \
             --add-flags "$out/lib/pyxis/server/index.ts"
