@@ -222,6 +222,9 @@ export function makeSonosPlaybackCoordinator(
         return;
       }
 
+      await protocol
+        .setVolume(target.coordinator, Math.round(state.volume))
+        .catch(() => undefined);
       const uri = buildSonosStreamUrl(
         deps.config.lanStreamBaseUrl,
         state.currentTrack.id,
@@ -245,7 +248,6 @@ export function makeSonosPlaybackCoordinator(
         interruptedUri = undefined;
       }
 
-      await protocol.setVolume(target.coordinator, Math.round(state.volume));
       const previous = lastDesiredState;
       const expectedPreviousProgress = previous
         ? projectedProgress(previous, now())

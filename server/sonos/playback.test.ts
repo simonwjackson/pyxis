@@ -74,6 +74,8 @@ function harness(
     position?: number;
     duration?: number;
     topology?: SonosTopology;
+    setUriError?: Error;
+    setVolumeError?: Error;
   } = {},
 ) {
   let playerState = options.initialState ?? state();
@@ -156,6 +158,7 @@ function harness(
   const protocol: SonosPlaybackProtocol = {
     setUri: async (target, uri) => {
       calls.push(`setUri:${target.uuid}`);
+      if (options.setUriError) throw options.setUriError;
       currentUri = uri;
     },
     play: async (target) => calls.push(`play:${target.uuid}`),
@@ -163,8 +166,10 @@ function harness(
     stop: async (target) => calls.push(`stop:${target.uuid}`),
     seek: async (target, seconds) =>
       calls.push(`seek:${target.uuid}:${seconds}`),
-    setVolume: async (target, volume) =>
-      calls.push(`volume:${target.uuid}:${volume}`),
+    setVolume: async (target, volume) => {
+      calls.push(`volume:${target.uuid}:${volume}`);
+      if (options.setVolumeError) throw options.setVolumeError;
+    },
     readTransport: async () => ({
       state: transportState,
       status: "OK",
@@ -230,6 +235,14 @@ function harness(
   };
 }
 
+async function preparePhysicalPoll(test: ReturnType<typeof harness>) {
+  await test.coordinator.requestRealize();
+  test.calls.length = 0;
+  test.setClock(5000);
+  test.setUri(test.expectedUri());
+  await test.coordinator.pollNow();
+}
+
 describe("Sonos playback coordinator", () => {
   it("builds an absolute MP3 LAN stream URL", () => {
     expect(
@@ -247,8 +260,33 @@ describe("Sonos playback coordinator", () => {
     const test = harness();
     await test.coordinator.requestRealize();
     expect(test.calls).toEqual([
-      "setUri:COORD",
       "volume:COORD:35",
+      "setUri:COORD",
+      "seek:COORD:10",
+      "play:COORD",
+    ]);
+  });
+
+  it("does not push volume when no track is loaded", async () => {
+    const test = harness({
+      initialState: state({ status: "stopped", currentTrack: null }),
+    });
+    await test.coordinator.requestRealize();
+    expect(test.calls).toEqual(["stop:COORD"]);
+  });
+
+  it("sets volume even when loading the current track fails", async () => {
+    const test = harness({ setUriError: new Error("load failed") });
+    await test.coordinator.requestRealize();
+    expect(test.calls).toEqual(["volume:COORD:35", "setUri:COORD"]);
+  });
+
+  it("loads the current track even when setting volume fails", async () => {
+    const test = harness({ setVolumeError: new Error("volume failed") });
+    await test.coordinator.requestRealize();
+    expect(test.calls).toEqual([
+      "volume:COORD:35",
+      "setUri:COORD",
       "seek:COORD:10",
       "play:COORD",
     ]);
@@ -256,11 +294,7 @@ describe("Sonos playback coordinator", () => {
 
   it("mirrors physical pause and progress for a recognized Pyxis stream", async () => {
     const test = harness({ transportState: "PAUSED_PLAYBACK", position: 22 });
-    await test.coordinator.requestRealize();
-    test.calls.length = 0;
-    test.setClock(5000);
-    test.setUri(test.expectedUri());
-    await test.coordinator.pollNow();
+    await preparePhysicalPoll(test);
     expect(test.calls).toContain("canonical:progress:22");
     expect(test.calls).toContain("canonical:pause");
     expect(test.getState().status).toBe("paused");
@@ -268,11 +302,7 @@ describe("Sonos playback coordinator", () => {
 
   it("advances a naturally ended track exactly once", async () => {
     const test = harness({ transportState: "STOPPED", position: 120 });
-    await test.coordinator.requestRealize();
-    test.calls.length = 0;
-    test.setClock(5000);
-    test.setUri(test.expectedUri());
-    await test.coordinator.pollNow();
+    await preparePhysicalPoll(test);
     test.setClock(8000);
     await test.coordinator.pollNow();
     expect(
@@ -360,6 +390,6 @@ describe("Sonos playback coordinator", () => {
     test.setTopology(topology(movedCoordinator));
     test.setClock(40_000);
     await test.coordinator.requestRealize();
-    expect(test.calls[0]).toBe("setUri:MOVED");
+    expect(test.calls.slice(0, 2)).toEqual(["volume:MOVED:35", "setUri:MOVED"]);
   });
 });
