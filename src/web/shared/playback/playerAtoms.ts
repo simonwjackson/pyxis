@@ -27,18 +27,34 @@ export const playerDurationReportMutationAtom = PyxisRpcClient.mutation(
 export const playerAudioErrorReportMutationAtom = PyxisRpcClient.mutation(
   "player.audioError.report",
 );
-export const playerTrackEndedMutationAtom =
-  PyxisRpcClient.mutation("player.transport.trackEnded");
-export const playerPauseMutationAtom = PyxisRpcClient.mutation("player.transport.pause");
-export const playerResumeMutationAtom =
-  PyxisRpcClient.mutation("player.transport.resume");
-export const playerSeekMutationAtom = PyxisRpcClient.mutation("player.transport.seek");
-export const playerSkipMutationAtom = PyxisRpcClient.mutation("player.transport.skip");
-export const playerPreviousMutationAtom =
-  PyxisRpcClient.mutation("player.transport.previous");
-export const playerStopMutationAtom = PyxisRpcClient.mutation("player.transport.stop");
-export const playerPlayMutationAtom = PyxisRpcClient.mutation("player.transport.play");
-export const playerJumpToMutationAtom =
-  PyxisRpcClient.mutation("player.transport.jumpTo");
+export const playerTrackEndedMutationAtom = PyxisRpcClient.mutation(
+  "player.transport.trackEnded",
+);
+export const playerPauseMutationAtom = PyxisRpcClient.mutation(
+  "player.transport.pause",
+);
+export const playerResumeMutationAtom = PyxisRpcClient.mutation(
+  "player.transport.resume",
+);
+export const playerSeekMutationAtom = PyxisRpcClient.mutation(
+  "player.transport.seek",
+);
+export const playerVolumeSetMutationAtom =
+  PyxisRpcClient.mutation("player.volume.set");
+export const playerSkipMutationAtom = PyxisRpcClient.mutation(
+  "player.transport.skip",
+);
+export const playerPreviousMutationAtom = PyxisRpcClient.mutation(
+  "player.transport.previous",
+);
+export const playerStopMutationAtom = PyxisRpcClient.mutation(
+  "player.transport.stop",
+);
+export const playerPlayMutationAtom = PyxisRpcClient.mutation(
+  "player.transport.play",
+);
+export const playerJumpToMutationAtom = PyxisRpcClient.mutation(
+  "player.transport.jumpTo",
+);
 export const clientLogWriteMutationAtom =
   PyxisRpcClient.mutation("log.client.write");

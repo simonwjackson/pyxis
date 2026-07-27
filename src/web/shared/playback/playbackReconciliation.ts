@@ -7,7 +7,8 @@ export type PlaybackServerStateSource =
   | "trackEnded-response"
   | "skip-response"
   | "prev-response"
-  | "play-response";
+  | "play-response"
+  | "volume-response";
 
 export type PlaybackAudioAction =
   | { readonly _tag: "Load"; readonly src: string }

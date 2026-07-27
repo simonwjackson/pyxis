@@ -111,6 +111,7 @@ export type PlaybackContextValue = {
   togglePlayPause: () => void;
   stop: () => void;
   seek: (time: number) => void;
+  setVolume: (volume: number) => void;
   triggerSkip: () => void;
   triggerPrevious: () => void;
   clearError: () => void;

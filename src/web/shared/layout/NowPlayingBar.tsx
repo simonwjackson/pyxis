@@ -31,6 +31,7 @@ import { NowPlayingMobileTransport } from "./NowPlayingBar/components/NowPlaying
 import { NowPlayingProgressBar } from "./NowPlayingBar/components/NowPlayingProgressBar";
 import { NowPlayingSecondaryActions } from "./NowPlayingBar/components/NowPlayingSecondaryActions";
 import { NowPlayingTrackSummary } from "./NowPlayingBar/components/NowPlayingTrackSummary";
+import { NowPlayingVolumeControl } from "./NowPlayingBar/components/NowPlayingVolumeControl";
 import { NowPlayingBarState } from "./NowPlayingBarState";
 
 function isPandoraTrack(trackToken: string): boolean {
@@ -94,6 +95,8 @@ export function NowPlayingBar() {
     triggerSkip,
     triggerPrevious,
     seek,
+    volume,
+    setVolume,
   } = playback;
   const currentTrack = PlaybackState.currentTrack(playback.state);
   const isPlaying = PlaybackState.isPlaying(playback.state);
@@ -249,6 +252,11 @@ export function NowPlayingBar() {
             onSkip={triggerSkip}
           />
           <NowPlayingSecondaryActions>
+            <NowPlayingVolumeControl
+              volume={volume}
+              onVolumeChange={setVolume}
+              className="w-40"
+            />
             {hasPandoraCapabilities ? (
               <button
                 onClick={() => setShowActionSheet(true)}
@@ -289,6 +297,11 @@ export function NowPlayingBar() {
           progress={progress}
           duration={duration}
         >
+          <NowPlayingVolumeControl
+            volume={volume}
+            onVolumeChange={setVolume}
+            className="border-b border-pyxis-border py-3"
+          />
           <NowPlayingActionItem
             onClick={() => {
               handleGoToContext();

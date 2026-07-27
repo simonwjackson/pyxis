@@ -39,6 +39,7 @@ import {
   playerStateStreamAtom,
   playerStopMutationAtom,
   playerTrackEndedMutationAtom,
+  playerVolumeSetMutationAtom,
 } from "./playerAtoms";
 import type {
   PlaybackContextValue,
@@ -47,6 +48,10 @@ import type {
   PlaybackState,
   PlaybackTrack,
 } from "./types";
+import {
+  createVolumeCommandQueue,
+  type VolumeCommandQueue,
+} from "./volumeCommandQueue";
 
 /**
  * Internal playback state.
@@ -133,6 +138,9 @@ export function usePlayback(): PlaybackContextValue {
   // Track the last stream URL to avoid reloading same track
   const lastStreamUrlRef = useRef<string | null>(null);
   const seekingRef = useRef(false);
+  const pendingVolumeRef = useRef<number | null>(null);
+  const confirmedVolumeRef = useRef(100);
+  const volumeCommandQueueRef = useRef<VolumeCommandQueue | null>(null);
   const handleServerStateRef = useRef<
     (state: ServerState, source?: PlaybackServerStateSource) => void
   >(() => {});
@@ -327,13 +335,18 @@ export function usePlayback(): PlaybackContextValue {
 
       const isInitialState =
         source === "sse" && !hasReceivedInitialStateRef.current;
+      confirmedVolumeRef.current = serverState.volume;
+      const effectiveServerState =
+        pendingVolumeRef.current === null
+          ? serverState
+          : { ...serverState, volume: pendingVolumeRef.current };
 
       logToServer(
         `[${source}] received status=${serverState.status} track=${serverState.currentTrack?.id ?? "none"} progress=${String(serverState.progress)} initial=${String(isInitialState)}`,
       );
 
       const reconciliation = reconcilePlaybackState({
-        serverState,
+        serverState: effectiveServerState,
         source,
         audio: audio.snapshot(),
         lastStreamUrl: lastStreamUrlRef.current,
@@ -404,6 +417,41 @@ export function usePlayback(): PlaybackContextValue {
   const seekRemote = useAtomSet(playerSeekMutationAtom, {
     mode: "promiseExit",
   });
+  const setVolumeRemote = useAtomSet(playerVolumeSetMutationAtom, {
+    mode: "promiseExit",
+  });
+  const setVolumeRemoteRef = useRef(setVolumeRemote);
+  setVolumeRemoteRef.current = setVolumeRemote;
+  if (volumeCommandQueueRef.current === null) {
+    volumeCommandQueueRef.current = createVolumeCommandQueue<ServerState>({
+      send: async (volume) => {
+        const exit = await setVolumeRemoteRef.current({
+          payload: { level: volume },
+        });
+        return exit._tag === "Success"
+          ? { _tag: "Success", value: exit.value }
+          : { _tag: "Failure", cause: exit.cause };
+      },
+      onSettled: ({ outcome, isLatest }) => {
+        if (outcome._tag === "Success") {
+          confirmedVolumeRef.current = outcome.value.volume;
+        }
+        if (!isLatest) return;
+
+        pendingVolumeRef.current = null;
+        if (outcome._tag === "Success") {
+          handleServerStateRef.current(outcome.value, "volume-response");
+        } else {
+          const confirmedVolume = confirmedVolumeRef.current;
+          if (ownsLocalPlaybackRef.current) {
+            audioRef.current?.setVolume(confirmedVolume / 100);
+          }
+          setState((prev) => ({ ...prev, volume: confirmedVolume }));
+          logToServer("[action] volume mutation failed");
+        }
+      },
+    });
+  }
   const skip = useAtomSet(playerSkipMutationAtom, { mode: "promiseExit" });
   const previous = useAtomSet(playerPreviousMutationAtom, {
     mode: "promiseExit",
@@ -488,6 +536,16 @@ export function usePlayback(): PlaybackContextValue {
     },
     [ownsLocalPlayback, seekRemote],
   );
+
+  const setVolume = useCallback((requestedVolume: number) => {
+    const volume = Math.round(Math.max(0, Math.min(100, requestedVolume)));
+    pendingVolumeRef.current = volume;
+    if (ownsLocalPlaybackRef.current) {
+      audioRef.current?.setVolume(volume / 100);
+    }
+    setState((prev) => ({ ...prev, volume }));
+    volumeCommandQueueRef.current?.enqueue(volume);
+  }, []);
 
   const setCurrentStationToken = useCallback((token: string | null) => {
     setState((prev) => ({ ...prev, currentStationToken: token }));
@@ -610,6 +668,7 @@ export function usePlayback(): PlaybackContextValue {
     togglePlayPause,
     stop,
     seek,
+    setVolume,
     triggerSkip,
     triggerPrevious,
     clearError,
