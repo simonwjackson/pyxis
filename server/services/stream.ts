@@ -245,11 +245,33 @@ function isMp3ContentType(contentType: string | null): boolean {
   );
 }
 
+function hasMp3Path(url: string): boolean {
+  try {
+    return new URL(url).pathname.toLowerCase().endsWith(".mp3");
+  } catch {
+    return false;
+  }
+}
+
+function isKnownMp3Upstream(contentType: string | null, url: string): boolean {
+  if (isMp3ContentType(contentType)) return true;
+  const normalized = normalizeContentType(contentType);
+  const isAmbiguousBinary =
+    normalized === "" || normalized === "application/octet-stream";
+  return isAmbiguousBinary && hasMp3Path(url);
+}
+
 function shouldTranscodeToMp3(
   requestedFormat: StreamFormat | undefined,
   contentType: string | null,
+  upstreamUrl?: string,
 ): boolean {
-  return requestedFormat === "mp3" && !isMp3ContentType(contentType);
+  return (
+    requestedFormat === "mp3" &&
+    !(upstreamUrl
+      ? isKnownMp3Upstream(contentType, upstreamUrl)
+      : isMp3ContentType(contentType))
+  );
 }
 
 function createRangeNotSupportedResponse(): Response {
@@ -1198,7 +1220,10 @@ export async function handleStreamRequest(
     headers.Range = rangeHeader;
   }
 
-  const upstream = await fetch(url, { headers });
+  const upstream = await fetch(url, {
+    headers,
+    ...(options?.abortSignal ? { signal: options.abortSignal } : {}),
+  });
 
   const contentType = upstream.headers.get("content-type");
   const contentLength = upstream.headers.get("content-length");
@@ -1226,7 +1251,7 @@ export async function handleStreamRequest(
     });
   }
 
-  if (shouldTranscodeToMp3(requestedFormat, contentType)) {
+  if (shouldTranscodeToMp3(requestedFormat, contentType, url)) {
     if (rangeHeader) {
       try {
         await upstream.body?.cancel();
@@ -1271,9 +1296,16 @@ export async function handleStreamRequest(
     );
   }
 
-  // Pandora or non-cacheable range requests on uncached files: pass through directly
+  // Pandora or non-cacheable range requests on uncached files: pass through directly.
+  // Pandora serves MP3 files as application/octet-stream. The unambiguous .mp3
+  // upstream path lets us preserve the original bytes and Content-Length instead
+  // of introducing a chunked ffmpeg stream that older Sonos players reject.
   const responseHeaders = new Headers();
-  if (contentType) responseHeaders.set("Content-Type", contentType);
+  if (isKnownMp3Upstream(contentType, url)) {
+    responseHeaders.set("Content-Type", "audio/mpeg");
+  } else if (contentType) {
+    responseHeaders.set("Content-Type", contentType);
+  }
   if (contentLength) responseHeaders.set("Content-Length", contentLength);
 
   const contentRange = upstream.headers.get("content-range");

@@ -607,6 +607,81 @@ describe("handleStreamRequest", () => {
     }
   });
 
+  it("passes through Pandora octet-stream .mp3 for a Sonos no-range request", async () => {
+    const audioData = new Uint8Array([0x49, 0x44, 0x33, 0x04, 0x00]);
+    const abortController = new AbortController();
+    const mockSourceManager = {
+      getStreamUrl: async () =>
+        "https://t1-3.p-cdn.us/access/5771656812089988679.mp3",
+    } as unknown as SourceManager;
+
+    const originalFetch = globalThis.fetch;
+    let receivedSignal: AbortSignal | null | undefined;
+    let receivedRange: string | null | undefined;
+    globalThis.fetch = async (_input, init) => {
+      receivedSignal = init?.signal;
+      receivedRange = new Headers(init?.headers).get("Range");
+      return new Response(audioData, {
+        status: 200,
+        headers: {
+          "Content-Type": "application/octet-stream",
+          "Content-Length": String(audioData.byteLength),
+          "Accept-Ranges": "bytes",
+        },
+      });
+    };
+
+    try {
+      const response = await handleStreamRequest(
+        mockSourceManager,
+        "pandora:track123",
+        null,
+        {
+          requestedFormat: "mp3",
+          abortSignal: abortController.signal,
+        },
+      );
+      expect(response.status).toBe(200);
+      expect(response.headers.get("Content-Type")).toBe("audio/mpeg");
+      expect(response.headers.get("Content-Length")).toBe("5");
+      expect(response.headers.get("Accept-Ranges")).toBe("bytes");
+      expect(receivedRange).toBeNull();
+      expect(receivedSignal).toBe(abortController.signal);
+      expect(new Uint8Array(await response.arrayBuffer())).toEqual(audioData);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it("does not classify an octet-stream WebM path as MP3", async () => {
+    const mockSourceManager = {
+      getStreamUrl: async () => "https://example.com/audio.webm",
+    } as unknown as SourceManager;
+
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = async () =>
+      new Response(new Uint8Array([0x1a, 0x45, 0xdf, 0xa3]), {
+        status: 206,
+        headers: {
+          "Content-Type": "application/octet-stream",
+          "Content-Range": "bytes 0-3/999",
+        },
+      });
+
+    try {
+      const response = await handleStreamRequest(
+        mockSourceManager,
+        "ytmusic:track123",
+        "bytes=0-3",
+        { requestedFormat: "mp3" },
+      );
+      expect(response.status).toBe(416);
+      expect(response.headers.get("Accept-Ranges")).toBe("none");
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
   it("returns 416 for range requests when format=mp3 requires transcoding", async () => {
     const mockSourceManager = {
       getStreamUrl: async () => "https://example.com/audio.webm",
