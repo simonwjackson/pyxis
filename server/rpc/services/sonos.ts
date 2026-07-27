@@ -11,10 +11,7 @@ import {
 } from "../../sonos/discovery.js";
 import { planSonosGroupUpdate } from "../../sonos/groupPlan.js";
 import type { SonosRoom, SonosTopology } from "../../sonos/model.js";
-import {
-  joinSonosGroup,
-  leaveSonosGroup,
-} from "../../sonos/transport.js";
+import { joinSonosGroup, leaveSonosGroup } from "../../sonos/transport.js";
 import { SourceUnavailable } from "../errors.js";
 
 export type SonosShape = {
@@ -40,6 +37,32 @@ export type SonosServiceDeps = SonosDiscoveryDeps & {
 export class Sonos extends Context.Service<Sonos, SonosShape>()(
   "Pyxis/Sonos",
 ) {}
+
+export function sonosGroupMatches(
+  topology: SonosTopology,
+  coordinatorUuid: string,
+  memberUuids: readonly string[],
+): boolean {
+  const desired = new Set(memberUuids);
+  const group = topology.groups.find(
+    (candidate) => candidate.coordinatorUuid === coordinatorUuid,
+  );
+  return (
+    group !== undefined &&
+    group.rooms.length === desired.size &&
+    group.rooms.every((room) => desired.has(room.uuid))
+  );
+}
+
+export function sonosRoomIsStandalone(
+  topology: SonosTopology,
+  roomUuid: string,
+): boolean {
+  const group = topology.groups.find((candidate) =>
+    candidate.rooms.some((room) => room.uuid === roomUuid),
+  );
+  return group?.coordinatorUuid === roomUuid && group.rooms.length === 1;
+}
 
 export function makeSonosShape(
   config: AppConfig["sonos"],
@@ -83,6 +106,18 @@ export function makeSonosShape(
     catch: () => new SourceUnavailable({ code: "sonos_discovery_failed" }),
   });
 
+  const refreshUntil = async (
+    predicate: (topology: SonosTopology) => boolean,
+  ): Promise<SonosTopology> => {
+    let latest: SonosTopology | undefined;
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      latest = await runRefresh();
+      if (predicate(latest)) return latest;
+      await waitAfterMutation();
+    }
+    throw new Error("Sonos topology did not converge after group update");
+  };
+
   const runMutation = (
     operation: () => Promise<SonosTopology>,
   ): Effect.Effect<SonosTopology, SourceUnavailable> =>
@@ -106,9 +141,7 @@ export function makeSonosShape(
         cached?.refreshedAt !== null &&
         cached?.refreshedAt !== undefined &&
         (deps.now ?? Date.now)() - cached.refreshedAt < maxAgeMs;
-      return isFresh && cached !== undefined
-        ? Effect.succeed(cached)
-        : refresh;
+      return isFresh && cached !== undefined ? Effect.succeed(cached) : refresh;
     }),
     updateGroup: (input) =>
       runMutation(async () => {
@@ -127,7 +160,13 @@ export function makeSonosShape(
           await waitAfterMutation();
         }
         cached = undefined;
-        return runRefresh();
+        return refreshUntil((candidate) =>
+          sonosGroupMatches(
+            candidate,
+            input.coordinatorUuid,
+            input.memberUuids,
+          ),
+        );
       }),
     ungroupRoom: (input) =>
       runMutation(async () => {
@@ -143,7 +182,9 @@ export function makeSonosShape(
         await leaveGroup(room);
         await waitAfterMutation();
         cached = undefined;
-        return runRefresh();
+        return refreshUntil((candidate) =>
+          sonosRoomIsStandalone(candidate, input.roomUuid),
+        );
       }),
   };
   return shape;
