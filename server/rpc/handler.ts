@@ -41,6 +41,10 @@ import { Queue, QueueLayerLive } from "./services/queue.js";
 import { Radio, RadioLayerLive } from "./services/radio.js";
 import { Sonos, SonosLayerLive } from "./services/sonos.js";
 import {
+  SonosPlayback,
+  SonosPlaybackLayerLive,
+} from "./services/sonosPlayback.js";
+import {
   SourceCatalog,
   SourceCatalogLayerLive,
 } from "./services/sourceCatalog.js";
@@ -192,6 +196,7 @@ export const PyxisRpcHandlersLayer = PyxisRpc.toLayer(
     const queue = yield* Queue;
     const output = yield* Output;
     const sonos = yield* Sonos;
+    yield* SonosPlayback;
     const handlers = {
       ...authHandlers({ auth }),
       ...libraryHandlers({ auth, library, catalog }),
@@ -222,6 +227,7 @@ export const PyxisRpcLayerLive = PyxisRpcHandlersLayer.pipe(
   Layer.provide(SourceCatalogLayerLive),
   Layer.provide(RadioLayerLive),
   Layer.provide(AuthSessionLayerLive),
+  Layer.provide(SonosPlaybackLayerLive),
   Layer.provide(PlayerLayerLive),
   Layer.provide(QueueLayerLive),
   Layer.provide(OutputLayerLive),
