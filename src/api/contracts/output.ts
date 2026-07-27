@@ -1,4 +1,5 @@
 import { Schema } from "effect";
+import { ClientAuthorizationSchema } from "./clientMode.js";
 
 const StableIdSchema = Schema.String.check(
   Schema.isMinLength(1),
@@ -31,6 +32,7 @@ export type ApiPlaybackOutputState = Schema.Schema.Type<
 
 export const SelectBrowserOutputInputSchema = Schema.Struct({
   clientId: StableIdSchema,
+  authorization: ClientAuthorizationSchema,
 });
 export type ApiSelectBrowserOutputInput = Schema.Schema.Type<
   typeof SelectBrowserOutputInputSchema

@@ -174,6 +174,7 @@ describe("player API contracts", () => {
     expect(
       Schema.decodeUnknownSync(ReportProgressInputSchema)({
         clientId: "client_test",
+        authorization: "player-authorization-token",
         progress: 12,
         appliesToTrackId: "ytmusic:track_1",
         commandId: "cmd_abc",
@@ -182,6 +183,7 @@ describe("player API contracts", () => {
     expect(
       Schema.decodeUnknownSync(ReportDurationInputSchema)({
         clientId: "client_test",
+        authorization: "player-authorization-token",
         duration: 180,
       }),
     ).toMatchObject({ duration: 180 });
@@ -189,12 +191,14 @@ describe("player API contracts", () => {
     expect(() =>
       Schema.decodeUnknownSync(ReportProgressInputSchema)({
         clientId: "client_test",
+        authorization: "player-authorization-token",
         progress: Number.NaN,
       }),
     ).toThrow();
     expect(() =>
       Schema.decodeUnknownSync(ReportProgressInputSchema)({
         clientId: "client_test",
+        authorization: "player-authorization-token",
         progress: 12,
         appliesToTrackId: "evil:bad",
       }),
@@ -205,18 +209,21 @@ describe("player API contracts", () => {
     expect(
       Schema.decodeUnknownSync(ReportAudioErrorInputSchema)({
         clientId: "client_test",
+        authorization: "player-authorization-token",
         message: "failed to decode",
       }),
     ).toMatchObject({ message: "failed to decode" });
     expect(() =>
       Schema.decodeUnknownSync(ReportAudioErrorInputSchema)({
         clientId: "client_test",
+        authorization: "player-authorization-token",
         message: "",
       }),
     ).toThrow();
     expect(() =>
       Schema.decodeUnknownSync(ReportAudioErrorInputSchema)({
         clientId: "client_test",
+        authorization: "player-authorization-token",
         message: "x".repeat(501),
       }),
     ).toThrow();

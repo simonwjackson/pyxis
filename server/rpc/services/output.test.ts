@@ -1,8 +1,8 @@
 import { describe, expect, it } from "bun:test";
 import { Effect } from "effect";
-import type { SonosShape } from "./sonos.js";
 import { SourceUnavailable } from "../errors.js";
 import { makeOutputShape } from "./output.js";
+import type { SonosShape } from "./sonos.js";
 
 const topology = {
   enabled: true,
@@ -19,8 +19,7 @@ const topology = {
           name: "Basement",
           model: null,
           address: "192.168.1.118",
-          locationUrl:
-            "http://192.168.1.118:1400/xml/device_description.xml",
+          locationUrl: "http://192.168.1.118:1400/xml/device_description.xml",
           isCoordinator: false,
         },
         {
@@ -28,8 +27,7 @@ const topology = {
           name: "Kitchen",
           model: null,
           address: "192.168.1.241",
-          locationUrl:
-            "http://192.168.1.241:1400/xml/device_description.xml",
+          locationUrl: "http://192.168.1.241:1400/xml/device_description.xml",
           isCoordinator: true,
         },
       ],
@@ -52,17 +50,57 @@ describe("shared playback output service", () => {
     const output = makeOutputShape(sonos(Effect.succeed(topology)), {
       now: () => 123,
       save: (selection) => saved.push(selection),
+      verifyPlayerAuthorization: (authorization, clientId) =>
+        authorization === "player-authorization-token" &&
+        clientId === "client_alpha",
     });
-    await Effect.runPromise(output.selectBrowser({ clientId: "client_alpha" }));
-    expect(await Effect.runPromise(output.acceptsBrowserReport("client_alpha"))).toBe(
-      true,
+    await Effect.runPromise(
+      output.selectBrowser({
+        clientId: "client_alpha",
+        authorization: "player-authorization-token",
+      }),
     );
-    expect(await Effect.runPromise(output.acceptsBrowserReport("client_beta"))).toBe(
-      false,
-    );
+    expect(
+      await Effect.runPromise(
+        output.acceptsBrowserReport(
+          "client_alpha",
+          "player-authorization-token",
+        ),
+      ),
+    ).toBe(true);
+    expect(
+      await Effect.runPromise(
+        output.acceptsBrowserReport(
+          "client_beta",
+          "player-authorization-token",
+        ),
+      ),
+    ).toBe(false);
     expect(saved).toEqual([
       { type: "browser", clientId: "client_alpha", updatedAt: 123 },
     ]);
+  });
+
+  it("rejects Console credentials for local output and reports", async () => {
+    const output = makeOutputShape(sonos(Effect.succeed(topology)), {
+      save: () => undefined,
+      verifyPlayerAuthorization: () => false,
+    });
+    const exit = await Effect.runPromiseExit(
+      output.selectBrowser({
+        clientId: "client_console",
+        authorization: "console-authorization-token",
+      }),
+    );
+    expect(exit._tag).toBe("Failure");
+    expect(
+      await Effect.runPromise(
+        output.acceptsBrowserReport(
+          "client_console",
+          "console-authorization-token",
+        ),
+      ),
+    ).toBe(false);
   });
 
   it("anchors Sonos selection to a room and resolves its current coordinator", async () => {
@@ -84,9 +122,7 @@ describe("shared playback output service", () => {
   it("keeps a persisted Sonos selection when discovery is unavailable", async () => {
     const output = makeOutputShape(
       sonos(
-        Effect.fail(
-          new SourceUnavailable({ code: "sonos_discovery_failed" }),
-        ),
+        Effect.fail(new SourceUnavailable({ code: "sonos_discovery_failed" })),
       ),
       {
         initialSelection: {

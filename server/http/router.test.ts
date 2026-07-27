@@ -2,6 +2,7 @@ import { afterEach, expect, it } from "bun:test";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { SourceManager } from "@shared/sources/index.js";
+import { createClientModeAuthority } from "../services/clientMode.js";
 import { createServerFetchHandler } from "./router.js";
 import type { ServerFetchHandlerConfig } from "./types.js";
 
@@ -36,6 +37,7 @@ function createConfig(
       },
     },
     androidMediaBridge: createBridge(),
+    clientMode: createClientModeAuthority(Buffer.alloc(32, 7)),
     stream: {
       log,
       resolveTrackForStream: async (id) => `ytmusic:${id}`,
@@ -259,7 +261,54 @@ it("serves production assets and falls back to index.html", async () => {
   const fallback = await fetch(request("/albums/123"));
 
   expect(await asset.text()).toBe("asset");
-  expect(await fallback.text()).toBe("<main>app</main>");
+  const fallbackHtml = await fallback.text();
+  expect(fallbackHtml).toContain('window.__PYXIS_CLIENT_MODE__="player"');
+  expect(fallbackHtml).toContain("<main>app</main>");
+  expect(fallback.headers.get("set-cookie")).toContain("pyxis_client_mode=");
+});
+
+it("bootstraps managed Console mode without using the URL", async () => {
+  const distDir = await mkdtemp(`${process.cwd()}/tmp-router-console-`);
+  tempDirs.push(distDir);
+  await writeFile(
+    join(distDir, "index.html"),
+    "<html><head></head><body></body></html>",
+  );
+  const fetch = createServerFetchHandler(
+    createConfig({
+      web: { ...createConfig().web, distDir, serveStaticFiles: true },
+    }),
+  );
+
+  const enrolled = await fetch(
+    request("/?clientProfile=standard", {
+      headers: {
+        "X-Pyxis-Client-Mode": "console",
+        "Sec-Fetch-Dest": "document",
+      },
+    }),
+  );
+  const cookie = enrolled.headers.get("set-cookie")?.split(";", 1)[0] ?? "";
+  expect(await enrolled.text()).toContain(
+    'window.__PYXIS_CLIENT_MODE__="console"',
+  );
+
+  const reloaded = await fetch(
+    request("/settings?clientProfile=wall-sonos", {
+      headers: { Cookie: cookie },
+    }),
+  );
+  expect(await reloaded.text()).toContain(
+    'window.__PYXIS_CLIENT_MODE__="console"',
+  );
+
+  const authorized = await fetch(
+    request("/client-mode/authorize?clientId=client_console", {
+      headers: { Cookie: cookie },
+    }),
+  );
+  expect(authorized.status).toBe(200);
+  expect(await authorized.json()).toMatchObject({ mode: "console" });
 });
 
 it("delegates dev fallback requests to Vite middleware", async () => {
@@ -287,5 +336,7 @@ it("delegates dev fallback requests to Vite middleware", async () => {
   );
 
   expect(response.status).toBe(203);
-  expect(await response.text()).toBe("vite");
+  expect(await response.text()).toContain(
+    'window.__PYXIS_CLIENT_MODE__="player"',
+  );
 });

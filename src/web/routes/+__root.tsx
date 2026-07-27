@@ -3,7 +3,7 @@ import { CommandPalette } from "@app/shared/layout/CommandPalette";
 import { MobileNav } from "@app/shared/layout/MobileNav";
 import { NowPlayingBar } from "@app/shared/layout/NowPlayingBar";
 import { Sidebar } from "@app/shared/layout/Sidebar";
-import { SonosRequiredNotice } from "@app/shared/output/OutputPicker";
+import { NetworkOutputRequiredNotice } from "@app/shared/output/OutputPicker";
 import { ErrorBoundary } from "@app/shared/ui/ErrorBoundary";
 import {
   createRootRoute,
@@ -33,7 +33,7 @@ function AppShell() {
       <Sidebar />
       <div className="flex-1 flex flex-col min-w-0">
         <MobileNav />
-        <SonosRequiredNotice />
+        <NetworkOutputRequiredNotice />
         <main className="flex-1 overflow-y-auto pb-40">
           <ErrorBoundary>
             <Outlet />

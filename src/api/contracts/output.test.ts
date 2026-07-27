@@ -20,9 +20,17 @@ describe("playback output contracts", () => {
     ).toMatchObject({ type: "sonos", available: false });
   });
 
-  it("requires a stable browser client id", () => {
+  it("requires a stable browser client id and server authorization", () => {
     expect(() =>
-      Schema.decodeUnknownSync(SelectBrowserOutputInputSchema)({ clientId: "" }),
+      Schema.decodeUnknownSync(SelectBrowserOutputInputSchema)({
+        clientId: "",
+      }),
     ).toThrow();
+    expect(
+      Schema.decodeUnknownSync(SelectBrowserOutputInputSchema)({
+        clientId: "client_player",
+        authorization: "player-authorization-token",
+      }),
+    ).toMatchObject({ clientId: "client_player" });
   });
 });

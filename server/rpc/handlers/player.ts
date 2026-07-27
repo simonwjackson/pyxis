@@ -161,59 +161,67 @@ export const playerHandlers = (deps: PlayerHandlerDeps) => ({
 
   "player.progress.report": (payload: ApiReportProgressInput) =>
     publicHandler(
-      deps.output.acceptsBrowserReport(payload.clientId).pipe(
-        Effect.flatMap((accepted) =>
-          accepted
-            ? deps.player.reportProgress(
-                payload.progress,
-                payload.appliesToTrackId,
-              )
-            : Effect.succeed(false),
+      deps.output
+        .acceptsBrowserReport(payload.clientId, payload.authorization)
+        .pipe(
+          Effect.flatMap((accepted) =>
+            accepted
+              ? deps.player.reportProgress(
+                  payload.progress,
+                  payload.appliesToTrackId,
+                )
+              : Effect.succeed(false),
+          ),
+          Effect.map(() => ({ ok: true as const })),
         ),
-        Effect.map(() => ({ ok: true as const })),
-      ),
     ),
 
   "player.duration.report": (payload: ApiReportDurationInput) =>
     publicHandler(
-      deps.output.acceptsBrowserReport(payload.clientId).pipe(
-        Effect.flatMap((accepted) =>
-          accepted
-            ? deps.player.setDuration(
-                payload.duration,
-                payload.appliesToTrackId,
-              )
-            : deps.player.getState,
+      deps.output
+        .acceptsBrowserReport(payload.clientId, payload.authorization)
+        .pipe(
+          Effect.flatMap((accepted) =>
+            accepted
+              ? deps.player.setDuration(
+                  payload.duration,
+                  payload.appliesToTrackId,
+                )
+              : deps.player.getState,
+          ),
+          Effect.map(() => ({ ok: true as const })),
         ),
-        Effect.map(() => ({ ok: true as const })),
-      ),
     ),
 
   "player.audioError.report": (payload: ApiReportAudioErrorInput) =>
     publicHandler(
-      deps.output.acceptsBrowserReport(payload.clientId).pipe(
-        Effect.flatMap((accepted) =>
-          accepted
-            ? deps.player.reportAudioError(
-                payload.message,
-                payload.appliesToTrackId,
-              )
-            : deps.player.getState,
+      deps.output
+        .acceptsBrowserReport(payload.clientId, payload.authorization)
+        .pipe(
+          Effect.flatMap((accepted) =>
+            accepted
+              ? deps.player.reportAudioError(
+                  payload.message,
+                  payload.appliesToTrackId,
+                )
+              : deps.player.getState,
+          ),
+          Effect.map(() => ({ ok: true as const })),
         ),
-        Effect.map(() => ({ ok: true as const })),
-      ),
     ),
 
   "player.transport.trackEnded": (payload: ApiTrackEndedInput) =>
     publicHandler(
-      deps.output.acceptsBrowserReport(payload.clientId).pipe(
-        Effect.flatMap((accepted) =>
-          accepted
-            ? deps.player.trackEnded(payload.appliesToTrackId)
-            : deps.player.getState,
+      deps.output
+        .acceptsBrowserReport(payload.clientId, payload.authorization)
+        .pipe(
+          Effect.flatMap((accepted) =>
+            accepted
+              ? deps.player.trackEnded(payload.appliesToTrackId)
+              : deps.player.getState,
+          ),
+          Effect.map(serializePlayerState),
         ),
-        Effect.map(serializePlayerState),
-      ),
     ),
 
   /**

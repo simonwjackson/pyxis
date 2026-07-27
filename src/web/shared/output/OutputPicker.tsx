@@ -10,16 +10,17 @@ import {
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import {
+  getWebClientAuthorization,
   getWebClientId,
-  getWebClientProfile,
+  getWebClientMode,
 } from "../client/clientIdentity.js";
 import { cn } from "../lib/utils.js";
 import {
   outputStateStreamAtom,
   refreshSonosMutationAtom,
+  SONOS_TOPOLOGY_REACTIVITY_KEY,
   selectBrowserOutputMutationAtom,
   selectSonosOutputMutationAtom,
-  SONOS_TOPOLOGY_REACTIVITY_KEY,
   sonosTopologyQueryAtom,
 } from "./outputAtoms.js";
 
@@ -31,7 +32,7 @@ function selectedOutputLabel(
   if (output.type === "none") return "choose output";
   if (output.type === "browser")
     return output.clientId === clientId ? "this browser" : "another browser";
-  return output.coordinatorName ?? output.roomName ?? "Sonos";
+  return output.coordinatorName ?? output.roomName ?? "network output";
 }
 
 function useOutputState() {
@@ -41,7 +42,8 @@ function useOutputState() {
 
 export function OutputPicker({ compact = false }: { compact?: boolean }) {
   const clientId = useMemo(() => getWebClientId(), []);
-  const profile = useMemo(() => getWebClientProfile(), []);
+  const mode = useMemo(() => getWebClientMode(), []);
+  const authorization = useMemo(() => getWebClientAuthorization(), []);
   const output = useOutputState();
   const topologyResult = useAtomValue(sonosTopologyQueryAtom);
   const topology = AsyncResult.isSuccess(topologyResult)
@@ -62,15 +64,17 @@ export function OutputPicker({ compact = false }: { compact?: boolean }) {
   const selectedUnavailable = output?.type === "sonos" && !output.available;
 
   const chooseBrowser = () => {
-    if (!profile.localOutputAllowed || busy) return;
+    if (mode !== "player" || busy) return;
     setBusy(true);
-    void selectBrowser({ payload: { clientId } }).then((exit) => {
-      setBusy(false);
-      if (exit._tag === "Success") {
-        setOpen(false);
-        toast.success("playing on this browser");
-      } else toast.error("couldn't select browser output");
-    });
+    void selectBrowser({ payload: { clientId, authorization } }).then(
+      (exit) => {
+        setBusy(false);
+        if (exit._tag === "Success") {
+          setOpen(false);
+          toast.success("playing on this browser");
+        } else toast.error("couldn't select browser output");
+      },
+    );
   };
 
   const chooseSonos = (roomUuid: string, name: string) => {
@@ -81,7 +85,7 @@ export function OutputPicker({ compact = false }: { compact?: boolean }) {
       if (exit._tag === "Success") {
         setOpen(false);
         toast.success(`playing on ${name}`);
-      } else toast.error("couldn't select Sonos output");
+      } else toast.error("couldn't select network output");
     });
   };
 
@@ -93,7 +97,8 @@ export function OutputPicker({ compact = false }: { compact?: boolean }) {
       reactivityKeys: [SONOS_TOPOLOGY_REACTIVITY_KEY],
     }).then((exit) => {
       setBusy(false);
-      if (exit._tag !== "Success") toast.error("Sonos discovery failed");
+      if (exit._tag !== "Success")
+        toast.error("Network output discovery failed");
     });
   };
 
@@ -121,13 +126,7 @@ export function OutputPicker({ compact = false }: { compact?: boolean }) {
       </button>
 
       {open ? (
-        <div
-          className="fixed inset-0 z-[80] flex items-end justify-center bg-black/60 p-0 sm:items-center sm:p-6"
-          role="presentation"
-          onMouseDown={(event) => {
-            if (event.target === event.currentTarget) setOpen(false);
-          }}
-        >
+        <div className="fixed inset-0 z-[80] flex items-end justify-center bg-black/60 p-0 sm:items-center sm:p-6">
           <section
             className="safe-bottom w-full max-w-xl max-h-[85vh] overflow-y-auto border border-pyxis-border bg-pyxis-panel p-5 sm:p-7"
             role="dialog"
@@ -157,7 +156,7 @@ export function OutputPicker({ compact = false }: { compact?: boolean }) {
             </div>
 
             <div className="space-y-2">
-              {profile.localOutputAllowed ? (
+              {mode === "player" ? (
                 <button
                   type="button"
                   onClick={chooseBrowser}
@@ -176,13 +175,17 @@ export function OutputPicker({ compact = false }: { compact?: boolean }) {
                       local audio on this device
                     </span>
                   </span>
-                  {output?.type === "browser" && output.clientId === clientId ? (
-                    <span className="zune-label text-pyxis-primary">active</span>
+                  {output?.type === "browser" &&
+                  output.clientId === clientId ? (
+                    <span className="zune-label text-pyxis-primary">
+                      active
+                    </span>
                   ) : null}
                 </button>
               ) : (
                 <div className="border border-pyxis-border px-4 py-3 text-sm text-pyxis-muted">
-                  This wall display is Sonos-only. Local audio is disabled.
+                  Console mode controls network outputs. Local audio is
+                  disabled.
                 </div>
               )}
 
@@ -190,7 +193,9 @@ export function OutputPicker({ compact = false }: { compact?: boolean }) {
                 const active =
                   output?.type === "sonos" &&
                   output.coordinatorUuid === group.coordinatorUuid;
-                const roomNames = group.rooms.map((room) => room.name).join(" · ");
+                const roomNames = group.rooms
+                  .map((room) => room.name)
+                  .join(" · ");
                 return (
                   <button
                     key={group.id}
@@ -234,14 +239,14 @@ export function OutputPicker({ compact = false }: { compact?: boolean }) {
               })}
             </div>
 
-            {!topology || !topology.enabled || !topology.available ? (
+            {!topology?.enabled || !topology.available ? (
               <div className="mt-5 border border-pyxis-border p-4">
                 <p className="text-sm text-pyxis-muted">
                   {!topology
-                    ? "Sonos topology is loading or unavailable."
+                    ? "Network output discovery is loading or unavailable."
                     : !topology.enabled
-                      ? "Sonos output is not enabled on the server."
-                      : "No Sonos rooms are reachable."}
+                      ? "Network output is not enabled on the server."
+                      : "No network rooms are reachable."}
                 </p>
                 <button
                   type="button"
@@ -249,7 +254,9 @@ export function OutputPicker({ compact = false }: { compact?: boolean }) {
                   disabled={busy || topology?.enabled === false}
                   className="mt-3 min-h-12 px-4 inline-flex items-center gap-2 border border-pyxis-border hover:border-pyxis-border-active disabled:opacity-40"
                 >
-                  <RefreshCw className={cn("w-4 h-4", busy && "animate-spin")} />
+                  <RefreshCw
+                    className={cn("w-4 h-4", busy && "animate-spin")}
+                  />
                   retry discovery
                 </button>
               </div>
@@ -261,17 +268,17 @@ export function OutputPicker({ compact = false }: { compact?: boolean }) {
   );
 }
 
-export function SonosRequiredNotice() {
-  const profile = useMemo(() => getWebClientProfile(), []);
+export function NetworkOutputRequiredNotice() {
+  const mode = useMemo(() => getWebClientMode(), []);
   const output = useOutputState();
-  if (!profile.sonosRequired || output?.type === "sonos") return null;
+  if (mode !== "console" || output?.type === "sonos") return null;
 
   return (
     <div className="mx-4 mt-3 border border-pyxis-primary/60 bg-pyxis-highlight px-4 py-3 sm:mx-8 flex flex-col sm:flex-row sm:items-center gap-3">
       <div className="flex-1">
-        <p className="zune-label text-pyxis-primary">choose a Sonos output</p>
+        <p className="zune-label text-pyxis-primary">choose a network output</p>
         <p className="text-sm text-pyxis-muted mt-1">
-          This display never falls back to its local speakers.
+          Console mode never falls back to local playback.
         </p>
       </div>
       <div className="min-w-52">

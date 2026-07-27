@@ -5,7 +5,18 @@
  */
 
 import { mountPyxis } from "./mountPyxis";
+import {
+  initializeWebClientAuthorization,
+  migrateLegacyClientProfile,
+} from "./shared/client/clientIdentity";
 import "./index.css";
+
+migrateLegacyClientProfile(
+  new URL(window.location.href),
+  window.sessionStorage,
+  (url) => window.history.replaceState(window.history.state, "", url),
+);
+await initializeWebClientAuthorization();
 
 const rootElement = document.getElementById("root");
 if (!rootElement) throw new Error("Root element not found");

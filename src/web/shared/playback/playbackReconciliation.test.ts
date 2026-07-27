@@ -139,7 +139,7 @@ describe("reconcilePlaybackState", () => {
     expect(result.nextLastStreamUrl).toBeNull();
   });
 
-  it("does not load audio for a Sonos-only client, even from an empty element", () => {
+  it("does not load audio for a Console client, even from an empty element", () => {
     const result = reconcilePlaybackState({
       serverState: serverState(),
       source: "play-response",

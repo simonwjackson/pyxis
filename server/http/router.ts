@@ -1,4 +1,5 @@
 import { createAndroidMediaBridgeRoute } from "./routes/androidMediaBridgeRoute.js";
+import { createClientModeRoute } from "./routes/clientModeRoute.js";
 import { createHealthRoute } from "./routes/healthRoute.js";
 import { createRpcRoute } from "./routes/rpcRoute.js";
 import { createStaleTrpcRoute } from "./routes/staleTrpcRoute.js";
@@ -15,6 +16,7 @@ function createServerRouteAdapters(
 ): readonly ServerRouteAdapter[] {
   return [
     createHealthRoute(),
+    createClientModeRoute(),
     createAndroidMediaBridgeRoute(config.androidMediaBridge),
     createStreamRoute(config.stream),
     createRpcRoute(config.rpc),
@@ -37,6 +39,7 @@ export function createServerFetchHandler(
       req,
       url: new URL(req.url),
       cors: config.cors,
+      clientMode: config.clientMode,
     };
 
     for (const route of routes) {

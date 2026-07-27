@@ -1,37 +1,23 @@
+import type {
+  ApiClientMode,
+  ApiClientModeAuthorization,
+} from "../../../api/contracts/clientMode.js";
+
 export const CLIENT_ID_STORAGE_KEY = "pyxis.client-id.v1";
-export const CLIENT_PROFILE_STORAGE_KEY = "pyxis.client-profile.v1";
-export const CLIENT_PROFILE_QUERY_PARAM = "clientProfile";
-
-export type ClientProfileName = "standard" | "wall-sonos";
-
-export type ClientProfile = {
-  readonly name: ClientProfileName;
-  readonly localOutputAllowed: boolean;
-  readonly sonosRequired: boolean;
-};
+export const LEGACY_CLIENT_PROFILE_STORAGE_KEY = "pyxis.client-profile.v1";
+export const LEGACY_CLIENT_PROFILE_QUERY_PARAM = "clientProfile";
 
 type StorageLike = Pick<Storage, "getItem" | "setItem" | "removeItem">;
 
 const CLIENT_ID_PATTERN = /^[A-Za-z0-9_-]{8,128}$/;
 
-const CLIENT_PROFILES: Readonly<Record<ClientProfileName, ClientProfile>> = {
-  standard: {
-    name: "standard",
-    localOutputAllowed: true,
-    sonosRequired: false,
-  },
-  "wall-sonos": {
-    name: "wall-sonos",
-    localOutputAllowed: false,
-    sonosRequired: true,
-  },
-};
-
-function parseClientProfileName(
-  value: string | null,
-): ClientProfileName | null {
-  return value === "standard" || value === "wall-sonos" ? value : null;
+declare global {
+  interface Window {
+    __PYXIS_CLIENT_MODE__?: ApiClientMode;
+  }
 }
+
+export type ClientMode = ApiClientMode;
 
 export function getOrCreateClientId(
   storage: Pick<StorageLike, "getItem" | "setItem">,
@@ -53,45 +39,28 @@ export function getOrCreateClientId(
   return generated;
 }
 
-export function resolveClientProfile(
-  search: string,
-  storage: StorageLike,
-): ClientProfile {
-  const params = new URLSearchParams(search);
-  const requestedValue = params.get(CLIENT_PROFILE_QUERY_PARAM);
-
-  if (requestedValue !== null) {
-    const requestedProfile = parseClientProfileName(requestedValue);
-    if (requestedProfile !== null) {
-      try {
-        storage.setItem(CLIENT_PROFILE_STORAGE_KEY, requestedProfile);
-      } catch {
-        // The explicit URL profile still applies when session storage is blocked.
-      }
-      return CLIENT_PROFILES[requestedProfile];
-    }
-
-    try {
-      storage.removeItem(CLIENT_PROFILE_STORAGE_KEY);
-    } catch {
-      // Unknown profiles always resolve to the standard closed set.
-    }
-    return CLIENT_PROFILES.standard;
-  }
-
+export function migrateLegacyClientProfile(
+  currentUrl: URL,
+  storage: Pick<StorageLike, "removeItem">,
+  replaceUrl: (url: string) => void,
+): void {
   try {
-    const storedProfile = parseClientProfileName(
-      storage.getItem(CLIENT_PROFILE_STORAGE_KEY),
-    );
-    return storedProfile === null
-      ? CLIENT_PROFILES.standard
-      : CLIENT_PROFILES[storedProfile];
+    storage.removeItem(LEGACY_CLIENT_PROFILE_STORAGE_KEY);
   } catch {
-    return CLIENT_PROFILES.standard;
+    // Migration remains best-effort when session storage is unavailable.
   }
+  if (!currentUrl.searchParams.has(LEGACY_CLIENT_PROFILE_QUERY_PARAM)) return;
+  currentUrl.searchParams.delete(LEGACY_CLIENT_PROFILE_QUERY_PARAM);
+  replaceUrl(`${currentUrl.pathname}${currentUrl.search}${currentUrl.hash}`);
+}
+
+export function resolveBootstrappedClientMode(value: unknown): ClientMode {
+  return value === "console" ? "console" : "player";
 }
 
 let pageClientId: string | undefined;
+let pageAuthorization: ApiClientModeAuthorization | undefined;
+let authorizationPromise: Promise<ApiClientModeAuthorization> | undefined;
 
 export function getWebClientId(): string {
   pageClientId ??= getOrCreateClientId(window.localStorage, () =>
@@ -100,6 +69,48 @@ export function getWebClientId(): string {
   return pageClientId;
 }
 
-export function getWebClientProfile(): ClientProfile {
-  return resolveClientProfile(window.location.search, window.sessionStorage);
+export function getWebClientMode(): ClientMode {
+  return resolveBootstrappedClientMode(window.__PYXIS_CLIENT_MODE__);
+}
+
+export async function initializeWebClientAuthorization(
+  fetchImpl: typeof fetch = fetch,
+): Promise<ApiClientModeAuthorization> {
+  if (pageAuthorization) return pageAuthorization;
+  authorizationPromise ??= (async () => {
+    const clientId = getWebClientId();
+    const response = await fetchImpl(
+      `/client-mode/authorize?clientId=${encodeURIComponent(clientId)}`,
+      { credentials: "same-origin", cache: "no-store" },
+    );
+    if (!response.ok) {
+      throw new Error(`Client mode authorization failed (${response.status})`);
+    }
+    const value =
+      (await response.json()) as Partial<ApiClientModeAuthorization>;
+    if (
+      (value.mode !== "player" && value.mode !== "console") ||
+      typeof value.authorization !== "string" ||
+      value.authorization.length < 20
+    ) {
+      throw new Error("Client mode authorization response is invalid");
+    }
+    const bootstrappedMode = getWebClientMode();
+    if (value.mode !== bootstrappedMode) {
+      throw new Error("Client mode authorization does not match document mode");
+    }
+    pageAuthorization = {
+      mode: value.mode,
+      authorization: value.authorization,
+    };
+    return pageAuthorization;
+  })();
+  return authorizationPromise;
+}
+
+export function getWebClientAuthorization(): string {
+  if (!pageAuthorization) {
+    throw new Error("Client mode authorization was not initialized");
+  }
+  return pageAuthorization.authorization;
 }

@@ -31,6 +31,7 @@ import { resolveTrackForStream } from "./lib/ids.js";
 import { handleRpcRequest } from "./rpc/http.js";
 import { setConfiguredAlbumRelationshipPolicy } from "./services/albumRelationshipPolicy.js";
 import { tryAutoLogin } from "./services/autoLogin.js";
+import { createPersistentClientModeAuthority } from "./services/clientMode.js";
 import { setCredentialsConfig } from "./services/credentials.js";
 import { ensureSourceManager, setAppConfig } from "./services/sourceManager.js";
 import { handleStreamRequest, prefetchToCache } from "./services/stream.js";
@@ -48,6 +49,7 @@ const serverLogger = createLogger("server");
 const streamLog = serverLogger.child({ component: "stream" });
 const rpcLog = serverLogger.child({ component: "rpc" });
 const androidMediaBridge = createAndroidMediaBridge(config.androidBridge);
+const clientMode = createPersistentClientModeAuthority();
 
 // Static file serving is enabled when a production build exists and Vite dev mode
 // is not explicitly requested.
@@ -98,6 +100,7 @@ const fetch = createServerFetchHandler({
     headers: CORS_HEADERS,
   },
   androidMediaBridge,
+  clientMode,
   stream: {
     log: streamLog,
     resolveTrackForStream,

@@ -4,10 +4,11 @@ import type {
   ApiSelectSonosOutputInput,
 } from "@shared/api/contracts/output.js";
 import { Context, Effect, Layer } from "effect";
+import { createPersistentClientModeAuthority } from "../../services/clientMode.js";
 import {
   loadPlaybackOutputSelection,
-  savePlaybackOutputSelection,
   type PlaybackOutputSelection,
+  savePlaybackOutputSelection,
 } from "../../services/outputPersistence.js";
 import { PersistenceError, ValidationError } from "../errors.js";
 import { Sonos, type SonosShape } from "./sonos.js";
@@ -18,14 +19,20 @@ export type OutputShape = {
   readonly getState: Effect.Effect<ApiPlaybackOutputState>;
   readonly selectBrowser: (
     input: ApiSelectBrowserOutputInput,
-  ) => Effect.Effect<ApiPlaybackOutputState, PersistenceError>;
+  ) => Effect.Effect<
+    ApiPlaybackOutputState,
+    PersistenceError | ValidationError
+  >;
   readonly selectSonos: (
     input: ApiSelectSonosOutputInput,
   ) => Effect.Effect<
     ApiPlaybackOutputState,
     PersistenceError | ValidationError
   >;
-  readonly acceptsBrowserReport: (clientId: string) => Effect.Effect<boolean>;
+  readonly acceptsBrowserReport: (
+    clientId: string,
+    authorization: string,
+  ) => Effect.Effect<boolean>;
   readonly subscribe: (
     listener: PlaybackOutputListener,
   ) => Effect.Effect<() => void>;
@@ -39,6 +46,10 @@ export type OutputServiceDeps = {
   readonly initialSelection?: PlaybackOutputSelection;
   readonly now?: () => number;
   readonly save?: (selection: PlaybackOutputSelection) => void;
+  readonly verifyPlayerAuthorization?: (
+    authorization: string,
+    clientId: string,
+  ) => boolean;
 };
 
 export function makeOutputShape(
@@ -49,6 +60,8 @@ export function makeOutputShape(
     deps.initialSelection ?? ({ type: "none", updatedAt: 0 } as const);
   const now = deps.now ?? Date.now;
   const save = deps.save ?? savePlaybackOutputSelection;
+  const verifyPlayerAuthorization =
+    deps.verifyPlayerAuthorization ?? (() => false);
   const listeners = new Set<PlaybackOutputListener>();
 
   const resolveState = (): Effect.Effect<ApiPlaybackOutputState> => {
@@ -93,7 +106,8 @@ export function makeOutputShape(
   ): Effect.Effect<void, PersistenceError> =>
     Effect.try({
       try: () => save(next),
-      catch: () => new PersistenceError({ code: "output_selection_save_failed" }),
+      catch: () =>
+        new PersistenceError({ code: "output_selection_save_failed" }),
     });
 
   const commit = (
@@ -112,7 +126,18 @@ export function makeOutputShape(
   return {
     getState: Effect.suspend(resolveState),
     selectBrowser: (input) =>
-      commit({ type: "browser", clientId: input.clientId, updatedAt: now() }),
+      verifyPlayerAuthorization(input.authorization, input.clientId)
+        ? commit({
+            type: "browser",
+            clientId: input.clientId,
+            updatedAt: now(),
+          })
+        : Effect.fail(
+            new ValidationError({
+              code: "client_mode_forbids_local_output",
+              field: "authorization",
+            }),
+          ),
     selectSonos: (input) =>
       Effect.gen(function* () {
         const topology = yield* sonos.getTopology.pipe(
@@ -141,9 +166,12 @@ export function makeOutputShape(
           updatedAt: now(),
         });
       }),
-    acceptsBrowserReport: (clientId) =>
+    acceptsBrowserReport: (clientId, authorization) =>
       Effect.sync(
-        () => selection.type === "browser" && selection.clientId === clientId,
+        () =>
+          verifyPlayerAuthorization(authorization, clientId) &&
+          selection.type === "browser" &&
+          selection.clientId === clientId,
       ),
     subscribe: (listener) =>
       Effect.sync(() => {
@@ -167,6 +195,10 @@ export const OutputLayerLive: Layer.Layer<Output, never, Sonos> = Layer.effect(
     const initialSelection = yield* Effect.sync(() =>
       loadPlaybackOutputSelection(),
     );
-    return makeOutputShape(sonos, { initialSelection });
+    const clientMode = createPersistentClientModeAuthority();
+    return makeOutputShape(sonos, {
+      initialSelection,
+      verifyPlayerAuthorization: clientMode.verifyPlayerAuthorization,
+    });
   }),
 );

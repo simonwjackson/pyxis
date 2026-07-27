@@ -8,7 +8,11 @@ import { useAtomSet, useAtomValue } from "@effect/atom-react";
 import { AsyncResult } from "effect/unstable/reactivity";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ApiPlayerState } from "../../../api/contracts/player.js";
-import { getWebClientId, getWebClientProfile } from "../client/clientIdentity";
+import {
+  getWebClientAuthorization,
+  getWebClientId,
+  getWebClientMode,
+} from "../client/clientIdentity";
 import { resolveBrowserOutputAuthority } from "../output/browserOutputAuthority";
 import { outputStateStreamAtom } from "../output/outputAtoms";
 import {
@@ -103,13 +107,14 @@ function getCurrentStationToken(context: PlaybackQueueContext): string | null {
 export function usePlayback(): PlaybackContextValue {
   const audioRef = useRef<BrowserAudioAdapter | null>(null);
   const clientId = useRef(getWebClientId()).current;
-  const clientProfile = useRef(getWebClientProfile()).current;
+  const clientMode = useRef(getWebClientMode()).current;
+  const clientAuthorization = useRef(getWebClientAuthorization()).current;
   const outputStateResult = useAtomValue(outputStateStreamAtom);
   const outputState = AsyncResult.isSuccess(outputStateResult)
     ? outputStateResult.value
     : null;
   const { ownsLocalPlayback } = resolveBrowserOutputAuthority(
-    clientProfile,
+    clientMode,
     outputState,
     clientId,
   );
@@ -183,13 +188,17 @@ export function usePlayback(): PlaybackContextValue {
       if (!ownsLocalPlaybackRef.current) return;
       const duration = audio.getDuration();
       setState((prev) => ({ ...prev, duration }));
-      void reportDuration({ payload: { clientId, duration } });
+      void reportDuration({
+        payload: { clientId, authorization: clientAuthorization, duration },
+      });
     };
     const onEnded = () => {
       if (!ownsLocalPlaybackRef.current) return;
       logToServer("[audio] track ended, calling trackEnded mutation");
       setState((prev) => ({ ...prev, isPlaying: false }));
-      void trackEnded({ payload: { clientId } }).then((exit) => {
+      void trackEnded({
+        payload: { clientId, authorization: clientAuthorization },
+      }).then((exit) => {
         if (exit._tag === "Success") {
           handleServerStateRef.current(exit.value, "trackEnded-response");
         }
@@ -210,7 +219,9 @@ export function usePlayback(): PlaybackContextValue {
       logToServer(
         `[audio] error code=${mediaError?.code ?? "unknown"} message=${message} src=${src}`,
       );
-      void reportAudioError({ payload: { clientId, message } });
+      void reportAudioError({
+        payload: { clientId, authorization: clientAuthorization, message },
+      });
       setState((prev) => ({
         ...prev,
         isPlaying: false,
@@ -230,7 +241,14 @@ export function usePlayback(): PlaybackContextValue {
       audio.removeEventListener("error", onError);
       audio.pause();
     };
-  }, [clientId, logToServer, reportAudioError, reportDuration, trackEnded]);
+  }, [
+    clientId,
+    clientAuthorization,
+    logToServer,
+    reportAudioError,
+    reportDuration,
+    trackEnded,
+  ]);
 
   /** Safely call audio.play() with standard error handling */
   const safePlay = useCallback(
@@ -247,7 +265,9 @@ export function usePlayback(): PlaybackContextValue {
         }
         const message = err instanceof Error ? err.message : "Playback failed";
         logToServer(`[audio] play() rejected (${context}): ${message}`);
-        void reportAudioError({ payload: { clientId, message } });
+        void reportAudioError({
+          payload: { clientId, authorization: clientAuthorization, message },
+        });
         setState((prev) => ({
           ...prev,
           isPlaying: false,
@@ -255,7 +275,7 @@ export function usePlayback(): PlaybackContextValue {
         }));
       });
     },
-    [clientId, logToServer, reportAudioError],
+    [clientId, clientAuthorization, logToServer, reportAudioError],
   );
 
   const executeAudioAction = useCallback(
@@ -361,12 +381,22 @@ export function usePlayback(): PlaybackContextValue {
       const snapshot = audio.snapshot();
       if (!snapshot.paused) {
         void reportProgress({
-          payload: { clientId, progress: snapshot.currentTime },
+          payload: {
+            clientId,
+            authorization: clientAuthorization,
+            progress: snapshot.currentTime,
+          },
         });
       }
     }, 5000);
     return () => clearInterval(interval);
-  }, [clientId, state.isPlaying, ownsLocalPlayback, reportProgress]);
+  }, [
+    clientId,
+    clientAuthorization,
+    state.isPlaying,
+    ownsLocalPlayback,
+    reportProgress,
+  ]);
 
   // --- Server mutation wrappers ---
   const pause = useAtomSet(playerPauseMutationAtom, { mode: "promiseExit" });

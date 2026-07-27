@@ -1,4 +1,5 @@
 import { Schema } from "effect";
+import { ClientAuthorizationSchema } from "./clientMode.js";
 import {
   CommandIdSchema,
   CompositeTrackIdSchema,
@@ -109,6 +110,7 @@ const ReportingClientIdSchema = Schema.String.check(
 
 export const ReportProgressInputSchema = Schema.Struct({
   clientId: ReportingClientIdSchema,
+  authorization: ClientAuthorizationSchema,
   progress: ProgressSchema,
   appliesToTrackId: Schema.optionalKey(CompositeTrackIdSchema),
   commandId: Schema.optionalKey(CommandIdSchema),
@@ -119,6 +121,7 @@ export type ApiReportProgressInput = Schema.Schema.Type<
 
 export const ReportDurationInputSchema = Schema.Struct({
   clientId: ReportingClientIdSchema,
+  authorization: ClientAuthorizationSchema,
   duration: DurationSchema,
   appliesToTrackId: Schema.optionalKey(CompositeTrackIdSchema),
   commandId: Schema.optionalKey(CommandIdSchema),
@@ -129,6 +132,7 @@ export type ApiReportDurationInput = Schema.Schema.Type<
 
 export const ReportAudioErrorInputSchema = Schema.Struct({
   clientId: ReportingClientIdSchema,
+  authorization: ClientAuthorizationSchema,
   message: Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(500)),
   appliesToTrackId: Schema.optionalKey(CompositeTrackIdSchema),
 });
@@ -138,6 +142,7 @@ export type ApiReportAudioErrorInput = Schema.Schema.Type<
 
 export const TrackEndedInputSchema = Schema.Struct({
   clientId: ReportingClientIdSchema,
+  authorization: ClientAuthorizationSchema,
   appliesToTrackId: Schema.optionalKey(CompositeTrackIdSchema),
   commandId: Schema.optionalKey(CommandIdSchema),
 });
