@@ -30,6 +30,7 @@ import {
   QueueLayerLive,
   type QueueShape,
 } from "../services/queue.js";
+import type { OutputShape } from "../services/output.js";
 import {
   type PlayerHandlerDeps,
   playerHandlers,
@@ -50,10 +51,22 @@ function track(id: string, duration: number | null = 180): QueueTrack {
 
 const PlayerHandlerLayer = Layer.mergeAll(PlayerLayerLive, QueueLayerLive);
 
+const selectedBrowserOutput: OutputShape = {
+  getState: Effect.succeed({
+    type: "browser",
+    clientId: "test-client",
+    updatedAt: 1,
+  }),
+  selectBrowser: () => Effect.die("not used"),
+  selectSonos: () => Effect.die("not used"),
+  acceptsBrowserReport: (clientId) => Effect.succeed(clientId === "test-client"),
+  subscribe: () => Effect.succeed(() => undefined),
+};
+
 const resolveDeps = Effect.gen(function* () {
   const player = yield* PlayerCtx;
   const queue = yield* QueueCtx;
-  return { player, queue } satisfies PlayerHandlerDeps;
+  return { player, queue, output: selectedBrowserOutput } satisfies PlayerHandlerDeps;
 });
 
 async function withHandlers<A>(
@@ -214,11 +227,30 @@ describe("player.seek and player.volume.set", () => {
 });
 
 describe("player.progress.report (stale guard)", () => {
+  it("drops reports from a browser that does not own the shared output", async () => {
+    PlayerSingleton.play([track("ytmusic:a")], { type: "manual" });
+    PlayerSingleton.pause();
+    await withHandlers(async (handlers) =>
+      Effect.runPromise(
+        handlers["player.progress.report"]({
+          clientId: "other-client",
+          progress: 45,
+        }),
+      ),
+    );
+    expect(PlayerSingleton.getState().progress).toBe(0);
+  });
+
   it("applies progress when no appliesToTrackId is supplied", async () => {
     PlayerSingleton.play([track("ytmusic:a")], { type: "manual" });
     PlayerSingleton.pause();
     await withHandlers(async (handlers) =>
-      Effect.runPromise(handlers["player.progress.report"]({ progress: 45 })),
+      Effect.runPromise(
+        handlers["player.progress.report"]({
+          clientId: "test-client",
+          progress: 45,
+        }),
+      ),
     );
     expect(PlayerSingleton.getState().progress).toBe(45);
   });
@@ -238,6 +270,7 @@ describe("player.progress.report (stale guard)", () => {
       const result = await withHandlers(async (handlers) =>
         Effect.runPromise(
           handlers["player.progress.report"]({
+            clientId: "test-client",
             progress: 90,
             appliesToTrackId: "ytmusic:a",
           }),
@@ -273,6 +306,7 @@ describe("player.duration.report (stale guard)", () => {
       const result = await withHandlers(async (handlers) =>
         Effect.runPromise(
           handlers["player.duration.report"]({
+            clientId: "test-client",
             duration: 999,
             appliesToTrackId: "ytmusic:a",
           }),
@@ -302,6 +336,7 @@ describe("player.audioError.report (stale guard)", () => {
       const result = await withHandlers(async (handlers) =>
         Effect.runPromise(
           handlers["player.audioError.report"]({
+            clientId: "test-client",
             message: "stale error",
             appliesToTrackId: "ytmusic:a",
           }),
@@ -328,6 +363,7 @@ describe("player.trackEnded (stale guard)", () => {
     const result = await withHandlers(async (handlers) =>
       Effect.runPromise(
         handlers["player.transport.trackEnded"]({
+          clientId: "test-client",
           appliesToTrackId: "ytmusic:a",
         }),
       ),
@@ -341,7 +377,9 @@ describe("player.trackEnded (stale guard)", () => {
       type: "manual",
     });
     const result = await withHandlers(async (handlers) =>
-      Effect.runPromise(handlers["player.transport.trackEnded"]({})),
+      Effect.runPromise(
+        handlers["player.transport.trackEnded"]({ clientId: "test-client" }),
+      ),
     );
     expect(result.currentTrack?.id).toBe("ytmusic:b");
   });

@@ -25,6 +25,7 @@ import { authHandlers } from "./handlers/auth.js";
 import { libraryHandlers } from "./handlers/library.js";
 import { listenLogHandlers } from "./handlers/listenLog.js";
 import { logHandlers } from "./handlers/log.js";
+import { outputHandlers } from "./handlers/output.js";
 import { playerHandlers } from "./handlers/player.js";
 import { playlistHandlers } from "./handlers/playlist.js";
 import { queueHandlers } from "./handlers/queue.js";
@@ -34,6 +35,7 @@ import { sonosHandlers } from "./handlers/sonos.js";
 import { trackHandlers } from "./handlers/track.js";
 import { AuthSession, AuthSessionLayerLive } from "./services/authSession.js";
 import { Library, LibraryLayerLive } from "./services/library.js";
+import { Output, OutputLayerLive } from "./services/output.js";
 import { Player, PlayerLayerLive } from "./services/player.js";
 import { Queue, QueueLayerLive } from "./services/queue.js";
 import { Radio, RadioLayerLive } from "./services/radio.js";
@@ -75,6 +77,10 @@ export const REALTIME_RPC_TAGS = [
   "queue.cursor.jump",
   "queue.tracks.shuffle",
   "queue.state.stream",
+  "output.state.get",
+  "output.state.stream",
+  "output.browser.select",
+  "output.sonos.select",
   "sonos.topology.get",
   "sonos.discovery.refresh",
   "sonos.group.update",
@@ -184,6 +190,7 @@ export const PyxisRpcHandlersLayer = PyxisRpc.toLayer(
     const radio = yield* Radio;
     const player = yield* Player;
     const queue = yield* Queue;
+    const output = yield* Output;
     const sonos = yield* Sonos;
     const handlers = {
       ...authHandlers({ auth }),
@@ -196,8 +203,9 @@ export const PyxisRpcHandlersLayer = PyxisRpc.toLayer(
       ...trackHandlers({ auth, catalog }),
       ...listenLogHandlers(),
       ...logHandlers(),
-      ...playerHandlers({ player, queue }),
+      ...playerHandlers({ player, queue, output }),
       ...queueHandlers({ queue }),
+      ...outputHandlers({ output }),
       ...sonosHandlers({ sonos }),
     };
     return handlers as never;
@@ -216,5 +224,6 @@ export const PyxisRpcLayerLive = PyxisRpcHandlersLayer.pipe(
   Layer.provide(AuthSessionLayerLive),
   Layer.provide(PlayerLayerLive),
   Layer.provide(QueueLayerLive),
+  Layer.provide(OutputLayerLive),
   Layer.provide(SonosLayerLive),
 );

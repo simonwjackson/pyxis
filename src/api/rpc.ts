@@ -62,6 +62,11 @@ import {
 } from "./contracts/listenLog.js";
 import { ClientLogInputSchema } from "./contracts/log.js";
 import {
+  PlaybackOutputStateSchema,
+  SelectBrowserOutputInputSchema,
+  SelectSonosOutputInputSchema,
+} from "./contracts/output.js";
+import {
   JumpToIndexInputSchema,
   PlayerStateSchema,
   PlayInputSchema,
@@ -467,6 +472,28 @@ const queueStateStream = Rpc.make("queue.state.stream", {
   stream: true,
 });
 
+// --- Playback output -----------------------------------------------------
+
+const outputStateGet = Rpc.make("output.state.get", {
+  success: PlaybackOutputStateSchema,
+  error: PublicErrorSchema,
+});
+const outputStateStream = Rpc.make("output.state.stream", {
+  success: PlaybackOutputStateSchema,
+  error: PublicErrorSchema,
+  stream: true,
+});
+const outputBrowserSelect = Rpc.make("output.browser.select", {
+  payload: SelectBrowserOutputInputSchema,
+  success: PlaybackOutputStateSchema,
+  error: PublicErrorSchema,
+});
+const outputSonosSelect = Rpc.make("output.sonos.select", {
+  payload: SelectSonosOutputInputSchema,
+  success: PlaybackOutputStateSchema,
+  error: PublicErrorSchema,
+});
+
 // --- Sonos ---------------------------------------------------------------
 
 const sonosTopologyGet = Rpc.make("sonos.topology.get", {
@@ -573,6 +600,10 @@ export const PyxisRpc = RpcGroup.make(
   queueJump,
   queueShuffle,
   queueStateStream,
+  outputStateGet,
+  outputStateStream,
+  outputBrowserSelect,
+  outputSonosSelect,
   sonosTopologyGet,
   sonosDiscoveryRefresh,
   sonosGroupUpdate,

@@ -8,6 +8,7 @@ import { useAtomSet, useAtomValue } from "@effect/atom-react";
 import { AsyncResult } from "effect/unstable/reactivity";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ApiPlayerState } from "../../../api/contracts/player.js";
+import { getWebClientId } from "../client/clientIdentity";
 import {
   BrowserAudio,
   type BrowserAudio as BrowserAudioAdapter,
@@ -99,6 +100,7 @@ function getCurrentStationToken(context: PlaybackQueueContext): string | null {
 
 export function usePlayback(): PlaybackContextValue {
   const audioRef = useRef<BrowserAudioAdapter | null>(null);
+  const clientId = useRef(getWebClientId()).current;
   const [state, setState] = useState<InternalPlaybackState>({
     currentTrack: null,
     currentStationToken: null,
@@ -165,12 +167,12 @@ export function usePlayback(): PlaybackContextValue {
     const onDurationChange = () => {
       const duration = audio.getDuration();
       setState((prev) => ({ ...prev, duration }));
-      void reportDuration({ payload: { duration } });
+      void reportDuration({ payload: { clientId, duration } });
     };
     const onEnded = () => {
       logToServer("[audio] track ended, calling trackEnded mutation");
       setState((prev) => ({ ...prev, isPlaying: false }));
-      void trackEnded({ payload: {} }).then((exit) => {
+      void trackEnded({ payload: { clientId } }).then((exit) => {
         if (exit._tag === "Success") {
           handleServerStateRef.current(exit.value, "trackEnded-response");
         }
@@ -190,7 +192,7 @@ export function usePlayback(): PlaybackContextValue {
       logToServer(
         `[audio] error code=${mediaError?.code ?? "unknown"} message=${message} src=${src}`,
       );
-      void reportAudioError({ payload: { message } });
+      void reportAudioError({ payload: { clientId, message } });
       setState((prev) => ({
         ...prev,
         isPlaying: false,
@@ -227,7 +229,7 @@ export function usePlayback(): PlaybackContextValue {
         }
         const message = err instanceof Error ? err.message : "Playback failed";
         logToServer(`[audio] play() rejected (${context}): ${message}`);
-        void reportAudioError({ payload: { message } });
+        void reportAudioError({ payload: { clientId, message } });
         setState((prev) => ({
           ...prev,
           isPlaying: false,
@@ -336,7 +338,9 @@ export function usePlayback(): PlaybackContextValue {
       if (!audio) return;
       const snapshot = audio.snapshot();
       if (!snapshot.paused) {
-        void reportProgress({ payload: { progress: snapshot.currentTime } });
+        void reportProgress({
+          payload: { clientId, progress: snapshot.currentTime },
+        });
       }
     }, 5000);
     return () => clearInterval(interval);

@@ -164,25 +164,37 @@ describe("player API contracts", () => {
     ).toThrow();
   });
 
+  it("requires browser ownership identity on reports", () => {
+    expect(() =>
+      Schema.decodeUnknownSync(ReportProgressInputSchema)({ progress: 12 }),
+    ).toThrow();
+  });
+
   it("supports optional command identity on reports", () => {
     expect(
       Schema.decodeUnknownSync(ReportProgressInputSchema)({
+        clientId: "client_test",
         progress: 12,
         appliesToTrackId: "ytmusic:track_1",
         commandId: "cmd_abc",
       }),
     ).toMatchObject({ appliesToTrackId: "ytmusic:track_1" });
     expect(
-      Schema.decodeUnknownSync(ReportDurationInputSchema)({ duration: 180 }),
+      Schema.decodeUnknownSync(ReportDurationInputSchema)({
+        clientId: "client_test",
+        duration: 180,
+      }),
     ).toMatchObject({ duration: 180 });
 
     expect(() =>
       Schema.decodeUnknownSync(ReportProgressInputSchema)({
+        clientId: "client_test",
         progress: Number.NaN,
       }),
     ).toThrow();
     expect(() =>
       Schema.decodeUnknownSync(ReportProgressInputSchema)({
+        clientId: "client_test",
         progress: 12,
         appliesToTrackId: "evil:bad",
       }),
@@ -192,14 +204,19 @@ describe("player API contracts", () => {
   it("bounds audio-error report messages", () => {
     expect(
       Schema.decodeUnknownSync(ReportAudioErrorInputSchema)({
+        clientId: "client_test",
         message: "failed to decode",
       }),
     ).toMatchObject({ message: "failed to decode" });
     expect(() =>
-      Schema.decodeUnknownSync(ReportAudioErrorInputSchema)({ message: "" }),
+      Schema.decodeUnknownSync(ReportAudioErrorInputSchema)({
+        clientId: "client_test",
+        message: "",
+      }),
     ).toThrow();
     expect(() =>
       Schema.decodeUnknownSync(ReportAudioErrorInputSchema)({
+        clientId: "client_test",
         message: "x".repeat(501),
       }),
     ).toThrow();

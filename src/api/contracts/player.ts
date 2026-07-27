@@ -102,7 +102,13 @@ export type ApiVolumeInput = Schema.Schema.Type<typeof VolumeInputSchema>;
  * `appliesToTrackId` so the service can drop stale reports from a previous
  * track when the queue advances between client and server.
  */
+const ReportingClientIdSchema = Schema.String.check(
+  Schema.isMinLength(1),
+  Schema.isMaxLength(200),
+);
+
 export const ReportProgressInputSchema = Schema.Struct({
+  clientId: ReportingClientIdSchema,
   progress: ProgressSchema,
   appliesToTrackId: Schema.optionalKey(CompositeTrackIdSchema),
   commandId: Schema.optionalKey(CommandIdSchema),
@@ -112,6 +118,7 @@ export type ApiReportProgressInput = Schema.Schema.Type<
 >;
 
 export const ReportDurationInputSchema = Schema.Struct({
+  clientId: ReportingClientIdSchema,
   duration: DurationSchema,
   appliesToTrackId: Schema.optionalKey(CompositeTrackIdSchema),
   commandId: Schema.optionalKey(CommandIdSchema),
@@ -121,6 +128,7 @@ export type ApiReportDurationInput = Schema.Schema.Type<
 >;
 
 export const ReportAudioErrorInputSchema = Schema.Struct({
+  clientId: ReportingClientIdSchema,
   message: Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(500)),
   appliesToTrackId: Schema.optionalKey(CompositeTrackIdSchema),
 });
@@ -129,6 +137,7 @@ export type ApiReportAudioErrorInput = Schema.Schema.Type<
 >;
 
 export const TrackEndedInputSchema = Schema.Struct({
+  clientId: ReportingClientIdSchema,
   appliesToTrackId: Schema.optionalKey(CompositeTrackIdSchema),
   commandId: Schema.optionalKey(CommandIdSchema),
 });
