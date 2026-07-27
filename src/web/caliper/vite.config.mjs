@@ -1,8 +1,8 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import tailwindcss from "@tailwindcss/vite";
 import { defineCaliperViteConfig } from "@simonwjackson/caliper/vite";
+import tailwindcss from "@tailwindcss/vite";
 
 const caliperDir = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(caliperDir, "../../..");
