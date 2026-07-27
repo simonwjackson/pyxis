@@ -1,4 +1,8 @@
-import type { ApiSonosTopology } from "@shared/api/contracts/sonos.js";
+import type {
+  ApiSonosGroupUpdateInput,
+  ApiSonosRoomInput,
+  ApiSonosTopology,
+} from "@shared/api/contracts/sonos.js";
 import { Effect } from "effect";
 import type { SonosTopology } from "../../sonos/model.js";
 import { publicHandler } from "../handler.js";
@@ -37,4 +41,12 @@ export const sonosHandlers = (deps: SonosHandlerDeps) => ({
     ),
   "sonos.discovery.refresh": () =>
     publicHandler(deps.sonos.refresh.pipe(Effect.map(serializeSonosTopology))),
+  "sonos.group.update": (payload: ApiSonosGroupUpdateInput) =>
+    publicHandler(
+      deps.sonos.updateGroup(payload).pipe(Effect.map(serializeSonosTopology)),
+    ),
+  "sonos.room.ungroup": (payload: ApiSonosRoomInput) =>
+    publicHandler(
+      deps.sonos.ungroupRoom(payload).pipe(Effect.map(serializeSonosTopology)),
+    ),
 });

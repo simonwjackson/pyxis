@@ -77,6 +77,8 @@ export const REALTIME_RPC_TAGS = [
   "queue.state.stream",
   "sonos.topology.get",
   "sonos.discovery.refresh",
+  "sonos.group.update",
+  "sonos.room.ungroup",
 ] as const;
 
 /**

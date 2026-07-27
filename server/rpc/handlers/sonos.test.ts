@@ -30,6 +30,8 @@ describe("Sonos RPC handlers", () => {
           ],
         }),
         refresh: Effect.die("not used"),
+        updateGroup: () => Effect.die("not used"),
+        ungroupRoom: () => Effect.die("not used"),
       },
     });
 
