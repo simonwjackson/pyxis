@@ -11,11 +11,15 @@
  */
 
 import { PyxisRpcClient } from "@app/shared/api/rpcClient";
+import {
+  getWebClientId,
+  getWebClientMode,
+} from "@app/shared/client/clientIdentity";
 import { projectQueryResult } from "@app/shared/effect/projectQueryResult";
 import { authStatusQueryAtom } from "@app/shared/layout/authStatusAtom";
 import { Spinner } from "@app/shared/ui/Spinner";
 import { useAtomSet, useAtomValue } from "@effect/atom-react";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { SettingsState } from "./SettingsState";
 import { SonosSettingsSection } from "./SonosSettingsSection";
@@ -63,6 +67,10 @@ export function SettingsPage() {
     <div className="page-frame lattice-container space-y-10">
       <h2 className="zune-display zune-page-title text-pyxis-text">settings</h2>
 
+      <ClientModeSettingsSection />
+
+      <div className="border-t border-pyxis-border" />
+
       <SonosSettingsSection />
 
       <div className="border-t border-pyxis-border" />
@@ -98,6 +106,71 @@ export function SettingsPage() {
         <SettingsUsageSection usage={state.usage} />
       ) : null}
     </div>
+  );
+}
+
+function ClientModeSettingsSection() {
+  const mode = useMemo(() => getWebClientMode(), []);
+  const clientId = useMemo(() => getWebClientId(), []);
+  const [busy, setBusy] = useState(false);
+  const consoleMode = mode === "console";
+
+  const setConsoleMode = (enabled: boolean) => {
+    if (busy) return;
+    setBusy(true);
+    void fetch("/client-mode", {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        mode: enabled ? "console" : "player",
+        clientId,
+      }),
+    })
+      .then((response) => {
+        if (!response.ok)
+          throw new Error(`Mode update failed (${response.status})`);
+        window.location.reload();
+      })
+      .catch(() => {
+        setBusy(false);
+        toast.error("couldn't update device mode");
+      });
+  };
+
+  return (
+    <section className="space-y-4" aria-labelledby="device-mode-heading">
+      <h3 id="device-mode-heading" className="zune-label text-pyxis-muted">
+        this device
+      </h3>
+      <div className="flex items-center justify-between gap-6 py-2">
+        <div>
+          <p className="zune-meta text-pyxis-text">console mode</p>
+          <p className="mt-1 text-sm text-pyxis-dim">
+            Control shared playback and network outputs without playing audio on
+            this device.
+          </p>
+        </div>
+        <button
+          onClick={() => setConsoleMode(!consoleMode)}
+          disabled={busy}
+          className={`w-12 h-6 shrink-0 rounded-full transition-colors relative disabled:opacity-50 ${
+            consoleMode ? "bg-pyxis-primary" : "bg-pyxis-highlight"
+          }`}
+          type="button"
+          role="switch"
+          aria-checked={consoleMode}
+          aria-label="Console mode"
+        >
+          <span
+            className={`block w-5 h-5 rounded-full bg-white transition-transform absolute top-0.5 ${
+              consoleMode ? "translate-x-6" : "translate-x-0.5"
+            }`}
+            aria-hidden="true"
+          />
+        </button>
+      </div>
+    </section>
   );
 }
 

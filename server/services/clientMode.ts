@@ -1,8 +1,4 @@
-import {
-  createHmac,
-  randomBytes,
-  timingSafeEqual,
-} from "node:crypto";
+import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import {
   existsSync,
   mkdirSync,
@@ -17,7 +13,6 @@ import type {
 } from "@shared/api/contracts/clientMode.js";
 import { DB_DIR } from "@shared/db/config.js";
 
-export const CLIENT_MODE_HEADER = "x-pyxis-client-mode";
 export const CLIENT_MODE_COOKIE = "pyxis_client_mode";
 export const CLIENT_MODE_SECRET_PATH = join(DB_DIR, "client-mode-signing-key");
 
@@ -32,6 +27,10 @@ export type ResolvedClientMode = {
 
 export type ClientModeAuthority = {
   readonly resolveDocumentMode: (request: Request) => ResolvedClientMode;
+  readonly setClientMode: (
+    mode: ApiClientMode,
+    clientId: string,
+  ) => ResolvedClientMode | undefined;
   readonly authorizeClient: (
     request: Request,
     clientId: string,
@@ -124,7 +123,9 @@ export function createClientModeAuthority(
       const decoded = JSON.parse(
         Buffer.from(encoded, "base64url").toString("utf8"),
       ) as Partial<SignedPayload>;
-      const mode = parseMode(typeof decoded.mode === "string" ? decoded.mode : null);
+      const mode = parseMode(
+        typeof decoded.mode === "string" ? decoded.mode : null,
+      );
       if (!mode || typeof decoded.purpose !== "string") return undefined;
       if (
         decoded.clientId !== undefined &&
@@ -144,42 +145,38 @@ export function createClientModeAuthority(
     }
   };
 
-  const modeForRequest = (
-    request: Request,
-    allowEnrollmentHeader: boolean,
-  ): ApiClientMode => {
-    if (
-      allowEnrollmentHeader &&
-      request.headers.get("sec-fetch-dest") === "document"
-    ) {
-      const requested = parseMode(request.headers.get(CLIENT_MODE_HEADER));
-      if (requested) return requested;
-    }
+  const modeForRequest = (request: Request): ApiClientMode => {
     const token = cookieValue(request, CLIENT_MODE_COOKIE);
     if (!token) return "player";
     const payload = verify(token);
     return payload?.purpose === COOKIE_PURPOSE ? payload.mode : "player";
   };
 
+  const resolveMode = (mode: ApiClientMode): ResolvedClientMode => {
+    const credential = sign({ purpose: COOKIE_PURPOSE, mode });
+    return {
+      mode,
+      setCookie: [
+        `${CLIENT_MODE_COOKIE}=${credential}`,
+        "Path=/",
+        "Max-Age=31536000",
+        "HttpOnly",
+        "Secure",
+        "SameSite=Strict",
+      ].join("; "),
+    };
+  };
+
   return {
-    resolveDocumentMode: (request) => {
-      const mode = modeForRequest(request, true);
-      const credential = sign({ purpose: COOKIE_PURPOSE, mode });
-      return {
-        mode,
-        setCookie: [
-          `${CLIENT_MODE_COOKIE}=${credential}`,
-          "Path=/",
-          "Max-Age=31536000",
-          "HttpOnly",
-          "Secure",
-          "SameSite=Strict",
-        ].join("; "),
-      };
+    resolveDocumentMode: (request) => resolveMode(modeForRequest(request)),
+    setClientMode: (mode, clientId) => {
+      if (!CLIENT_ID_PATTERN.test(clientId)) return undefined;
+      authorizedModes.set(clientId, mode);
+      return resolveMode(mode);
     },
     authorizeClient: (request, clientId) => {
       if (!CLIENT_ID_PATTERN.test(clientId)) return undefined;
-      const mode = modeForRequest(request, false);
+      const mode = modeForRequest(request);
       authorizedModes.set(clientId, mode);
       return {
         mode,

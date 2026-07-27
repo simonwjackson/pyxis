@@ -1,9 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import {
-  CLIENT_MODE_COOKIE,
-  CLIENT_MODE_HEADER,
-  createClientModeAuthority,
-} from "./clientMode.js";
+import { CLIENT_MODE_COOKIE, createClientModeAuthority } from "./clientMode.js";
 
 function cookieFrom(setCookie: string): string {
   return setCookie.split(";", 1)[0] ?? "";
@@ -22,19 +18,16 @@ describe("client mode authority", () => {
     expect(resolved.setCookie).toContain("SameSite=Strict");
   });
 
-  it("persists a managed Console mode through its signed cookie", () => {
+  it("persists the mode selected in application settings", () => {
     const authority = createClientModeAuthority(Buffer.alloc(32, 2));
-    const enrolled = authority.resolveDocumentMode(
-      new Request("https://pyxis.example/", {
-        headers: { [CLIENT_MODE_HEADER]: "console", "Sec-Fetch-Dest": "document" },
-      }),
-    );
+    const selected = authority.setClientMode("console", "client_settings");
+    expect(selected?.mode).toBe("console");
+
     const reloaded = authority.resolveDocumentMode(
       new Request("https://pyxis.example/settings", {
-        headers: { Cookie: cookieFrom(enrolled.setCookie) },
+        headers: { Cookie: cookieFrom(selected?.setCookie ?? "") },
       }),
     );
-    expect(enrolled.mode).toBe("console");
     expect(reloaded.mode).toBe("console");
   });
 
@@ -44,17 +37,13 @@ describe("client mode authority", () => {
       new Request("https://pyxis.example/"),
       "client_player",
     );
-    const consoleEnrollment = authority.resolveDocumentMode(
-      new Request("https://pyxis.example/", {
-        headers: { [CLIENT_MODE_HEADER]: "console", "Sec-Fetch-Dest": "document" },
-      }),
+    const consoleSelection = authority.setClientMode(
+      "console",
+      "client_console",
     );
     const consoleClient = authority.authorizeClient(
       new Request("https://pyxis.example/client-mode/authorize", {
-        headers: {
-          Cookie: cookieFrom(consoleEnrollment.setCookie),
-          [CLIENT_MODE_HEADER]: "player",
-        },
+        headers: { Cookie: cookieFrom(consoleSelection?.setCookie ?? "") },
       }),
       "client_console",
     );
@@ -81,7 +70,7 @@ describe("client mode authority", () => {
     ).toBe(false);
   });
 
-  it("revokes an earlier Player authorization when the installation becomes a Console", () => {
+  it("revokes an earlier Player authorization as soon as Console is selected", () => {
     const authority = createClientModeAuthority(Buffer.alloc(32, 4));
     const player = authority.authorizeClient(
       new Request("https://pyxis.example/"),
@@ -94,20 +83,7 @@ describe("client mode authority", () => {
       ),
     ).toBe(true);
 
-    const consoleDocument = authority.resolveDocumentMode(
-      new Request("https://pyxis.example/", {
-        headers: {
-          [CLIENT_MODE_HEADER]: "console",
-          "Sec-Fetch-Dest": "document",
-        },
-      }),
-    );
-    authority.authorizeClient(
-      new Request("https://pyxis.example/client-mode/authorize", {
-        headers: { Cookie: cookieFrom(consoleDocument.setCookie) },
-      }),
-      "client_switching",
-    );
+    authority.setClientMode("console", "client_switching");
 
     expect(
       authority.verifyPlayerAuthorization(
@@ -117,8 +93,9 @@ describe("client mode authority", () => {
     ).toBe(false);
   });
 
-  it("rejects tampered mode cookies and authorization tokens", () => {
-    const authority = createClientModeAuthority(Buffer.alloc(32, 4));
+  it("rejects invalid client IDs and tampered authorization tokens", () => {
+    const authority = createClientModeAuthority(Buffer.alloc(32, 5));
+    expect(authority.setClientMode("console", "bad")).toBeUndefined();
     const credential = authority.authorizeClient(
       new Request("https://pyxis.example/"),
       "client_player",

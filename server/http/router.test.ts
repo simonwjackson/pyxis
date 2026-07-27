@@ -267,7 +267,7 @@ it("serves production assets and falls back to index.html", async () => {
   expect(fallback.headers.get("set-cookie")).toContain("pyxis_client_mode=");
 });
 
-it("bootstraps managed Console mode without using the URL", async () => {
+it("persists Console mode selected through application settings", async () => {
   const distDir = await mkdtemp(`${process.cwd()}/tmp-router-console-`);
   tempDirs.push(distDir);
   await writeFile(
@@ -280,18 +280,19 @@ it("bootstraps managed Console mode without using the URL", async () => {
     }),
   );
 
-  const enrolled = await fetch(
-    request("/?clientProfile=standard", {
-      headers: {
-        "X-Pyxis-Client-Mode": "console",
-        "Sec-Fetch-Dest": "document",
-      },
+  const selected = await fetch(
+    request("/client-mode", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        mode: "console",
+        clientId: "client_console",
+      }),
     }),
   );
-  const cookie = enrolled.headers.get("set-cookie")?.split(";", 1)[0] ?? "";
-  expect(await enrolled.text()).toContain(
-    'window.__PYXIS_CLIENT_MODE__="console"',
-  );
+  const cookie = selected.headers.get("set-cookie")?.split(";", 1)[0] ?? "";
+  expect(selected.status).toBe(200);
+  expect(await selected.json()).toEqual({ mode: "console" });
 
   const reloaded = await fetch(
     request("/settings?clientProfile=wall-sonos", {
