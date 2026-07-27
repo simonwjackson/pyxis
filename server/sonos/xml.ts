@@ -17,6 +17,22 @@ export function extractXmlTag(xml: string, tag: string): string | undefined {
     : decodeXmlEntities(match[1].trim());
 }
 
+export function extractXmlLocalTag(
+  xml: string,
+  localName: string,
+): string | undefined {
+  const escapedTag = localName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const match = xml.match(
+    new RegExp(
+      `<(?:[\\w-]+:)?${escapedTag}(?:\\s[^>]*)?>([\\s\\S]*?)<\\/(?:[\\w-]+:)?${escapedTag}>`,
+      "i",
+    ),
+  );
+  return match?.[1] === undefined
+    ? undefined
+    : decodeXmlEntities(match[1].trim());
+}
+
 export function parseXmlAttributes(source: string): Record<string, string> {
   const attributes: Record<string, string> = {};
   const pattern = /([:\w-]+)\s*=\s*(?:"([^"]*)"|'([^']*)')/g;
