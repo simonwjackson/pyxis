@@ -18,6 +18,7 @@ import { useAtomSet, useAtomValue } from "@effect/atom-react";
 import { useMemo } from "react";
 import { toast } from "sonner";
 import { SettingsState } from "./SettingsState";
+import { SonosSettingsSection } from "./SonosSettingsSection";
 
 const AUTH_SETTINGS_TAG = "auth.settings" as const;
 
@@ -58,17 +59,22 @@ export function SettingsPage() {
     });
   };
 
-  if (state._tag === "Loading") {
-    return (
-      <div className="flex-1 flex items-center justify-center">
-        <Spinner />
-      </div>
-    );
-  }
-
   return (
-    <div className="page-frame lattice-container space-y-8">
+    <div className="page-frame lattice-container space-y-10">
       <h2 className="zune-display zune-page-title text-pyxis-text">settings</h2>
+
+      <SonosSettingsSection />
+
+      <div className="border-t border-pyxis-border" />
+
+      {state._tag === "Loading" ? (
+        <section
+          className="min-h-24 flex items-center justify-center"
+          aria-label="Loading account settings"
+        >
+          <Spinner />
+        </section>
+      ) : null}
 
       {state._tag === "NoAccount" || state._tag === "Unavailable" ? (
         <div className="py-16 text-pyxis-dim">

@@ -12,6 +12,7 @@ import { projectQueryResult } from "../effect/projectQueryResult";
  */
 import { navItems } from "../lib/navItems";
 import { cn } from "../lib/utils";
+import { OutputPicker } from "../output/OutputPicker";
 import { AuthStatusState } from "./AuthStatusState";
 import { authStatusQueryAtom } from "./authStatusAtom";
 
@@ -72,6 +73,10 @@ export function Sidebar() {
           );
         })}
       </nav>
+
+      <div className="border-t border-pyxis-border px-8 py-4">
+        <OutputPicker />
+      </div>
     </aside>
   );
 }

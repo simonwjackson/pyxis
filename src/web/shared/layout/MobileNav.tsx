@@ -11,6 +11,7 @@ import { useState } from "react";
 import { projectQueryResult } from "../effect/projectQueryResult";
 import { navItems } from "../lib/navItems";
 import { cn } from "../lib/utils";
+import { OutputPicker } from "../output/OutputPicker";
 import { AuthStatusState } from "./AuthStatusState";
 import { authStatusQueryAtom } from "./authStatusAtom";
 
@@ -43,15 +44,20 @@ export function MobileNav() {
         >
           pyxis
         </Link>
-        <button
-          onClick={() => setIsOpen(!isOpen)}
-          className="p-2 text-pyxis-muted hover:text-pyxis-text transition-colors"
-          type="button"
-          aria-label={isOpen ? "Close navigation menu" : "Open navigation menu"}
-          aria-expanded={isOpen}
-        >
-          {isOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
-        </button>
+        <div className="flex items-center gap-1">
+          <OutputPicker compact />
+          <button
+            onClick={() => setIsOpen(!isOpen)}
+            className="p-2 text-pyxis-muted hover:text-pyxis-text transition-colors"
+            type="button"
+            aria-label={
+              isOpen ? "Close navigation menu" : "Open navigation menu"
+            }
+            aria-expanded={isOpen}
+          >
+            {isOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+          </button>
+        </div>
       </div>
       {isOpen && (
         <div className="absolute inset-x-0 top-14 bottom-0 z-50 bg-pyxis-panel pb-40 overflow-y-auto">
