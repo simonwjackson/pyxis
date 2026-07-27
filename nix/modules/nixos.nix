@@ -27,6 +27,8 @@ in
 
     networking.firewall.allowedTCPPorts =
       lib.mkIf cfg.openFirewall [ cfg.server.port ];
+    networking.firewall.allowedUDPPorts =
+      lib.mkIf (cfg.openFirewall && cfg.sonos.enabled) [ 1900 ];
 
     systemd.services.pyxis = {
       description = "Pyxis music streaming server";

@@ -112,6 +112,15 @@ const AndroidBridgeSchema = Schema.Struct({
   token: optionalString,
 });
 
+const SonosSchema = Schema.Struct({
+  enabled: withDefault(Schema.Boolean, false),
+  lanStreamBaseUrl: optionalString,
+  seedHosts: withDefault(Schema.Array(Schema.String), []),
+  discoveryIntervalSeconds: withDefault(positiveInteger, 30),
+  pollIntervalMs: withDefault(positiveInteger, 1000),
+  requestTimeoutMs: withDefault(positiveInteger, 3000),
+});
+
 const AlbumRelationshipHotSchema = Schema.Struct({
   windowDays: withDefault(positiveNumber, 30),
   minRecentListens: withDefault(positiveInteger, 3),
@@ -127,7 +136,7 @@ const LibrarySchema = Schema.Struct({
 
 /**
  * Effect Schema for the complete application configuration.
- * Validates and provides defaults for server, web, sources, upgrade, Android bridge, library policy, and log settings.
+ * Validates and provides defaults for server, web, sources, upgrade, Android bridge, Sonos, library policy, and log settings.
  */
 export const ConfigSchema = Schema.Struct({
   server: withDefault(ServerSchema, {}),
@@ -137,6 +146,7 @@ export const ConfigSchema = Schema.Struct({
   library: withDefault(LibrarySchema, {}),
   log: withDefault(LogSchema, {}),
   androidBridge: withDefault(AndroidBridgeSchema, {}),
+  sonos: withDefault(SonosSchema, {}),
 });
 
 export const decodeConfig = Schema.decodeUnknownSync(ConfigSchema);

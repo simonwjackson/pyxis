@@ -106,6 +106,7 @@ import {
   SearchInputSchema,
   SearchResponseSchema,
 } from "./contracts/search.js";
+import { SonosTopologySchema } from "./contracts/sonos.js";
 import {
   RemoveTrackFeedbackInputSchema,
   TrackExplainResponseSchema,
@@ -462,6 +463,17 @@ const queueStateStream = Rpc.make("queue.state.stream", {
   stream: true,
 });
 
+// --- Sonos ---------------------------------------------------------------
+
+const sonosTopologyGet = Rpc.make("sonos.topology.get", {
+  success: SonosTopologySchema,
+  error: PublicErrorSchema,
+});
+const sonosDiscoveryRefresh = Rpc.make("sonos.discovery.refresh", {
+  success: SonosTopologySchema,
+  error: PublicErrorSchema,
+});
+
 // --- Log / Listen Log -----------------------------------------------------
 
 const logClientWrite = Rpc.make("log.client.write", {
@@ -547,6 +559,8 @@ export const PyxisRpc = RpcGroup.make(
   queueJump,
   queueShuffle,
   queueStateStream,
+  sonosTopologyGet,
+  sonosDiscoveryRefresh,
   logClientWrite,
   listenLogEntriesList,
 );

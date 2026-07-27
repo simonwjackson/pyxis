@@ -30,6 +30,12 @@ describe("ConfigSchema", () => {
       expect(config.web.allowedHosts).toEqual([]);
       expect(config.androidBridge.enabled).toBe(false);
       expect(config.androidBridge.token).toBeUndefined();
+      expect(config.sonos.enabled).toBe(false);
+      expect(config.sonos.lanStreamBaseUrl).toBeUndefined();
+      expect(config.sonos.seedHosts).toEqual([]);
+      expect(config.sonos.discoveryIntervalSeconds).toBe(30);
+      expect(config.sonos.pollIntervalMs).toBe(1000);
+      expect(config.sonos.requestTimeoutMs).toBe(3000);
       expect(config.library.albumRelationship.hot.windowDays).toBe(30);
       expect(config.library.albumRelationship.hot.minRecentListens).toBe(3);
     });
@@ -49,6 +55,14 @@ describe("ConfigSchema", () => {
         },
         log: { level: "debug" },
         androidBridge: { enabled: true, token: "bridge-secret" },
+        sonos: {
+          enabled: true,
+          lanStreamBaseUrl: "http://192.168.1.243:8765",
+          seedHosts: ["192.168.1.118"],
+          discoveryIntervalSeconds: 60,
+          pollIntervalMs: 1500,
+          requestTimeoutMs: 5000,
+        },
         library: {
           albumRelationship: {
             hot: { windowDays: 14, minRecentListens: 5 },
@@ -68,6 +82,14 @@ describe("ConfigSchema", () => {
       expect(config.log.level).toBe("debug");
       expect(config.androidBridge.enabled).toBe(true);
       expect(config.androidBridge.token).toBe("bridge-secret");
+      expect(config.sonos.enabled).toBe(true);
+      expect(config.sonos.lanStreamBaseUrl).toBe(
+        "http://192.168.1.243:8765",
+      );
+      expect(config.sonos.seedHosts).toEqual(["192.168.1.118"]);
+      expect(config.sonos.discoveryIntervalSeconds).toBe(60);
+      expect(config.sonos.pollIntervalMs).toBe(1500);
+      expect(config.sonos.requestTimeoutMs).toBe(5000);
       expect(config.library.albumRelationship.hot.windowDays).toBe(14);
       expect(config.library.albumRelationship.hot.minRecentListens).toBe(5);
     });
@@ -153,6 +175,13 @@ describe("ConfigSchema", () => {
         decodeConfig({
           library: { albumRelationship: { hot: { minRecentListens: 0 } } },
         }),
+      ).toThrow();
+      expect(() =>
+        decodeConfig({ sonos: { discoveryIntervalSeconds: 0 } }),
+      ).toThrow();
+      expect(() => decodeConfig({ sonos: { pollIntervalMs: 0 } })).toThrow();
+      expect(() =>
+        decodeConfig({ sonos: { requestTimeoutMs: 0 } }),
       ).toThrow();
     });
 

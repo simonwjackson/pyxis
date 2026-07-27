@@ -75,6 +75,42 @@
       };
     };
 
+    sonos = {
+      enabled = lib.mkEnableOption "Sonos playback output";
+
+      lanStreamBaseUrl = lib.mkOption {
+        type = lib.types.nullOr lib.types.str;
+        default = null;
+        description = "LAN HTTP base URL Sonos speakers use to fetch Pyxis streams";
+        example = "http://192.168.1.243:8765";
+      };
+
+      seedHosts = lib.mkOption {
+        type = lib.types.listOf lib.types.str;
+        default = [];
+        description = "Known Sonos hosts used when SSDP discovery is unavailable";
+        example = [ "192.168.1.118" ];
+      };
+
+      discoveryIntervalSeconds = lib.mkOption {
+        type = lib.types.ints.positive;
+        default = 30;
+        description = "Seconds to cache Sonos topology discovery";
+      };
+
+      pollIntervalMs = lib.mkOption {
+        type = lib.types.ints.positive;
+        default = 1000;
+        description = "Sonos transport polling interval in milliseconds";
+      };
+
+      requestTimeoutMs = lib.mkOption {
+        type = lib.types.ints.positive;
+        default = 3000;
+        description = "Timeout for Sonos HTTP and SOAP requests";
+      };
+    };
+
     log = {
       level = lib.mkOption {
         type = lib.types.enum [ "trace" "debug" "info" "warn" "error" "fatal" ];
@@ -104,6 +140,15 @@
             pandora = {
               username = cfg.sources.pandora.username;
             };
+          };
+
+          sonos = {
+            enabled = cfg.sonos.enabled;
+            lanStreamBaseUrl = cfg.sonos.lanStreamBaseUrl;
+            seedHosts = cfg.sonos.seedHosts;
+            discoveryIntervalSeconds = cfg.sonos.discoveryIntervalSeconds;
+            pollIntervalMs = cfg.sonos.pollIntervalMs;
+            requestTimeoutMs = cfg.sonos.requestTimeoutMs;
           };
 
           log = {

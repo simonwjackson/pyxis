@@ -30,12 +30,14 @@ import { playlistHandlers } from "./handlers/playlist.js";
 import { queueHandlers } from "./handlers/queue.js";
 import { radioHandlers } from "./handlers/radio.js";
 import { searchHandlers } from "./handlers/search.js";
+import { sonosHandlers } from "./handlers/sonos.js";
 import { trackHandlers } from "./handlers/track.js";
 import { AuthSession, AuthSessionLayerLive } from "./services/authSession.js";
 import { Library, LibraryLayerLive } from "./services/library.js";
 import { Player, PlayerLayerLive } from "./services/player.js";
 import { Queue, QueueLayerLive } from "./services/queue.js";
 import { Radio, RadioLayerLive } from "./services/radio.js";
+import { Sonos, SonosLayerLive } from "./services/sonos.js";
 import {
   SourceCatalog,
   SourceCatalogLayerLive,
@@ -73,6 +75,8 @@ export const REALTIME_RPC_TAGS = [
   "queue.cursor.jump",
   "queue.tracks.shuffle",
   "queue.state.stream",
+  "sonos.topology.get",
+  "sonos.discovery.refresh",
 ] as const;
 
 /**
@@ -178,6 +182,7 @@ export const PyxisRpcHandlersLayer = PyxisRpc.toLayer(
     const radio = yield* Radio;
     const player = yield* Player;
     const queue = yield* Queue;
+    const sonos = yield* Sonos;
     const handlers = {
       ...authHandlers({ auth }),
       ...libraryHandlers({ auth, library, catalog }),
@@ -191,6 +196,7 @@ export const PyxisRpcHandlersLayer = PyxisRpc.toLayer(
       ...logHandlers(),
       ...playerHandlers({ player, queue }),
       ...queueHandlers({ queue }),
+      ...sonosHandlers({ sonos }),
     };
     return handlers as never;
   }),
@@ -208,4 +214,5 @@ export const PyxisRpcLayerLive = PyxisRpcHandlersLayer.pipe(
   Layer.provide(AuthSessionLayerLive),
   Layer.provide(PlayerLayerLive),
   Layer.provide(QueueLayerLive),
+  Layer.provide(SonosLayerLive),
 );
