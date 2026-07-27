@@ -171,6 +171,7 @@ export function usePlayback(): PlaybackContextValue {
     audioRef.current = audio;
 
     const onTimeUpdate = () => {
+      if (!ownsLocalPlaybackRef.current) return;
       if (!seekingRef.current) {
         setState((prev) => ({
           ...prev,
