@@ -80,18 +80,32 @@ function stationToCanonicalPlaylist(station: Station): CanonicalPlaylist {
 }
 
 // Resolve the best audio URL from a Pandora playlist item
-function normalizeTrackField(value: string): string {
-  return value.trim().toLocaleLowerCase();
+function normalizeTrackField(value: unknown): string | undefined {
+  if (typeof value !== "string") return undefined;
+  const normalized = value.trim().toLocaleLowerCase();
+  return normalized.length > 0 ? normalized : undefined;
 }
 
 function matchesRecoveryHint(
   item: PlaylistItem,
   hint: StreamRecoveryHint,
 ): boolean {
+  const itemTitle = normalizeTrackField(item.songName);
+  const itemArtist = normalizeTrackField(item.artistName);
+  const itemAlbum = normalizeTrackField(item.albumName);
+  const hintTitle = normalizeTrackField(hint.title);
+  const hintArtist = normalizeTrackField(hint.artist);
+  const hintAlbum = normalizeTrackField(hint.album);
   return (
-    normalizeTrackField(item.songName) === normalizeTrackField(hint.title) &&
-    normalizeTrackField(item.artistName) === normalizeTrackField(hint.artist) &&
-    normalizeTrackField(item.albumName) === normalizeTrackField(hint.album)
+    itemTitle !== undefined &&
+    itemArtist !== undefined &&
+    itemAlbum !== undefined &&
+    hintTitle !== undefined &&
+    hintArtist !== undefined &&
+    hintAlbum !== undefined &&
+    itemTitle === hintTitle &&
+    itemArtist === hintArtist &&
+    itemAlbum === hintAlbum
   );
 }
 

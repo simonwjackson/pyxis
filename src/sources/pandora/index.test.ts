@@ -1,6 +1,7 @@
 import { describe, expect, it } from "bun:test";
 import type { PandoraSession } from "./client.js";
 import { createPandoraSource } from "./index.js";
+import type { PlaylistItem } from "./types/api.js";
 
 const session: PandoraSession = {
   syncTime: 0,
@@ -11,13 +12,19 @@ const session: PandoraSession = {
 };
 
 describe("Pandora restored stream recovery", () => {
-  it("aliases a fresh playlist item to the persisted queue identity", async () => {
+  it("skips non-track radio items and aliases a fresh match to the persisted queue identity", async () => {
     let stationId = "";
     const source = createPandoraSource(session, {
       getPlaylistWithQuality: async (id) => {
         stationId = id;
         return {
           items: [
+            {
+              trackToken: "ad-token",
+              songName: undefined,
+              artistName: undefined,
+              albumName: undefined,
+            } as unknown as PlaylistItem,
             {
               trackToken: "fresh-token",
               songName: "Persisted Song",
@@ -38,10 +45,10 @@ describe("Pandora restored stream recovery", () => {
       title: "Persisted Song",
       artist: "Persisted Artist",
       album: "Persisted Album",
-      origin: { type: "playlist", id: "station-token" },
+      origin: { type: "playlist", id: "89722349997272453" },
     });
 
-    expect(stationId).toBe("station-token");
+    expect(stationId).toBe("89722349997272453");
     expect(url).toBe("https://audio.example/fresh.mp3");
     expect(await source.getStreamUrl("persisted-token")).toBe(url);
   });
