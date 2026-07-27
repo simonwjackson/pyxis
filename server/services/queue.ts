@@ -217,6 +217,24 @@ export function setQueue(
 }
 
 /**
+ * Replaces a queue restored during startup without publishing an intermediate
+ * queue snapshot. The player publishes the coherent queue/player state after
+ * resetting its current track metadata.
+ */
+export function replaceRestoredQueue(
+  tracks: readonly QueueTrack[],
+  restoredContext: QueueContext,
+): void {
+  if (tracks.length === 0) {
+    throw new Error("Cannot replace a restored queue with no tracks");
+  }
+  items = [...tracks];
+  currentIndex = 0;
+  context = restoredContext;
+  scheduleQueueSave(getState());
+}
+
+/**
  * Adds tracks to the queue either immediately after the current track or at the end.
  *
  * @param tracks - Array of tracks to add

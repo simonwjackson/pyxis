@@ -84,6 +84,14 @@ const CORS_HEADERS = {
   "Access-Control-Allow-Credentials": "true",
 } as const;
 
+// Complete credential login and restart recovery before opening the HTTP/RPC
+// listener. This prevents clients or a persisted Sonos output from resuming a
+// stale radio track while its fresh station batch is still being loaded.
+await tryAutoLogin(serverLogger, config).catch((err: unknown) => {
+  const message = err instanceof Error ? err.message : String(err);
+  serverLogger.warn({ err: message }, "startup login/recovery failed");
+});
+
 const fetch = createServerFetchHandler({
   cors: {
     origin: corsOrigin,
@@ -128,7 +136,3 @@ serverLogger.info(
   },
   "server running",
 );
-// Attempt auto-login from config credentials
-tryAutoLogin(serverLogger, config).catch(() => {
-  // Silently ignore — server starts normally without auth
-});

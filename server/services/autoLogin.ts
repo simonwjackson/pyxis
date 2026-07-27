@@ -132,6 +132,61 @@ function registerAutoFetchHandler(logger: Logger): void {
 }
 
 /**
+ * Radio providers issue fresh, short-lived playback batches. A persisted radio
+ * queue therefore cannot safely resume by opaque track ID after restart. Once
+ * its source is authenticated, replace it with a fresh batch while preserving
+ * the station context and player volume.
+ */
+export async function refreshRestoredRadioQueue(
+  logger: Logger,
+  fetchTracks: (
+    source: SourceType,
+    id: string,
+  ) => Promise<QueueTrack[]> = fetchPlaylistTracks,
+): Promise<boolean> {
+  const state = QueueService.getState();
+  if (state.context.type !== "radio") return false;
+
+  const parsed = parseId(state.context.seedId);
+  if (!parsed.source) {
+    logger.warn(
+      { seedId: state.context.seedId },
+      "restored radio queue has no source prefix; keeping paused queue",
+    );
+    return false;
+  }
+
+  try {
+    const tracks = await fetchTracks(parsed.source, parsed.id);
+    if (tracks.length === 0) {
+      logger.warn(
+        { source: parsed.source, seedId: state.context.seedId },
+        "restored radio refresh returned no tracks; keeping paused queue",
+      );
+      return false;
+    }
+    PlayerService.replaceRestoredRadioQueue(tracks, state.context);
+    logger.info(
+      {
+        source: parsed.source,
+        seedId: state.context.seedId,
+        replaced: state.items.length,
+        fresh: tracks.length,
+      },
+      "refreshed restored radio queue",
+    );
+    return true;
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    logger.warn(
+      { source: parsed.source, seedId: state.context.seedId, err: msg },
+      "failed to refresh restored radio queue; keeping paused queue",
+    );
+    return false;
+  }
+}
+
+/**
  * Attempts auto-login on server startup using configured credentials.
  * Sets up radio auto-fetch handler and restores persisted playback state.
  * Continues gracefully if login fails or credentials aren't configured.
@@ -166,6 +221,7 @@ export async function tryAutoLogin(
   try {
     const didRestore = await PlayerService.restoreFromDb();
     if (didRestore) {
+      await refreshRestoredRadioQueue(logger);
       logger.info("restored playback state from DB");
     }
   } catch (err: unknown) {

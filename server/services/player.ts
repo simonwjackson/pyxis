@@ -581,3 +581,22 @@ export async function restoreFromDb(): Promise<boolean> {
   notify();
   return true;
 }
+
+/**
+ * Replaces a stale radio queue restored at startup with a freshly fetched
+ * station batch. This never enters `playing`: clients and output coordinators
+ * observe one coherent paused state whose current track is the first fresh
+ * item. The user's selected output and volume are owned elsewhere/preserved.
+ */
+export function replaceRestoredRadioQueue(
+  tracks: readonly Queue.QueueTrack[],
+  radioContext: Extract<Queue.QueueContext, { readonly type: "radio" }>,
+): void {
+  Queue.replaceRestoredQueue(tracks, radioContext);
+  status = "paused";
+  progress = 0;
+  duration = tracks[0]?.duration ?? 0;
+  updatedAt = Date.now();
+  resetAudioRealization();
+  notify();
+}
