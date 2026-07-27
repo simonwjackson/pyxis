@@ -2,8 +2,8 @@ import { describe, expect, it } from "bun:test";
 import type { ApiPlayerState } from "../../../api/contracts/player.js";
 import { BrowserAudio } from "./browserAudio";
 import {
-  reconcilePlaybackState,
   type PlaybackAudioAction,
+  reconcilePlaybackState,
 } from "./playbackReconciliation";
 
 const track = (id = "ytmusic:a", streamUrl = "/stream/ytmusic:a") => ({
@@ -120,6 +120,38 @@ describe("reconcilePlaybackState", () => {
     expect(result.statePatch.currentTrack?.trackToken).toBe("ytmusic:b");
     expect(result.statePatch.isPlaying).toBe(true);
     expect(result.nextLastStreamUrl).toBe("/stream/ytmusic:b?next=1");
+  });
+
+  it("pauses and unloads audio while preserving shared playback state for non-owners", () => {
+    const result = reconcilePlaybackState({
+      serverState: serverState(),
+      source: "sse",
+      audio: pausedAudio({ paused: false }),
+      lastStreamUrl: "/stream/ytmusic:a",
+      hasReceivedInitialState: true,
+      haveMetadata: BrowserAudio.haveMetadata,
+      ownsBrowserOutput: false,
+    });
+
+    expect(actionTags(result.actions)).toEqual(["Pause", "Unload"]);
+    expect(result.statePatch.currentTrack?.trackToken).toBe("ytmusic:a");
+    expect(result.statePatch.isPlaying).toBe(true);
+    expect(result.nextLastStreamUrl).toBeNull();
+  });
+
+  it("does not load audio for a Sonos-only client, even from an empty element", () => {
+    const result = reconcilePlaybackState({
+      serverState: serverState(),
+      source: "play-response",
+      audio: pausedAudio({ src: "" }),
+      lastStreamUrl: null,
+      hasReceivedInitialState: true,
+      haveMetadata: BrowserAudio.haveMetadata,
+      ownsBrowserOutput: false,
+    });
+
+    expect(result.actions).toEqual([]);
+    expect(result.statePatch.isPlaying).toBe(true);
   });
 
   it("stops and clears local track state when server has no current track", () => {

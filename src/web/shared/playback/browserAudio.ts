@@ -26,6 +26,7 @@ export type BrowserAudio = {
   readonly setVolume: (volume: number) => void;
   readonly play: () => Promise<void>;
   readonly pause: () => void;
+  readonly unload: () => void;
   readonly addEventListener: (
     event: PlaybackAudioEvent,
     listener: () => void,
@@ -69,6 +70,11 @@ export const BrowserAudio = {
       },
       play: () => audio.play(),
       pause: () => audio.pause(),
+      unload: () => {
+        audio.pause();
+        audio.removeAttribute("src");
+        audio.load();
+      },
       addEventListener: (event, listener) =>
         audio.addEventListener(event, listener),
       removeEventListener: (event, listener) =>

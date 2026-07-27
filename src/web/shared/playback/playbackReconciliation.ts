@@ -18,6 +18,7 @@ export type PlaybackAudioAction =
     }
   | { readonly _tag: "Play"; readonly context: string }
   | { readonly _tag: "Pause" }
+  | { readonly _tag: "Unload" }
   | { readonly _tag: "ResetTime" }
   | { readonly _tag: "SetVolume"; readonly volume: number };
 
@@ -36,6 +37,7 @@ export type PlaybackReconciliationInput = {
   readonly lastStreamUrl: string | null;
   readonly hasReceivedInitialState: boolean;
   readonly haveMetadata: number;
+  readonly ownsBrowserOutput?: boolean;
 };
 
 export type PlaybackReconciliation = {
@@ -310,11 +312,34 @@ export const reconcilePlaybackState = ({
   lastStreamUrl,
   hasReceivedInitialState,
   haveMetadata,
+  ownsBrowserOutput = true,
 }: PlaybackReconciliationInput): PlaybackReconciliation => {
   const track = serverState.currentTrack;
   const isInitialState = source === "sse" && !hasReceivedInitialState;
   const nextHasReceivedInitialState =
     hasReceivedInitialState || source === "sse";
+
+  if (!ownsBrowserOutput) {
+    const actions: PlaybackAudioAction[] = [];
+    if (!audio.paused) actions.push({ _tag: "Pause" });
+    if (audio.src.length > 0) actions.push({ _tag: "Unload" });
+    return {
+      actions,
+      logs: [
+        `[${source}] → browser is not selected output: unload local audio`,
+      ],
+      statePatch: {
+        currentTrack: track ? toPlaybackTrack(track) : null,
+        isPlaying: serverState.status === "playing",
+        progress: serverState.progress,
+        duration: serverState.duration,
+        volume: serverState.volume,
+      },
+      nextLastStreamUrl: null,
+      nextHasReceivedInitialState,
+      serverProgress: serverState.progress,
+    };
+  }
 
   if (!track) {
     return {

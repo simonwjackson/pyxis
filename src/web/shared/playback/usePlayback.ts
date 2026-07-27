@@ -8,7 +8,9 @@ import { useAtomSet, useAtomValue } from "@effect/atom-react";
 import { AsyncResult } from "effect/unstable/reactivity";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ApiPlayerState } from "../../../api/contracts/player.js";
-import { getWebClientId } from "../client/clientIdentity";
+import { getWebClientId, getWebClientProfile } from "../client/clientIdentity";
+import { resolveBrowserOutputAuthority } from "../output/browserOutputAuthority";
+import { outputStateStreamAtom } from "../output/outputAtoms";
 import {
   BrowserAudio,
   type BrowserAudio as BrowserAudioAdapter,
@@ -101,6 +103,18 @@ function getCurrentStationToken(context: PlaybackQueueContext): string | null {
 export function usePlayback(): PlaybackContextValue {
   const audioRef = useRef<BrowserAudioAdapter | null>(null);
   const clientId = useRef(getWebClientId()).current;
+  const clientProfile = useRef(getWebClientProfile()).current;
+  const outputStateResult = useAtomValue(outputStateStreamAtom);
+  const outputState = AsyncResult.isSuccess(outputStateResult)
+    ? outputStateResult.value
+    : null;
+  const { ownsLocalPlayback } = resolveBrowserOutputAuthority(
+    clientProfile,
+    outputState,
+    clientId,
+  );
+  const ownsLocalPlaybackRef = useRef(ownsLocalPlayback);
+  ownsLocalPlaybackRef.current = ownsLocalPlayback;
   const [state, setState] = useState<InternalPlaybackState>({
     currentTrack: null,
     currentStationToken: null,
@@ -165,11 +179,13 @@ export function usePlayback(): PlaybackContextValue {
       }
     };
     const onDurationChange = () => {
+      if (!ownsLocalPlaybackRef.current) return;
       const duration = audio.getDuration();
       setState((prev) => ({ ...prev, duration }));
       void reportDuration({ payload: { clientId, duration } });
     };
     const onEnded = () => {
+      if (!ownsLocalPlaybackRef.current) return;
       logToServer("[audio] track ended, calling trackEnded mutation");
       setState((prev) => ({ ...prev, isPlaying: false }));
       void trackEnded({ payload: { clientId } }).then((exit) => {
@@ -179,6 +195,7 @@ export function usePlayback(): PlaybackContextValue {
       });
     };
     const onError = () => {
+      if (!ownsLocalPlaybackRef.current) return;
       const mediaError = audio.getError();
       const src = audio.snapshot().src;
       // MEDIA_ERR_ABORTED is expected during track transitions (src changed while loading)
@@ -212,7 +229,7 @@ export function usePlayback(): PlaybackContextValue {
       audio.removeEventListener("error", onError);
       audio.pause();
     };
-  }, [logToServer, reportAudioError, reportDuration, trackEnded]);
+  }, [clientId, logToServer, reportAudioError, reportDuration, trackEnded]);
 
   /** Safely call audio.play() with standard error handling */
   const safePlay = useCallback(
@@ -237,7 +254,7 @@ export function usePlayback(): PlaybackContextValue {
         }));
       });
     },
-    [logToServer, reportAudioError],
+    [clientId, logToServer, reportAudioError],
   );
 
   const executeAudioAction = useCallback(
@@ -262,6 +279,9 @@ export function usePlayback(): PlaybackContextValue {
         },
         Pause: () => {
           audio.pause();
+        },
+        Unload: () => {
+          audio.unload();
         },
         ResetTime: () => {
           audio.setCurrentTime(0);
@@ -298,6 +318,7 @@ export function usePlayback(): PlaybackContextValue {
         lastStreamUrl: lastStreamUrlRef.current,
         hasReceivedInitialState: hasReceivedInitialStateRef.current,
         haveMetadata: BrowserAudio.haveMetadata,
+        ownsBrowserOutput: ownsLocalPlayback,
       });
 
       serverProgressRef.current = reconciliation.serverProgress;
@@ -316,7 +337,7 @@ export function usePlayback(): PlaybackContextValue {
         applyPlaybackStatePatch(prev, reconciliation.statePatch),
       );
     },
-    [executeAudioAction, logToServer],
+    [executeAudioAction, logToServer, ownsLocalPlayback],
   );
 
   // Keep ref in sync so audio event listeners always call the latest version
@@ -332,7 +353,7 @@ export function usePlayback(): PlaybackContextValue {
 
   // Periodically report progress to server (every 5s while playing)
   useEffect(() => {
-    if (!state.isPlaying) return;
+    if (!state.isPlaying || !ownsLocalPlayback) return;
     const interval = setInterval(() => {
       const audio = audioRef.current;
       if (!audio) return;
@@ -344,7 +365,7 @@ export function usePlayback(): PlaybackContextValue {
       }
     }, 5000);
     return () => clearInterval(interval);
-  }, [state.isPlaying, reportProgress]);
+  }, [clientId, state.isPlaying, ownsLocalPlayback, reportProgress]);
 
   // --- Server mutation wrappers ---
   const pause = useAtomSet(playerPauseMutationAtom, { mode: "promiseExit" });
@@ -367,7 +388,7 @@ export function usePlayback(): PlaybackContextValue {
     if (state.isPlaying) {
       logToServer("[action] togglePlayPause → pause");
       const audio = audioRef.current;
-      if (audio) {
+      if (audio && ownsLocalPlayback) {
         serverProgressRef.current = audio.snapshot().currentTime;
         audio.pause();
       }
@@ -376,7 +397,7 @@ export function usePlayback(): PlaybackContextValue {
     } else {
       logToServer("[action] togglePlayPause → resume");
       const audio = audioRef.current;
-      if (audio) {
+      if (audio && ownsLocalPlayback) {
         // Seek to server progress before playing — handles handoff from another device
         const snapshot = audio.snapshot();
         const delta = Math.abs(
@@ -393,11 +414,18 @@ export function usePlayback(): PlaybackContextValue {
       setState((prev) => ({ ...prev, isPlaying: true }));
       void resume({ payload: undefined });
     }
-  }, [state.isPlaying, pause, resume, logToServer, safePlay]);
+  }, [
+    state.isPlaying,
+    ownsLocalPlayback,
+    pause,
+    resume,
+    logToServer,
+    safePlay,
+  ]);
 
   const stop = useCallback(() => {
     const audio = audioRef.current;
-    if (audio) {
+    if (audio && ownsLocalPlayback) {
       audio.pause();
       audio.setCurrentTime(0);
     }
@@ -412,22 +440,22 @@ export function usePlayback(): PlaybackContextValue {
       error: null,
     }));
     void stopRemote({ payload: undefined });
-  }, [stopRemote]);
+  }, [ownsLocalPlayback, stopRemote]);
 
   const seek = useCallback(
     (time: number) => {
       const audio = audioRef.current;
-      if (audio) {
+      if (audio && ownsLocalPlayback) {
         seekingRef.current = true;
         audio.setCurrentTime(time);
-        setState((prev) => ({ ...prev, progress: time }));
-        void seekRemote({ payload: { position: time } });
         setTimeout(() => {
           seekingRef.current = false;
         }, 200);
       }
+      setState((prev) => ({ ...prev, progress: time }));
+      void seekRemote({ payload: { position: time } });
     },
-    [seekRemote],
+    [ownsLocalPlayback, seekRemote],
   );
 
   const setCurrentStationToken = useCallback((token: string | null) => {
@@ -458,7 +486,7 @@ export function usePlayback(): PlaybackContextValue {
         `[action] playTrack id=${track.trackToken} url=${track.audioUrl}`,
       );
       const audio = audioRef.current;
-      if (!audio) return;
+      if (!audio || !ownsLocalPlayback) return;
       audio.setSrc(track.audioUrl);
       lastStreamUrlRef.current = track.audioUrl;
       audio.play().catch((err: unknown) => {
@@ -486,7 +514,7 @@ export function usePlayback(): PlaybackContextValue {
         error: null,
       }));
     },
-    [logToServer],
+    [logToServer, ownsLocalPlayback],
   );
 
   const playQueue = useCallback(
