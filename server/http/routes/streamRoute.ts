@@ -84,6 +84,7 @@ export function createStreamRoute(deps: StreamRouteDeps): ServerRouteAdapter {
     try {
       const compositeId = await deps.resolveTrackForStream(stream.opaqueId);
       const sourceManager = await deps.ensureSourceManager();
+      const recoveryHint = deps.getStreamRecoveryHint(compositeId);
       prefetchNextHint(deps, sourceManager, stream.decodedNextHint);
       return await deps.handleStreamRequest(
         sourceManager,
@@ -94,6 +95,7 @@ export function createStreamRoute(deps: StreamRouteDeps): ServerRouteAdapter {
           ...(stream.requestedFormat
             ? { requestedFormat: stream.requestedFormat }
             : {}),
+          ...(recoveryHint ? { recoveryHint } : {}),
         },
       );
     } catch (err: unknown) {

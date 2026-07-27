@@ -125,8 +125,27 @@ export type PlaylistCapability = {
 /**
  * Capability for resolving stream URLs for playback.
  */
+export type StreamRecoveryHint = {
+  /** Stable queue identity. Recovery must not replace this identifier. */
+  readonly trackId: string;
+  readonly title: string;
+  readonly artist: string;
+  readonly album: string;
+  readonly origin?:
+    | { readonly type: "playlist"; readonly id: string }
+    | { readonly type: "album"; readonly id: string };
+};
+
 export type StreamCapability = {
   readonly getStreamUrl: (trackId: string) => Promise<string>;
+  /**
+   * Refreshes ephemeral source data for a persisted track. Implementations keep
+   * fresh credentials and media URLs in memory and preserve `hint.trackId`.
+   */
+  readonly rehydrateStreamUrl?: (
+    trackId: string,
+    hint: StreamRecoveryHint,
+  ) => Promise<string>;
 };
 
 /**

@@ -34,6 +34,7 @@ import { tryAutoLogin } from "./services/autoLogin.js";
 import { setCredentialsConfig } from "./services/credentials.js";
 import { ensureSourceManager, setAppConfig } from "./services/sourceManager.js";
 import { handleStreamRequest, prefetchToCache } from "./services/stream.js";
+import { getStreamRecoveryHint } from "./services/streamRecovery.js";
 
 const configFlagIndex = process.argv.indexOf("--config");
 const configPath =
@@ -93,6 +94,7 @@ const fetch = createServerFetchHandler({
     log: streamLog,
     resolveTrackForStream,
     ensureSourceManager,
+    getStreamRecoveryHint,
     handleStreamRequest,
     prefetchToCache,
   },

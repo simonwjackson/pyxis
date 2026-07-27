@@ -6,7 +6,12 @@
  * track caching for stream URL resolution.
  */
 import { Effect } from "effect";
-import type { CanonicalPlaylist, CanonicalTrack, Source } from "../types.js";
+import type {
+  CanonicalPlaylist,
+  CanonicalTrack,
+  Source,
+  StreamRecoveryHint,
+} from "../types.js";
 import type { PandoraSession } from "./client.js";
 import * as Pandora from "./client.js";
 import type { PlaylistItem, Station } from "./types/api.js";
@@ -23,6 +28,11 @@ export type PandoraSource = Source & {
    * @param items - Playlist items from a getPlaylist response
    */
   registerPlaylistItems: (items: readonly PlaylistItem[]) => void;
+  getStreamUrl: (trackId: string) => Promise<string>;
+  rehydrateStreamUrl: (
+    trackId: string,
+    hint: StreamRecoveryHint,
+  ) => Promise<string>;
 };
 
 /**
@@ -70,6 +80,21 @@ function stationToCanonicalPlaylist(station: Station): CanonicalPlaylist {
 }
 
 // Resolve the best audio URL from a Pandora playlist item
+function normalizeTrackField(value: string): string {
+  return value.trim().toLocaleLowerCase();
+}
+
+function matchesRecoveryHint(
+  item: PlaylistItem,
+  hint: StreamRecoveryHint,
+): boolean {
+  return (
+    normalizeTrackField(item.songName) === normalizeTrackField(hint.title) &&
+    normalizeTrackField(item.artistName) === normalizeTrackField(hint.artist) &&
+    normalizeTrackField(item.albumName) === normalizeTrackField(hint.album)
+  );
+}
+
 function resolveAudioUrl(item: PlaylistItem): string | undefined {
   if (typeof item.additionalAudioUrl === "string") {
     return item.additionalAudioUrl;
@@ -102,9 +127,24 @@ function resolveAudioUrl(item: PlaylistItem): string | undefined {
  * const playlists = await source.listPlaylists();
  * ```
  */
-export function createPandoraSource(session: PandoraSession): PandoraSource {
+export type PandoraSourceDeps = {
+  readonly getPlaylistWithQuality?: (
+    stationId: string,
+  ) => Promise<{ readonly items: readonly PlaylistItem[] }>;
+};
+
+export function createPandoraSource(
+  session: PandoraSession,
+  deps: PandoraSourceDeps = {},
+): PandoraSource {
   // Cache playlist items by track token for stream URL resolution
   const trackCache = new Map<string, PlaylistItem>();
+  const fetchPlaylist = (stationId: string) =>
+    deps.getPlaylistWithQuality
+      ? deps.getPlaylistWithQuality(stationId)
+      : Effect.runPromise(
+          Pandora.getPlaylistWithQuality(session, stationId, "high"),
+        );
 
   return {
     type: "pandora",
@@ -124,9 +164,7 @@ export function createPandoraSource(session: PandoraSession): PandoraSource {
     async getPlaylistTracks(
       playlistId: string,
     ): Promise<readonly CanonicalTrack[]> {
-      const result = await Effect.runPromise(
-        Pandora.getPlaylistWithQuality(session, playlistId, "high"),
-      );
+      const result = await fetchPlaylist(playlistId);
       // Cache items for stream URL resolution
       for (const item of result.items) {
         trackCache.set(item.trackToken, item);
@@ -145,6 +183,38 @@ export function createPandoraSource(session: PandoraSession): PandoraSource {
       throw new Error(
         `No stream URL available for Pandora track "${trackId}". Tracks must be fetched via getPlaylistTracks first.`,
       );
+    },
+
+    async rehydrateStreamUrl(
+      trackId: string,
+      hint: StreamRecoveryHint,
+    ): Promise<string> {
+      if (hint.origin?.type !== "playlist") {
+        throw new Error(
+          "Pandora stream recovery requires the persisted station context",
+        );
+      }
+      const result = await fetchPlaylist(hint.origin.id);
+      for (const item of result.items) {
+        trackCache.set(item.trackToken, item);
+      }
+      const recovered =
+        result.items.find((item) => item.trackToken === trackId) ??
+        result.items.find((item) => matchesRecoveryHint(item, hint));
+      if (!recovered) {
+        throw new Error(
+          `Pandora refreshed station "${hint.origin.id}" but did not return "${hint.title}" by "${hint.artist}"`,
+        );
+      }
+      const url = resolveAudioUrl(recovered);
+      if (!url) {
+        throw new Error(
+          `Pandora refreshed "${hint.title}" but returned no playable audio URL`,
+        );
+      }
+      // Preserve the persisted queue identity even if Pandora issued a fresh token.
+      trackCache.set(trackId, recovered);
+      return url;
     },
 
     async search(query: string) {

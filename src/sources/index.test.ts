@@ -175,6 +175,68 @@ describe("createSourceManager", () => {
       expect(result).toBe(expectedUrl);
     });
 
+    it("deduplicates concurrent recovery of an ephemeral stream URL", async () => {
+      let recoveryCalls = 0;
+      const source: Source = {
+        type: "pandora",
+        name: "Pandora",
+        getStreamUrl: async () => {
+          throw new Error("missing in-memory URL");
+        },
+        rehydrateStreamUrl: async (trackId, hint) => {
+          recoveryCalls += 1;
+          expect(trackId).toBe("persisted-token");
+          expect(hint.trackId).toBe("pandora:persisted-token");
+          await new Promise((resolve) => setTimeout(resolve, 5));
+          return "https://audio.example/recovered.mp3";
+        },
+      };
+      const manager = createSourceManager([source]);
+      const hint = {
+        trackId: "pandora:persisted-token",
+        title: "Persisted Song",
+        artist: "Artist",
+        album: "Album",
+        origin: { type: "playlist" as const, id: "station" },
+      };
+
+      const urls = await Promise.all([
+        manager.getStreamUrl("pandora", "persisted-token", hint),
+        manager.getStreamUrl("pandora", "persisted-token", hint),
+      ]);
+
+      expect(urls).toEqual([
+        "https://audio.example/recovered.mp3",
+        "https://audio.example/recovered.mp3",
+      ]);
+      expect(recoveryCalls).toBe(1);
+    });
+
+    it("reports both initial resolution and recovery failures", async () => {
+      const source: Source = {
+        type: "pandora",
+        name: "Pandora",
+        getStreamUrl: async () => {
+          throw new Error("missing in-memory URL");
+        },
+        rehydrateStreamUrl: async () => {
+          throw new Error("station did not return persisted track");
+        },
+      };
+      const manager = createSourceManager([source]);
+
+      await expect(
+        manager.getStreamUrl("pandora", "persisted-token", {
+          trackId: "pandora:persisted-token",
+          title: "Persisted Song",
+          artist: "Artist",
+          album: "Album",
+        }),
+      ).rejects.toThrow(
+        "Unable to refresh stream for pandora:persisted-token: station did not return persisted track (initial resolution: missing in-memory URL)",
+      );
+    });
+
     it("throws error for unknown source", async () => {
       const manager = createSourceManager([]);
 

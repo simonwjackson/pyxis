@@ -1,4 +1,5 @@
 import type { SourceManager } from "@shared/sources/index.js";
+import type { StreamRecoveryHint } from "@shared/sources/types.js";
 import type { ViteDevServer } from "vite";
 import type { AndroidMediaBridgeHandler } from "../lib/androidMediaBridge.js";
 
@@ -34,6 +35,9 @@ export type StreamRouteDeps = {
   readonly log: ServerRouteLogger;
   readonly resolveTrackForStream: (opaqueId: string) => Promise<string>;
   readonly ensureSourceManager: () => Promise<SourceManager>;
+  readonly getStreamRecoveryHint: (
+    compositeId: string,
+  ) => StreamRecoveryHint | undefined;
   readonly handleStreamRequest: (
     sourceManager: SourceManager,
     compositeId: string,
@@ -41,6 +45,7 @@ export type StreamRouteDeps = {
     options?: {
       readonly abortSignal?: AbortSignal;
       readonly requestedFormat?: "mp3";
+      readonly recoveryHint?: StreamRecoveryHint;
     },
   ) => Promise<Response>;
   readonly prefetchToCache: (

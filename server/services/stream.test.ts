@@ -7,7 +7,11 @@ import { describe, expect, it } from "bun:test";
 import { existsSync, readdirSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import envPaths from "env-paths";
-import type { SourceManager } from "@shared/sources/index.js";
+import {
+  createSourceManager,
+  type SourceManager,
+} from "@shared/sources/index.js";
+import type { Source } from "@shared/sources/types.js";
 import {
   encodeTrackId,
   handleStreamRequest,
@@ -390,6 +394,71 @@ describe("handleStreamRequest", () => {
     } finally {
       globalThis.fetch = originalFetch;
       removeCachedTestTrack("ytmusic", trackId);
+    }
+  });
+
+  it("rehydrates a restart-restored Pandora track and returns MP3 bytes", async () => {
+    let recoveryCalls = 0;
+    const source: Source = {
+      type: "pandora",
+      name: "Pandora",
+      getStreamUrl: async () => {
+        throw new Error("No stream URL available after restart");
+      },
+      rehydrateStreamUrl: async (trackId, hint) => {
+        recoveryCalls += 1;
+        expect(trackId).toBe("persisted-token");
+        expect(hint).toMatchObject({
+          trackId: "pandora:persisted-token",
+          title: "Persisted Song",
+          origin: { type: "playlist", id: "station-token" },
+        });
+        await new Promise((resolve) => setTimeout(resolve, 5));
+        return "https://pandora.example/fresh-audio.mp3";
+      },
+    };
+    const manager = createSourceManager([source]);
+    const originalFetch = globalThis.fetch;
+    const audioData = new Uint8Array([0x49, 0x44, 0x33, 0x04]);
+    globalThis.fetch = async () =>
+      new Response(audioData, {
+        status: 200,
+        headers: { "Content-Type": "audio/mpeg" },
+      });
+    const options = {
+      requestedFormat: "mp3" as const,
+      recoveryHint: {
+        trackId: "pandora:persisted-token",
+        title: "Persisted Song",
+        artist: "Persisted Artist",
+        album: "Persisted Album",
+        origin: { type: "playlist" as const, id: "station-token" },
+      },
+    };
+
+    try {
+      const [speaker, browser] = await Promise.all([
+        handleStreamRequest(
+          manager,
+          "pandora:persisted-token",
+          null,
+          options,
+        ),
+        handleStreamRequest(
+          manager,
+          "pandora:persisted-token",
+          null,
+          options,
+        ),
+      ]);
+
+      expect(recoveryCalls).toBe(1);
+      expect(speaker.status).toBe(200);
+      expect(speaker.headers.get("Content-Type")).toBe("audio/mpeg");
+      expect(new Uint8Array(await speaker.arrayBuffer())).toEqual(audioData);
+      expect(new Uint8Array(await browser.arrayBuffer())).toEqual(audioData);
+    } finally {
+      globalThis.fetch = originalFetch;
     }
   });
 

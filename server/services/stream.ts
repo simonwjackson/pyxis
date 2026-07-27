@@ -19,7 +19,10 @@ import { join } from "node:path";
 import envPaths from "env-paths";
 import { createLogger } from "@shared/logger.js";
 import type { SourceManager } from "@shared/sources/index.js";
-import type { SourceType } from "@shared/sources/types.js";
+import type {
+  SourceType,
+  StreamRecoveryHint,
+} from "@shared/sources/types.js";
 import { decodeChapterTrackId } from "@shared/sources/youtube/index.js";
 
 const log = createLogger("stream").child({ component: "stream" });
@@ -126,6 +129,7 @@ export type StreamFormat = "mp3";
 export type HandleStreamRequestOptions = {
   readonly requestedFormat?: StreamFormat;
   readonly abortSignal?: AbortSignal;
+  readonly recoveryHint?: StreamRecoveryHint;
 };
 
 /**
@@ -167,9 +171,10 @@ export function encodeTrackId(source: SourceType, trackId: string): string {
 export async function resolveStreamUrl(
   sourceManager: SourceManager,
   compositeId: string,
+  recoveryHint?: StreamRecoveryHint,
 ): Promise<string> {
   const { source, trackId } = parseTrackId(compositeId);
-  return sourceManager.getStreamUrl(source, trackId);
+  return sourceManager.getStreamUrl(source, trackId, recoveryHint);
 }
 
 function normalizeContentType(contentType: string | null): string {
@@ -1167,7 +1172,11 @@ export async function handleStreamRequest(
 
   let url: string;
   try {
-    url = await resolveStreamUrl(sourceManager, compositeId);
+    url = await resolveStreamUrl(
+      sourceManager,
+      compositeId,
+      options?.recoveryHint,
+    );
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     log.error({ compositeId, err: message }, "resolve failed");

@@ -40,6 +40,7 @@ function createConfig(
       log,
       resolveTrackForStream: async (id) => `ytmusic:${id}`,
       ensureSourceManager: async () => ({}) as SourceManager,
+      getStreamRecoveryHint: () => undefined,
       handleStreamRequest: async () => new Response("stream"),
       prefetchToCache: async () => undefined,
     },
@@ -165,6 +166,12 @@ it("passes stream range, format, and prefetch hints without changing byte behavi
           return `ytmusic:${id}`;
         },
         ensureSourceManager: async () => ({}) as SourceManager,
+        getStreamRecoveryHint: () => ({
+          trackId: "ytmusic:current",
+          title: "Current",
+          artist: "Artist",
+          album: "Album",
+        }),
         handleStreamRequest: async (
           _manager,
           compositeId,
@@ -174,6 +181,7 @@ it("passes stream range, format, and prefetch hints without changing byte behavi
           expect(compositeId).toBe("ytmusic:current");
           expect(rangeHeader).toBe("bytes=1-2");
           expect(options?.requestedFormat).toBe("mp3");
+          expect(options?.recoveryHint?.trackId).toBe("ytmusic:current");
           return new Response("partial", { status: 206 });
         },
         prefetchToCache: async (_manager, compositeId) => {

@@ -16,6 +16,7 @@ import type {
   SearchResult,
   Source,
   SourceType,
+  StreamRecoveryHint,
 } from "./types.js";
 import {
   hasAlbumCapability,
@@ -46,6 +47,7 @@ export type SourceManager = {
   readonly getStreamUrl: (
     source: SourceType,
     trackId: string,
+    recoveryHint?: StreamRecoveryHint,
   ) => Promise<string>;
   /** Search all sources and aggregate results with metadata enrichment */
   readonly searchAll: (query: string) => Promise<SearchResult>;
@@ -127,6 +129,7 @@ export function createSourceManager(
 ): SourceManager {
   const log = logger?.child({ component: "search" });
   const sourceMap = new Map<SourceType, Source>();
+  const streamRecoveries = new Map<string, Promise<string>>();
   for (const source of sources) {
     sourceMap.set(source.type, source);
   }
@@ -159,12 +162,40 @@ export function createSourceManager(
       return source.getPlaylistTracks(playlistId);
     },
 
-    async getStreamUrl(sourceType, trackId) {
+    async getStreamUrl(sourceType, trackId, recoveryHint) {
       const source = sourceMap.get(sourceType);
       if (!source || !hasStreamCapability(source)) {
         throw new Error(`Source "${sourceType}" does not support streaming`);
       }
-      return source.getStreamUrl(trackId);
+      try {
+        return await source.getStreamUrl(trackId);
+      } catch (initialError) {
+        if (!recoveryHint || !source.rehydrateStreamUrl) throw initialError;
+        const recoveryKey = `${sourceType}:${trackId}`;
+        const active = streamRecoveries.get(recoveryKey);
+        if (active) return active;
+        const recovery = source
+          .rehydrateStreamUrl(trackId, recoveryHint)
+          .catch((recoveryError: unknown) => {
+            const initialMessage =
+              initialError instanceof Error
+                ? initialError.message
+                : String(initialError);
+            const recoveryMessage =
+              recoveryError instanceof Error
+                ? recoveryError.message
+                : String(recoveryError);
+            throw new Error(
+              `Unable to refresh stream for ${sourceType}:${trackId}: ${recoveryMessage} (initial resolution: ${initialMessage})`,
+              { cause: recoveryError },
+            );
+          })
+          .finally(() => {
+            streamRecoveries.delete(recoveryKey);
+          });
+        streamRecoveries.set(recoveryKey, recovery);
+        return recovery;
+      }
     },
 
     async getAlbumTracks(sourceType, albumId) {
