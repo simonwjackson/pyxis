@@ -409,6 +409,54 @@
             "_tag",
             "payload"
           ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "_tag": {
+              "type": "string",
+              "const": "matching.evaluate"
+            },
+            "payload": {
+              "$ref": "#/$defs/MatchingEvaluateRequest"
+            }
+          },
+          "required": [
+            "_tag",
+            "payload"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "_tag": {
+              "type": "string",
+              "const": "matching.override.set"
+            },
+            "payload": {
+              "$ref": "#/$defs/MatchingOverrideSetRequest"
+            }
+          },
+          "required": [
+            "_tag",
+            "payload"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "_tag": {
+              "type": "string",
+              "const": "matching.override.remove"
+            },
+            "payload": {
+              "$ref": "#/$defs/MatchingOverrideRemoveRequest"
+            }
+          },
+          "required": [
+            "_tag",
+            "payload"
+          ]
         }
       ]
     },
@@ -1160,6 +1208,107 @@
       },
       "additionalProperties": false
     },
+    "MatchingEvaluateRequest": {
+      "type": "object",
+      "properties": {
+        "left": {
+          "$ref": "#/$defs/RpcMatchItem"
+        },
+        "right": {
+          "$ref": "#/$defs/RpcMatchItem"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "left",
+        "right"
+      ]
+    },
+    "RpcMatchItem": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "artist": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "album": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "durationMs": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint32",
+          "minimum": 0
+        },
+        "year": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint32",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "artist",
+        "title"
+      ]
+    },
+    "MatchingOverrideSetRequest": {
+      "type": "object",
+      "properties": {
+        "leftId": {
+          "type": "string"
+        },
+        "rightId": {
+          "type": "string"
+        },
+        "decision": {
+          "$ref": "#/$defs/RpcOverrideDecision"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "leftId",
+        "rightId",
+        "decision"
+      ]
+    },
+    "RpcOverrideDecision": {
+      "type": "string",
+      "enum": [
+        "merge",
+        "split"
+      ]
+    },
+    "MatchingOverrideRemoveRequest": {
+      "type": "object",
+      "properties": {
+        "leftId": {
+          "type": "string"
+        },
+        "rightId": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "leftId",
+        "rightId"
+      ]
+    },
     "RpcResponse": {
       "oneOf": [
         {
@@ -1539,6 +1688,54 @@
             },
             "outcome": {
               "$ref": "#/$defs/HotAlbumsListOutcome"
+            }
+          },
+          "required": [
+            "_tag",
+            "outcome"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "_tag": {
+              "type": "string",
+              "const": "matching.evaluate"
+            },
+            "outcome": {
+              "$ref": "#/$defs/MatchingEvaluateOutcome"
+            }
+          },
+          "required": [
+            "_tag",
+            "outcome"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "_tag": {
+              "type": "string",
+              "const": "matching.override.set"
+            },
+            "outcome": {
+              "$ref": "#/$defs/CommandOutcome"
+            }
+          },
+          "required": [
+            "_tag",
+            "outcome"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "_tag": {
+              "type": "string",
+              "const": "matching.override.remove"
+            },
+            "outcome": {
+              "$ref": "#/$defs/CommandOutcome"
             }
           },
           "required": [
@@ -3354,6 +3551,135 @@
         "listenCount",
         "windowStart",
         "computedAt"
+      ]
+    },
+    "MatchingEvaluateOutcome": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "const": "ready"
+            },
+            "value": {
+              "$ref": "#/$defs/RpcMatchResult"
+            }
+          },
+          "required": [
+            "status",
+            "value"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "const": "unavailable"
+            },
+            "value": {
+              "$ref": "#/$defs/RpcFailure"
+            }
+          },
+          "required": [
+            "status",
+            "value"
+          ]
+        }
+      ]
+    },
+    "RpcMatchResult": {
+      "type": "object",
+      "properties": {
+        "decision": {
+          "$ref": "#/$defs/RpcMatchDecision"
+        },
+        "score": {
+          "$ref": "#/$defs/RpcMatchScore"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "decision",
+        "score"
+      ]
+    },
+    "RpcMatchDecision": {
+      "type": "string",
+      "enum": [
+        "autoMerge",
+        "review",
+        "reject",
+        "manualMerge",
+        "manualSplit"
+      ]
+    },
+    "RpcMatchScore": {
+      "type": "object",
+      "properties": {
+        "overall": {
+          "type": "integer",
+          "format": "uint16",
+          "minimum": 0,
+          "maximum": 65535
+        },
+        "artist": {
+          "type": "integer",
+          "format": "uint16",
+          "minimum": 0,
+          "maximum": 65535
+        },
+        "title": {
+          "type": "integer",
+          "format": "uint16",
+          "minimum": 0,
+          "maximum": 65535
+        },
+        "album": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint16",
+          "minimum": 0,
+          "maximum": 65535
+        },
+        "duration": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint16",
+          "minimum": 0,
+          "maximum": 65535
+        },
+        "year": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint16",
+          "minimum": 0,
+          "maximum": 65535
+        },
+        "coverage": {
+          "type": "integer",
+          "format": "uint16",
+          "minimum": 0,
+          "maximum": 65535
+        },
+        "variantConflict": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "overall",
+        "artist",
+        "title",
+        "coverage",
+        "variantConflict"
       ]
     },
     "RpcProtocolFailureOutcome": {

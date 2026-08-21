@@ -34,6 +34,7 @@ pub const SETTINGS: &str = "settings";
 pub const API_TOKENS: &str = "apiTokens";
 pub const PLUGIN_CREDENTIALS: &str = "pluginCredentials";
 pub const MEDIA_FILES: &str = "mediaFiles";
+pub const MATCH_OVERRIDES: &str = "matchOverrides";
 
 fn field(name: &str, schema: SchemaNode) -> StructField {
     StructField {
@@ -347,6 +348,18 @@ pub fn media_files() -> CollectionDescriptor {
     )
 }
 
+pub fn match_overrides() -> CollectionDescriptor {
+    scoped(
+        MATCH_OVERRIDES,
+        vec![
+            field("leftId", SchemaNode::Str),
+            field("rightId", SchemaNode::Str),
+            field("decision", SchemaNode::Str),
+            field("createdAt", SchemaNode::Str),
+        ],
+    )
+}
+
 /// Every collection the runtime opens.
 pub fn all() -> Vec<CollectionDescriptor> {
     vec![
@@ -368,5 +381,6 @@ pub fn all() -> Vec<CollectionDescriptor> {
         api_tokens(),
         plugin_credentials(),
         media_files(),
+        match_overrides(),
     ]
 }

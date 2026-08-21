@@ -17,6 +17,7 @@ use crate::accounts::Accounts;
 use crate::db::store::Store;
 use crate::library::Library;
 use crate::listen::{ListenLog, Projections};
+use crate::matching::Matcher;
 use crate::media::Media;
 use crate::plugins::host::PluginHost;
 use crate::rpc::transport;
@@ -30,6 +31,7 @@ pub struct AppState {
     pub(crate) accounts: Accounts,
     pub library: Library,
     pub listen: ListenLog,
+    pub matcher: Matcher,
     pub media: Media,
     pub projections: Projections,
     pub(crate) plugins: PluginHost,
@@ -50,6 +52,7 @@ impl AppState {
         let accounts = Accounts::open(store.clone())?;
         let library = Library::open(store.clone());
         let listen = ListenLog::open(store.clone());
+        let matcher = Matcher::open(store.clone());
         let media = Media::open(store.clone())?;
         let projections = Projections::open(store.clone());
         let sessions = Sessions::open(store);
@@ -58,6 +61,7 @@ impl AppState {
             accounts,
             library,
             listen,
+            matcher,
             media,
             projections,
             plugins,

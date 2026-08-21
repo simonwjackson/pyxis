@@ -105,6 +105,36 @@ export interface ListenHistoryRequest {
 	limit?: number;
 }
 
+export interface RpcMatchItem {
+	id: string;
+	artist: string;
+	title: string;
+	album?: string;
+	durationMs?: number;
+	year?: number;
+}
+
+export interface MatchingEvaluateRequest {
+	left: RpcMatchItem;
+	right: RpcMatchItem;
+}
+
+export interface MatchingOverrideRemoveRequest {
+	leftId: string;
+	rightId: string;
+}
+
+export enum RpcOverrideDecision {
+	Merge = "merge",
+	Split = "split",
+}
+
+export interface MatchingOverrideSetRequest {
+	leftId: string;
+	rightId: string;
+	decision: RpcOverrideDecision;
+}
+
 export enum RpcPlacement {
 	Discovery = "discovery",
 	Collection = "collection",
@@ -290,6 +320,30 @@ export interface RpcListenEvent {
 	completed: boolean;
 	context: string;
 	contextId?: string;
+}
+
+export enum RpcMatchDecision {
+	AutoMerge = "autoMerge",
+	Review = "review",
+	Reject = "reject",
+	ManualMerge = "manualMerge",
+	ManualSplit = "manualSplit",
+}
+
+export interface RpcMatchScore {
+	overall: number;
+	artist: number;
+	title: number;
+	album?: number;
+	duration?: number;
+	year?: number;
+	coverage: number;
+	variantConflict: boolean;
+}
+
+export interface RpcMatchResult {
+	decision: RpcMatchDecision;
+	score: RpcMatchScore;
 }
 
 /**
@@ -493,6 +547,10 @@ export type ListenHistoryOutcome =
 	| { status: "ready", value: RpcListenEvent[] }
 	| { status: "unavailable", value: RpcFailure };
 
+export type MatchingEvaluateOutcome =
+	| { status: "ready", value: RpcMatchResult }
+	| { status: "unavailable", value: RpcFailure };
+
 export type PairingCreateOutcome =
 	| { status: "ready", value: RpcPairingCode }
 	| { status: "unavailable", value: RpcFailure };
@@ -548,7 +606,10 @@ export type RpcRequest =
 	| { _tag: "library.playlists.list", payload: EmptyRequest }
 	| { _tag: "listen.events.append", payload: ListenEventsAppendRequest }
 	| { _tag: "listen.history.list", payload: ListenHistoryRequest }
-	| { _tag: "library.hotAlbums.list", payload: HotAlbumsListRequest };
+	| { _tag: "library.hotAlbums.list", payload: HotAlbumsListRequest }
+	| { _tag: "matching.evaluate", payload: MatchingEvaluateRequest }
+	| { _tag: "matching.override.set", payload: MatchingOverrideSetRequest }
+	| { _tag: "matching.override.remove", payload: MatchingOverrideRemoveRequest };
 
 export type RpcResponse =
 	| { _tag: "system.status.get", outcome: SystemStatusOutcome }
@@ -575,6 +636,9 @@ export type RpcResponse =
 	| { _tag: "listen.events.append", outcome: ListenAppendOutcome }
 	| { _tag: "listen.history.list", outcome: ListenHistoryOutcome }
 	| { _tag: "library.hotAlbums.list", outcome: HotAlbumsListOutcome }
+	| { _tag: "matching.evaluate", outcome: MatchingEvaluateOutcome }
+	| { _tag: "matching.override.set", outcome: CommandOutcome }
+	| { _tag: "matching.override.remove", outcome: CommandOutcome }
 	| { _tag: "rpc.failure", outcome: RpcProtocolFailureOutcome };
 
 export type SessionCommandOutcome =

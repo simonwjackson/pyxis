@@ -16,18 +16,21 @@ use crate::library::{
     TrackInput,
 };
 use crate::listen::{HotConfig, ListenError, TrackListenInput};
+use crate::matching::{Decision, MatchItem, OverrideDecision};
 use crate::rpc::contract::{
     AccountCreateOutcome, AccountListOutcome, AlbumAddOutcome, AlbumCommandOutcome,
     AlbumListOutcome, ApiTokenCreateOutcome, BookmarkCommandOutcome, BookmarkListOutcome,
     CommandOutcome, DeviceClaimOutcome, DevicePairOutcome, HotAlbumsListOutcome,
-    ListenAppendOutcome, ListenHistoryOutcome, PairingCreateOutcome, PlaylistCreateOutcome,
-    PlaylistListOutcome, PluginListOutcome, RpcAccount, RpcAlbumCommand, RpcApiToken,
-    RpcApiTokenGrant, RpcAuthGrant, RpcBookmark, RpcBookmarkCommand, RpcDevice, RpcFailure,
-    RpcHotAlbum, RpcLibraryAlbum, RpcLibraryTrack, RpcListenAppendResult, RpcListenEvent,
-    RpcPairingCode, RpcPlacement, RpcPlaylist, RpcPlugin, RpcRequest, RpcResponse, RpcSearchTrack,
-    RpcSession, RpcSessionCommand, RpcSourceFailure, RpcSourceSearchResult, RpcSystemStatus,
-    RpcTransport, SessionCommandOutcome, SessionCreateOutcome, SessionListOutcome,
-    SessionStateOutcome, SourceSearchOutcome, SystemStatusOutcome, CONTRACT_ID,
+    ListenAppendOutcome, ListenHistoryOutcome, MatchingEvaluateOutcome, PairingCreateOutcome,
+    PlaylistCreateOutcome, PlaylistListOutcome, PluginListOutcome, RpcAccount, RpcAlbumCommand,
+    RpcApiToken, RpcApiTokenGrant, RpcAuthGrant, RpcBookmark, RpcBookmarkCommand, RpcDevice,
+    RpcFailure, RpcHotAlbum, RpcLibraryAlbum, RpcLibraryTrack, RpcListenAppendResult,
+    RpcListenEvent, RpcMatchDecision, RpcMatchItem, RpcMatchResult, RpcMatchScore,
+    RpcOverrideDecision, RpcPairingCode, RpcPlacement, RpcPlaylist, RpcPlugin, RpcRequest,
+    RpcResponse, RpcSearchTrack, RpcSession, RpcSessionCommand, RpcSourceFailure,
+    RpcSourceSearchResult, RpcSystemStatus, RpcTransport, SessionCommandOutcome,
+    SessionCreateOutcome, SessionListOutcome, SessionStateOutcome, SourceSearchOutcome,
+    SystemStatusOutcome, CONTRACT_ID,
 };
 use crate::sessions::{Session, SessionCommand as DomainSessionCommand, SessionError, Transport};
 use crate::source_catalog::SearchOutcome;
@@ -564,6 +567,78 @@ pub fn dispatch(state: &AppState, request: RpcRequest, auth: Option<AuthContext>
                 )),
             }
         }
+        RpcRequest::MatchingEvaluate(request) => {
+            let Some(auth) = auth else {
+                return auth_required();
+            };
+            match state.matcher.decide(
+                &auth.account_id,
+                &match_item(request.left),
+                &match_item(request.right),
+            ) {
+                Ok(result) => {
+                    RpcResponse::MatchingEvaluate(MatchingEvaluateOutcome::Ready(RpcMatchResult {
+                        decision: match result.decision {
+                            Decision::AutoMerge => RpcMatchDecision::AutoMerge,
+                            Decision::Review => RpcMatchDecision::Review,
+                            Decision::Reject => RpcMatchDecision::Reject,
+                            Decision::ManualMerge => RpcMatchDecision::ManualMerge,
+                            Decision::ManualSplit => RpcMatchDecision::ManualSplit,
+                        },
+                        score: RpcMatchScore {
+                            overall: result.score.overall,
+                            artist: result.score.artist,
+                            title: result.score.title,
+                            album: result.score.album,
+                            duration: result.score.duration,
+                            year: result.score.year,
+                            coverage: result.score.coverage,
+                            variant_conflict: result.score.variant_conflict,
+                        },
+                    }))
+                }
+                Err(error) => RpcResponse::MatchingEvaluate(MatchingEvaluateOutcome::Unavailable(
+                    RpcFailure::retryable("matching.unavailable", error.to_string()),
+                )),
+            }
+        }
+        RpcRequest::MatchingOverrideSet(request) => {
+            let Some(auth) = auth else {
+                return auth_required();
+            };
+            let decision = match request.decision {
+                RpcOverrideDecision::Merge => OverrideDecision::Merge,
+                RpcOverrideDecision::Split => OverrideDecision::Split,
+            };
+            match state.matcher.set_override(
+                &auth.account_id,
+                &request.left_id,
+                &request.right_id,
+                decision,
+                auth.principal_id(),
+            ) {
+                Ok(()) => RpcResponse::MatchingOverrideSet(CommandOutcome::Succeeded),
+                Err(error) => RpcResponse::MatchingOverrideSet(CommandOutcome::Unavailable(
+                    RpcFailure::retryable("matching.unavailable", error.to_string()),
+                )),
+            }
+        }
+        RpcRequest::MatchingOverrideRemove(request) => {
+            let Some(auth) = auth else {
+                return auth_required();
+            };
+            match state.matcher.remove_override(
+                &auth.account_id,
+                &request.left_id,
+                &request.right_id,
+            ) {
+                Ok(true) => RpcResponse::MatchingOverrideRemove(CommandOutcome::Succeeded),
+                Ok(false) => RpcResponse::MatchingOverrideRemove(CommandOutcome::Unknown),
+                Err(error) => RpcResponse::MatchingOverrideRemove(CommandOutcome::Unavailable(
+                    RpcFailure::retryable("matching.unavailable", error.to_string()),
+                )),
+            }
+        }
     }
 }
 
@@ -669,6 +744,17 @@ fn domain_command(command: RpcSessionCommand) -> DomainSessionCommand {
         RpcSessionCommand::VolumeSet(command) => DomainSessionCommand::VolumeSet {
             volume: command.volume,
         },
+    }
+}
+
+fn match_item(item: RpcMatchItem) -> MatchItem {
+    MatchItem {
+        id: item.id,
+        artist: item.artist,
+        title: item.title,
+        album: item.album,
+        duration_ms: item.duration_ms,
+        year: item.year,
     }
 }
 

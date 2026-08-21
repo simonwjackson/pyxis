@@ -823,6 +823,98 @@ pub enum HotAlbumsListOutcome {
 
 #[typeshare]
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct RpcMatchItem {
+    pub id: String,
+    pub artist: String,
+    pub title: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub album: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub duration_ms: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub year: Option<u32>,
+}
+
+#[typeshare]
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct MatchingEvaluateRequest {
+    pub left: RpcMatchItem,
+    pub right: RpcMatchItem,
+}
+
+#[typeshare]
+#[derive(Clone, Copy, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub enum RpcMatchDecision {
+    AutoMerge,
+    Review,
+    Reject,
+    ManualMerge,
+    ManualSplit,
+}
+
+#[typeshare]
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct RpcMatchScore {
+    pub overall: u16,
+    pub artist: u16,
+    pub title: u16,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub album: Option<u16>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub duration: Option<u16>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub year: Option<u16>,
+    pub coverage: u16,
+    pub variant_conflict: bool,
+}
+
+#[typeshare]
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct RpcMatchResult {
+    pub decision: RpcMatchDecision,
+    pub score: RpcMatchScore,
+}
+
+#[typeshare]
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(tag = "status", content = "value", rename_all = "camelCase")]
+pub enum MatchingEvaluateOutcome {
+    Ready(RpcMatchResult),
+    Unavailable(RpcFailure),
+}
+
+#[typeshare]
+#[derive(Clone, Copy, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub enum RpcOverrideDecision {
+    Merge,
+    Split,
+}
+
+#[typeshare]
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct MatchingOverrideSetRequest {
+    pub left_id: String,
+    pub right_id: String,
+    pub decision: RpcOverrideDecision,
+}
+
+#[typeshare]
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct MatchingOverrideRemoveRequest {
+    pub left_id: String,
+    pub right_id: String,
+}
+
+#[typeshare]
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
 #[serde(tag = "_tag", content = "payload")]
 pub enum RpcRequest {
     #[serde(rename = "system.status.get")]
@@ -873,6 +965,12 @@ pub enum RpcRequest {
     ListenHistoryList(ListenHistoryRequest),
     #[serde(rename = "library.hotAlbums.list")]
     LibraryHotAlbumsList(HotAlbumsListRequest),
+    #[serde(rename = "matching.evaluate")]
+    MatchingEvaluate(MatchingEvaluateRequest),
+    #[serde(rename = "matching.override.set")]
+    MatchingOverrideSet(MatchingOverrideSetRequest),
+    #[serde(rename = "matching.override.remove")]
+    MatchingOverrideRemove(MatchingOverrideRemoveRequest),
 }
 
 /// A request that cannot enter operation dispatch. This is separate from an operation's
@@ -936,12 +1034,18 @@ pub enum RpcResponse {
     ListenHistoryList(ListenHistoryOutcome),
     #[serde(rename = "library.hotAlbums.list")]
     LibraryHotAlbumsList(HotAlbumsListOutcome),
+    #[serde(rename = "matching.evaluate")]
+    MatchingEvaluate(MatchingEvaluateOutcome),
+    #[serde(rename = "matching.override.set")]
+    MatchingOverrideSet(CommandOutcome),
+    #[serde(rename = "matching.override.remove")]
+    MatchingOverrideRemove(CommandOutcome),
     #[serde(rename = "rpc.failure")]
     Failure(RpcProtocolFailureOutcome),
 }
 
 impl RpcRequest {
-    pub const KNOWN_TAGS: [&'static str; 24] = [
+    pub const KNOWN_TAGS: [&'static str; 27] = [
         "system.status.get",
         "auth.device.claim",
         "auth.device.pair",
@@ -966,6 +1070,9 @@ impl RpcRequest {
         "listen.events.append",
         "listen.history.list",
         "library.hotAlbums.list",
+        "matching.evaluate",
+        "matching.override.set",
+        "matching.override.remove",
     ];
 
     /// The operation tag as it appears on the wire. Used for logging and authorization.
@@ -995,6 +1102,9 @@ impl RpcRequest {
             RpcRequest::ListenEventsAppend(_) => "listen.events.append",
             RpcRequest::ListenHistoryList(_) => "listen.history.list",
             RpcRequest::LibraryHotAlbumsList(_) => "library.hotAlbums.list",
+            RpcRequest::MatchingEvaluate(_) => "matching.evaluate",
+            RpcRequest::MatchingOverrideSet(_) => "matching.override.set",
+            RpcRequest::MatchingOverrideRemove(_) => "matching.override.remove",
         }
     }
 
@@ -1033,6 +1143,10 @@ impl RpcRequest {
             RpcRequest::ListenHistoryList(_) | RpcRequest::LibraryHotAlbumsList(_) => {
                 Some("listen:read")
             }
+            RpcRequest::MatchingEvaluate(_) => Some("library:read"),
+            RpcRequest::MatchingOverrideSet(_) | RpcRequest::MatchingOverrideRemove(_) => {
+                Some("library:write")
+            }
             RpcRequest::AuthPairingCreate(_)
             | RpcRequest::AuthTokenCreate(_)
             | RpcRequest::AuthTokenRevoke(_)
@@ -1042,7 +1156,7 @@ impl RpcRequest {
 }
 
 impl RpcResponse {
-    pub const KNOWN_OPERATION_TAGS: [&'static str; 24] = RpcRequest::KNOWN_TAGS;
+    pub const KNOWN_OPERATION_TAGS: [&'static str; 27] = RpcRequest::KNOWN_TAGS;
 
     pub fn tag(&self) -> &'static str {
         match self {
@@ -1070,6 +1184,9 @@ impl RpcResponse {
             RpcResponse::ListenEventsAppend(_) => "listen.events.append",
             RpcResponse::ListenHistoryList(_) => "listen.history.list",
             RpcResponse::LibraryHotAlbumsList(_) => "library.hotAlbums.list",
+            RpcResponse::MatchingEvaluate(_) => "matching.evaluate",
+            RpcResponse::MatchingOverrideSet(_) => "matching.override.set",
+            RpcResponse::MatchingOverrideRemove(_) => "matching.override.remove",
             RpcResponse::Failure(_) => "rpc.failure",
         }
     }
