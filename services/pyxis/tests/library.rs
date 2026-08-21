@@ -72,6 +72,31 @@ fn placement_transition_persists_and_bumps_revision() {
 }
 
 #[test]
+fn yaml_store_round_trips_titles_ending_in_a_colon() {
+    let dir = tempfile::tempdir().expect("temp dir");
+    let account = AccountId::new("account-a");
+    let album_id = {
+        let store = Store::open(dir.path()).expect("store");
+        let library = Library::open(store.clone());
+        let mut input = album();
+        input.tracks[0].title = "Note to Self:".into();
+        let added = library
+            .add_album(&account, input, "device-a")
+            .expect("add");
+        store.close().expect("close");
+        added.id
+    };
+
+    let reopened = Library::open(Store::open(dir.path()).expect("reopen"));
+    let album = reopened
+        .get_album(&account, &album_id)
+        .expect("get")
+        .expect("album");
+
+    assert_eq!(album.tracks[0].title, "Note to Self:");
+}
+
+#[test]
 fn readding_a_dismissed_album_returns_it_to_discovery() {
     let dir = tempfile::tempdir().expect("temp dir");
     let store = Store::open(dir.path()).expect("store");

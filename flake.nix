@@ -25,9 +25,17 @@
       system:
       let
         pkgs = import nixpkgs { inherit system; };
+        proseqlPatched = pkgs.applyPatches {
+          name = "proseql-pyxis-patched";
+          src = proseql;
+          patches = [ ./nix/patches/proseql-yaml-trailing-colon.patch ];
+        };
         mkBunDerivation = bun2nix.lib.${system}.mkBunDerivation;
         client = import ./nix/client.nix { inherit pkgs mkBunDerivation; };
-        core = import ./nix/core.nix { inherit pkgs proseql; };
+        core = import ./nix/core.nix {
+          inherit pkgs;
+          proseql = proseqlPatched;
+        };
         plugins = import ./nix/plugins.nix { inherit pkgs mkBunDerivation; };
         tsnet = import ./nix/pyxis-tsnet.nix { inherit pkgs; };
         pyxis = import ./nix/package.nix {
@@ -51,7 +59,8 @@
           pyxis-tsnet = tsnet;
         };
         devShells.default = import ./nix/devshell.nix {
-          inherit pkgs proseql;
+          inherit pkgs;
+          proseql = proseqlPatched;
           bun2nixPkgs = bun2nix.packages.${system};
         };
       }

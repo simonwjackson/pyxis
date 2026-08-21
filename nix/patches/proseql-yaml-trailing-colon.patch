@@ -1,0 +1,33 @@
+diff --git a/crates/proseql-formats/src/codecs.rs b/crates/proseql-formats/src/codecs.rs
+index 349ab24..4ae57f0 100644
+--- a/crates/proseql-formats/src/codecs.rs
++++ b/crates/proseql-formats/src/codecs.rs
+@@ -950,6 +950,7 @@ fn should_use_plain_yaml_scalar(value: &str) -> bool {
+         || value.starts_with(' ')
+         || value.ends_with(' ')
+         || value.contains(": ")
++        || value.ends_with(':')
+         || value.chars().any(|ch| ch.is_control() && ch != '\t')
+         || starts_with_yaml_indicator_hazard(value)
+         || contains_yaml_comment_hazard(value)
+diff --git a/crates/proseql-formats/tests/format_conformance.rs b/crates/proseql-formats/tests/format_conformance.rs
+index d15ef8d..6f407e5 100644
+--- a/crates/proseql-formats/tests/format_conformance.rs
++++ b/crates/proseql-formats/tests/format_conformance.rs
+@@ -606,6 +606,7 @@ fn yaml_encode_quotes_plain_scalar_indicator_and_comment_hazards() {
+         "tag": "#tag",
+         "dash": "- no",
+         "question": "? what",
++        "trailing": "Note to Self:",
+         "foo # bar": "value",
+         "#tag": "value",
+         "- no": "value",
+@@ -614,7 +615,7 @@ fn yaml_encode_quotes_plain_scalar_indicator_and_comment_hazards() {
+     let encoded = codec.encode(&value, None).unwrap();
+     assert_eq!(
+         encoded,
+-        "text: \"foo # bar\"\ntag: \"#tag\"\ndash: \"- no\"\nquestion: \"? what\"\n\"foo # bar\": value\n\"#tag\": value\n\"- no\": value\n\"? what\": value\n"
++        "text: \"foo # bar\"\ntag: \"#tag\"\ndash: \"- no\"\nquestion: \"? what\"\ntrailing: \"Note to Self:\"\n\"foo # bar\": value\n\"#tag\": value\n\"- no\": value\n\"? what\": value\n"
+     );
+     assert_eq!(codec.decode(&encoded).unwrap(), value);
+ }
