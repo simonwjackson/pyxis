@@ -115,6 +115,19 @@ impl Store {
             .collect()
     }
 
+    pub fn delete_account(&self, id: &str) -> Result<bool> {
+        let id = id.to_string();
+        self.runtime
+            .mutate(move |database| {
+                if database.find_by_id(schema::ACCOUNTS, &id)?.is_none() {
+                    return Ok(false);
+                }
+                database.delete(schema::ACCOUNTS, &id)?;
+                Ok(true)
+            })
+            .map_err(engine)
+    }
+
     // ---- scoped: every other collection ------------------------------------------
 
     /// Write a record into an account's scope. The `accountId` field is set here, so a
@@ -196,6 +209,9 @@ impl Store {
                         Value::Object(fields) => {
                             let mut updates = fields.clone();
                             updates.remove("id");
+                            // ProseQL treats createdAt as an engine-level immutable field.
+                            // Generic upsert must not resend it when replacing a record.
+                            updates.remove("createdAt");
                             Value::Object(updates)
                         }
                         other => other.clone(),

@@ -101,9 +101,147 @@ pub struct RpcAccount {
 
 #[typeshare]
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct RpcDevice {
+    pub id: String,
+    pub name: String,
+}
+
+#[typeshare]
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct RpcAuthGrant {
+    pub account: RpcAccount,
+    pub device: RpcDevice,
+    /// Returned exactly once. Clients persist this in their local ProseQL worker store.
+    pub bearer_token: String,
+}
+
+#[typeshare]
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct DeviceClaimRequest {
+    pub name: String,
+}
+
+#[typeshare]
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct DevicePairRequest {
+    pub name: String,
+    pub code: String,
+}
+
+#[typeshare]
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct AccountCreateRequest {
+    pub name: String,
+    /// The creating physical device gets a new grant scoped to the new account.
+    pub device_name: String,
+}
+
+#[typeshare]
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct RpcPairingCode {
+    pub code: String,
+    pub expires_at: String,
+}
+
+#[typeshare]
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct ApiTokenCreateRequest {
+    pub name: String,
+    pub scopes: Vec<String>,
+}
+
+#[typeshare]
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct ApiTokenRevokeRequest {
+    pub token_id: String,
+}
+
+#[typeshare]
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct RpcApiToken {
+    pub id: String,
+    pub name: String,
+    pub scopes: Vec<String>,
+    pub created_at: String,
+}
+
+#[typeshare]
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct RpcApiTokenGrant {
+    pub token: RpcApiToken,
+    /// Returned once; only its hash is stored.
+    pub bearer_token: String,
+}
+
+#[typeshare]
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
 #[serde(tag = "status", content = "value", rename_all = "camelCase")]
 pub enum AccountListOutcome {
     Ready(Vec<RpcAccount>),
+    Unavailable(RpcFailure),
+}
+
+#[typeshare]
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(tag = "status", content = "value", rename_all = "camelCase")]
+pub enum DeviceClaimOutcome {
+    Ready(RpcAuthGrant),
+    PairingRequired,
+    Unavailable(RpcFailure),
+}
+
+#[typeshare]
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(tag = "status", content = "value", rename_all = "camelCase")]
+pub enum DevicePairOutcome {
+    Ready(RpcAuthGrant),
+    InvalidCode,
+    Expired,
+    Unavailable(RpcFailure),
+}
+
+#[typeshare]
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(tag = "status", content = "value", rename_all = "camelCase")]
+pub enum AccountCreateOutcome {
+    Ready(RpcAuthGrant),
+    NameTaken,
+    Unavailable(RpcFailure),
+}
+
+#[typeshare]
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(tag = "status", content = "value", rename_all = "camelCase")]
+pub enum PairingCreateOutcome {
+    Ready(RpcPairingCode),
+    Unavailable(RpcFailure),
+}
+
+#[typeshare]
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(tag = "status", content = "value", rename_all = "camelCase")]
+pub enum ApiTokenCreateOutcome {
+    Ready(RpcApiTokenGrant),
+    InvalidScope(RpcFailure),
+    Unavailable(RpcFailure),
+}
+
+#[typeshare]
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(tag = "status", content = "value", rename_all = "camelCase")]
+pub enum CommandOutcome {
+    Succeeded,
+    Unknown,
     Unavailable(RpcFailure),
 }
 
@@ -113,8 +251,20 @@ pub enum AccountListOutcome {
 pub enum RpcRequest {
     #[serde(rename = "system.status.get")]
     SystemStatusGet(EmptyRequest),
+    #[serde(rename = "auth.device.claim")]
+    AuthDeviceClaim(DeviceClaimRequest),
+    #[serde(rename = "auth.device.pair")]
+    AuthDevicePair(DevicePairRequest),
+    #[serde(rename = "auth.pairing.create")]
+    AuthPairingCreate(EmptyRequest),
+    #[serde(rename = "auth.token.create")]
+    AuthTokenCreate(ApiTokenCreateRequest),
+    #[serde(rename = "auth.token.revoke")]
+    AuthTokenRevoke(ApiTokenRevokeRequest),
     #[serde(rename = "account.list")]
     AccountList(EmptyRequest),
+    #[serde(rename = "account.create")]
+    AccountCreate(AccountCreateRequest),
 }
 
 /// A request that cannot enter operation dispatch. This is separate from an operation's
@@ -132,34 +282,90 @@ pub enum RpcProtocolFailureOutcome {
 pub enum RpcResponse {
     #[serde(rename = "system.status.get")]
     SystemStatusGet(SystemStatusOutcome),
+    #[serde(rename = "auth.device.claim")]
+    AuthDeviceClaim(DeviceClaimOutcome),
+    #[serde(rename = "auth.device.pair")]
+    AuthDevicePair(DevicePairOutcome),
+    #[serde(rename = "auth.pairing.create")]
+    AuthPairingCreate(PairingCreateOutcome),
+    #[serde(rename = "auth.token.create")]
+    AuthTokenCreate(ApiTokenCreateOutcome),
+    #[serde(rename = "auth.token.revoke")]
+    AuthTokenRevoke(CommandOutcome),
     #[serde(rename = "account.list")]
     AccountList(AccountListOutcome),
+    #[serde(rename = "account.create")]
+    AccountCreate(AccountCreateOutcome),
     #[serde(rename = "rpc.failure")]
     Failure(RpcProtocolFailureOutcome),
 }
 
 impl RpcRequest {
-    pub const KNOWN_TAGS: [&'static str; 2] = ["system.status.get", "account.list"];
+    pub const KNOWN_TAGS: [&'static str; 8] = [
+        "system.status.get",
+        "auth.device.claim",
+        "auth.device.pair",
+        "auth.pairing.create",
+        "auth.token.create",
+        "auth.token.revoke",
+        "account.list",
+        "account.create",
+    ];
 
-    /// The operation tag as it appears on the wire. Used for logging and for routing
-    /// errors back with the tag the caller sent.
+    /// The operation tag as it appears on the wire. Used for logging and authorization.
     pub fn tag(&self) -> &'static str {
         match self {
             RpcRequest::SystemStatusGet(_) => "system.status.get",
+            RpcRequest::AuthDeviceClaim(_) => "auth.device.claim",
+            RpcRequest::AuthDevicePair(_) => "auth.device.pair",
+            RpcRequest::AuthPairingCreate(_) => "auth.pairing.create",
+            RpcRequest::AuthTokenCreate(_) => "auth.token.create",
+            RpcRequest::AuthTokenRevoke(_) => "auth.token.revoke",
             RpcRequest::AccountList(_) => "account.list",
+            RpcRequest::AccountCreate(_) => "account.create",
         }
     }
 
     pub fn is_known_tag(tag: &str) -> bool {
         Self::KNOWN_TAGS.contains(&tag)
     }
+
+    pub fn is_public(&self) -> bool {
+        matches!(
+            self,
+            RpcRequest::SystemStatusGet(_)
+                | RpcRequest::AuthDeviceClaim(_)
+                | RpcRequest::AuthDevicePair(_)
+        )
+    }
+
+    pub fn required_scope(&self) -> Option<&'static str> {
+        match self {
+            RpcRequest::SystemStatusGet(_)
+            | RpcRequest::AuthDeviceClaim(_)
+            | RpcRequest::AuthDevicePair(_) => None,
+            RpcRequest::AccountList(_) => Some("account:read"),
+            RpcRequest::AuthPairingCreate(_)
+            | RpcRequest::AuthTokenCreate(_)
+            | RpcRequest::AuthTokenRevoke(_)
+            | RpcRequest::AccountCreate(_) => Some("account:admin"),
+        }
+    }
 }
 
 impl RpcResponse {
+    pub const KNOWN_OPERATION_TAGS: [&'static str; 8] = RpcRequest::KNOWN_TAGS;
+
     pub fn tag(&self) -> &'static str {
         match self {
             RpcResponse::SystemStatusGet(_) => "system.status.get",
+            RpcResponse::AuthDeviceClaim(_) => "auth.device.claim",
+            RpcResponse::AuthDevicePair(_) => "auth.device.pair",
+            RpcResponse::AuthPairingCreate(_) => "auth.pairing.create",
+            RpcResponse::AuthTokenCreate(_) => "auth.token.create",
+            RpcResponse::AuthTokenRevoke(_) => "auth.token.revoke",
             RpcResponse::AccountList(_) => "account.list",
+            RpcResponse::AccountCreate(_) => "account.create",
             RpcResponse::Failure(_) => "rpc.failure",
         }
     }
@@ -228,22 +434,7 @@ mod tests {
 
     #[test]
     fn every_request_tag_has_a_matching_response_tag() {
-        let request_tags = [
-            RpcRequest::SystemStatusGet(EmptyRequest {}).tag(),
-            RpcRequest::AccountList(EmptyRequest {}).tag(),
-        ];
-        let response_tags = [
-            RpcResponse::SystemStatusGet(SystemStatusOutcome::Unavailable(RpcFailure::permanent(
-                "x", "y",
-            )))
-            .tag(),
-            RpcResponse::AccountList(AccountListOutcome::Unavailable(RpcFailure::permanent(
-                "x", "y",
-            )))
-            .tag(),
-        ];
-
-        assert_eq!(request_tags, response_tags);
+        assert_eq!(RpcRequest::KNOWN_TAGS, RpcResponse::KNOWN_OPERATION_TAGS);
     }
 
     #[test]

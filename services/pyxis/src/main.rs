@@ -48,7 +48,8 @@ async fn main() -> anyhow::Result<()> {
         "pyxis starting"
     );
 
-    let served = api::serve(&settings, AppState::new(store.clone())).await;
+    let state = AppState::open(store.clone())?;
+    let served = api::serve(&settings, state).await;
     store.close()?;
     served
 }

@@ -4,6 +4,7 @@
 //! and sync. Every music provider lives outside this crate, behind the plugin protocol.
 //! The core is required to start and serve with zero plugins installed.
 
+pub mod accounts;
 pub mod api;
 pub mod db;
 pub mod instance_lock;

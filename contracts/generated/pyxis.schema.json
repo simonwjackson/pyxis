@@ -39,10 +39,106 @@
           "properties": {
             "_tag": {
               "type": "string",
+              "const": "auth.device.claim"
+            },
+            "payload": {
+              "$ref": "#/$defs/DeviceClaimRequest"
+            }
+          },
+          "required": [
+            "_tag",
+            "payload"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "_tag": {
+              "type": "string",
+              "const": "auth.device.pair"
+            },
+            "payload": {
+              "$ref": "#/$defs/DevicePairRequest"
+            }
+          },
+          "required": [
+            "_tag",
+            "payload"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "_tag": {
+              "type": "string",
+              "const": "auth.pairing.create"
+            },
+            "payload": {
+              "$ref": "#/$defs/EmptyRequest"
+            }
+          },
+          "required": [
+            "_tag",
+            "payload"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "_tag": {
+              "type": "string",
+              "const": "auth.token.create"
+            },
+            "payload": {
+              "$ref": "#/$defs/ApiTokenCreateRequest"
+            }
+          },
+          "required": [
+            "_tag",
+            "payload"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "_tag": {
+              "type": "string",
+              "const": "auth.token.revoke"
+            },
+            "payload": {
+              "$ref": "#/$defs/ApiTokenRevokeRequest"
+            }
+          },
+          "required": [
+            "_tag",
+            "payload"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "_tag": {
+              "type": "string",
               "const": "account.list"
             },
             "payload": {
               "$ref": "#/$defs/EmptyRequest"
+            }
+          },
+          "required": [
+            "_tag",
+            "payload"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "_tag": {
+              "type": "string",
+              "const": "account.create"
+            },
+            "payload": {
+              "$ref": "#/$defs/AccountCreateRequest"
             }
           },
           "required": [
@@ -55,6 +151,82 @@
     "EmptyRequest": {
       "type": "object",
       "additionalProperties": false
+    },
+    "DeviceClaimRequest": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "name"
+      ]
+    },
+    "DevicePairRequest": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "code": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "code"
+      ]
+    },
+    "ApiTokenCreateRequest": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "scopes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "scopes"
+      ]
+    },
+    "ApiTokenRevokeRequest": {
+      "type": "object",
+      "properties": {
+        "tokenId": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "tokenId"
+      ]
+    },
+    "AccountCreateRequest": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "deviceName": {
+          "description": "The creating physical device gets a new grant scoped to the new account.",
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "deviceName"
+      ]
     },
     "RpcResponse": {
       "oneOf": [
@@ -79,10 +251,106 @@
           "properties": {
             "_tag": {
               "type": "string",
+              "const": "auth.device.claim"
+            },
+            "outcome": {
+              "$ref": "#/$defs/DeviceClaimOutcome"
+            }
+          },
+          "required": [
+            "_tag",
+            "outcome"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "_tag": {
+              "type": "string",
+              "const": "auth.device.pair"
+            },
+            "outcome": {
+              "$ref": "#/$defs/DevicePairOutcome"
+            }
+          },
+          "required": [
+            "_tag",
+            "outcome"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "_tag": {
+              "type": "string",
+              "const": "auth.pairing.create"
+            },
+            "outcome": {
+              "$ref": "#/$defs/PairingCreateOutcome"
+            }
+          },
+          "required": [
+            "_tag",
+            "outcome"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "_tag": {
+              "type": "string",
+              "const": "auth.token.create"
+            },
+            "outcome": {
+              "$ref": "#/$defs/ApiTokenCreateOutcome"
+            }
+          },
+          "required": [
+            "_tag",
+            "outcome"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "_tag": {
+              "type": "string",
+              "const": "auth.token.revoke"
+            },
+            "outcome": {
+              "$ref": "#/$defs/CommandOutcome"
+            }
+          },
+          "required": [
+            "_tag",
+            "outcome"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "_tag": {
+              "type": "string",
               "const": "account.list"
             },
             "outcome": {
               "$ref": "#/$defs/AccountListOutcome"
+            }
+          },
+          "required": [
+            "_tag",
+            "outcome"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "_tag": {
+              "type": "string",
+              "const": "account.create"
+            },
+            "outcome": {
+              "$ref": "#/$defs/AccountCreateOutcome"
             }
           },
           "required": [
@@ -202,6 +470,368 @@
         "retryable"
       ]
     },
+    "DeviceClaimOutcome": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "const": "ready"
+            },
+            "value": {
+              "$ref": "#/$defs/RpcAuthGrant"
+            }
+          },
+          "required": [
+            "status",
+            "value"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "const": "pairingRequired"
+            }
+          },
+          "required": [
+            "status"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "const": "unavailable"
+            },
+            "value": {
+              "$ref": "#/$defs/RpcFailure"
+            }
+          },
+          "required": [
+            "status",
+            "value"
+          ]
+        }
+      ]
+    },
+    "RpcAuthGrant": {
+      "type": "object",
+      "properties": {
+        "account": {
+          "$ref": "#/$defs/RpcAccount"
+        },
+        "device": {
+          "$ref": "#/$defs/RpcDevice"
+        },
+        "bearerToken": {
+          "description": "Returned exactly once. Clients persist this in their local ProseQL worker store.",
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "account",
+        "device",
+        "bearerToken"
+      ]
+    },
+    "RpcAccount": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "isDefault": {
+          "description": "True for the account created automatically on first boot. Exactly one account\ncarries this flag.",
+          "type": "boolean"
+        },
+        "createdAt": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "name",
+        "isDefault",
+        "createdAt"
+      ]
+    },
+    "RpcDevice": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "name"
+      ]
+    },
+    "DevicePairOutcome": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "const": "ready"
+            },
+            "value": {
+              "$ref": "#/$defs/RpcAuthGrant"
+            }
+          },
+          "required": [
+            "status",
+            "value"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "const": "invalidCode"
+            }
+          },
+          "required": [
+            "status"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "const": "expired"
+            }
+          },
+          "required": [
+            "status"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "const": "unavailable"
+            },
+            "value": {
+              "$ref": "#/$defs/RpcFailure"
+            }
+          },
+          "required": [
+            "status",
+            "value"
+          ]
+        }
+      ]
+    },
+    "PairingCreateOutcome": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "const": "ready"
+            },
+            "value": {
+              "$ref": "#/$defs/RpcPairingCode"
+            }
+          },
+          "required": [
+            "status",
+            "value"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "const": "unavailable"
+            },
+            "value": {
+              "$ref": "#/$defs/RpcFailure"
+            }
+          },
+          "required": [
+            "status",
+            "value"
+          ]
+        }
+      ]
+    },
+    "RpcPairingCode": {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "string"
+        },
+        "expiresAt": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "code",
+        "expiresAt"
+      ]
+    },
+    "ApiTokenCreateOutcome": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "const": "ready"
+            },
+            "value": {
+              "$ref": "#/$defs/RpcApiTokenGrant"
+            }
+          },
+          "required": [
+            "status",
+            "value"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "const": "invalidScope"
+            },
+            "value": {
+              "$ref": "#/$defs/RpcFailure"
+            }
+          },
+          "required": [
+            "status",
+            "value"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "const": "unavailable"
+            },
+            "value": {
+              "$ref": "#/$defs/RpcFailure"
+            }
+          },
+          "required": [
+            "status",
+            "value"
+          ]
+        }
+      ]
+    },
+    "RpcApiTokenGrant": {
+      "type": "object",
+      "properties": {
+        "token": {
+          "$ref": "#/$defs/RpcApiToken"
+        },
+        "bearerToken": {
+          "description": "Returned once; only its hash is stored.",
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "token",
+        "bearerToken"
+      ]
+    },
+    "RpcApiToken": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "scopes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "createdAt": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "name",
+        "scopes",
+        "createdAt"
+      ]
+    },
+    "CommandOutcome": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "const": "succeeded"
+            }
+          },
+          "required": [
+            "status"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "const": "unknown"
+            }
+          },
+          "required": [
+            "status"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "const": "unavailable"
+            },
+            "value": {
+              "$ref": "#/$defs/RpcFailure"
+            }
+          },
+          "required": [
+            "status",
+            "value"
+          ]
+        }
+      ]
+    },
     "AccountListOutcome": {
       "oneOf": [
         {
@@ -241,29 +871,52 @@
         }
       ]
     },
-    "RpcAccount": {
-      "type": "object",
-      "properties": {
-        "id": {
-          "type": "string"
+    "AccountCreateOutcome": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "const": "ready"
+            },
+            "value": {
+              "$ref": "#/$defs/RpcAuthGrant"
+            }
+          },
+          "required": [
+            "status",
+            "value"
+          ]
         },
-        "name": {
-          "type": "string"
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "const": "nameTaken"
+            }
+          },
+          "required": [
+            "status"
+          ]
         },
-        "isDefault": {
-          "description": "True for the account created automatically on first boot. Exactly one account\ncarries this flag.",
-          "type": "boolean"
-        },
-        "createdAt": {
-          "type": "string"
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "const": "unavailable"
+            },
+            "value": {
+              "$ref": "#/$defs/RpcFailure"
+            }
+          },
+          "required": [
+            "status",
+            "value"
+          ]
         }
-      },
-      "additionalProperties": false,
-      "required": [
-        "id",
-        "name",
-        "isDefault",
-        "createdAt"
       ]
     },
     "RpcProtocolFailureOutcome": {

@@ -28,6 +28,7 @@ pub const BOOKMARKS: &str = "bookmarks";
 pub const FEEDBACK: &str = "feedback";
 pub const LISTEN_EVENTS: &str = "listenEvents";
 pub const SETTINGS: &str = "settings";
+pub const API_TOKENS: &str = "apiTokens";
 pub const PLUGIN_CREDENTIALS: &str = "pluginCredentials";
 pub const MEDIA_FILES: &str = "mediaFiles";
 
@@ -248,6 +249,26 @@ pub fn settings() -> CollectionDescriptor {
     )
 }
 
+/// Hash-only bearer credentials for third-party clients. The plaintext token is returned
+/// exactly once at creation and never enters the store.
+pub fn api_tokens() -> CollectionDescriptor {
+    scoped(
+        API_TOKENS,
+        vec![
+            field("name", SchemaNode::Str),
+            field("tokenHash", SchemaNode::Str),
+            field(
+                "scopes",
+                SchemaNode::Array {
+                    item: Box::new(SchemaNode::Str),
+                },
+            ),
+            field("createdAt", SchemaNode::Str),
+            field("revokedAt", optional(SchemaNode::Str)),
+        ],
+    )
+}
+
 /// Server-only. Credentials never cross the wire to a client and never sync to a device.
 pub fn plugin_credentials() -> CollectionDescriptor {
     scoped(
@@ -289,6 +310,7 @@ pub fn all() -> Vec<CollectionDescriptor> {
         feedback(),
         listen_events(),
         settings(),
+        api_tokens(),
         plugin_credentials(),
         media_files(),
     ]

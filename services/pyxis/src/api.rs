@@ -13,18 +13,20 @@ use axum::routing::{get, post};
 use axum::Router;
 use tokio::net::TcpListener;
 
+use crate::accounts::Accounts;
 use crate::db::store::Store;
 use crate::rpc::transport;
 use crate::settings::Settings;
 
 #[derive(Clone)]
 pub struct AppState {
-    pub(crate) store: Store,
+    pub(crate) accounts: Accounts,
 }
 
 impl AppState {
-    pub fn new(store: Store) -> Self {
-        AppState { store }
+    pub fn open(store: Store) -> anyhow::Result<Self> {
+        let accounts = Accounts::open(store)?;
+        Ok(AppState { accounts })
     }
 }
 
