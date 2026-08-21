@@ -8,6 +8,7 @@ pkgs.mkShell {
     pkgs.rustfmt
     pkgs.rust-analyzer
     pkgs.bun
+    pkgs.biome
     pkgs.typeshare
     pkgs.just
     pkgs.jq

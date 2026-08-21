@@ -5,7 +5,7 @@ default:
     @just --list
 
 # The single gate. Every implementation unit must leave this passing.
-verify: fmt-check lint test-rust contract-check
+verify: fmt-check lint test-rust contract-check typecheck lint-ts test-ts
 
 # Regenerate the TypeScript types and JSON Schema from the Rust contract.
 contracts:
@@ -15,9 +15,10 @@ contracts:
 contract-check:
     services/pyxis/generate-contracts.sh --check
 
-# Format Rust sources in place.
+# Format owned Rust and TypeScript sources in place. Generated contracts are excluded.
 format:
     cargo fmt --all
+    biome check --write .
 
 fmt-check:
     cargo fmt --all -- --check
@@ -27,6 +28,15 @@ lint:
 
 test-rust:
     cargo test --all
+
+typecheck:
+    bun run typecheck
+
+lint-ts:
+    biome check .
+
+test-ts:
+    bun test
 
 # Run the service from source.
 dev *ARGS:

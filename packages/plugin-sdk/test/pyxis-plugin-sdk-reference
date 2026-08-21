@@ -1,0 +1,19 @@
+#!/usr/bin/env bun
+import { PluginCapability, definePlugin, runPlugin } from "../src/index.ts"
+
+await runPlugin(
+  definePlugin({
+    manifest: {
+      id: "sdk-reference",
+      name: "SDK Reference",
+      version: "1.0.0",
+      capabilities: [PluginCapability.Source],
+      configSchema: {},
+    },
+    capabilities: {
+      source: {
+        search: async input => ({ pluginId: "sdk-reference", input }),
+      },
+    },
+  }),
+)
