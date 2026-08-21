@@ -271,6 +271,56 @@ pub enum PluginListOutcome {
 #[typeshare]
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct SourceSearchRequest {
+    pub query: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub limit: Option<u32>,
+}
+
+#[typeshare]
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct RpcSearchTrack {
+    pub id: String,
+    pub title: String,
+    pub artist: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub album: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub duration_ms: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub artwork_url: Option<String>,
+    pub source_plugin_id: String,
+}
+
+#[typeshare]
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct RpcSourceFailure {
+    pub plugin_id: String,
+    pub failure: RpcFailure,
+}
+
+#[typeshare]
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct RpcSourceSearchResult {
+    pub tracks: Vec<RpcSearchTrack>,
+    pub failures: Vec<RpcSourceFailure>,
+}
+
+#[typeshare]
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(tag = "status", content = "value", rename_all = "camelCase")]
+pub enum SourceSearchOutcome {
+    Ready(RpcSourceSearchResult),
+    NoSources,
+    Unavailable(RpcFailure),
+}
+
+#[typeshare]
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct RpcFidelity {
     pub lossless: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -484,6 +534,8 @@ pub enum RpcRequest {
     SessionStateGet(SessionIdRequest),
     #[serde(rename = "session.command.run")]
     SessionCommandRun(SessionCommandRequest),
+    #[serde(rename = "source.search.run")]
+    SourceSearchRun(SourceSearchRequest),
 }
 
 /// A request that cannot enter operation dispatch. This is separate from an operation's
@@ -525,12 +577,14 @@ pub enum RpcResponse {
     SessionStateGet(SessionStateOutcome),
     #[serde(rename = "session.command.run")]
     SessionCommandRun(SessionCommandOutcome),
+    #[serde(rename = "source.search.run")]
+    SourceSearchRun(SourceSearchOutcome),
     #[serde(rename = "rpc.failure")]
     Failure(RpcProtocolFailureOutcome),
 }
 
 impl RpcRequest {
-    pub const KNOWN_TAGS: [&'static str; 13] = [
+    pub const KNOWN_TAGS: [&'static str; 14] = [
         "system.status.get",
         "auth.device.claim",
         "auth.device.pair",
@@ -544,6 +598,7 @@ impl RpcRequest {
         "session.list",
         "session.state.get",
         "session.command.run",
+        "source.search.run",
     ];
 
     /// The operation tag as it appears on the wire. Used for logging and authorization.
@@ -562,6 +617,7 @@ impl RpcRequest {
             RpcRequest::SessionList(_) => "session.list",
             RpcRequest::SessionStateGet(_) => "session.state.get",
             RpcRequest::SessionCommandRun(_) => "session.command.run",
+            RpcRequest::SourceSearchRun(_) => "source.search.run",
         }
     }
 
@@ -588,6 +644,7 @@ impl RpcRequest {
             RpcRequest::SessionCreate(_) | RpcRequest::SessionCommandRun(_) => {
                 Some("session:control")
             }
+            RpcRequest::SourceSearchRun(_) => Some("source:read"),
             RpcRequest::AuthPairingCreate(_)
             | RpcRequest::AuthTokenCreate(_)
             | RpcRequest::AuthTokenRevoke(_)
@@ -597,7 +654,7 @@ impl RpcRequest {
 }
 
 impl RpcResponse {
-    pub const KNOWN_OPERATION_TAGS: [&'static str; 13] = RpcRequest::KNOWN_TAGS;
+    pub const KNOWN_OPERATION_TAGS: [&'static str; 14] = RpcRequest::KNOWN_TAGS;
 
     pub fn tag(&self) -> &'static str {
         match self {
@@ -614,6 +671,7 @@ impl RpcResponse {
             RpcResponse::SessionList(_) => "session.list",
             RpcResponse::SessionStateGet(_) => "session.state.get",
             RpcResponse::SessionCommandRun(_) => "session.command.run",
+            RpcResponse::SourceSearchRun(_) => "source.search.run",
             RpcResponse::Failure(_) => "rpc.failure",
         }
     }

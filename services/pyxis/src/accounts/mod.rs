@@ -24,11 +24,13 @@ pub const SCOPE_ACCOUNT_READ: &str = "account:read";
 pub const SCOPE_ACCOUNT_ADMIN: &str = "account:admin";
 pub const SCOPE_SESSION_READ: &str = "session:read";
 pub const SCOPE_SESSION_CONTROL: &str = "session:control";
-const ALLOWED_API_SCOPES: [&str; 4] = [
+pub const SCOPE_SOURCE_READ: &str = "source:read";
+const ALLOWED_API_SCOPES: [&str; 5] = [
     SCOPE_ACCOUNT_READ,
     SCOPE_ACCOUNT_ADMIN,
     SCOPE_SESSION_READ,
     SCOPE_SESSION_CONTROL,
+    SCOPE_SOURCE_READ,
 ];
 
 #[derive(Debug, thiserror::Error)]

@@ -82,6 +82,18 @@ impl Media {
             .add_plugin(account, track_id, input, updated_by)?)
     }
 
+    pub fn ensure_plugin_candidate(
+        &self,
+        account: &AccountId,
+        track_id: &str,
+        input: PluginCandidateInput,
+        updated_by: &str,
+    ) -> Result<MediaCandidate, MediaError> {
+        Ok(self
+            .candidates
+            .ensure_plugin(account, track_id, input, updated_by)?)
+    }
+
     pub fn import_local_candidate(
         &self,
         account: &AccountId,

@@ -185,6 +185,16 @@ export interface RpcPlugin {
 	reason?: string;
 }
 
+export interface RpcSearchTrack {
+	id: string;
+	title: string;
+	artist: string;
+	album?: string;
+	durationMs?: number;
+	artworkUrl?: string;
+	sourcePluginId: string;
+}
+
 export enum RpcTransport {
 	Stopped = "stopped",
 	Playing = "playing",
@@ -207,6 +217,16 @@ export interface RpcSession {
 	reachable: boolean;
 	revision: number;
 	updatedAt: string;
+}
+
+export interface RpcSourceFailure {
+	pluginId: string;
+	failure: RpcFailure;
+}
+
+export interface RpcSourceSearchResult {
+	tracks: RpcSearchTrack[];
+	failures: RpcSourceFailure[];
 }
 
 /**
@@ -252,6 +272,11 @@ export interface SessionCreateRequest {
 
 export interface SessionIdRequest {
 	sessionId: string;
+}
+
+export interface SourceSearchRequest {
+	query: string;
+	limit?: number;
 }
 
 export interface VolumeSetCommand {
@@ -324,7 +349,8 @@ export type RpcRequest =
 	| { _tag: "session.create", payload: SessionCreateRequest }
 	| { _tag: "session.list", payload: EmptyRequest }
 	| { _tag: "session.state.get", payload: SessionIdRequest }
-	| { _tag: "session.command.run", payload: SessionCommandRequest };
+	| { _tag: "session.command.run", payload: SessionCommandRequest }
+	| { _tag: "source.search.run", payload: SourceSearchRequest };
 
 export type RpcResponse =
 	| { _tag: "system.status.get", outcome: SystemStatusOutcome }
@@ -340,6 +366,7 @@ export type RpcResponse =
 	| { _tag: "session.list", outcome: SessionListOutcome }
 	| { _tag: "session.state.get", outcome: SessionStateOutcome }
 	| { _tag: "session.command.run", outcome: SessionCommandOutcome }
+	| { _tag: "source.search.run", outcome: SourceSearchOutcome }
 	| { _tag: "rpc.failure", outcome: RpcProtocolFailureOutcome };
 
 export type SessionCommandOutcome =
@@ -362,6 +389,11 @@ export type SessionListOutcome =
 export type SessionStateOutcome =
 	| { status: "ready", value: RpcSession }
 	| { status: "unknown", value?: undefined }
+	| { status: "unavailable", value: RpcFailure };
+
+export type SourceSearchOutcome =
+	| { status: "ready", value: RpcSourceSearchResult }
+	| { status: "noSources", value?: undefined }
 	| { status: "unavailable", value: RpcFailure };
 
 export type SystemStatusOutcome =

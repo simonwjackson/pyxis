@@ -12,6 +12,7 @@ use axum::extract::{Path as AxumPath, State};
 use axum::http::{header, HeaderMap, HeaderValue, StatusCode};
 use axum::response::{IntoResponse, Response};
 use axum::Json;
+use serde::Deserialize;
 use serde_json::json;
 use tokio::io::{AsyncReadExt, AsyncSeekExt};
 use tokio_util::io::ReaderStream;
@@ -23,7 +24,7 @@ use crate::plugins::host::PluginHost;
 use crate::rpc::contract::RpcFailure;
 
 use cache::StreamCache;
-use proxy::{fetch_to_cache, ProxyError, RemoteStreamDescriptor};
+use proxy::{fetch_to_cache, ProxyError, RemoteStreamDescriptor, MAX_STREAM_BYTES};
 
 #[derive(Clone)]
 pub struct StreamService {
@@ -36,6 +37,10 @@ impl StreamService {
         let cache = StreamCache::open(state_dir)?;
         let client = reqwest::Client::builder()
             .connect_timeout(std::time::Duration::from_secs(10))
+            // Google media URLs resolved by yt-dlp reject otherwise identical ranged
+            // requests over HTTP/2. HTTP/1.1 is also the common denominator for speaker
+            // and publisher CDNs, so keep this byte-fetch client deliberately conservative.
+            .http1_only()
             .redirect(reqwest::redirect::Policy::limited(10))
             .user_agent(format!("pyxis/{}", crate::version()))
             .build()?;
@@ -145,7 +150,13 @@ pub async fn stream(
             // credential-style status gets one fresh resolution; every other failure is
             // returned immediately, and a second expiry is not retried again.
             if matches!(fetched, Err(ProxyError::Status(401 | 403 | 410))) {
-                descriptor = match resolve_plugin_stream(plugins, plugin_id, external_id).await {
+                descriptor = match resolve_plugin_stream(
+                    plugins.clone(),
+                    plugin_id.clone(),
+                    external_id.clone(),
+                )
+                .await
+                {
                     Ok(descriptor) => descriptor,
                     Err(error) => return failure(StatusCode::BAD_GATEWAY, error),
                 };
@@ -160,6 +171,20 @@ pub async fn stream(
 
             let path = match fetched {
                 Ok(path) => path,
+                Err(ProxyError::Status(401 | 403 | 410)) => {
+                    match fetch_via_plugin(
+                        &state.stream.cache,
+                        &candidate.id,
+                        plugins,
+                        plugin_id,
+                        external_id,
+                    )
+                    .await
+                    {
+                        Ok(path) => path,
+                        Err(error) => return failure(StatusCode::BAD_GATEWAY, error),
+                    }
+                }
                 Err(error) => return proxy_failure(error),
             };
             let format = descriptor
@@ -198,6 +223,102 @@ async fn resolve_plugin_stream(
     };
     serde_json::from_value(value)
         .map_err(|error| RpcFailure::permanent("plugin.invalidStream", error.to_string()))
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct PluginFileResponse {
+    kind: String,
+    target_path: String,
+}
+
+async fn fetch_via_plugin(
+    cache: &StreamCache,
+    key: &str,
+    plugins: PluginHost,
+    plugin_id: String,
+    external_id: String,
+) -> Result<std::path::PathBuf, RpcFailure> {
+    let target = cache.path(key);
+    if target.is_file() {
+        return Ok(target);
+    }
+    let lock = cache.lock_for(key).await;
+    let _guard = lock.lock().await;
+    if target.is_file() {
+        return Ok(target);
+    }
+
+    let temporary = cache.temporary(key);
+    let target_path = temporary.to_string_lossy().into_owned();
+    let operation_path = target_path.clone();
+    let called = tokio::task::spawn_blocking(move || {
+        plugins.call(
+            &plugin_id,
+            "source",
+            "stream.fetch",
+            json!({ "trackId": external_id, "targetPath": operation_path }),
+        )
+    })
+    .await;
+    let result = async {
+        let value = match called {
+            Ok(Ok(value)) => value,
+            Ok(Err(error)) => {
+                return Err(RpcFailure::retryable(
+                    "plugin.streamFetch",
+                    error.to_string(),
+                ));
+            }
+            Err(error) => {
+                return Err(RpcFailure::retryable(
+                    "plugin.streamFetch",
+                    error.to_string(),
+                ));
+            }
+        };
+        let response: PluginFileResponse = serde_json::from_value(value).map_err(|error| {
+            RpcFailure::permanent("plugin.invalidStreamFetch", error.to_string())
+        })?;
+        if response.kind != "local" || response.target_path != target_path {
+            return Err(RpcFailure::permanent(
+                "plugin.invalidStreamFetch",
+                "plugin did not confirm the exact core-owned target path",
+            ));
+        }
+        let metadata = tokio::fs::metadata(&temporary)
+            .await
+            .map_err(|error| RpcFailure::retryable("plugin.streamFetch", error.to_string()))?;
+        if !metadata.is_file() || metadata.len() == 0 {
+            return Err(RpcFailure::retryable(
+                "plugin.streamFetch",
+                "plugin completed without writing audio bytes",
+            ));
+        }
+        if metadata.len() > MAX_STREAM_BYTES {
+            return Err(RpcFailure::permanent(
+                "upstream.tooLarge",
+                format!("plugin wrote more than {MAX_STREAM_BYTES} bytes"),
+            ));
+        }
+        let file = tokio::fs::File::open(&temporary)
+            .await
+            .map_err(|error| RpcFailure::retryable("cache.io", error.to_string()))?;
+        file.sync_all()
+            .await
+            .map_err(|error| RpcFailure::retryable("cache.io", error.to_string()))?;
+        drop(file);
+        tokio::fs::rename(&temporary, &target)
+            .await
+            .map_err(|error| RpcFailure::retryable("cache.io", error.to_string()))?;
+        Ok(target.clone())
+    }
+    .await;
+
+    if result.is_err() {
+        let _ = tokio::fs::remove_file(&temporary).await;
+    }
+    result
 }
 
 async fn serve_file(path: &Path, format: Option<&str>, range: Option<&HeaderValue>) -> Response {

@@ -13,6 +13,7 @@ pub mod plugins;
 pub mod rpc;
 pub mod sessions;
 pub mod settings;
+pub mod source_catalog;
 pub mod stream;
 
 /// Version reported by `system.status.get` and the `--version` flag.

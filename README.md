@@ -7,7 +7,18 @@ This branch is a ground-up v2 rewrite. It shares no code with v1.
 
 ## Status
 
-Pre-implementation. The plan is the only artifact.
+**M1 — A song plays — is ready for product validation.**
+
+```sh
+just dev
+```
+
+Open <http://127.0.0.1:5173>. The page is intentionally unstyled. Search YouTube Music,
+add a result to the queue, then press Play. It claims the `default` account, discovers the
+plugin, creates a device-hosted session, resolves and caches audio, and plays through the
+browser.
+
+M2 restores the 371-album library and installs the product on the tailnet.
 
 Read [`work/items/active/20260821123211-pyxis-v2-rewrite/plan.md`](work/items/active/20260821123211-pyxis-v2-rewrite/plan.md).
 
@@ -42,4 +53,6 @@ The core runs and serves with zero plugins installed.
 
 ## Install
 
-Not yet installable. Packaging lands in U25.
+The YouTube Music plugin already builds as `.#plugin-ytmusic`, including its nightly
+yt-dlp updater and user timer. The complete product is not installed yet. Profile packaging
+and the tailnet edge land in M2/U25.

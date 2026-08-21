@@ -19,6 +19,9 @@ const working: YtDlp = {
     headers: {},
     lossless: false,
   }),
+  fetchStream: async (_trackId, targetPath) => {
+    await Bun.write(targetPath, "audio")
+  },
 }
 
 describe("YouTube Music plugin", () => {

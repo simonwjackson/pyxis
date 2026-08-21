@@ -127,6 +127,29 @@ impl CandidateRepository {
         CandidateRepository { store }
     }
 
+    pub fn ensure_plugin(
+        &self,
+        account: &AccountId,
+        track_id: &str,
+        input: PluginCandidateInput,
+        updated_by: &str,
+    ) -> Result<MediaCandidate, CandidateError> {
+        if let Some(existing) =
+            self.list_for_track(account, track_id)?
+                .into_iter()
+                .find(|candidate| {
+                    matches!(
+                        &candidate.location,
+                        CandidateLocation::Plugin { plugin_id, external_id }
+                            if plugin_id == &input.plugin_id && external_id == &input.external_id
+                    )
+                })
+        {
+            return Ok(existing);
+        }
+        self.add_plugin(account, track_id, input, updated_by)
+    }
+
     pub fn add_plugin(
         &self,
         account: &AccountId,

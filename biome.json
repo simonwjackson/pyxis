@@ -8,7 +8,8 @@
       "!!result",
       "!!.cache",
       "!!.direnv",
-      "!!contracts/generated"
+      "!!contracts/generated",
+      "!!**/dist"
     ]
   },
   "formatter": {

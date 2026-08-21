@@ -1,0 +1,52 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+root=$(cd "$(dirname "$0")/.." && pwd)
+cd "$root"
+
+nix build .#plugin-ytmusic >/dev/null
+
+export PYXIS_YT_DLP_DATA_DIR="$root/.dev-data/yt-dlp"
+nightly="$PYXIS_YT_DLP_DATA_DIR/yt-dlp"
+refresh=false
+if [[ ! -x "$nightly" ]]; then
+  refresh=true
+elif [[ -n "$(find "$nightly" -mmin +720 -print -quit)" ]]; then
+  refresh=true
+fi
+if [[ "$refresh" == true ]]; then
+  if ! result/bin/pyxis-ytdlp-update; then
+    echo "yt-dlp nightly refresh failed; continuing with the pinned fallback" >&2
+  fi
+fi
+
+PATH="$root/result/bin:$PATH" \
+  cargo run --bin pyxis -- --state-dir "$root/.dev-data" --port 4488 &
+core=$!
+
+cleanup() {
+  kill "$core" 2>/dev/null || true
+  wait "$core" 2>/dev/null || true
+}
+trap cleanup EXIT INT TERM
+
+deadline=$((SECONDS + 120))
+ready=false
+while (( SECONDS < deadline )); do
+  if curl -fsS http://127.0.0.1:4488/healthz >/dev/null 2>&1; then
+    ready=true
+    break
+  fi
+  if ! kill -0 "$core" 2>/dev/null; then
+    echo "Pyxis core exited before becoming healthy" >&2
+    exit 1
+  fi
+  sleep 0.1
+done
+
+if [[ "$ready" != true ]]; then
+  echo "Pyxis core did not become healthy within 120 seconds" >&2
+  exit 1
+fi
+
+bun run --cwd clients/app dev

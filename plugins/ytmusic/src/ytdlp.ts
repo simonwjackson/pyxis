@@ -1,5 +1,5 @@
 import { constants } from "node:fs"
-import { access } from "node:fs/promises"
+import { access, stat } from "node:fs/promises"
 import { join } from "node:path"
 import type { RemoteStream, SourceTrack } from "./api"
 
@@ -19,6 +19,7 @@ export interface YtDlp {
   check(): Promise<string>
   search(query: string, limit: number): Promise<readonly SourceTrack[]>
   resolveStream(trackId: string): Promise<RemoteStream>
+  fetchStream(trackId: string, targetPath: string): Promise<void>
 }
 
 export interface YtDlpConfig {
@@ -29,7 +30,10 @@ export interface YtDlpConfig {
 
 export function createYtDlp(config: YtDlpConfig = {}): YtDlp {
   const fallbackBinary = config.fallbackBinary ?? "yt-dlp"
-  const mutableRoot = config.mutableRoot ?? defaultMutableRoot()
+  // An explicit binary is authoritative and makes tests or operator overrides
+  // deterministic. Production (no explicit binary) checks the mutable nightly first.
+  const mutableRoot =
+    config.mutableRoot ?? (config.fallbackBinary === undefined ? defaultMutableRoot() : undefined)
   const timeoutMs = config.timeoutMs ?? 60_000
 
   const run = async (args: readonly string[]): Promise<string> => {
@@ -152,6 +156,28 @@ export function createYtDlp(config: YtDlpConfig = {}): YtDlp {
         lossless: isLossless(ext, codec),
       }
     },
+
+    async fetchStream(trackId, targetPath) {
+      await run([
+        "--no-playlist",
+        "--no-warnings",
+        "--no-part",
+        "--no-mtime",
+        "--format",
+        "bestaudio/best[acodec!=none]",
+        "--output",
+        targetPath,
+        `https://music.youtube.com/watch?v=${trackId}`,
+      ])
+      const metadata = await stat(targetPath).catch(() => undefined)
+      if (metadata === undefined || !metadata.isFile() || metadata.size === 0) {
+        throw new YtDlpError(
+          "ytDlp.invalidOutput",
+          "yt-dlp completed without writing the requested target file",
+          true,
+        )
+      }
+    },
   }
 }
 
@@ -165,15 +191,21 @@ function pipeText(
   return new Response(stream).text()
 }
 
-async function selectBinary(fallbackBinary: string, mutableRoot: string): Promise<string> {
+async function selectBinary(
+  fallbackBinary: string,
+  mutableRoot: string | undefined,
+): Promise<string> {
   if (process.env.PYXIS_YT_DLP_BIN !== undefined) return process.env.PYXIS_YT_DLP_BIN
-  const mutable = join(mutableRoot, "yt-dlp")
-  try {
-    await access(mutable, constants.X_OK)
-    return mutable
-  } catch {
-    return fallbackBinary
+  if (mutableRoot !== undefined) {
+    const mutable = join(mutableRoot, "yt-dlp")
+    try {
+      await access(mutable, constants.X_OK)
+      return mutable
+    } catch {
+      // The immutable fallback remains the floor.
+    }
   }
+  return fallbackBinary
 }
 
 function defaultMutableRoot(): string {

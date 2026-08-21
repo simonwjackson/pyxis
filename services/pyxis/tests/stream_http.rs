@@ -57,6 +57,66 @@ async fn upstream(status: StatusCode) -> Upstream {
     }
 }
 
+async fn range_required_upstream() -> Upstream {
+    async fn audio(
+        State(requests): State<Arc<AtomicUsize>>,
+        headers: axum::http::HeaderMap,
+    ) -> axum::response::Response {
+        requests.fetch_add(1, Ordering::SeqCst);
+        let Some(range) = headers
+            .get(header::RANGE)
+            .and_then(|value| value.to_str().ok())
+        else {
+            return StatusCode::FORBIDDEN.into_response();
+        };
+        let Some(bounds) = range.strip_prefix("bytes=") else {
+            return StatusCode::RANGE_NOT_SATISFIABLE.into_response();
+        };
+        let Some((start, end)) = bounds.split_once('-') else {
+            return StatusCode::RANGE_NOT_SATISFIABLE.into_response();
+        };
+        let Ok(start) = start.parse::<usize>() else {
+            return StatusCode::RANGE_NOT_SATISFIABLE.into_response();
+        };
+        let Ok(requested_end) = end.parse::<usize>() else {
+            return StatusCode::RANGE_NOT_SATISFIABLE.into_response();
+        };
+        if start >= AUDIO.len() {
+            return StatusCode::RANGE_NOT_SATISFIABLE.into_response();
+        }
+        let end = requested_end.min(AUDIO.len() - 1);
+        (
+            StatusCode::PARTIAL_CONTENT,
+            [
+                (header::CONTENT_TYPE, "audio/webm".to_string()),
+                (
+                    header::CONTENT_RANGE,
+                    format!("bytes {start}-{end}/{}", AUDIO.len()),
+                ),
+            ],
+            &AUDIO[start..=end],
+        )
+            .into_response()
+    }
+
+    let requests = Arc::new(AtomicUsize::new(0));
+    let listener = TcpListener::bind("127.0.0.1:0")
+        .await
+        .expect("bind upstream");
+    let address = listener.local_addr().expect("upstream address");
+    let app = Router::new()
+        .route("/audio", get(audio))
+        .with_state(requests.clone());
+    let task = tokio::spawn(async move {
+        axum::serve(listener, app).await.expect("serve upstream");
+    });
+    Upstream {
+        url: format!("http://{address}/audio"),
+        requests,
+        task,
+    }
+}
+
 fn laboratory(url: &str) -> PluginCandidate {
     PluginCandidate::new(PathBuf::from(env!("CARGO_BIN_EXE_pyxis-plugin-laboratory")))
         .with_env("PYXIS_LAB_ID", "stream-source")
@@ -165,6 +225,23 @@ async fn full_file_is_cached_and_served_with_audio_metadata() {
         .await
         .expect("cached response");
     assert_eq!(body(cached).await, AUDIO);
+    assert_eq!(upstream.requests.load(Ordering::SeqCst), 1);
+}
+
+#[tokio::test]
+async fn a_range_required_upstream_is_downloaded_into_the_cache() {
+    let upstream = range_required_upstream().await;
+    let (_dir, state) = state_with_remote(&upstream.url);
+    let app = router(state);
+    let token = claim(&app).await;
+
+    let response = app
+        .oneshot(stream_request(&token, None))
+        .await
+        .expect("stream response");
+
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(body(response).await, AUDIO);
     assert_eq!(upstream.requests.load(Ordering::SeqCst), 1);
 }
 
@@ -302,6 +379,46 @@ async fn an_expired_plugin_url_is_resolved_once_more_before_failing() {
     assert_eq!(body(response).await, AUDIO);
     assert_eq!(expired.requests.load(Ordering::SeqCst), 1);
     assert_eq!(fresh.requests.load(Ordering::SeqCst), 1);
+}
+
+#[tokio::test]
+async fn client_bound_urls_fall_back_to_plugin_directed_file_fetch() {
+    let forbidden = upstream(StatusCode::FORBIDDEN).await;
+    let dir = tempfile::tempdir().expect("temp dir");
+    let store = Store::open(dir.path()).expect("open store");
+    let candidate = laboratory(&forbidden.url).with_env("PYXIS_LAB_FETCH_BYTES", "plugin-fetched");
+    let plugins = PluginHost::start(vec![candidate], HostPolicy::default()).expect("host");
+    let state = AppState::open_with_plugins(store, plugins).expect("state");
+    state
+        .media
+        .add_plugin_candidate(
+            &AccountId::new("default"),
+            "track-1",
+            PluginCandidateInput {
+                plugin_id: "stream-source".into(),
+                external_id: "external-1".into(),
+                format: Some("webm/opus".into()),
+                fidelity: Fidelity {
+                    lossless: false,
+                    bitrate_kbps: Some(128),
+                    sample_rate_hz: Some(48_000),
+                },
+                source_priority: 10,
+            },
+            "test",
+        )
+        .expect("candidate");
+    let app = router(state);
+    let token = claim(&app).await;
+
+    let response = app
+        .oneshot(stream_request(&token, None))
+        .await
+        .expect("stream response");
+
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(body(response).await, b"plugin-fetched");
+    assert_eq!(forbidden.requests.load(Ordering::SeqCst), 2);
 }
 
 #[tokio::test]

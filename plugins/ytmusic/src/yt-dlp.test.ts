@@ -84,6 +84,29 @@ JSON
     })
   })
 
+  test("plugin-directed fetch writes bytes to the exact core-owned path", async () => {
+    const binary = await executable(`${header}
+target=""
+while [[ $# -gt 0 ]]; do
+  if [[ "$1" == "--output" ]]; then
+    target="$2"
+    shift 2
+  else
+    shift
+  fi
+done
+printf 'downloaded audio' > "$target"
+`)
+    const targetRoot = await mkdtemp(join(tmpdir(), "pyxis-ytdlp-target-"))
+    roots.push(targetRoot)
+    const target = join(targetRoot, "core.partial")
+    const ytdlp = createYtDlp({ fallbackBinary: binary })
+
+    await ytdlp.fetchStream("video-id", target)
+
+    expect(await Bun.file(target).text()).toBe("downloaded audio")
+  })
+
   test("a missing binary is classified separately from a provider exit", async () => {
     const ytdlp = createYtDlp({ fallbackBinary: "/does/not/exist/yt-dlp" })
 

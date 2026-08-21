@@ -1,5 +1,5 @@
 import { definePlugin, PluginCapability, PluginOperationError, runPlugin } from "@pyxis/plugin-sdk"
-import { searchInput, streamResolveInput } from "./api"
+import { searchInput, streamFetchInput, streamResolveInput } from "./api"
 import { createYtDlp, type YtDlp } from "./ytdlp"
 
 export function createYtMusicPlugin(ytdlp: YtDlp) {
@@ -25,6 +25,11 @@ export function createYtMusicPlugin(ytdlp: YtDlp) {
         "stream.resolve": async (input) => {
           const request = validInput(() => streamResolveInput(input))
           return providerCall(() => ytdlp.resolveStream(request.trackId))
+        },
+        "stream.fetch": async (input) => {
+          const request = validInput(() => streamFetchInput(input))
+          await providerCall(() => ytdlp.fetchStream(request.trackId, request.targetPath))
+          return { kind: "local", targetPath: request.targetPath }
         },
       },
     },

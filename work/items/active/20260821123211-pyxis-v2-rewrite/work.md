@@ -23,7 +23,8 @@ requirements and decisions were captured directly into `plan.md` sections
 
 ## Current position
 
-**Milestone M1 — "A song plays".** Next unit: **U1**.
+**Milestone M1 — "A song plays" — shipped locally.** Product is running at
+`http://127.0.0.1:5173` for validation. Next: **M2 / U8**.
 
 Execution order is the `Shipping Milestones` table in `plan.md`, not numeric U-ID order.
 Update this line when a milestone boundary is crossed. Per-unit progress comes from

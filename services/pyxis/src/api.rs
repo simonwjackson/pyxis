@@ -20,6 +20,7 @@ use crate::plugins::host::PluginHost;
 use crate::rpc::transport;
 use crate::sessions::Sessions;
 use crate::settings::Settings;
+use crate::source_catalog::SourceCatalog;
 use crate::stream::{self, StreamService};
 
 #[derive(Clone)]
@@ -28,6 +29,7 @@ pub struct AppState {
     pub media: Media,
     pub(crate) plugins: PluginHost,
     pub sessions: Sessions,
+    pub(crate) sources: SourceCatalog,
     pub(crate) stream: StreamService,
 }
 
@@ -43,11 +45,13 @@ impl AppState {
         let accounts = Accounts::open(store.clone())?;
         let media = Media::open(store.clone())?;
         let sessions = Sessions::open(store);
+        let sources = SourceCatalog::new(plugins.clone(), media.clone());
         Ok(AppState {
             accounts,
             media,
             plugins,
             sessions,
+            sources,
             stream,
         })
     }

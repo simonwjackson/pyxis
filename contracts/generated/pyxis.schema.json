@@ -233,6 +233,22 @@
             "_tag",
             "payload"
           ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "_tag": {
+              "type": "string",
+              "const": "source.search.run"
+            },
+            "payload": {
+              "$ref": "#/$defs/SourceSearchRequest"
+            }
+          },
+          "required": [
+            "_tag",
+            "payload"
+          ]
         }
       ]
     },
@@ -616,6 +632,26 @@
         "volume"
       ]
     },
+    "SourceSearchRequest": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "string"
+        },
+        "limit": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint32",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "query"
+      ]
+    },
     "RpcResponse": {
       "oneOf": [
         {
@@ -819,6 +855,22 @@
             },
             "outcome": {
               "$ref": "#/$defs/SessionCommandOutcome"
+            }
+          },
+          "required": [
+            "_tag",
+            "outcome"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "_tag": {
+              "type": "string",
+              "const": "source.search.run"
+            },
+            "outcome": {
+              "$ref": "#/$defs/SourceSearchOutcome"
             }
           },
           "required": [
@@ -1779,6 +1831,136 @@
             "value"
           ]
         }
+      ]
+    },
+    "SourceSearchOutcome": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "const": "ready"
+            },
+            "value": {
+              "$ref": "#/$defs/RpcSourceSearchResult"
+            }
+          },
+          "required": [
+            "status",
+            "value"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "const": "noSources"
+            }
+          },
+          "required": [
+            "status"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "const": "unavailable"
+            },
+            "value": {
+              "$ref": "#/$defs/RpcFailure"
+            }
+          },
+          "required": [
+            "status",
+            "value"
+          ]
+        }
+      ]
+    },
+    "RpcSourceSearchResult": {
+      "type": "object",
+      "properties": {
+        "tracks": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/RpcSearchTrack"
+          }
+        },
+        "failures": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/RpcSourceFailure"
+          }
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "tracks",
+        "failures"
+      ]
+    },
+    "RpcSearchTrack": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "artist": {
+          "type": "string"
+        },
+        "album": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "durationMs": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint32",
+          "minimum": 0
+        },
+        "artworkUrl": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "sourcePluginId": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "title",
+        "artist",
+        "sourcePluginId"
+      ]
+    },
+    "RpcSourceFailure": {
+      "type": "object",
+      "properties": {
+        "pluginId": {
+          "type": "string"
+        },
+        "failure": {
+          "$ref": "#/$defs/RpcFailure"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "pluginId",
+        "failure"
       ]
     },
     "RpcProtocolFailureOutcome": {

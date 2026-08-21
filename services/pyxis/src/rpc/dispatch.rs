@@ -12,11 +12,13 @@ use crate::rpc::contract::{
     AccountCreateOutcome, AccountListOutcome, ApiTokenCreateOutcome, CommandOutcome,
     DeviceClaimOutcome, DevicePairOutcome, PairingCreateOutcome, PluginListOutcome, RpcAccount,
     RpcApiToken, RpcApiTokenGrant, RpcAuthGrant, RpcDevice, RpcFailure, RpcPairingCode, RpcPlugin,
-    RpcRequest, RpcResponse, RpcSession, RpcSessionCommand, RpcSystemStatus, RpcTransport,
-    SessionCommandOutcome, SessionCreateOutcome, SessionListOutcome, SessionStateOutcome,
+    RpcRequest, RpcResponse, RpcSearchTrack, RpcSession, RpcSessionCommand, RpcSourceFailure,
+    RpcSourceSearchResult, RpcSystemStatus, RpcTransport, SessionCommandOutcome,
+    SessionCreateOutcome, SessionListOutcome, SessionStateOutcome, SourceSearchOutcome,
     SystemStatusOutcome, CONTRACT_ID,
 };
 use crate::sessions::{Session, SessionCommand as DomainSessionCommand, SessionError, Transport};
+use crate::source_catalog::SearchOutcome;
 
 pub fn dispatch(state: &AppState, request: RpcRequest, auth: Option<AuthContext>) -> RpcResponse {
     match request {
@@ -210,6 +212,53 @@ pub fn dispatch(state: &AppState, request: RpcRequest, auth: Option<AuthContext>
                 }
                 Err(error) => RpcResponse::SessionCommandRun(SessionCommandOutcome::Unavailable(
                     session_failure(error),
+                )),
+            }
+        }
+        RpcRequest::SourceSearchRun(request) => {
+            let Some(auth) = auth else {
+                return auth_required();
+            };
+            let query = request.query.trim();
+            if query.is_empty() {
+                return RpcResponse::SourceSearchRun(SourceSearchOutcome::Unavailable(
+                    RpcFailure::permanent("source.invalidQuery", "search query cannot be empty"),
+                ));
+            }
+            let limit = request.limit.unwrap_or(10).clamp(1, 50);
+            match state.sources.search(&auth, query, limit) {
+                Ok(SearchOutcome::NoSources) => {
+                    RpcResponse::SourceSearchRun(SourceSearchOutcome::NoSources)
+                }
+                Ok(SearchOutcome::Ready { tracks, failures }) => RpcResponse::SourceSearchRun(
+                    SourceSearchOutcome::Ready(RpcSourceSearchResult {
+                        tracks: tracks
+                            .into_iter()
+                            .map(|track| RpcSearchTrack {
+                                id: track.id,
+                                title: track.title,
+                                artist: track.artist,
+                                album: track.album,
+                                duration_ms: track.duration_ms,
+                                artwork_url: track.artwork_url,
+                                source_plugin_id: track.source_plugin_id,
+                            })
+                            .collect(),
+                        failures: failures
+                            .into_iter()
+                            .map(|failure| RpcSourceFailure {
+                                plugin_id: failure.plugin_id,
+                                failure: RpcFailure {
+                                    code: failure.code,
+                                    message: failure.message,
+                                    retryable: failure.retryable,
+                                },
+                            })
+                            .collect(),
+                    }),
+                ),
+                Err(error) => RpcResponse::SourceSearchRun(SourceSearchOutcome::Unavailable(
+                    RpcFailure::retryable("source.unavailable", error.to_string()),
                 )),
             }
         }

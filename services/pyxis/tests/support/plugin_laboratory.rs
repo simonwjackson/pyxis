@@ -79,6 +79,44 @@ fn main() -> anyhow::Result<()> {
         }
 
         let mut value = BTreeMap::new();
+        if call.operation == "search" {
+            if let Ok(search) = std::env::var("PYXIS_LAB_SEARCH") {
+                let fields: Vec<_> = search.split('|').collect();
+                if fields.len() == 4 {
+                    let mut track = BTreeMap::new();
+                    track.insert("source".into(), PluginValue::String(id.clone()));
+                    track.insert(
+                        "externalId".into(),
+                        PluginValue::String("laboratory-track".into()),
+                    );
+                    track.insert("title".into(), PluginValue::String(fields[0].into()));
+                    track.insert("artist".into(), PluginValue::String(fields[1].into()));
+                    track.insert("album".into(), PluginValue::String(fields[2].into()));
+                    track.insert(
+                        "durationMs".into(),
+                        PluginValue::Unsigned(fields[3].parse()?),
+                    );
+                    value.insert(
+                        "tracks".into(),
+                        PluginValue::Array(vec![PluginValue::Object(track)]),
+                    );
+                }
+            }
+        }
+        if call.operation == "stream.fetch" {
+            if let (Ok(bytes), PluginValue::Object(input)) =
+                (std::env::var("PYXIS_LAB_FETCH_BYTES"), &call.input)
+            {
+                if let Some(PluginValue::String(target_path)) = input.get("targetPath") {
+                    std::fs::write(target_path, bytes.as_bytes())?;
+                    value.insert("kind".into(), PluginValue::String("local".into()));
+                    value.insert(
+                        "targetPath".into(),
+                        PluginValue::String(target_path.clone()),
+                    );
+                }
+            }
+        }
         if call.operation == "stream.resolve" {
             if let Ok(first) = std::env::var("PYXIS_LAB_STREAM_URL") {
                 let url = if stream_resolutions == 0 {

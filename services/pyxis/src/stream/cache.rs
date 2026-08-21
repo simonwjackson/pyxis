@@ -17,6 +17,7 @@ impl StreamCache {
     pub fn open(state_dir: &Path) -> std::io::Result<Self> {
         let root = state_dir.join("cache").join("streams");
         std::fs::create_dir_all(&root)?;
+        let root = std::fs::canonicalize(root)?;
         Ok(StreamCache {
             root,
             locks: Arc::new(Mutex::new(HashMap::new())),

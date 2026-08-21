@@ -14,6 +14,8 @@ pkgs.mkShell {
     pkgs.typeshare
     pkgs.just
     pkgs.jq
+    pkgs.curl
+    pkgs.shellcheck
     # Used by generate-contracts.sh to normalise typeshare output and diff artifacts.
     pkgs.perl
     pkgs.diffutils

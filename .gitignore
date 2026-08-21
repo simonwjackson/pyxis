@@ -17,6 +17,7 @@ result-*
 # Local tooling caches
 .lab/
 .fallow/
+.dev-data/
 
 # Environment files with credentials
 .env.local

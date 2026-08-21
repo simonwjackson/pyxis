@@ -21,6 +21,11 @@ export interface StreamResolveInput {
   readonly trackId: string
 }
 
+export interface StreamFetchInput {
+  readonly trackId: string
+  readonly targetPath: string
+}
+
 export interface RemoteStream {
   readonly kind: "remote"
   readonly url: string
@@ -47,6 +52,19 @@ export function streamResolveInput(value: unknown): StreamResolveInput {
     throw new Error("stream.resolve input requires trackId")
   }
   return { trackId: value.trackId }
+}
+
+export function streamFetchInput(value: unknown): StreamFetchInput {
+  if (
+    !isRecord(value) ||
+    typeof value.trackId !== "string" ||
+    value.trackId.length === 0 ||
+    typeof value.targetPath !== "string" ||
+    !value.targetPath.startsWith("/")
+  ) {
+    throw new Error("stream.fetch input requires trackId and an absolute targetPath")
+  }
+  return { trackId: value.trackId, targetPath: value.targetPath }
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

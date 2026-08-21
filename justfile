@@ -5,7 +5,7 @@ default:
     @just --list
 
 # The single gate. Every implementation unit must leave this passing.
-verify: fmt-check lint test-rust contract-check typecheck lint-ts test-ts
+verify: fmt-check lint lint-shell test-rust contract-check typecheck lint-ts test-ts build-client
 
 # Regenerate the TypeScript types and JSON Schema from the Rust contract.
 contracts:
@@ -26,6 +26,9 @@ fmt-check:
 lint:
     cargo clippy --all-targets --all-features -- -D warnings
 
+lint-shell:
+    shellcheck tools/dev
+
 test-rust:
     cargo test --all
 
@@ -38,8 +41,15 @@ lint-ts:
 test-ts:
     bun run test
 
-# Run the service from source.
-dev *ARGS:
+build-client:
+    bun run --cwd clients/app build
+
+# Start core, the YouTube Music plugin, and the unstyled reference client.
+dev:
+    tools/dev
+
+# Run only the core service from source.
+dev-core *ARGS:
     cargo run --bin pyxis -- {{ARGS}}
 
 build:

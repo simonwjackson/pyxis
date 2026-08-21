@@ -1002,7 +1002,8 @@ of any share configuration. Upgrades appear without any client-visible action.
 
 **Requirements:** R13, R10
 
-**Dependencies:** U23, U13
+**Dependencies:** U12, U14, U17 for M1. Later milestones extend the same client after U8,
+U13, and U23 land.
 
 **Files:**
 - Create: `clients/app/src/reference/App.tsx`, `clients/app/src/reference/Library.tsx`, `clients/app/src/reference/Sessions.tsx`, `clients/app/src/reference/Console.tsx`, `clients/app/src/reference/Plugins.tsx`
@@ -1010,13 +1011,15 @@ of any share configuration. Upgrades appear without any client-visible action.
 **Approach:**
 - Unstyled semantic HTML. No CSS beyond browser defaults. Deliberately ugly so nobody
   mistakes it for the real interface.
-- Must exercise every capability: library, placements, search, sessions, console control,
-  handoff, offline pinning, plugin status, account switching.
-- Any surface not reachable here is a surface the design model cannot build on.
+- At each milestone, exercise every capability shipped so far. M1 covers account claim,
+  plugin status, source search, device-hosted session queue/transport, and audio. M2 adds
+  library/placements/account switching, M3 adds console/handoff, and M5 adds offline pinning.
+- Any shipped surface not reachable here is a surface the design model cannot build on.
 
 **Test scenarios:**
-- Integration: every RPC operation in the contract is exercised by at least one view.
-- Happy path: console control works between two browser tabs.
+- Integration: every product operation shipped in the current milestone is exercised by at
+  least one view. Administrative RPCs remain API-only.
+- Happy path (M3 extension): console control works between two browser tabs.
 - Edge case: with zero plugins installed, the client renders and explains the absence.
 
 **Verification:** A human can run the whole product through this client, ugly but complete.
