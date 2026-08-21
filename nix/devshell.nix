@@ -11,6 +11,9 @@ pkgs.mkShell {
     pkgs.typeshare
     pkgs.just
     pkgs.jq
+    # Used by generate-contracts.sh to normalise typeshare output and diff artifacts.
+    pkgs.perl
+    pkgs.diffutils
   ];
 
   # Cargo path dependencies cannot reach into the Nix store by absolute path without

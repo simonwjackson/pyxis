@@ -1,0 +1,254 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "RpcContractSchema",
+  "description": "Schema root, so one generated JSON Schema covers both directions of the wire.",
+  "type": "object",
+  "properties": {
+    "request": {
+      "$ref": "#/$defs/RpcRequest"
+    },
+    "response": {
+      "$ref": "#/$defs/RpcResponse"
+    }
+  },
+  "required": [
+    "request",
+    "response"
+  ],
+  "$defs": {
+    "AccountListOutcome": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "const": "ready"
+            },
+            "value": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/RpcAccount"
+              }
+            }
+          },
+          "required": [
+            "status",
+            "value"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "const": "unavailable"
+            },
+            "value": {
+              "$ref": "#/$defs/RpcFailure"
+            }
+          },
+          "required": [
+            "status",
+            "value"
+          ]
+        }
+      ]
+    },
+    "EmptyRequest": {
+      "type": "object",
+      "additionalProperties": false
+    },
+    "RpcAccount": {
+      "type": "object",
+      "properties": {
+        "createdAt": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "isDefault": {
+          "description": "True for the account created automatically on first boot. Exactly one account\ncarries this flag.",
+          "type": "boolean"
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "name",
+        "isDefault",
+        "createdAt"
+      ]
+    },
+    "RpcFailure": {
+      "description": "Uniform failure envelope.\n\n`retryable` exists so an offline client can decide whether to keep a queued write or\nsurface it as a permanent error, without parsing `code` strings.",
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "string"
+        },
+        "message": {
+          "type": "string"
+        },
+        "retryable": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "code",
+        "message",
+        "retryable"
+      ]
+    },
+    "RpcRequest": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "_tag": {
+              "type": "string",
+              "const": "system.status.get"
+            },
+            "payload": {
+              "$ref": "#/$defs/EmptyRequest"
+            }
+          },
+          "required": [
+            "_tag",
+            "payload"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "_tag": {
+              "type": "string",
+              "const": "account.list"
+            },
+            "payload": {
+              "$ref": "#/$defs/EmptyRequest"
+            }
+          },
+          "required": [
+            "_tag",
+            "payload"
+          ]
+        }
+      ]
+    },
+    "RpcResponse": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "_tag": {
+              "type": "string",
+              "const": "system.status.get"
+            },
+            "outcome": {
+              "$ref": "#/$defs/SystemStatusOutcome"
+            }
+          },
+          "required": [
+            "_tag",
+            "outcome"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "_tag": {
+              "type": "string",
+              "const": "account.list"
+            },
+            "outcome": {
+              "$ref": "#/$defs/AccountListOutcome"
+            }
+          },
+          "required": [
+            "_tag",
+            "outcome"
+          ]
+        }
+      ]
+    },
+    "RpcSystemStatus": {
+      "description": "Service health and capability summary.\n\n`pluginCount` and `capabilities` are part of status because the core is required to run\nwith zero plugins installed. A client discovers what is actually possible here rather\nthan assuming a provider exists.",
+      "type": "object",
+      "properties": {
+        "accountCount": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "capabilities": {
+          "description": "Capability classes currently served by at least one live plugin, for example\n`source` or `output`. Empty is a valid, working state.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "contractId": {
+          "type": "string"
+        },
+        "pluginCount": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "version": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "version",
+        "contractId",
+        "accountCount",
+        "pluginCount",
+        "capabilities"
+      ]
+    },
+    "SystemStatusOutcome": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "const": "ready"
+            },
+            "value": {
+              "$ref": "#/$defs/RpcSystemStatus"
+            }
+          },
+          "required": [
+            "status",
+            "value"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "const": "unavailable"
+            },
+            "value": {
+              "$ref": "#/$defs/RpcFailure"
+            }
+          },
+          "required": [
+            "status",
+            "value"
+          ]
+        }
+      ]
+    }
+  }
+}

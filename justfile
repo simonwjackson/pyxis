@@ -5,7 +5,15 @@ default:
     @just --list
 
 # The single gate. Every implementation unit must leave this passing.
-verify: fmt-check lint test-rust
+verify: fmt-check lint test-rust contract-check
+
+# Regenerate the TypeScript types and JSON Schema from the Rust contract.
+contracts:
+    services/pyxis/generate-contracts.sh
+
+# Fail when committed contract artifacts have drifted from the Rust source.
+contract-check:
+    services/pyxis/generate-contracts.sh --check
 
 # Format Rust sources in place.
 format:

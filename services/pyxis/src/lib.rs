@@ -4,6 +4,7 @@
 //! and sync. Every music provider lives outside this crate, behind the plugin protocol.
 //! The core is required to start and serve with zero plugins installed.
 
+pub mod rpc;
 pub mod settings;
 
 /// Version reported by `system.status.get` and the `--version` flag.
