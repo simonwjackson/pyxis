@@ -1,0 +1,27 @@
+# Rust
+target/
+
+# Node / Bun
+node_modules/
+dist/
+*.tsbuildinfo
+
+# Nix / direnv
+result
+result-*
+.direnv/
+
+# Local tooling caches
+.lab/
+.fallow/
+
+# Environment files with credentials
+.env.local
+.env*.local
+
+# Recorded plugin fixtures contain auth tokens. Record locally, never commit.
+**/fixtures/*.json
+!**/fixtures/.gitkeep
+
+# Generated contracts are committed on purpose. Do not ignore:
+# contracts/generated/
