@@ -1,5 +1,10 @@
 [workspace]
 members = ["services/pyxis"]
+# The devshell symlinks the proseql checkout to .cache/proseql. Without this exclude,
+# Cargo treats those crates as members of this workspace and tries to resolve their
+# `workspace = true` dependency inheritance against this manifest, which fails because
+# proseql declares its own workspace root under crates/.
+exclude = [".cache"]
 resolver = "2"
 
 [workspace.package]
