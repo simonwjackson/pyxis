@@ -15,6 +15,7 @@ pub struct SearchTrack {
     pub artist: String,
     pub album: Option<String>,
     pub duration_ms: Option<u32>,
+    pub track_number: Option<u32>,
     pub artwork_url: Option<String>,
     pub source_plugin_id: String,
 }
@@ -25,6 +26,27 @@ pub struct SearchFailure {
     pub code: String,
     pub message: String,
     pub retryable: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CatalogAlbumSummary {
+    pub external_id: String,
+    pub title: String,
+    pub artist: String,
+    pub year: Option<u32>,
+    pub artwork_url: Option<String>,
+    pub source_plugin_id: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CatalogAlbum {
+    pub external_id: String,
+    pub title: String,
+    pub artist: String,
+    pub year: Option<u32>,
+    pub artwork_url: Option<String>,
+    pub source_plugin_id: String,
+    pub tracks: Vec<SearchTrack>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -42,6 +64,8 @@ pub enum SourceCatalogError {
     Media(#[from] crate::media::MediaError),
     #[error(transparent)]
     Credentials(#[from] CredentialError),
+    #[error("source plugin call failed: {0}")]
+    Plugin(String),
 }
 
 #[derive(Debug, Deserialize)]
@@ -61,6 +85,43 @@ struct PluginSearchTrack {
     album: Option<String>,
     duration_ms: Option<u32>,
     artwork_url: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct PluginAlbumSearchOutput {
+    albums: Vec<PluginAlbumSummary>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct PluginAlbumSummary {
+    external_id: String,
+    title: String,
+    artist: String,
+    year: Option<u32>,
+    artwork_url: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct PluginAlbum {
+    external_id: String,
+    title: String,
+    artist: String,
+    year: Option<u32>,
+    artwork_url: Option<String>,
+    tracks: Vec<PluginAlbumTrack>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct PluginAlbumTrack {
+    external_id: String,
+    title: String,
+    artist: String,
+    duration_ms: Option<u32>,
+    track_number: u32,
 }
 
 #[derive(Clone)]
@@ -159,6 +220,7 @@ impl SourceCatalog {
                     artist: track.artist,
                     album: track.album,
                     duration_ms: track.duration_ms,
+                    track_number: None,
                     artwork_url: track.artwork_url,
                     source_plugin_id: source.id.clone(),
                 });
@@ -166,6 +228,107 @@ impl SourceCatalog {
         }
 
         Ok(SearchOutcome::Ready { tracks, failures })
+    }
+
+    pub fn search_albums(
+        &self,
+        auth: &AuthContext,
+        plugin_id: &str,
+        query: &str,
+    ) -> Result<Vec<CatalogAlbumSummary>, SourceCatalogError> {
+        let config = self
+            .credentials
+            .get(&auth.account_id, plugin_id)?
+            .map(serde_json::Value::from);
+        let value = self
+            .plugins
+            .call_for_account(
+                plugin_id,
+                "source",
+                "album.search",
+                serde_json::json!({ "query": query }),
+                auth.account_id.as_str(),
+                config,
+            )
+            .map_err(|error| SourceCatalogError::Plugin(error.to_string()))?;
+        let output: PluginAlbumSearchOutput = serde_json::from_value(value)
+            .map_err(|error| SourceCatalogError::Plugin(error.to_string()))?;
+        Ok(output
+            .albums
+            .into_iter()
+            .map(|album| CatalogAlbumSummary {
+                external_id: album.external_id,
+                title: album.title,
+                artist: album.artist,
+                year: album.year,
+                artwork_url: album.artwork_url,
+                source_plugin_id: plugin_id.into(),
+            })
+            .collect())
+    }
+
+    pub fn get_album(
+        &self,
+        auth: &AuthContext,
+        plugin_id: &str,
+        external_id: &str,
+    ) -> Result<CatalogAlbum, SourceCatalogError> {
+        let config = self
+            .credentials
+            .get(&auth.account_id, plugin_id)?
+            .map(serde_json::Value::from);
+        let value = self
+            .plugins
+            .call_for_account(
+                plugin_id,
+                "source",
+                "album.get",
+                serde_json::json!({ "externalId": external_id }),
+                auth.account_id.as_str(),
+                config,
+            )
+            .map_err(|error| SourceCatalogError::Plugin(error.to_string()))?;
+        let album: PluginAlbum = serde_json::from_value(value)
+            .map_err(|error| SourceCatalogError::Plugin(error.to_string()))?;
+        let mut tracks = Vec::new();
+        for track in album.tracks {
+            let id = track_id(auth.account_id.as_str(), plugin_id, &track.external_id);
+            self.media.ensure_plugin_candidate(
+                &auth.account_id,
+                &id,
+                PluginCandidateInput {
+                    plugin_id: plugin_id.into(),
+                    external_id: track.external_id,
+                    format: None,
+                    fidelity: Fidelity {
+                        lossless: false,
+                        bitrate_kbps: None,
+                        sample_rate_hz: None,
+                    },
+                    source_priority: 0,
+                },
+                auth.principal_id(),
+            )?;
+            tracks.push(SearchTrack {
+                id,
+                title: track.title,
+                artist: track.artist,
+                album: Some(album.title.clone()),
+                duration_ms: track.duration_ms,
+                track_number: Some(track.track_number),
+                artwork_url: album.artwork_url.clone(),
+                source_plugin_id: plugin_id.into(),
+            });
+        }
+        Ok(CatalogAlbum {
+            external_id: album.external_id,
+            title: album.title,
+            artist: album.artist,
+            year: album.year,
+            artwork_url: album.artwork_url,
+            source_plugin_id: plugin_id.into(),
+            tracks,
+        })
     }
 }
 

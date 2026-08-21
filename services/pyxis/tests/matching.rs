@@ -64,6 +64,31 @@ fn punctuation_and_featured_artist_differences_still_auto_accept() {
 }
 
 #[test]
+fn exact_artist_and_title_auto_merge_when_optional_album_facts_are_absent() {
+    let dir = tempfile::tempdir().expect("temp dir");
+    let matcher = Matcher::open(Store::open(dir.path()).expect("store"));
+    let account = AccountId::new("account-a");
+    let sparse = MatchItem {
+        id: "manifest".into(),
+        artist: "David Bowie".into(),
+        title: "Heroes".into(),
+        album: None,
+        duration_ms: None,
+        year: None,
+    };
+    let result = matcher
+        .decide(
+            &account,
+            &sparse,
+            &item("candidate", "David Bowie", "Heroes", None),
+        )
+        .expect("match");
+
+    assert_eq!(result.decision, Decision::AutoMerge);
+    assert_eq!(result.score.overall, 925);
+}
+
+#[test]
 fn live_and_remaster_variants_never_auto_merge() {
     let dir = tempfile::tempdir().expect("temp dir");
     let matcher = Matcher::open(Store::open(dir.path()).expect("store"));

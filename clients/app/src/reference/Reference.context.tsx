@@ -1,6 +1,8 @@
 import { createContext, useContext } from "react"
 import type {
   RpcAuthGrant,
+  RpcLibraryAlbum,
+  RpcPlacement,
   RpcPlugin,
   RpcSearchTrack,
   RpcSession,
@@ -10,6 +12,7 @@ export interface ReferenceContextValue {
   readonly status: "booting" | "ready" | "busy" | "error"
   readonly grant?: RpcAuthGrant
   readonly plugins: readonly RpcPlugin[]
+  readonly albums: readonly RpcLibraryAlbum[]
   readonly query: string
   readonly tracks: readonly RpcSearchTrack[]
   readonly searchHasNoSources: boolean
@@ -20,6 +23,7 @@ export interface ReferenceContextValue {
   setQuery(value: string): void
   search(): Promise<void>
   enqueue(trackId: string): Promise<void>
+  setAlbumPlacement(albumId: string, placement: RpcPlacement): Promise<void>
   play(): Promise<void>
   pause(): Promise<void>
   stop(): Promise<void>

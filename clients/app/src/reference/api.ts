@@ -1,6 +1,8 @@
 import type {
   ListenTrackEventInput,
   RpcAuthGrant,
+  RpcLibraryAlbum,
+  RpcPlacement,
   RpcPlugin,
   RpcRequest,
   RpcResponse,
@@ -18,6 +20,12 @@ export interface SearchResult {
 export interface ReferenceClient {
   claimDevice(name: string): Promise<RpcAuthGrant>
   listPlugins(token: string): Promise<readonly RpcPlugin[]>
+  listAlbums(token: string): Promise<readonly RpcLibraryAlbum[]>
+  setAlbumPlacement(
+    token: string,
+    albumId: string,
+    placement: RpcPlacement,
+  ): Promise<RpcLibraryAlbum>
   search(token: string, query: string): Promise<SearchResult>
   listSessions(token: string): Promise<readonly RpcSession[]>
   createSession(token: string, name: string): Promise<RpcSession>
@@ -71,6 +79,31 @@ export function createReferenceClient(config: ReferenceClientConfig = {}): Refer
       const response = await rpc({ _tag: "plugin.list", payload: {} }, token)
       if (response._tag !== "plugin.list" || response.outcome.status !== "ready") {
         throw new Error("plugin list is unavailable")
+      }
+      return response.outcome.value
+    },
+
+    async listAlbums(token) {
+      const response = await rpc({ _tag: "library.albums.list", payload: {} }, token)
+      if (response._tag !== "library.albums.list" || response.outcome.status !== "ready") {
+        throw new Error("library album list is unavailable")
+      }
+      return response.outcome.value
+    },
+
+    async setAlbumPlacement(token, albumId, placement) {
+      const response = await rpc(
+        {
+          _tag: "library.album.command.run",
+          payload: {
+            albumId,
+            command: { _tag: "placement.set", payload: { placement } },
+          },
+        },
+        token,
+      )
+      if (response._tag !== "library.album.command.run" || response.outcome.status !== "applied") {
+        throw new Error("album placement was not applied")
       }
       return response.outcome.value
     },

@@ -62,6 +62,12 @@ pub fn score(left: &MatchItem, right: &MatchItem) -> MatchScore {
     // one missing 10% field an otherwise exact match scores 950 rather than 1000.
     let confidence_factor = 500 + coverage / 2;
     let mut overall = base * confidence_factor / 1000;
+    if artist == 1000 && title == 1000 && !variant_conflict && !duration_conflict {
+        // A reacquisition manifest intentionally carries only the stable core identity.
+        // Exact artist/title remains auto-mergeable, but stays below a fully described
+        // 1000-point match when album, duration, or year are absent.
+        overall = overall.max(925);
+    }
     if variant_conflict {
         overall = overall.saturating_sub(200);
     }

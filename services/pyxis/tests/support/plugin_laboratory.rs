@@ -103,6 +103,43 @@ fn main() -> anyhow::Result<()> {
                 }
             }
         }
+        if call.operation == "album.search" {
+            if let Ok(album) = std::env::var("PYXIS_LAB_ALBUM") {
+                let fields: Vec<_> = album.split('|').collect();
+                if fields.len() == 3 {
+                    let mut summary = BTreeMap::new();
+                    summary.insert("externalId".into(), PluginValue::String(fields[0].into()));
+                    summary.insert("title".into(), PluginValue::String(fields[1].into()));
+                    summary.insert("artist".into(), PluginValue::String(fields[2].into()));
+                    value.insert(
+                        "albums".into(),
+                        PluginValue::Array(vec![PluginValue::Object(summary)]),
+                    );
+                }
+            }
+        }
+        if call.operation == "album.get" {
+            if let Ok(album) = std::env::var("PYXIS_LAB_ALBUM") {
+                let fields: Vec<_> = album.split('|').collect();
+                if fields.len() == 3 {
+                    value.insert("externalId".into(), PluginValue::String(fields[0].into()));
+                    value.insert("title".into(), PluginValue::String(fields[1].into()));
+                    value.insert("artist".into(), PluginValue::String(fields[2].into()));
+                    let mut track = BTreeMap::new();
+                    track.insert(
+                        "externalId".into(),
+                        PluginValue::String("album-track".into()),
+                    );
+                    track.insert("title".into(), PluginValue::String("Track One".into()));
+                    track.insert("artist".into(), PluginValue::String(fields[2].into()));
+                    track.insert("trackNumber".into(), PluginValue::Unsigned(1));
+                    value.insert(
+                        "tracks".into(),
+                        PluginValue::Array(vec![PluginValue::Object(track)]),
+                    );
+                }
+            }
+        }
         if call.operation == "stream.fetch" {
             if let (Ok(bytes), PluginValue::Object(input)) =
                 (std::env::var("PYXIS_LAB_FETCH_BYTES"), &call.input)

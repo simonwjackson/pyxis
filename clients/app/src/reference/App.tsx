@@ -3,6 +3,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { ulid } from "ulid"
 import type {
   RpcAuthGrant,
+  RpcLibraryAlbum,
+  RpcPlacement,
   RpcPlugin,
   RpcSearchTrack,
   RpcSession,
@@ -28,6 +30,7 @@ export function ReferenceApp({ client = liveClient, children }: ReferenceAppProp
   const [status, setStatus] = useState<"booting" | "ready" | "busy" | "error">("booting")
   const [grant, setGrant] = useState<RpcAuthGrant>()
   const [plugins, setPlugins] = useState<readonly RpcPlugin[]>([])
+  const [albums, setAlbums] = useState<readonly RpcLibraryAlbum[]>([])
   const [query, setQuery] = useState("")
   const [tracks, setTracks] = useState<readonly RpcSearchTrack[]>([])
   const [searchHasNoSources, setSearchHasNoSources] = useState(false)
@@ -42,12 +45,14 @@ export function ReferenceApp({ client = liveClient, children }: ReferenceAppProp
     void (async () => {
       try {
         const nextGrant = await client.claimDevice("reference browser")
-        const [nextPlugins, sessions] = await Promise.all([
+        const [nextPlugins, nextAlbums, sessions] = await Promise.all([
           client.listPlugins(nextGrant.bearerToken),
+          client.listAlbums(nextGrant.bearerToken),
           client.listSessions(nextGrant.bearerToken),
         ])
         setGrant(nextGrant)
         setPlugins(nextPlugins)
+        setAlbums(nextAlbums)
         setSession(sessions.find((candidate) => candidate.hostDeviceId === nextGrant.device.id))
         setStatus("ready")
       } catch (cause) {
@@ -128,6 +133,16 @@ export function ReferenceApp({ client = liveClient, children }: ReferenceAppProp
       })
     },
     [client, currentToken, ensureSession, run],
+  )
+
+  const setAlbumPlacement = useCallback(
+    async (albumId: string, placement: RpcPlacement) => {
+      await run(async () => {
+        const updated = await client.setAlbumPlacement(currentToken(), albumId, placement)
+        setAlbums((current) => current.map((album) => (album.id === albumId ? updated : album)))
+      })
+    },
+    [client, currentToken, run],
   )
 
   const play = useCallback(async () => {
@@ -214,6 +229,7 @@ export function ReferenceApp({ client = liveClient, children }: ReferenceAppProp
       status,
       ...(grant === undefined ? {} : { grant }),
       plugins,
+      albums,
       query,
       tracks,
       searchHasNoSources,
@@ -224,6 +240,7 @@ export function ReferenceApp({ client = liveClient, children }: ReferenceAppProp
       setQuery,
       search,
       enqueue,
+      setAlbumPlacement,
       play,
       pause,
       stop,
@@ -235,6 +252,7 @@ export function ReferenceApp({ client = liveClient, children }: ReferenceAppProp
       status,
       grant,
       plugins,
+      albums,
       query,
       tracks,
       searchHasNoSources,
@@ -244,6 +262,7 @@ export function ReferenceApp({ client = liveClient, children }: ReferenceAppProp
       error,
       search,
       enqueue,
+      setAlbumPlacement,
       play,
       pause,
       stop,

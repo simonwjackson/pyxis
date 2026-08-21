@@ -1,8 +1,12 @@
 import { definePlugin, PluginCapability, PluginOperationError, runPlugin } from "@pyxis/plugin-sdk"
 import { searchInput, streamFetchInput, streamResolveInput } from "./api"
+import { createYtMusicInternalApi, type YtMusicInternalApi } from "./internal-api"
 import { createYtDlp, type YtDlp } from "./ytdlp"
 
-export function createYtMusicPlugin(ytdlp: YtDlp) {
+export function createYtMusicPlugin(
+  ytdlp: YtDlp,
+  internalApi: YtMusicInternalApi = createYtMusicInternalApi(),
+) {
   return definePlugin({
     manifest: {
       id: "ytmusic",
@@ -22,6 +26,14 @@ export function createYtMusicPlugin(ytdlp: YtDlp) {
             tracks: await ytdlp.search(request.query, request.limit ?? 10),
           }))
         },
+        "album.search": async (input) => {
+          const request = validInput(() => searchInput(input))
+          return { albums: await providerCall(() => internalApi.searchAlbums(request.query)) }
+        },
+        "album.get": async (input) => {
+          const externalId = validInput(() => externalIdOf(input))
+          return providerCall(() => internalApi.getAlbum(externalId))
+        },
         "stream.resolve": async (input) => {
           const request = validInput(() => streamResolveInput(input))
           return providerCall(() => ytdlp.resolveStream(request.trackId))
@@ -38,6 +50,19 @@ export function createYtMusicPlugin(ytdlp: YtDlp) {
 
 if (import.meta.main) {
   await runPlugin(createYtMusicPlugin(createYtDlp()))
+}
+
+function externalIdOf(input: unknown): string {
+  if (
+    typeof input !== "object" ||
+    input === null ||
+    !("externalId" in input) ||
+    typeof input.externalId !== "string" ||
+    input.externalId.length === 0
+  ) {
+    throw new Error("album.get input requires externalId")
+  }
+  return input.externalId
 }
 
 function validInput<T>(parse: () => T): T {

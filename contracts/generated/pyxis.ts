@@ -402,6 +402,7 @@ export interface RpcSearchTrack {
 	artist: string;
 	album?: string;
 	durationMs?: number;
+	trackNumber?: number;
 	artworkUrl?: string;
 	sourcePluginId: string;
 }
@@ -428,6 +429,25 @@ export interface RpcSession {
 	reachable: boolean;
 	revision: number;
 	updatedAt: string;
+}
+
+export interface RpcSourceAlbum {
+	externalId: string;
+	title: string;
+	artist: string;
+	year?: number;
+	artworkUrl?: string;
+	sourcePluginId: string;
+	tracks: RpcSearchTrack[];
+}
+
+export interface RpcSourceAlbumSummary {
+	externalId: string;
+	title: string;
+	artist: string;
+	year?: number;
+	artworkUrl?: string;
+	sourcePluginId: string;
 }
 
 export interface RpcSourceFailure {
@@ -483,6 +503,16 @@ export interface SessionCreateRequest {
 
 export interface SessionIdRequest {
 	sessionId: string;
+}
+
+export interface SourceAlbumGetRequest {
+	pluginId: string;
+	externalId: string;
+}
+
+export interface SourceAlbumSearchRequest {
+	pluginId: string;
+	query: string;
 }
 
 export interface SourceSearchRequest {
@@ -627,7 +657,9 @@ export type RpcRequest =
 	| { _tag: "matching.override.set", payload: MatchingOverrideSetRequest }
 	| { _tag: "matching.override.remove", payload: MatchingOverrideRemoveRequest }
 	| { _tag: "plugin.config.set", payload: PluginConfigSetRequest }
-	| { _tag: "plugin.config.remove", payload: PluginConfigRemoveRequest };
+	| { _tag: "plugin.config.remove", payload: PluginConfigRemoveRequest }
+	| { _tag: "source.album.search", payload: SourceAlbumSearchRequest }
+	| { _tag: "source.album.get", payload: SourceAlbumGetRequest };
 
 export type RpcResponse =
 	| { _tag: "system.status.get", outcome: SystemStatusOutcome }
@@ -659,6 +691,8 @@ export type RpcResponse =
 	| { _tag: "matching.override.remove", outcome: CommandOutcome }
 	| { _tag: "plugin.config.set", outcome: CommandOutcome }
 	| { _tag: "plugin.config.remove", outcome: CommandOutcome }
+	| { _tag: "source.album.search", outcome: SourceAlbumSearchOutcome }
+	| { _tag: "source.album.get", outcome: SourceAlbumGetOutcome }
 	| { _tag: "rpc.failure", outcome: RpcProtocolFailureOutcome };
 
 export type SessionCommandOutcome =
@@ -681,6 +715,14 @@ export type SessionListOutcome =
 export type SessionStateOutcome =
 	| { status: "ready", value: RpcSession }
 	| { status: "unknown", value?: undefined }
+	| { status: "unavailable", value: RpcFailure };
+
+export type SourceAlbumGetOutcome =
+	| { status: "ready", value: RpcSourceAlbum }
+	| { status: "unavailable", value: RpcFailure };
+
+export type SourceAlbumSearchOutcome =
+	| { status: "ready", value: RpcSourceAlbumSummary[] }
 	| { status: "unavailable", value: RpcFailure };
 
 export type SourceSearchOutcome =

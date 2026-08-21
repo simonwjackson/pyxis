@@ -305,6 +305,8 @@ pub struct RpcSearchTrack {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub duration_ms: Option<u32>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub track_number: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub artwork_url: Option<String>,
     pub source_plugin_id: String,
 }
@@ -331,6 +333,67 @@ pub struct RpcSourceSearchResult {
 pub enum SourceSearchOutcome {
     Ready(RpcSourceSearchResult),
     NoSources,
+    Unavailable(RpcFailure),
+}
+
+#[typeshare]
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct SourceAlbumSearchRequest {
+    pub plugin_id: String,
+    pub query: String,
+}
+
+#[typeshare]
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct SourceAlbumGetRequest {
+    pub plugin_id: String,
+    pub external_id: String,
+}
+
+#[typeshare]
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct RpcSourceAlbumSummary {
+    pub external_id: String,
+    pub title: String,
+    pub artist: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub year: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub artwork_url: Option<String>,
+    pub source_plugin_id: String,
+}
+
+#[typeshare]
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct RpcSourceAlbum {
+    pub external_id: String,
+    pub title: String,
+    pub artist: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub year: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub artwork_url: Option<String>,
+    pub source_plugin_id: String,
+    pub tracks: Vec<RpcSearchTrack>,
+}
+
+#[typeshare]
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(tag = "status", content = "value", rename_all = "camelCase")]
+pub enum SourceAlbumSearchOutcome {
+    Ready(Vec<RpcSourceAlbumSummary>),
+    Unavailable(RpcFailure),
+}
+
+#[typeshare]
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(tag = "status", content = "value", rename_all = "camelCase")]
+pub enum SourceAlbumGetOutcome {
+    Ready(RpcSourceAlbum),
     Unavailable(RpcFailure),
 }
 
@@ -991,6 +1054,10 @@ pub enum RpcRequest {
     PluginConfigSet(PluginConfigSetRequest),
     #[serde(rename = "plugin.config.remove")]
     PluginConfigRemove(PluginConfigRemoveRequest),
+    #[serde(rename = "source.album.search")]
+    SourceAlbumSearch(SourceAlbumSearchRequest),
+    #[serde(rename = "source.album.get")]
+    SourceAlbumGet(SourceAlbumGetRequest),
 }
 
 /// A request that cannot enter operation dispatch. This is separate from an operation's
@@ -1064,12 +1131,16 @@ pub enum RpcResponse {
     PluginConfigSet(CommandOutcome),
     #[serde(rename = "plugin.config.remove")]
     PluginConfigRemove(CommandOutcome),
+    #[serde(rename = "source.album.search")]
+    SourceAlbumSearch(SourceAlbumSearchOutcome),
+    #[serde(rename = "source.album.get")]
+    SourceAlbumGet(SourceAlbumGetOutcome),
     #[serde(rename = "rpc.failure")]
     Failure(RpcProtocolFailureOutcome),
 }
 
 impl RpcRequest {
-    pub const KNOWN_TAGS: [&'static str; 29] = [
+    pub const KNOWN_TAGS: [&'static str; 31] = [
         "system.status.get",
         "auth.device.claim",
         "auth.device.pair",
@@ -1099,6 +1170,8 @@ impl RpcRequest {
         "matching.override.remove",
         "plugin.config.set",
         "plugin.config.remove",
+        "source.album.search",
+        "source.album.get",
     ];
 
     /// The operation tag as it appears on the wire. Used for logging and authorization.
@@ -1133,6 +1206,8 @@ impl RpcRequest {
             RpcRequest::MatchingOverrideRemove(_) => "matching.override.remove",
             RpcRequest::PluginConfigSet(_) => "plugin.config.set",
             RpcRequest::PluginConfigRemove(_) => "plugin.config.remove",
+            RpcRequest::SourceAlbumSearch(_) => "source.album.search",
+            RpcRequest::SourceAlbumGet(_) => "source.album.get",
         }
     }
 
@@ -1178,6 +1253,7 @@ impl RpcRequest {
             RpcRequest::PluginConfigSet(_) | RpcRequest::PluginConfigRemove(_) => {
                 Some("account:admin")
             }
+            RpcRequest::SourceAlbumSearch(_) | RpcRequest::SourceAlbumGet(_) => Some("source:read"),
             RpcRequest::AuthPairingCreate(_)
             | RpcRequest::AuthTokenCreate(_)
             | RpcRequest::AuthTokenRevoke(_)
@@ -1187,7 +1263,7 @@ impl RpcRequest {
 }
 
 impl RpcResponse {
-    pub const KNOWN_OPERATION_TAGS: [&'static str; 29] = RpcRequest::KNOWN_TAGS;
+    pub const KNOWN_OPERATION_TAGS: [&'static str; 31] = RpcRequest::KNOWN_TAGS;
 
     pub fn tag(&self) -> &'static str {
         match self {
@@ -1220,6 +1296,8 @@ impl RpcResponse {
             RpcResponse::MatchingOverrideRemove(_) => "matching.override.remove",
             RpcResponse::PluginConfigSet(_) => "plugin.config.set",
             RpcResponse::PluginConfigRemove(_) => "plugin.config.remove",
+            RpcResponse::SourceAlbumSearch(_) => "source.album.search",
+            RpcResponse::SourceAlbumGet(_) => "source.album.get",
             RpcResponse::Failure(_) => "rpc.failure",
         }
     }

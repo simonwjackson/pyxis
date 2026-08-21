@@ -27,10 +27,11 @@ use crate::rpc::contract::{
     RpcFailure, RpcHotAlbum, RpcLibraryAlbum, RpcLibraryTrack, RpcListenAppendResult,
     RpcListenEvent, RpcMatchDecision, RpcMatchItem, RpcMatchResult, RpcMatchScore,
     RpcOverrideDecision, RpcPairingCode, RpcPlacement, RpcPlaylist, RpcPlugin, RpcRequest,
-    RpcResponse, RpcSearchTrack, RpcSession, RpcSessionCommand, RpcSourceFailure,
-    RpcSourceSearchResult, RpcSystemStatus, RpcTransport, SessionCommandOutcome,
-    SessionCreateOutcome, SessionListOutcome, SessionStateOutcome, SourceSearchOutcome,
-    SystemStatusOutcome, CONTRACT_ID,
+    RpcResponse, RpcSearchTrack, RpcSession, RpcSessionCommand, RpcSourceAlbum,
+    RpcSourceAlbumSummary, RpcSourceFailure, RpcSourceSearchResult, RpcSystemStatus, RpcTransport,
+    SessionCommandOutcome, SessionCreateOutcome, SessionListOutcome, SessionStateOutcome,
+    SourceAlbumGetOutcome, SourceAlbumSearchOutcome, SourceSearchOutcome, SystemStatusOutcome,
+    CONTRACT_ID,
 };
 use crate::sessions::{Session, SessionCommand as DomainSessionCommand, SessionError, Transport};
 use crate::source_catalog::SearchOutcome;
@@ -269,6 +270,7 @@ pub fn dispatch(state: &AppState, request: RpcRequest, auth: Option<AuthContext>
                                 artist: track.artist,
                                 album: track.album,
                                 duration_ms: track.duration_ms,
+                                track_number: track.track_number,
                                 artwork_url: track.artwork_url,
                                 source_plugin_id: track.source_plugin_id,
                             })
@@ -681,6 +683,71 @@ pub fn dispatch(state: &AppState, request: RpcRequest, auth: Option<AuthContext>
                 Ok(false) => RpcResponse::PluginConfigRemove(CommandOutcome::Unknown),
                 Err(error) => RpcResponse::PluginConfigRemove(CommandOutcome::Unavailable(
                     RpcFailure::retryable("plugin.configUnavailable", error.to_string()),
+                )),
+            }
+        }
+        RpcRequest::SourceAlbumSearch(request) => {
+            let Some(auth) = auth else {
+                return auth_required();
+            };
+            match state
+                .sources
+                .search_albums(&auth, &request.plugin_id, &request.query)
+            {
+                Ok(albums) => RpcResponse::SourceAlbumSearch(SourceAlbumSearchOutcome::Ready(
+                    albums
+                        .into_iter()
+                        .map(|album| RpcSourceAlbumSummary {
+                            external_id: album.external_id,
+                            title: album.title,
+                            artist: album.artist,
+                            year: album.year,
+                            artwork_url: album.artwork_url,
+                            source_plugin_id: album.source_plugin_id,
+                        })
+                        .collect(),
+                )),
+                Err(error) => {
+                    RpcResponse::SourceAlbumSearch(SourceAlbumSearchOutcome::Unavailable(
+                        RpcFailure::retryable("source.albumSearch", error.to_string()),
+                    ))
+                }
+            }
+        }
+        RpcRequest::SourceAlbumGet(request) => {
+            let Some(auth) = auth else {
+                return auth_required();
+            };
+            match state
+                .sources
+                .get_album(&auth, &request.plugin_id, &request.external_id)
+            {
+                Ok(album) => {
+                    RpcResponse::SourceAlbumGet(SourceAlbumGetOutcome::Ready(RpcSourceAlbum {
+                        external_id: album.external_id,
+                        title: album.title,
+                        artist: album.artist,
+                        year: album.year,
+                        artwork_url: album.artwork_url,
+                        source_plugin_id: album.source_plugin_id,
+                        tracks: album
+                            .tracks
+                            .into_iter()
+                            .map(|track| RpcSearchTrack {
+                                id: track.id,
+                                title: track.title,
+                                artist: track.artist,
+                                album: track.album,
+                                duration_ms: track.duration_ms,
+                                track_number: track.track_number,
+                                artwork_url: track.artwork_url,
+                                source_plugin_id: track.source_plugin_id,
+                            })
+                            .collect(),
+                    }))
+                }
+                Err(error) => RpcResponse::SourceAlbumGet(SourceAlbumGetOutcome::Unavailable(
+                    RpcFailure::retryable("source.albumGet", error.to_string()),
                 )),
             }
         }

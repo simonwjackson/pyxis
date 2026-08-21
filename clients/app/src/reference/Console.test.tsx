@@ -1,5 +1,6 @@
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { afterEach, describe, expect, test } from "vitest"
+import { RpcPlacement } from "../../../../contracts/generated/pyxis"
 import { ReferenceApp } from "./App.tsx"
 import type { ReferenceClient } from "./api.ts"
 import { ReferenceConsole } from "./Console.tsx"
@@ -16,6 +17,10 @@ function client(plugins: Awaited<ReturnType<ReferenceClient["listPlugins"]>>): R
       bearerToken: "token",
     }),
     listPlugins: async () => plugins,
+    listAlbums: async () => [],
+    setAlbumPlacement: async () => {
+      throw new Error("not used")
+    },
     search: async () => ({ tracks: [], noSources: plugins.length === 0, failures: [] }),
     listSessions: async () => [],
     createSession: async () => {
@@ -60,6 +65,49 @@ describe("reference client", () => {
     await waitFor(() => expect(screen.getByText(/YouTube Music \(ytmusic\)/)).toBeTruthy())
   })
 
+  test("lists library albums and applies placement changes", async () => {
+    let placement: RpcPlacement = RpcPlacement.Discovery
+    const configured: ReferenceClient = {
+      ...client([]),
+      listAlbums: async () => [
+        {
+          id: "album-1",
+          title: "Heroes",
+          artist: "David Bowie",
+          placement: RpcPlacement.Discovery,
+          placementUpdatedAt: "now",
+          addedAt: "now",
+          revision: 1,
+          tracks: [],
+        },
+      ],
+      setAlbumPlacement: async (_token, _albumId, next) => {
+        placement = next
+        return {
+          id: "album-1",
+          title: "Heroes",
+          artist: "David Bowie",
+          placement: next,
+          placementUpdatedAt: "later",
+          addedAt: "now",
+          revision: 2,
+          tracks: [],
+        }
+      },
+    }
+
+    render(
+      <ReferenceApp client={configured}>
+        <ReferenceLibrary />
+      </ReferenceApp>,
+    )
+    await waitFor(() => expect(screen.getByText(/Heroes/)).toBeTruthy())
+    fireEvent.click(screen.getByRole("button", { name: "collection" }))
+
+    await waitFor(() => expect(placement).toBe(RpcPlacement.Collection))
+    expect(screen.getByText(/collection — revision 2/)).toBeTruthy()
+  })
+
   test("searches, queues, and loads audio through the reference binding", async () => {
     let session: Awaited<ReturnType<ReferenceClient["createSession"]>> | undefined
     let loadedTrack: string | undefined
@@ -79,6 +127,10 @@ describe("reference client", () => {
           configured: true,
         },
       ],
+      listAlbums: async () => [],
+      setAlbumPlacement: async () => {
+        throw new Error("not used")
+      },
       search: async () => ({
         noSources: false,
         failures: [],

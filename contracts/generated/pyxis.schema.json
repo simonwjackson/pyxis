@@ -489,6 +489,38 @@
             "_tag",
             "payload"
           ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "_tag": {
+              "type": "string",
+              "const": "source.album.search"
+            },
+            "payload": {
+              "$ref": "#/$defs/SourceAlbumSearchRequest"
+            }
+          },
+          "required": [
+            "_tag",
+            "payload"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "_tag": {
+              "type": "string",
+              "const": "source.album.get"
+            },
+            "payload": {
+              "$ref": "#/$defs/SourceAlbumGetRequest"
+            }
+          },
+          "required": [
+            "_tag",
+            "payload"
+          ]
         }
       ]
     },
@@ -1408,6 +1440,38 @@
         "pluginId"
       ]
     },
+    "SourceAlbumSearchRequest": {
+      "type": "object",
+      "properties": {
+        "pluginId": {
+          "type": "string"
+        },
+        "query": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "pluginId",
+        "query"
+      ]
+    },
+    "SourceAlbumGetRequest": {
+      "type": "object",
+      "properties": {
+        "pluginId": {
+          "type": "string"
+        },
+        "externalId": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "pluginId",
+        "externalId"
+      ]
+    },
     "RpcResponse": {
       "oneOf": [
         {
@@ -1867,6 +1931,38 @@
             },
             "outcome": {
               "$ref": "#/$defs/CommandOutcome"
+            }
+          },
+          "required": [
+            "_tag",
+            "outcome"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "_tag": {
+              "type": "string",
+              "const": "source.album.search"
+            },
+            "outcome": {
+              "$ref": "#/$defs/SourceAlbumSearchOutcome"
+            }
+          },
+          "required": [
+            "_tag",
+            "outcome"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "_tag": {
+              "type": "string",
+              "const": "source.album.get"
+            },
+            "outcome": {
+              "$ref": "#/$defs/SourceAlbumGetOutcome"
             }
           },
           "required": [
@@ -2929,6 +3025,14 @@
           "format": "uint32",
           "minimum": 0
         },
+        "trackNumber": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint32",
+          "minimum": 0
+        },
         "artworkUrl": {
           "type": [
             "string",
@@ -3815,6 +3919,164 @@
         "title",
         "coverage",
         "variantConflict"
+      ]
+    },
+    "SourceAlbumSearchOutcome": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "const": "ready"
+            },
+            "value": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/RpcSourceAlbumSummary"
+              }
+            }
+          },
+          "required": [
+            "status",
+            "value"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "const": "unavailable"
+            },
+            "value": {
+              "$ref": "#/$defs/RpcFailure"
+            }
+          },
+          "required": [
+            "status",
+            "value"
+          ]
+        }
+      ]
+    },
+    "RpcSourceAlbumSummary": {
+      "type": "object",
+      "properties": {
+        "externalId": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "artist": {
+          "type": "string"
+        },
+        "year": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint32",
+          "minimum": 0
+        },
+        "artworkUrl": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "sourcePluginId": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "externalId",
+        "title",
+        "artist",
+        "sourcePluginId"
+      ]
+    },
+    "SourceAlbumGetOutcome": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "const": "ready"
+            },
+            "value": {
+              "$ref": "#/$defs/RpcSourceAlbum"
+            }
+          },
+          "required": [
+            "status",
+            "value"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "const": "unavailable"
+            },
+            "value": {
+              "$ref": "#/$defs/RpcFailure"
+            }
+          },
+          "required": [
+            "status",
+            "value"
+          ]
+        }
+      ]
+    },
+    "RpcSourceAlbum": {
+      "type": "object",
+      "properties": {
+        "externalId": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "artist": {
+          "type": "string"
+        },
+        "year": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint32",
+          "minimum": 0
+        },
+        "artworkUrl": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "sourcePluginId": {
+          "type": "string"
+        },
+        "tracks": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/RpcSearchTrack"
+          }
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "externalId",
+        "title",
+        "artist",
+        "sourcePluginId",
+        "tracks"
       ]
     },
     "RpcProtocolFailureOutcome": {

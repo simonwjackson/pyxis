@@ -82,6 +82,14 @@ fn scoped(name: &str, mut fields: Vec<StructField>) -> CollectionDescriptor {
     base(name, fields, false)
 }
 
+/// A source file records collections absent from its first open as version 0. A descriptor
+/// added later must remain unversioned until it has an explicit migration registry, or
+/// ProseQL correctly refuses the implicit 0 -> 1 transition.
+fn added_after_m1(mut descriptor: CollectionDescriptor) -> CollectionDescriptor {
+    descriptor.version = None;
+    descriptor
+}
+
 pub fn accounts() -> CollectionDescriptor {
     base(
         ACCOUNTS,
@@ -147,25 +155,25 @@ pub fn albums() -> CollectionDescriptor {
 }
 
 pub fn album_source_refs() -> CollectionDescriptor {
-    scoped(
+    added_after_m1(scoped(
         ALBUM_SOURCE_REFS,
         vec![
             field("albumId", SchemaNode::Str),
             field("pluginId", SchemaNode::Str),
             field("externalId", SchemaNode::Str),
         ],
-    )
+    ))
 }
 
 pub fn album_tracks() -> CollectionDescriptor {
-    scoped(
+    added_after_m1(scoped(
         ALBUM_TRACKS,
         vec![
             field("albumId", SchemaNode::Str),
             field("trackId", SchemaNode::Str),
             field("position", SchemaNode::Num),
         ],
-    )
+    ))
 }
 
 pub fn tracks() -> CollectionDescriptor {
@@ -277,7 +285,7 @@ pub fn listen_events() -> CollectionDescriptor {
 }
 
 pub fn hot_albums() -> CollectionDescriptor {
-    scoped(
+    added_after_m1(scoped(
         HOT_ALBUMS,
         vec![
             field("albumId", SchemaNode::Str),
@@ -285,7 +293,7 @@ pub fn hot_albums() -> CollectionDescriptor {
             field("windowStart", SchemaNode::Str),
             field("computedAt", SchemaNode::Str),
         ],
-    )
+    ))
 }
 
 pub fn settings() -> CollectionDescriptor {
@@ -350,7 +358,7 @@ pub fn media_files() -> CollectionDescriptor {
 }
 
 pub fn match_overrides() -> CollectionDescriptor {
-    scoped(
+    added_after_m1(scoped(
         MATCH_OVERRIDES,
         vec![
             field("leftId", SchemaNode::Str),
@@ -358,7 +366,7 @@ pub fn match_overrides() -> CollectionDescriptor {
             field("decision", SchemaNode::Str),
             field("createdAt", SchemaNode::Str),
         ],
-    )
+    ))
 }
 
 /// Every collection the runtime opens.

@@ -1,8 +1,18 @@
+import { RpcPlacement } from "../../../../contracts/generated/pyxis"
 import { useReference } from "./Reference.context.tsx"
 
 export function ReferenceLibrary() {
-  const { query, setQuery, search, tracks, searchHasNoSources, sourceFailures, enqueue } =
-    useReference()
+  const {
+    query,
+    setQuery,
+    search,
+    tracks,
+    searchHasNoSources,
+    sourceFailures,
+    enqueue,
+    albums,
+    setAlbumPlacement,
+  } = useReference()
 
   return (
     <section>
@@ -33,6 +43,26 @@ export function ReferenceLibrary() {
             <button type="button" onClick={() => void enqueue(track.id)}>
               Add to queue
             </button>
+          </li>
+        ))}
+      </ol>
+
+      <h2>Library albums ({albums.length})</h2>
+      <ol>
+        {albums.map((album) => (
+          <li key={album.id}>
+            <strong>{album.title}</strong> — {album.artist} — {album.placement} — revision{" "}
+            {album.revision} — {album.tracks.length} tracks{" "}
+            {Object.values(RpcPlacement).map((placement) => (
+              <button
+                key={placement}
+                type="button"
+                disabled={album.placement === placement}
+                onClick={() => void setAlbumPlacement(album.id, placement)}
+              >
+                {placement}
+              </button>
+            ))}
           </li>
         ))}
       </ol>
