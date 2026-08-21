@@ -51,13 +51,21 @@ export type AccountListOutcome =
 	| { status: "ready", value: RpcAccount[] }
 	| { status: "unavailable", value: RpcFailure };
 
+/**
+ * A request that cannot enter operation dispatch. This is separate from an operation's
+ * `unavailable` outcome: no operation exists yet to own the failure.
+ */
+export type RpcProtocolFailureOutcome =
+	| { status: "rejected", value: RpcFailure };
+
 export type RpcRequest =
 	| { _tag: "system.status.get", payload: EmptyRequest }
 	| { _tag: "account.list", payload: EmptyRequest };
 
 export type RpcResponse =
 	| { _tag: "system.status.get", outcome: SystemStatusOutcome }
-	| { _tag: "account.list", outcome: AccountListOutcome };
+	| { _tag: "account.list", outcome: AccountListOutcome }
+	| { _tag: "rpc.failure", outcome: RpcProtocolFailureOutcome };
 
 export type SystemStatusOutcome =
 	| { status: "ready", value: RpcSystemStatus }

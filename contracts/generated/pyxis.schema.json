@@ -89,6 +89,22 @@
             "_tag",
             "outcome"
           ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "_tag": {
+              "type": "string",
+              "const": "rpc.failure"
+            },
+            "outcome": {
+              "$ref": "#/$defs/RpcProtocolFailureOutcome"
+            }
+          },
+          "required": [
+            "_tag",
+            "outcome"
+          ]
         }
       ]
     },
@@ -248,6 +264,27 @@
         "name",
         "isDefault",
         "createdAt"
+      ]
+    },
+    "RpcProtocolFailureOutcome": {
+      "description": "A request that cannot enter operation dispatch. This is separate from an operation's\n`unavailable` outcome: no operation exists yet to own the failure.",
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "const": "rejected"
+            },
+            "value": {
+              "$ref": "#/$defs/RpcFailure"
+            }
+          },
+          "required": [
+            "status",
+            "value"
+          ]
+        }
       ]
     }
   }

@@ -2,6 +2,9 @@ use std::net::IpAddr;
 use std::path::PathBuf;
 
 use clap::Parser;
+use pyxis::api::{self, AppState};
+use pyxis::db::store::Store;
+use pyxis::instance_lock::InstanceLock;
 use pyxis::settings::{ProcessEnv, Settings};
 
 #[derive(Parser, Debug)]
@@ -20,7 +23,8 @@ struct Args {
     state_dir: Option<PathBuf>,
 }
 
-fn main() -> anyhow::Result<()> {
+#[tokio::main]
+async fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt()
         .with_env_filter(
             tracing_subscriber::EnvFilter::try_from_env("PYXIS_LOG")
@@ -31,15 +35,20 @@ fn main() -> anyhow::Result<()> {
     let args = Args::parse();
     let settings = Settings::resolve(args.host, args.port, args.state_dir, &ProcessEnv);
 
+    // Acquire before opening ProseQL. The engine requires one process owner per store, so
+    // detecting a second server after the database opens is already too late.
+    let _instance_lock = InstanceLock::acquire(&settings.state_dir)?;
+    let store = Store::open(&settings.state_dir)?;
+
     tracing::info!(
         version = pyxis::version(),
         host = %settings.host,
         port = settings.port,
         state_dir = %settings.state_dir.display(),
-        "pyxis resolved settings"
+        "pyxis starting"
     );
 
-    // The HTTP server lands in U4. U1 exists to prove the toolchain, the workspace and the
-    // verify gate, so the binary resolves its settings and exits cleanly.
-    Ok(())
+    let served = api::serve(&settings, AppState::new(store.clone())).await;
+    store.close()?;
+    served
 }

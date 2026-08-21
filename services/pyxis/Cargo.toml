@@ -14,16 +14,20 @@ path = "src/lib.rs"
 
 [dependencies]
 anyhow = "1"
+axum = "0.7"
 clap = { version = "4", features = ["derive", "env"] }
+fs2 = "0.4"
 proseql-engine = { path = "../../.cache/proseql/crates/proseql-engine" }
 proseql-native = { path = "../../.cache/proseql/crates/proseql-native" }
 schemars = "1"
-thiserror = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+thiserror = "2"
+tokio = { version = "1", features = ["macros", "net", "rt-multi-thread", "signal"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 typeshare = "1"
 
 [dev-dependencies]
 tempfile = "3"
+tower = { version = "0.5", features = ["util"] }

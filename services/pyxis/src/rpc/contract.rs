@@ -117,6 +117,15 @@ pub enum RpcRequest {
     AccountList(EmptyRequest),
 }
 
+/// A request that cannot enter operation dispatch. This is separate from an operation's
+/// `unavailable` outcome: no operation exists yet to own the failure.
+#[typeshare]
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(tag = "status", content = "value", rename_all = "camelCase")]
+pub enum RpcProtocolFailureOutcome {
+    Rejected(RpcFailure),
+}
+
 #[typeshare]
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
 #[serde(tag = "_tag", content = "outcome")]
@@ -125,9 +134,13 @@ pub enum RpcResponse {
     SystemStatusGet(SystemStatusOutcome),
     #[serde(rename = "account.list")]
     AccountList(AccountListOutcome),
+    #[serde(rename = "rpc.failure")]
+    Failure(RpcProtocolFailureOutcome),
 }
 
 impl RpcRequest {
+    pub const KNOWN_TAGS: [&'static str; 2] = ["system.status.get", "account.list"];
+
     /// The operation tag as it appears on the wire. Used for logging and for routing
     /// errors back with the tag the caller sent.
     pub fn tag(&self) -> &'static str {
@@ -136,6 +149,10 @@ impl RpcRequest {
             RpcRequest::AccountList(_) => "account.list",
         }
     }
+
+    pub fn is_known_tag(tag: &str) -> bool {
+        Self::KNOWN_TAGS.contains(&tag)
+    }
 }
 
 impl RpcResponse {
@@ -143,7 +160,12 @@ impl RpcResponse {
         match self {
             RpcResponse::SystemStatusGet(_) => "system.status.get",
             RpcResponse::AccountList(_) => "account.list",
+            RpcResponse::Failure(_) => "rpc.failure",
         }
+    }
+
+    pub fn rejected(failure: RpcFailure) -> Self {
+        RpcResponse::Failure(RpcProtocolFailureOutcome::Rejected(failure))
     }
 }
 
