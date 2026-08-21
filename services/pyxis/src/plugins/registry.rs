@@ -8,7 +8,7 @@ use std::collections::{BTreeSet, HashMap};
 use std::sync::{Arc, Condvar, Mutex};
 use std::time::{Duration, Instant};
 
-use super::protocol::PluginManifest;
+use super::protocol::{PluginManifest, PluginValue};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PluginStatus {
@@ -39,6 +39,7 @@ pub struct PluginInfo {
     pub name: String,
     pub version: String,
     pub capabilities: Vec<String>,
+    pub requires_config: bool,
     pub status: PluginStatus,
     pub reason: Option<String>,
 }
@@ -54,10 +55,18 @@ impl PluginInfo {
                 .iter()
                 .map(|capability| capability.as_str().to_string())
                 .collect(),
+            requires_config: requires_config(&manifest.config_schema),
             status,
             reason: None,
         }
     }
+}
+
+fn requires_config(schema: &PluginValue) -> bool {
+    let PluginValue::Object(fields) = schema else {
+        return false;
+    };
+    matches!(fields.get("required"), Some(PluginValue::Array(required)) if !required.is_empty())
 }
 
 #[derive(Default)]

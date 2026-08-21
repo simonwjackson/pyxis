@@ -51,7 +51,7 @@ describe("reference client", () => {
             version: "1.0.0",
             capabilities: ["source"],
             status: "live",
-            configured: false,
+            configured: true,
           },
         ])}
       />,
@@ -76,7 +76,7 @@ describe("reference client", () => {
           version: "1.0.0",
           capabilities: ["source"],
           status: "live",
-          configured: false,
+          configured: true,
         },
       ],
       search: async () => ({

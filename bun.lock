@@ -31,6 +31,14 @@
       "name": "@pyxis/plugin-sdk",
       "version": "1.0.0",
     },
+    "plugins/pandora": {
+      "name": "@pyxis/plugin-pandora",
+      "version": "1.0.0",
+      "dependencies": {
+        "@pyxis/plugin-sdk": "workspace:*",
+        "egoroof-blowfish": "4.0.3",
+      },
+    },
     "plugins/ytmusic": {
       "name": "@pyxis/plugin-ytmusic",
       "version": "1.0.0",
@@ -69,6 +77,8 @@
     "@jridgewell/sourcemap-codec": ["@jridgewell/sourcemap-codec@1.5.5", "", {}, "sha512-cYQ9310grqxueWbl+WuIUIaiUaDcj7WOq5fVhEljNVgRfOUhY9fy2zTvfoqWsnebh8Sl70VScFbICvJnLKB0Og=="],
 
     "@oxc-project/types": ["@oxc-project/types@0.146.0", "", {}, "sha512-XC0QsnnhVe7sLIWmYmdPw7x5P0h4W8vUU3Nv1ySgWXtvCz8NizoAEpGXA0sOYoJQV2Rl13LgURAHQ5cI5ILCSA=="],
+
+    "@pyxis/plugin-pandora": ["@pyxis/plugin-pandora@workspace:plugins/pandora"],
 
     "@pyxis/plugin-sdk": ["@pyxis/plugin-sdk@workspace:packages/plugin-sdk"],
 
@@ -175,6 +185,8 @@
     "detect-libc": ["detect-libc@2.1.2", "", {}, "sha512-Btj2BOOO83o3WyH59e8MgXsxEQVcarkUOpEYrubB0urwnN10yQ364rsiByU11nZlqWYZm05i/of7io4mzihBtQ=="],
 
     "dom-accessibility-api": ["dom-accessibility-api@0.5.16", "", {}, "sha512-X7BJ2yElsnOJ30pZF4uIIDfBEVgF4XEBxL9Bxhy6dnrm5hkzqmsWHGTiHqRiITNhMyFLyAiWndIJP7Z1NTteDg=="],
+
+    "egoroof-blowfish": ["egoroof-blowfish@4.0.3", "", {}, "sha512-aoiyyD89KSkS/WnIKp83AtYyKWWa6yF13nbTLCTZdL/DZiP2QF70pBNJxynobzh3JnYhTIAAiMgfDW+4XM4JGw=="],
 
     "entities": ["entities@8.0.0", "", {}, "sha512-zwfzJecQ/Uej6tusMqwAqU/6KL2XaB2VZ2Jg54Je6ahNBGNH6Ek6g3jjNCF0fG9EWQKGZNddNjU5F1ZQn/sBnA=="],
 

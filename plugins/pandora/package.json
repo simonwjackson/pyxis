@@ -1,0 +1,10 @@
+{
+  "name": "@pyxis/plugin-pandora",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@pyxis/plugin-sdk": "workspace:*",
+    "egoroof-blowfish": "4.0.3"
+  }
+}

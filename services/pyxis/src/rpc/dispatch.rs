@@ -149,7 +149,7 @@ pub fn dispatch(state: &AppState, request: RpcRequest, auth: Option<AuthContext>
                     .plugin_credentials
                     .is_configured(&auth.account_id, &plugin.id)
                 {
-                    Ok(configured) => configured,
+                    Ok(configured) => !plugin.requires_config || configured,
                     Err(error) => {
                         return RpcResponse::PluginList(PluginListOutcome::Unavailable(
                             RpcFailure::retryable("plugin.configUnavailable", error.to_string()),

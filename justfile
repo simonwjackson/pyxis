@@ -27,7 +27,7 @@ lint:
     cargo clippy --all-targets --all-features -- -D warnings
 
 lint-shell:
-    shellcheck tools/dev
+    shellcheck tools/dev tools/test-pandora-fixtures
 
 test-rust:
     cargo test --all
@@ -40,6 +40,9 @@ lint-ts:
 
 test-ts:
     bun run test
+
+test-pandora-fixtures:
+    tools/test-pandora-fixtures
 
 build-client:
     bun run --cwd clients/app build

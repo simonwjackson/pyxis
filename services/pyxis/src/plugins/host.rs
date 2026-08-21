@@ -53,6 +53,7 @@ impl PluginCandidate {
             name: id,
             version: "unknown".into(),
             capabilities: Vec::new(),
+            requires_config: false,
             status,
             reason: None,
         }
