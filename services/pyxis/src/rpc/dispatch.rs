@@ -8,12 +8,19 @@ use crate::accounts::{
     Account, AccountError, ApiTokenGrant, AuthContext, AuthGrant, ClaimOutcome, PairOutcome,
 };
 use crate::api::AppState;
+use crate::library::{
+    Album, AlbumInput, Bookmark, LibraryError, Placement, Playlist, PlaylistInput, SourceReference,
+    TrackInput,
+};
 use crate::rpc::contract::{
-    AccountCreateOutcome, AccountListOutcome, ApiTokenCreateOutcome, CommandOutcome,
-    DeviceClaimOutcome, DevicePairOutcome, PairingCreateOutcome, PluginListOutcome, RpcAccount,
-    RpcApiToken, RpcApiTokenGrant, RpcAuthGrant, RpcDevice, RpcFailure, RpcPairingCode, RpcPlugin,
-    RpcRequest, RpcResponse, RpcSearchTrack, RpcSession, RpcSessionCommand, RpcSourceFailure,
-    RpcSourceSearchResult, RpcSystemStatus, RpcTransport, SessionCommandOutcome,
+    AccountCreateOutcome, AccountListOutcome, AlbumAddOutcome, AlbumCommandOutcome,
+    AlbumListOutcome, ApiTokenCreateOutcome, BookmarkCommandOutcome, BookmarkListOutcome,
+    CommandOutcome, DeviceClaimOutcome, DevicePairOutcome, PairingCreateOutcome,
+    PlaylistCreateOutcome, PlaylistListOutcome, PluginListOutcome, RpcAccount, RpcAlbumCommand,
+    RpcApiToken, RpcApiTokenGrant, RpcAuthGrant, RpcBookmark, RpcBookmarkCommand, RpcDevice,
+    RpcFailure, RpcLibraryAlbum, RpcLibraryTrack, RpcPairingCode, RpcPlacement, RpcPlaylist,
+    RpcPlugin, RpcRequest, RpcResponse, RpcSearchTrack, RpcSession, RpcSessionCommand,
+    RpcSourceFailure, RpcSourceSearchResult, RpcSystemStatus, RpcTransport, SessionCommandOutcome,
     SessionCreateOutcome, SessionListOutcome, SessionStateOutcome, SourceSearchOutcome,
     SystemStatusOutcome, CONTRACT_ID,
 };
@@ -262,6 +269,182 @@ pub fn dispatch(state: &AppState, request: RpcRequest, auth: Option<AuthContext>
                 )),
             }
         }
+        RpcRequest::LibraryAlbumAdd(request) => {
+            let Some(auth) = auth else {
+                return auth_required();
+            };
+            let input = AlbumInput {
+                title: request.title,
+                artist: request.artist,
+                year: request.year,
+                source_reference: request.source_reference.map(|reference| SourceReference {
+                    plugin_id: reference.plugin_id,
+                    external_id: reference.external_id,
+                }),
+                tracks: request
+                    .tracks
+                    .into_iter()
+                    .map(|track| TrackInput {
+                        id: track.id,
+                        title: track.title,
+                        artist: track.artist,
+                        duration_ms: track.duration_ms,
+                        track_number: track.track_number,
+                    })
+                    .collect(),
+            };
+            match state
+                .library
+                .add_album(&auth.account_id, input, auth.principal_id())
+            {
+                Ok(album) => RpcResponse::LibraryAlbumAdd(AlbumAddOutcome::Ready(rpc_album(album))),
+                Err(LibraryError::InvalidAlbum) => {
+                    RpcResponse::LibraryAlbumAdd(AlbumAddOutcome::Invalid(RpcFailure::permanent(
+                        "library.invalidAlbum",
+                        "album title and artist are required",
+                    )))
+                }
+                Err(error) => RpcResponse::LibraryAlbumAdd(AlbumAddOutcome::Unavailable(
+                    library_failure(error),
+                )),
+            }
+        }
+        RpcRequest::LibraryAlbumsList(_) => {
+            let Some(auth) = auth else {
+                return auth_required();
+            };
+            match state.library.list_albums(&auth.account_id) {
+                Ok(albums) => RpcResponse::LibraryAlbumsList(AlbumListOutcome::Ready(
+                    albums.into_iter().map(rpc_album).collect(),
+                )),
+                Err(error) => RpcResponse::LibraryAlbumsList(AlbumListOutcome::Unavailable(
+                    library_failure(error),
+                )),
+            }
+        }
+        RpcRequest::LibraryAlbumCommandRun(request) => {
+            let Some(auth) = auth else {
+                return auth_required();
+            };
+            match request.command {
+                RpcAlbumCommand::PlacementSet(command) => {
+                    let placement = placement(command.placement);
+                    match state.library.set_placement(
+                        &auth.account_id,
+                        &request.album_id,
+                        placement,
+                        auth.principal_id(),
+                    ) {
+                        Ok(Some(album)) => RpcResponse::LibraryAlbumCommandRun(
+                            AlbumCommandOutcome::Applied(rpc_album(album)),
+                        ),
+                        Ok(None) => {
+                            RpcResponse::LibraryAlbumCommandRun(AlbumCommandOutcome::Unknown)
+                        }
+                        Err(error) => RpcResponse::LibraryAlbumCommandRun(
+                            AlbumCommandOutcome::Unavailable(library_failure(error)),
+                        ),
+                    }
+                }
+                RpcAlbumCommand::Remove(_) => {
+                    match state
+                        .library
+                        .remove_album(&auth.account_id, &request.album_id)
+                    {
+                        Ok(true) => {
+                            RpcResponse::LibraryAlbumCommandRun(AlbumCommandOutcome::Removed)
+                        }
+                        Ok(false) => {
+                            RpcResponse::LibraryAlbumCommandRun(AlbumCommandOutcome::Unknown)
+                        }
+                        Err(error) => RpcResponse::LibraryAlbumCommandRun(
+                            AlbumCommandOutcome::Unavailable(library_failure(error)),
+                        ),
+                    }
+                }
+            }
+        }
+        RpcRequest::LibraryBookmarksList(_) => {
+            let Some(auth) = auth else {
+                return auth_required();
+            };
+            match state.library.list_bookmarks(&auth.account_id) {
+                Ok(bookmarks) => RpcResponse::LibraryBookmarksList(BookmarkListOutcome::Ready(
+                    bookmarks.into_iter().map(rpc_bookmark).collect(),
+                )),
+                Err(error) => RpcResponse::LibraryBookmarksList(BookmarkListOutcome::Unavailable(
+                    library_failure(error),
+                )),
+            }
+        }
+        RpcRequest::LibraryBookmarkCommandRun(request) => {
+            let Some(auth) = auth else {
+                return auth_required();
+            };
+            match request.command {
+                RpcBookmarkCommand::Add(_) => match state.library.add_bookmark(
+                    &auth.account_id,
+                    &request.track_id,
+                    auth.principal_id(),
+                ) {
+                    Ok(bookmark) => RpcResponse::LibraryBookmarkCommandRun(
+                        BookmarkCommandOutcome::Added(rpc_bookmark(bookmark)),
+                    ),
+                    Err(error) => RpcResponse::LibraryBookmarkCommandRun(
+                        BookmarkCommandOutcome::Unavailable(library_failure(error)),
+                    ),
+                },
+                RpcBookmarkCommand::Remove(_) => {
+                    match state
+                        .library
+                        .remove_bookmark(&auth.account_id, &request.track_id)
+                    {
+                        Ok(true) => {
+                            RpcResponse::LibraryBookmarkCommandRun(BookmarkCommandOutcome::Removed)
+                        }
+                        Ok(false) => {
+                            RpcResponse::LibraryBookmarkCommandRun(BookmarkCommandOutcome::Unknown)
+                        }
+                        Err(error) => RpcResponse::LibraryBookmarkCommandRun(
+                            BookmarkCommandOutcome::Unavailable(library_failure(error)),
+                        ),
+                    }
+                }
+            }
+        }
+        RpcRequest::LibraryPlaylistCreate(request) => {
+            let Some(auth) = auth else {
+                return auth_required();
+            };
+            match state.library.create_playlist(
+                &auth.account_id,
+                PlaylistInput {
+                    title: request.title,
+                    track_ids: request.track_ids,
+                },
+                auth.principal_id(),
+            ) {
+                Ok(playlist) => RpcResponse::LibraryPlaylistCreate(PlaylistCreateOutcome::Ready(
+                    rpc_playlist(playlist),
+                )),
+                Err(error) => RpcResponse::LibraryPlaylistCreate(
+                    PlaylistCreateOutcome::Unavailable(library_failure(error)),
+                ),
+            }
+        }
+        RpcRequest::LibraryPlaylistsList(_) => {
+            let Some(auth) = auth else {
+                return auth_required();
+            };
+            match state.library.list_playlists(&auth.account_id) {
+                Ok(playlists) => RpcResponse::LibraryPlaylistsList(PlaylistListOutcome::Ready(
+                    playlists.into_iter().map(rpc_playlist).collect(),
+                )),
+                Err(error) => RpcResponse::LibraryPlaylistsList(PlaylistListOutcome::Unavailable(
+                    library_failure(error),
+                )),
+            }
+        }
     }
 }
 
@@ -370,6 +553,63 @@ fn domain_command(command: RpcSessionCommand) -> DomainSessionCommand {
     }
 }
 
+fn rpc_album(album: Album) -> RpcLibraryAlbum {
+    RpcLibraryAlbum {
+        id: album.id,
+        title: album.title,
+        artist: album.artist,
+        year: album.year,
+        placement: match album.placement {
+            Placement::Discovery => RpcPlacement::Discovery,
+            Placement::Collection => RpcPlacement::Collection,
+            Placement::Archive => RpcPlacement::Archive,
+            Placement::Dismissed => RpcPlacement::Dismissed,
+        },
+        placement_updated_at: album.placement_updated_at,
+        added_at: album.added_at,
+        revision: u32::try_from(album.revision).unwrap_or(u32::MAX),
+        tracks: album
+            .tracks
+            .into_iter()
+            .map(|track| RpcLibraryTrack {
+                id: track.id,
+                title: track.title,
+                artist: track.artist,
+                duration_ms: track.duration_ms,
+                track_number: track.track_number,
+                artwork_url: track.artwork_url,
+                revision: u32::try_from(track.revision).unwrap_or(u32::MAX),
+            })
+            .collect(),
+    }
+}
+
+fn placement(placement: RpcPlacement) -> Placement {
+    match placement {
+        RpcPlacement::Discovery => Placement::Discovery,
+        RpcPlacement::Collection => Placement::Collection,
+        RpcPlacement::Archive => Placement::Archive,
+        RpcPlacement::Dismissed => Placement::Dismissed,
+    }
+}
+
+fn rpc_bookmark(bookmark: Bookmark) -> RpcBookmark {
+    RpcBookmark {
+        id: bookmark.id,
+        track_id: bookmark.track_id,
+        created_at: bookmark.created_at,
+    }
+}
+
+fn rpc_playlist(playlist: Playlist) -> RpcPlaylist {
+    RpcPlaylist {
+        id: playlist.id,
+        title: playlist.title,
+        track_ids: playlist.track_ids,
+        revision: u32::try_from(playlist.revision).unwrap_or(u32::MAX),
+    }
+}
+
 fn auth_required() -> RpcResponse {
     RpcResponse::rejected(RpcFailure::permanent(
         "auth.required",
@@ -379,6 +619,10 @@ fn auth_required() -> RpcResponse {
 
 fn session_failure(error: SessionError) -> RpcFailure {
     RpcFailure::retryable("session.unavailable", error.to_string())
+}
+
+fn library_failure(error: LibraryError) -> RpcFailure {
+    RpcFailure::retryable("library.unavailable", error.to_string())
 }
 
 fn account_failure(error: AccountError) -> RpcFailure {

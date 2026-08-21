@@ -184,6 +184,29 @@ impl Store {
             .collect()
     }
 
+    /// Delete several account-scoped records as one durable ProseQL commit. Records that
+    /// are already absent or belong to another account are ignored.
+    pub fn delete_batch(&self, account: &AccountId, records: &[(String, String)]) -> Result<usize> {
+        let account = account.clone();
+        let records = records.to_vec();
+        self.runtime
+            .mutate(move |database| {
+                let mut removed = 0;
+                for (collection, id) in &records {
+                    let Some(existing) = database.find_by_id(collection, id)? else {
+                        continue;
+                    };
+                    if !belongs_to(&existing, &account) {
+                        continue;
+                    }
+                    database.delete(collection, id)?;
+                    removed += 1;
+                }
+                Ok(removed)
+            })
+            .map_err(engine)
+    }
+
     /// Delete a record from an account's scope. Deleting another account's id is a no-op.
     pub fn delete(&self, collection: &str, account: &AccountId, id: &str) -> Result<bool> {
         let collection_name = collection.to_string();
@@ -290,6 +313,8 @@ mod tests {
         account_id: String,
         title: String,
         artist: String,
+        normalized_title: String,
+        normalized_artist: String,
         placement: String,
         placement_updated_at: String,
         #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -306,6 +331,8 @@ mod tests {
             account_id: String::new(),
             title: title.to_string(),
             artist: "Boards of Canada".into(),
+            normalized_title: title.to_lowercase(),
+            normalized_artist: "boards of canada".into(),
             placement: "discovery".into(),
             placement_updated_at: "2026-08-21T00:00:00Z".into(),
             year: Some(1998),

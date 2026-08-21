@@ -15,6 +15,7 @@ use tokio::net::TcpListener;
 
 use crate::accounts::Accounts;
 use crate::db::store::Store;
+use crate::library::Library;
 use crate::media::Media;
 use crate::plugins::host::PluginHost;
 use crate::rpc::transport;
@@ -26,6 +27,7 @@ use crate::stream::{self, StreamService};
 #[derive(Clone)]
 pub struct AppState {
     pub(crate) accounts: Accounts,
+    pub library: Library,
     pub media: Media,
     pub(crate) plugins: PluginHost,
     pub sessions: Sessions,
@@ -43,11 +45,13 @@ impl AppState {
     pub fn open_with_plugins(store: Store, plugins: PluginHost) -> anyhow::Result<Self> {
         let stream = StreamService::open(store.state_dir())?;
         let accounts = Accounts::open(store.clone())?;
+        let library = Library::open(store.clone());
         let media = Media::open(store.clone())?;
         let sessions = Sessions::open(store);
         let sources = SourceCatalog::new(plugins.clone(), media.clone());
         Ok(AppState {
             accounts,
+            library,
             media,
             plugins,
             sessions,

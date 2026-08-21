@@ -20,6 +20,8 @@ pub const ACCOUNTS: &str = "accounts";
 pub const DEVICES: &str = "devices";
 pub const SESSIONS: &str = "sessions";
 pub const ALBUMS: &str = "albums";
+pub const ALBUM_SOURCE_REFS: &str = "albumSourceRefs";
+pub const ALBUM_TRACKS: &str = "albumTracks";
 pub const TRACKS: &str = "tracks";
 pub const TRACK_CANDIDATES: &str = "trackCandidates";
 pub const PLAYLISTS: &str = "playlists";
@@ -132,6 +134,8 @@ pub fn albums() -> CollectionDescriptor {
         vec![
             field("title", SchemaNode::Str),
             field("artist", SchemaNode::Str),
+            field("normalizedTitle", SchemaNode::Str),
+            field("normalizedArtist", SchemaNode::Str),
             field("placement", SchemaNode::Str),
             field("placementUpdatedAt", SchemaNode::Str),
             field("year", optional(SchemaNode::Num)),
@@ -140,15 +144,37 @@ pub fn albums() -> CollectionDescriptor {
     )
 }
 
+pub fn album_source_refs() -> CollectionDescriptor {
+    scoped(
+        ALBUM_SOURCE_REFS,
+        vec![
+            field("albumId", SchemaNode::Str),
+            field("pluginId", SchemaNode::Str),
+            field("externalId", SchemaNode::Str),
+        ],
+    )
+}
+
+pub fn album_tracks() -> CollectionDescriptor {
+    scoped(
+        ALBUM_TRACKS,
+        vec![
+            field("albumId", SchemaNode::Str),
+            field("trackId", SchemaNode::Str),
+            field("position", SchemaNode::Num),
+        ],
+    )
+}
+
 pub fn tracks() -> CollectionDescriptor {
     scoped(
         TRACKS,
         vec![
-            field("albumId", optional(SchemaNode::Str)),
             field("title", SchemaNode::Str),
             field("artist", SchemaNode::Str),
             field("durationMs", optional(SchemaNode::Num)),
             field("trackNumber", optional(SchemaNode::Num)),
+            field("artworkUrl", optional(SchemaNode::Str)),
         ],
     )
 }
@@ -308,6 +334,8 @@ pub fn all() -> Vec<CollectionDescriptor> {
         devices(),
         sessions(),
         albums(),
+        album_source_refs(),
+        album_tracks(),
         tracks(),
         track_candidates(),
         playlists(),

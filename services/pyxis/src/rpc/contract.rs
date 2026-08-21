@@ -505,6 +505,214 @@ pub enum SessionCommandOutcome {
 }
 
 #[typeshare]
+#[derive(Clone, Copy, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub enum RpcPlacement {
+    Discovery,
+    Collection,
+    Archive,
+    Dismissed,
+}
+
+#[typeshare]
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct LibrarySourceReference {
+    pub plugin_id: String,
+    pub external_id: String,
+}
+
+#[typeshare]
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct LibraryTrackInput {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub id: Option<String>,
+    pub title: String,
+    pub artist: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub duration_ms: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub track_number: Option<u32>,
+}
+
+#[typeshare]
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct LibraryAlbumAddRequest {
+    pub title: String,
+    pub artist: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub year: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub source_reference: Option<LibrarySourceReference>,
+    pub tracks: Vec<LibraryTrackInput>,
+}
+
+#[typeshare]
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct RpcLibraryTrack {
+    pub id: String,
+    pub title: String,
+    pub artist: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub duration_ms: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub track_number: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub artwork_url: Option<String>,
+    pub revision: u32,
+}
+
+#[typeshare]
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct RpcLibraryAlbum {
+    pub id: String,
+    pub title: String,
+    pub artist: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub year: Option<u32>,
+    pub placement: RpcPlacement,
+    pub placement_updated_at: String,
+    pub added_at: String,
+    pub revision: u32,
+    pub tracks: Vec<RpcLibraryTrack>,
+}
+
+#[typeshare]
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct PlacementSetCommand {
+    pub placement: RpcPlacement,
+}
+
+#[typeshare]
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(tag = "_tag", content = "payload")]
+pub enum RpcAlbumCommand {
+    #[serde(rename = "placement.set")]
+    PlacementSet(PlacementSetCommand),
+    #[serde(rename = "remove")]
+    Remove(EmptyRequest),
+}
+
+#[typeshare]
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct AlbumCommandRequest {
+    pub album_id: String,
+    pub command: RpcAlbumCommand,
+}
+
+#[typeshare]
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(tag = "status", content = "value", rename_all = "camelCase")]
+pub enum AlbumAddOutcome {
+    Ready(RpcLibraryAlbum),
+    Invalid(RpcFailure),
+    Unavailable(RpcFailure),
+}
+
+#[typeshare]
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(tag = "status", content = "value", rename_all = "camelCase")]
+pub enum AlbumListOutcome {
+    Ready(Vec<RpcLibraryAlbum>),
+    Unavailable(RpcFailure),
+}
+
+#[typeshare]
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(tag = "status", content = "value", rename_all = "camelCase")]
+pub enum AlbumCommandOutcome {
+    Applied(RpcLibraryAlbum),
+    Removed,
+    Unknown,
+    Unavailable(RpcFailure),
+}
+
+#[typeshare]
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct BookmarkCommandRequest {
+    pub track_id: String,
+    pub command: RpcBookmarkCommand,
+}
+
+#[typeshare]
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(tag = "_tag", content = "payload")]
+pub enum RpcBookmarkCommand {
+    #[serde(rename = "add")]
+    Add(EmptyRequest),
+    #[serde(rename = "remove")]
+    Remove(EmptyRequest),
+}
+
+#[typeshare]
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct RpcBookmark {
+    pub id: String,
+    pub track_id: String,
+    pub created_at: String,
+}
+
+#[typeshare]
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(tag = "status", content = "value", rename_all = "camelCase")]
+pub enum BookmarkCommandOutcome {
+    Added(RpcBookmark),
+    Removed,
+    Unknown,
+    Unavailable(RpcFailure),
+}
+
+#[typeshare]
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(tag = "status", content = "value", rename_all = "camelCase")]
+pub enum BookmarkListOutcome {
+    Ready(Vec<RpcBookmark>),
+    Unavailable(RpcFailure),
+}
+
+#[typeshare]
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct PlaylistCreateRequest {
+    pub title: String,
+    pub track_ids: Vec<String>,
+}
+
+#[typeshare]
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct RpcPlaylist {
+    pub id: String,
+    pub title: String,
+    pub track_ids: Vec<String>,
+    pub revision: u32,
+}
+
+#[typeshare]
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(tag = "status", content = "value", rename_all = "camelCase")]
+pub enum PlaylistCreateOutcome {
+    Ready(RpcPlaylist),
+    Unavailable(RpcFailure),
+}
+
+#[typeshare]
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(tag = "status", content = "value", rename_all = "camelCase")]
+pub enum PlaylistListOutcome {
+    Ready(Vec<RpcPlaylist>),
+    Unavailable(RpcFailure),
+}
+
+#[typeshare]
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
 #[serde(tag = "_tag", content = "payload")]
 pub enum RpcRequest {
@@ -536,6 +744,20 @@ pub enum RpcRequest {
     SessionCommandRun(SessionCommandRequest),
     #[serde(rename = "source.search.run")]
     SourceSearchRun(SourceSearchRequest),
+    #[serde(rename = "library.album.add")]
+    LibraryAlbumAdd(LibraryAlbumAddRequest),
+    #[serde(rename = "library.albums.list")]
+    LibraryAlbumsList(EmptyRequest),
+    #[serde(rename = "library.album.command.run")]
+    LibraryAlbumCommandRun(AlbumCommandRequest),
+    #[serde(rename = "library.bookmarks.list")]
+    LibraryBookmarksList(EmptyRequest),
+    #[serde(rename = "library.bookmark.command.run")]
+    LibraryBookmarkCommandRun(BookmarkCommandRequest),
+    #[serde(rename = "library.playlist.create")]
+    LibraryPlaylistCreate(PlaylistCreateRequest),
+    #[serde(rename = "library.playlists.list")]
+    LibraryPlaylistsList(EmptyRequest),
 }
 
 /// A request that cannot enter operation dispatch. This is separate from an operation's
@@ -579,12 +801,26 @@ pub enum RpcResponse {
     SessionCommandRun(SessionCommandOutcome),
     #[serde(rename = "source.search.run")]
     SourceSearchRun(SourceSearchOutcome),
+    #[serde(rename = "library.album.add")]
+    LibraryAlbumAdd(AlbumAddOutcome),
+    #[serde(rename = "library.albums.list")]
+    LibraryAlbumsList(AlbumListOutcome),
+    #[serde(rename = "library.album.command.run")]
+    LibraryAlbumCommandRun(AlbumCommandOutcome),
+    #[serde(rename = "library.bookmarks.list")]
+    LibraryBookmarksList(BookmarkListOutcome),
+    #[serde(rename = "library.bookmark.command.run")]
+    LibraryBookmarkCommandRun(BookmarkCommandOutcome),
+    #[serde(rename = "library.playlist.create")]
+    LibraryPlaylistCreate(PlaylistCreateOutcome),
+    #[serde(rename = "library.playlists.list")]
+    LibraryPlaylistsList(PlaylistListOutcome),
     #[serde(rename = "rpc.failure")]
     Failure(RpcProtocolFailureOutcome),
 }
 
 impl RpcRequest {
-    pub const KNOWN_TAGS: [&'static str; 14] = [
+    pub const KNOWN_TAGS: [&'static str; 21] = [
         "system.status.get",
         "auth.device.claim",
         "auth.device.pair",
@@ -599,6 +835,13 @@ impl RpcRequest {
         "session.state.get",
         "session.command.run",
         "source.search.run",
+        "library.album.add",
+        "library.albums.list",
+        "library.album.command.run",
+        "library.bookmarks.list",
+        "library.bookmark.command.run",
+        "library.playlist.create",
+        "library.playlists.list",
     ];
 
     /// The operation tag as it appears on the wire. Used for logging and authorization.
@@ -618,6 +861,13 @@ impl RpcRequest {
             RpcRequest::SessionStateGet(_) => "session.state.get",
             RpcRequest::SessionCommandRun(_) => "session.command.run",
             RpcRequest::SourceSearchRun(_) => "source.search.run",
+            RpcRequest::LibraryAlbumAdd(_) => "library.album.add",
+            RpcRequest::LibraryAlbumsList(_) => "library.albums.list",
+            RpcRequest::LibraryAlbumCommandRun(_) => "library.album.command.run",
+            RpcRequest::LibraryBookmarksList(_) => "library.bookmarks.list",
+            RpcRequest::LibraryBookmarkCommandRun(_) => "library.bookmark.command.run",
+            RpcRequest::LibraryPlaylistCreate(_) => "library.playlist.create",
+            RpcRequest::LibraryPlaylistsList(_) => "library.playlists.list",
         }
     }
 
@@ -645,6 +895,13 @@ impl RpcRequest {
                 Some("session:control")
             }
             RpcRequest::SourceSearchRun(_) => Some("source:read"),
+            RpcRequest::LibraryAlbumsList(_)
+            | RpcRequest::LibraryBookmarksList(_)
+            | RpcRequest::LibraryPlaylistsList(_) => Some("library:read"),
+            RpcRequest::LibraryAlbumAdd(_)
+            | RpcRequest::LibraryAlbumCommandRun(_)
+            | RpcRequest::LibraryBookmarkCommandRun(_)
+            | RpcRequest::LibraryPlaylistCreate(_) => Some("library:write"),
             RpcRequest::AuthPairingCreate(_)
             | RpcRequest::AuthTokenCreate(_)
             | RpcRequest::AuthTokenRevoke(_)
@@ -654,7 +911,7 @@ impl RpcRequest {
 }
 
 impl RpcResponse {
-    pub const KNOWN_OPERATION_TAGS: [&'static str; 14] = RpcRequest::KNOWN_TAGS;
+    pub const KNOWN_OPERATION_TAGS: [&'static str; 21] = RpcRequest::KNOWN_TAGS;
 
     pub fn tag(&self) -> &'static str {
         match self {
@@ -672,6 +929,13 @@ impl RpcResponse {
             RpcResponse::SessionStateGet(_) => "session.state.get",
             RpcResponse::SessionCommandRun(_) => "session.command.run",
             RpcResponse::SourceSearchRun(_) => "source.search.run",
+            RpcResponse::LibraryAlbumAdd(_) => "library.album.add",
+            RpcResponse::LibraryAlbumsList(_) => "library.albums.list",
+            RpcResponse::LibraryAlbumCommandRun(_) => "library.album.command.run",
+            RpcResponse::LibraryBookmarksList(_) => "library.bookmarks.list",
+            RpcResponse::LibraryBookmarkCommandRun(_) => "library.bookmark.command.run",
+            RpcResponse::LibraryPlaylistCreate(_) => "library.playlist.create",
+            RpcResponse::LibraryPlaylistsList(_) => "library.playlists.list",
             RpcResponse::Failure(_) => "rpc.failure",
         }
     }

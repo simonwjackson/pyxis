@@ -15,6 +15,15 @@ export interface AccountCreateRequest {
 	deviceName: string;
 }
 
+export type RpcAlbumCommand =
+	| { _tag: "placement.set", payload: PlacementSetCommand }
+	| { _tag: "remove", payload: EmptyRequest };
+
+export interface AlbumCommandRequest {
+	albumId: string;
+	command: RpcAlbumCommand;
+}
+
 export interface ApiTokenCreateRequest {
 	name: string;
 	scopes: string[];
@@ -22,6 +31,15 @@ export interface ApiTokenCreateRequest {
 
 export interface ApiTokenRevokeRequest {
 	tokenId: string;
+}
+
+export type RpcBookmarkCommand =
+	| { _tag: "add", payload: EmptyRequest }
+	| { _tag: "remove", payload: EmptyRequest };
+
+export interface BookmarkCommandRequest {
+	trackId: string;
+	command: RpcBookmarkCommand;
 }
 
 export interface CursorJumpCommand {
@@ -38,6 +56,43 @@ export interface DevicePairRequest {
 }
 
 export interface EmptyRequest {
+}
+
+export interface LibrarySourceReference {
+	pluginId: string;
+	externalId: string;
+}
+
+export interface LibraryTrackInput {
+	id?: string;
+	title: string;
+	artist: string;
+	durationMs?: number;
+	trackNumber?: number;
+}
+
+export interface LibraryAlbumAddRequest {
+	title: string;
+	artist: string;
+	year?: number;
+	sourceReference?: LibrarySourceReference;
+	tracks: LibraryTrackInput[];
+}
+
+export enum RpcPlacement {
+	Discovery = "discovery",
+	Collection = "collection",
+	Archive = "archive",
+	Dismissed = "dismissed",
+}
+
+export interface PlacementSetCommand {
+	placement: RpcPlacement;
+}
+
+export interface PlaylistCreateRequest {
+	title: string;
+	trackIds: string[];
 }
 
 export enum PluginCapability {
@@ -140,6 +195,12 @@ export interface RpcAuthGrant {
 	bearerToken: string;
 }
 
+export interface RpcBookmark {
+	id: string;
+	trackId: string;
+	createdAt: string;
+}
+
 /**
  * Uniform failure envelope.
  *
@@ -158,6 +219,28 @@ export interface RpcFidelity {
 	sampleRateHz?: number;
 }
 
+export interface RpcLibraryTrack {
+	id: string;
+	title: string;
+	artist: string;
+	durationMs?: number;
+	trackNumber?: number;
+	artworkUrl?: string;
+	revision: number;
+}
+
+export interface RpcLibraryAlbum {
+	id: string;
+	title: string;
+	artist: string;
+	year?: number;
+	placement: RpcPlacement;
+	placementUpdatedAt: string;
+	addedAt: string;
+	revision: number;
+	tracks: RpcLibraryTrack[];
+}
+
 /**
  * Public candidate metadata. A local file path is intentionally absent: clients receive
  * same-origin `/stream/:trackId` URLs and never learn server filesystem layout.
@@ -174,6 +257,13 @@ export interface RpcMediaCandidate {
 export interface RpcPairingCode {
 	code: string;
 	expiresAt: string;
+}
+
+export interface RpcPlaylist {
+	id: string;
+	title: string;
+	trackIds: string[];
+	revision: number;
 }
 
 export interface RpcPlugin {
@@ -292,9 +382,34 @@ export type AccountListOutcome =
 	| { status: "ready", value: RpcAccount[] }
 	| { status: "unavailable", value: RpcFailure };
 
+export type AlbumAddOutcome =
+	| { status: "ready", value: RpcLibraryAlbum }
+	| { status: "invalid", value: RpcFailure }
+	| { status: "unavailable", value: RpcFailure };
+
+export type AlbumCommandOutcome =
+	| { status: "applied", value: RpcLibraryAlbum }
+	| { status: "removed", value?: undefined }
+	| { status: "unknown", value?: undefined }
+	| { status: "unavailable", value: RpcFailure };
+
+export type AlbumListOutcome =
+	| { status: "ready", value: RpcLibraryAlbum[] }
+	| { status: "unavailable", value: RpcFailure };
+
 export type ApiTokenCreateOutcome =
 	| { status: "ready", value: RpcApiTokenGrant }
 	| { status: "invalidScope", value: RpcFailure }
+	| { status: "unavailable", value: RpcFailure };
+
+export type BookmarkCommandOutcome =
+	| { status: "added", value: RpcBookmark }
+	| { status: "removed", value?: undefined }
+	| { status: "unknown", value?: undefined }
+	| { status: "unavailable", value: RpcFailure };
+
+export type BookmarkListOutcome =
+	| { status: "ready", value: RpcBookmark[] }
 	| { status: "unavailable", value: RpcFailure };
 
 export type CommandOutcome =
@@ -315,6 +430,14 @@ export type DevicePairOutcome =
 
 export type PairingCreateOutcome =
 	| { status: "ready", value: RpcPairingCode }
+	| { status: "unavailable", value: RpcFailure };
+
+export type PlaylistCreateOutcome =
+	| { status: "ready", value: RpcPlaylist }
+	| { status: "unavailable", value: RpcFailure };
+
+export type PlaylistListOutcome =
+	| { status: "ready", value: RpcPlaylist[] }
 	| { status: "unavailable", value: RpcFailure };
 
 export type PluginCallOutcome =
@@ -350,7 +473,14 @@ export type RpcRequest =
 	| { _tag: "session.list", payload: EmptyRequest }
 	| { _tag: "session.state.get", payload: SessionIdRequest }
 	| { _tag: "session.command.run", payload: SessionCommandRequest }
-	| { _tag: "source.search.run", payload: SourceSearchRequest };
+	| { _tag: "source.search.run", payload: SourceSearchRequest }
+	| { _tag: "library.album.add", payload: LibraryAlbumAddRequest }
+	| { _tag: "library.albums.list", payload: EmptyRequest }
+	| { _tag: "library.album.command.run", payload: AlbumCommandRequest }
+	| { _tag: "library.bookmarks.list", payload: EmptyRequest }
+	| { _tag: "library.bookmark.command.run", payload: BookmarkCommandRequest }
+	| { _tag: "library.playlist.create", payload: PlaylistCreateRequest }
+	| { _tag: "library.playlists.list", payload: EmptyRequest };
 
 export type RpcResponse =
 	| { _tag: "system.status.get", outcome: SystemStatusOutcome }
@@ -367,6 +497,13 @@ export type RpcResponse =
 	| { _tag: "session.state.get", outcome: SessionStateOutcome }
 	| { _tag: "session.command.run", outcome: SessionCommandOutcome }
 	| { _tag: "source.search.run", outcome: SourceSearchOutcome }
+	| { _tag: "library.album.add", outcome: AlbumAddOutcome }
+	| { _tag: "library.albums.list", outcome: AlbumListOutcome }
+	| { _tag: "library.album.command.run", outcome: AlbumCommandOutcome }
+	| { _tag: "library.bookmarks.list", outcome: BookmarkListOutcome }
+	| { _tag: "library.bookmark.command.run", outcome: BookmarkCommandOutcome }
+	| { _tag: "library.playlist.create", outcome: PlaylistCreateOutcome }
+	| { _tag: "library.playlists.list", outcome: PlaylistListOutcome }
 	| { _tag: "rpc.failure", outcome: RpcProtocolFailureOutcome };
 
 export type SessionCommandOutcome =
