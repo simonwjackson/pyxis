@@ -23,7 +23,10 @@ requirements and decisions were captured directly into `plan.md` sections
 
 ## Current position
 
-Phase 0 not started. Next unit: **U1**.
+**Milestone M1 — "A song plays".** Next unit: **U1**.
 
-Update this line when a phase boundary is crossed. Per-unit progress comes from
+Execution order is the `Shipping Milestones` table in `plan.md`, not numeric U-ID order.
+Update this line when a milestone boundary is crossed. Per-unit progress comes from
 `git log`, not from this file.
+
+Ship only at a milestone boundary.

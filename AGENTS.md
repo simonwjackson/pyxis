@@ -35,7 +35,10 @@ and its verification holds, not when someone ticked a box.
 
 ## Working posture
 
-- Follow the implementation units in `plan.md` in dependency order.
+- Follow the `Shipping Milestones` table in `plan.md`. Execution order is milestone order,
+  not numeric U-ID order.
+- Ship only at a milestone boundary, when there is a product the user can validate. Do not
+  stop between units inside a milestone.
 - One unit is one atomic commit. Conventional commit format.
 - Every feature-bearing unit lands with its tests in the same commit.
 - When a unit reveals that the plan is wrong, update the plan in the same commit and say

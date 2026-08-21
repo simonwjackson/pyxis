@@ -28,8 +28,9 @@ On resuming with no memory of prior turns:
 2. Treat every entry in `Decision Log` as settled. Do not re-litigate. If a decision
    looks wrong, raise it with the user rather than quietly changing course.
 3. Run `git log --oneline -20`. Landed commits are the only truth about progress.
-4. Read `work.md` for the current phase pointer.
-5. Resume at the lowest-numbered unit whose commit does not exist.
+4. Read `work.md` for the current milestone pointer.
+5. Resume at the next unit in `Shipping Milestones` execution order whose commit does not
+   exist. Execution order is the milestone table, not numeric U-ID order.
 
 When implementation contradicts the plan, edit the plan in the same commit that
 contradicts it, and note the change in the commit body. A stale plan is worse than no plan.
@@ -265,11 +266,42 @@ nix/                         packaging, systemd user units
 
 ---
 
+## Shipping Milestones
+
+Units below are listed in numeric order. **Execution order is the milestone order in this
+table.** Ship at a milestone boundary and nowhere else.
+
+A milestone ends with a product the user can run and form an opinion about. "The core
+boots with zero plugins" is not a milestone, because nobody can validate it. Every
+milestone below answers a question the user can only answer by using the thing.
+
+| # | Ships | Units, in execution order | The question it answers |
+|---|---|---|---|
+| M1 | **A song plays.** Local dev shell, one plugin, ugly client | U1, U2, U3, U4, U6, U7, U15, U17, U11, U14, U12, U24 | Does the plugin architecture work end to end, and does audio come out? |
+| M2 | **The library is back, installed on the tailnet** | U8, U9, U10, U16, U25, U27 | Are my 371 albums right, and does the placement model feel correct? |
+| M3 | **Console control from a second device** | U5, U13 | Does console mode feel good, and is the session model right? |
+| M4 | **It plays on the Sonos** | U18 | Does output-as-a-plugin hold up against real hardware? |
+| M5 | **It works with no network** | U20, U21, U22, U23 | Does offline survive real use, or only tests? |
+| M6 | **Audio quietly improves** | U19 | Does no-upload Soulseek actually upgrade anything? |
+| M7 | **Someone else could build a client** | U26 | Can a third party integrate from documentation alone? |
+
+Notes on sequencing:
+
+- **M1 is deliberately large.** A vertical slice through a plugin architecture touches the
+  contract, the host, the SDK, a plugin, a session, and the byte path. There is no smaller
+  first slice that proves anything. Every unit in M1 is load-bearing for playing one song.
+- **YouTube Music comes before Pandora.** It is a thin yt-dlp wrapper with no crypto
+  handshake, so it reaches a playing song fastest. Pandora's Blowfish work is a distraction
+  at M1 and lands in M2, where the library import needs it anyway.
+- **Packaging lands in M2, not at the end.** Console mode in M3 needs a real install on the
+  tailnet to validate against a phone. M1 validates from a dev shell.
+- **M6 is the honest cut line.** If the project needs to stop early, M6 and M5 are the two
+  milestones that remove the most work while breaking the least.
+
 ## Implementation Units
 
-### Phase 0 — Foundation
 
-#### U1. Repo skeleton, flake, dev shell, verify gate
+### U1. Repo skeleton, flake, dev shell, verify gate
 
 **Goal:** A buildable empty repo with one command that gates everything downstream.
 
@@ -295,7 +327,7 @@ nix/                         packaging, systemd user units
 
 ---
 
-#### U2. Protocol contract and codegen pipeline
+### U2. Protocol contract and codegen pipeline
 
 **Goal:** One Rust definition generating TypeScript types and a JSON Schema.
 
@@ -324,7 +356,7 @@ nix/                         packaging, systemd user units
 
 ---
 
-#### U3. Storage layer and account-scoped data model
+### U3. Storage layer and account-scoped data model
 
 **Goal:** ProseQL-backed persistence where every domain record is account-scoped.
 
@@ -353,9 +385,8 @@ nix/                         packaging, systemd user units
 
 ---
 
-### Phase 1 — Core spine
 
-#### U4. RPC transport and dispatch
+### U4. RPC transport and dispatch
 
 **Goal:** One HTTP endpoint dispatching the tagged-union protocol.
 
@@ -383,7 +414,7 @@ nix/                         packaging, systemd user units
 
 ---
 
-#### U5. Realtime channel
+### U5. Realtime channel
 
 **Goal:** WebSocket transport carrying state fan-out and addressed commands.
 
@@ -411,7 +442,7 @@ nix/                         packaging, systemd user units
 
 ---
 
-#### U6. Accounts, devices, pairing, tokens
+### U6. Accounts, devices, pairing, tokens
 
 **Goal:** Multi-account identity with a zero-setup `default` account.
 
@@ -442,7 +473,7 @@ nix/                         packaging, systemd user units
 
 ---
 
-#### U7. Plugin host and capability registry
+### U7. Plugin host and capability registry
 
 **Goal:** Supervise plugin subprocesses and route capability calls, with none installed being valid.
 
@@ -477,9 +508,8 @@ nix/                         packaging, systemd user units
 
 ---
 
-### Phase 2 — Core domain
 
-#### U8. Library domain
+### U8. Library domain
 
 **Goal:** Albums, tracks, placements, bookmarks, and playlists as account-scoped records.
 
@@ -507,7 +537,7 @@ nix/                         packaging, systemd user units
 
 ---
 
-#### U9. Listen log and projections
+### U9. Listen log and projections
 
 **Goal:** Append-only listen events with derived history and hot albums.
 
@@ -536,7 +566,7 @@ nix/                         packaging, systemd user units
 
 ---
 
-#### U10. Matching engine
+### U10. Matching engine
 
 **Goal:** Decide whether two media items are the same recording.
 
@@ -575,7 +605,7 @@ a manual split cannot be undone by the automatic matcher.
 
 ---
 
-#### U11. Media store, candidates, and fidelity resolution
+### U11. Media store, candidates, and fidelity resolution
 
 **Goal:** Multiple playable candidates per track, with the best one chosen automatically.
 
@@ -605,7 +635,7 @@ a manual split cannot be undone by the automatic matcher.
 
 ---
 
-#### U12. Sessions and playback state machine
+### U12. Sessions and playback state machine
 
 **Goal:** Device-hosted session objects with a single owner for transport truth.
 
@@ -636,7 +666,7 @@ a manual split cannot be undone by the automatic matcher.
 
 ---
 
-#### U13. Console control and handoff
+### U13. Console control and handoff
 
 **Goal:** One device drives another device's session.
 
@@ -667,7 +697,7 @@ a manual split cannot be undone by the automatic matcher.
 
 ---
 
-#### U14. Stream proxy and byte cache
+### U14. Stream proxy and byte cache
 
 **Goal:** Serve audio bytes over plain HTTP with caching and range support.
 
@@ -696,9 +726,8 @@ a manual split cannot be undone by the automatic matcher.
 
 ---
 
-### Phase 3 — Plugins
 
-#### U15. TypeScript plugin SDK
+### U15. TypeScript plugin SDK
 
 **Goal:** Writing a plugin is implementing a few typed functions.
 
@@ -727,7 +756,7 @@ a manual split cannot be undone by the automatic matcher.
 
 ---
 
-#### U16. Pandora plugin
+### U16. Pandora plugin
 
 **Goal:** Pandora search, albums, playlists, stations, and stream resolution as a plugin.
 
@@ -757,7 +786,7 @@ a manual split cannot be undone by the automatic matcher.
 
 ---
 
-#### U17. YouTube Music plugin and yt-dlp updater
+### U17. YouTube Music plugin and yt-dlp updater
 
 **Goal:** YouTube Music as a plugin, with yt-dlp kept current nightly.
 
@@ -785,7 +814,7 @@ a manual split cannot be undone by the automatic matcher.
 
 ---
 
-#### U18. Sonos output plugin
+### U18. Sonos output plugin
 
 **Goal:** Sonos rooms as controllable playback targets.
 
@@ -814,7 +843,7 @@ a manual split cannot be undone by the automatic matcher.
 
 ---
 
-#### U19. Soulseek fidelity plugin
+### U19. Soulseek fidelity plugin
 
 **Goal:** Silently upgrade library-track audio quality. Never visible. Never uploads.
 
@@ -852,9 +881,8 @@ of any share configuration. Upgrades appear without any client-visible action.
 
 ---
 
-### Phase 4 — Client data plane
 
-#### U20. Client store and worker schema
+### U20. Client store and worker schema
 
 **Goal:** ProseQL wasm inside a worker over IndexedDB.
 
@@ -881,7 +909,7 @@ of any share configuration. Upgrades appear without any client-visible action.
 
 ---
 
-#### U21. Sync engine
+### U21. Sync engine
 
 **Goal:** Two-way sync with explicit conflict outcomes and an offline write queue.
 
@@ -912,7 +940,7 @@ of any share configuration. Upgrades appear without any client-visible action.
 
 ---
 
-#### U22. Offline download manager
+### U22. Offline download manager
 
 **Goal:** Pinned albums play with no network.
 
@@ -941,7 +969,7 @@ of any share configuration. Upgrades appear without any client-visible action.
 
 ---
 
-#### U23. Service worker, PWA shell, and typed RPC client
+### U23. Service worker, PWA shell, and typed RPC client
 
 **Goal:** An installable offline shell exposing the documented worker API.
 
@@ -967,9 +995,8 @@ of any share configuration. Upgrades appear without any client-visible action.
 
 ---
 
-### Phase 5 — Delivery
 
-#### U24. Ugly reference client
+### U24. Ugly reference client
 
 **Goal:** Prove every protocol surface works, with zero design intent.
 
@@ -996,7 +1023,7 @@ of any share configuration. Upgrades appear without any client-visible action.
 
 ---
 
-#### U25. Packaging and deployment
+### U25. Packaging and deployment
 
 **Goal:** `nix profile add` installs the core, plugins, and units.
 
@@ -1025,7 +1052,7 @@ of any share configuration. Upgrades appear without any client-visible action.
 
 ---
 
-#### U26. Public API documentation
+### U26. Public API documentation
 
 **Goal:** A third party can build a client without reading Rust.
 
@@ -1049,7 +1076,7 @@ of any share configuration. Upgrades appear without any client-visible action.
 
 ---
 
-#### U27. Ephemeral legacy import, then deletion
+### U27. Ephemeral legacy import, then deletion
 
 **Goal:** Recover the 371-album library, then delete the tooling.
 
