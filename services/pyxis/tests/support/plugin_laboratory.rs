@@ -78,9 +78,20 @@ fn main() -> anyhow::Result<()> {
         }
 
         let mut value = BTreeMap::new();
-        value.insert("pluginId".into(), PluginValue::String(id.clone()));
-        value.insert("operation".into(), PluginValue::String(call.operation));
-        value.insert("input".into(), call.input);
+        if call.operation == "stream.resolve" {
+            if let Ok(url) = std::env::var("PYXIS_LAB_STREAM_URL") {
+                value.insert("kind".into(), PluginValue::String("remote".into()));
+                value.insert("url".into(), PluginValue::String(url));
+                value.insert("headers".into(), PluginValue::Object(BTreeMap::new()));
+                value.insert("format".into(), PluginValue::String("webm/opus".into()));
+                value.insert("lossless".into(), PluginValue::Bool(false));
+            }
+        }
+        if value.is_empty() {
+            value.insert("pluginId".into(), PluginValue::String(id.clone()));
+            value.insert("operation".into(), PluginValue::String(call.operation));
+            value.insert("input".into(), call.input);
+        }
         send(
             &mut stdout,
             PluginResponseEnvelope {

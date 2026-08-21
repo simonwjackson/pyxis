@@ -19,12 +19,14 @@ use crate::media::Media;
 use crate::plugins::host::PluginHost;
 use crate::rpc::transport;
 use crate::settings::Settings;
+use crate::stream::{self, StreamService};
 
 #[derive(Clone)]
 pub struct AppState {
     pub(crate) accounts: Accounts,
     pub media: Media,
     pub(crate) plugins: PluginHost,
+    pub(crate) stream: StreamService,
 }
 
 impl AppState {
@@ -35,12 +37,14 @@ impl AppState {
     }
 
     pub fn open_with_plugins(store: Store, plugins: PluginHost) -> anyhow::Result<Self> {
+        let stream = StreamService::open(store.state_dir())?;
         let accounts = Accounts::open(store.clone())?;
         let media = Media::open(store)?;
         Ok(AppState {
             accounts,
             media,
             plugins,
+            stream,
         })
     }
 }
@@ -49,6 +53,7 @@ pub fn router(state: AppState) -> Router {
     Router::new()
         .route("/healthz", get(healthz))
         .route("/rpc", post(transport::rpc))
+        .route("/stream/:track_id", get(stream::stream))
         // RPC payloads are metadata and commands, never media bytes. A 1 MiB request is
         // already pathological and should be rejected before it enters the contract parser.
         .layer(DefaultBodyLimit::max(1024 * 1024))

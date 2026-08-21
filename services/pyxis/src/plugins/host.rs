@@ -121,6 +121,15 @@ impl PluginHost {
         self.registry.live_summary()
     }
 
+    pub fn live_ids(&self) -> std::collections::BTreeSet<String> {
+        self.registry
+            .list()
+            .into_iter()
+            .filter(|plugin| plugin.status == PluginStatus::Live)
+            .map(|plugin| plugin.id)
+            .collect()
+    }
+
     pub fn wait_for_status(&self, id: &str, status: PluginStatus, timeout: Duration) -> bool {
         self.registry.wait_for_status(id, status, timeout)
     }

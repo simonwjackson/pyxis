@@ -12,6 +12,7 @@ pub mod media;
 pub mod plugins;
 pub mod rpc;
 pub mod settings;
+pub mod stream;
 
 /// Version reported by `system.status.get` and the `--version` flag.
 pub fn version() -> &'static str {
