@@ -135,6 +135,25 @@ export interface RpcFailure {
 	retryable: boolean;
 }
 
+export interface RpcFidelity {
+	lossless: boolean;
+	bitrateKbps?: number;
+	sampleRateHz?: number;
+}
+
+/**
+ * Public candidate metadata. A local file path is intentionally absent: clients receive
+ * same-origin `/stream/:trackId` URLs and never learn server filesystem layout.
+ */
+export interface RpcMediaCandidate {
+	id: string;
+	trackId: string;
+	kind: string;
+	pluginId?: string;
+	externalId?: string;
+	fidelity: RpcFidelity;
+}
+
 export interface RpcPairingCode {
 	code: string;
 	expiresAt: string;

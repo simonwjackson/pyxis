@@ -60,6 +60,7 @@ fn operation(reason: &str, message: String) -> EngineError {
 #[derive(Clone)]
 pub struct Store {
     runtime: NativeRuntime,
+    state_dir: PathBuf,
 }
 
 impl Store {
@@ -80,7 +81,14 @@ impl Store {
         })
         .map_err(engine)?;
 
-        Ok(Store { runtime })
+        Ok(Store {
+            runtime,
+            state_dir: state_dir.to_path_buf(),
+        })
+    }
+
+    pub fn state_dir(&self) -> &Path {
+        &self.state_dir
     }
 
     pub fn path_for(state_dir: &Path) -> PathBuf {

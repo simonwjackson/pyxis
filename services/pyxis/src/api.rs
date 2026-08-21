@@ -15,6 +15,7 @@ use tokio::net::TcpListener;
 
 use crate::accounts::Accounts;
 use crate::db::store::Store;
+use crate::media::Media;
 use crate::plugins::host::PluginHost;
 use crate::rpc::transport;
 use crate::settings::Settings;
@@ -22,6 +23,7 @@ use crate::settings::Settings;
 #[derive(Clone)]
 pub struct AppState {
     pub(crate) accounts: Accounts,
+    pub media: Media,
     pub(crate) plugins: PluginHost,
 }
 
@@ -33,8 +35,13 @@ impl AppState {
     }
 
     pub fn open_with_plugins(store: Store, plugins: PluginHost) -> anyhow::Result<Self> {
-        let accounts = Accounts::open(store)?;
-        Ok(AppState { accounts, plugins })
+        let accounts = Accounts::open(store.clone())?;
+        let media = Media::open(store)?;
+        Ok(AppState {
+            accounts,
+            media,
+            plugins,
+        })
     }
 }
 

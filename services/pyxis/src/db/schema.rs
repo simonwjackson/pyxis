@@ -167,6 +167,7 @@ pub fn track_candidates() -> CollectionDescriptor {
             field("lossless", optional(SchemaNode::Bool)),
             field("bitrateKbps", optional(SchemaNode::Num)),
             field("sampleRateHz", optional(SchemaNode::Num)),
+            field("sourcePriority", SchemaNode::Num),
             field("discoveredAt", SchemaNode::Str),
         ],
     )
@@ -291,6 +292,9 @@ pub fn media_files() -> CollectionDescriptor {
             field("checksum", SchemaNode::Str),
             field("format", optional(SchemaNode::Str)),
             field("lastAccessedAt", SchemaNode::Str),
+            field("pinned", SchemaNode::Bool),
+            field("status", SchemaNode::Str),
+            field("quarantinedAt", optional(SchemaNode::Str)),
         ],
     )
 }
