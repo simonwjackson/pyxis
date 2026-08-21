@@ -27,7 +27,9 @@ pub const SCOPE_SESSION_CONTROL: &str = "session:control";
 pub const SCOPE_SOURCE_READ: &str = "source:read";
 pub const SCOPE_LIBRARY_READ: &str = "library:read";
 pub const SCOPE_LIBRARY_WRITE: &str = "library:write";
-const ALLOWED_API_SCOPES: [&str; 7] = [
+pub const SCOPE_LISTEN_READ: &str = "listen:read";
+pub const SCOPE_LISTEN_WRITE: &str = "listen:write";
+const ALLOWED_API_SCOPES: [&str; 9] = [
     SCOPE_ACCOUNT_READ,
     SCOPE_ACCOUNT_ADMIN,
     SCOPE_SESSION_READ,
@@ -35,6 +37,8 @@ const ALLOWED_API_SCOPES: [&str; 7] = [
     SCOPE_SOURCE_READ,
     SCOPE_LIBRARY_READ,
     SCOPE_LIBRARY_WRITE,
+    SCOPE_LISTEN_READ,
+    SCOPE_LISTEN_WRITE,
 ];
 
 #[derive(Debug, thiserror::Error)]

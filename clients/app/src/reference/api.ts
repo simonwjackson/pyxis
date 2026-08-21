@@ -1,4 +1,5 @@
 import type {
+  ListenTrackEventInput,
   RpcAuthGrant,
   RpcPlugin,
   RpcRequest,
@@ -21,6 +22,7 @@ export interface ReferenceClient {
   listSessions(token: string): Promise<readonly RpcSession[]>
   createSession(token: string, name: string): Promise<RpcSession>
   command(token: string, sessionId: string, command: RpcSessionCommand): Promise<RpcSession>
+  appendListen(token: string, event: ListenTrackEventInput): Promise<void>
   loadStream(token: string, trackId: string): Promise<string>
 }
 
@@ -121,6 +123,16 @@ export function createReferenceClient(config: ReferenceClientConfig = {}): Refer
         throw new Error(`session command was not applied: ${status}`)
       }
       return response.outcome.value
+    },
+
+    async appendListen(token, event) {
+      const response = await rpc(
+        { _tag: "listen.events.append", payload: { events: [event] } },
+        token,
+      )
+      if (response._tag !== "listen.events.append" || response.outcome.status !== "ready") {
+        throw new Error("listen event was not accepted")
+      }
     },
 
     async loadStream(token, trackId) {

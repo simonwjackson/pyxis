@@ -98,11 +98,27 @@ fn readding_a_dismissed_album_returns_it_to_discovery() {
 struct ListenEventRecord {
     id: String,
     account_id: String,
-    track_id: String,
+    kind: String,
+    happened_at: String,
     device_id: String,
-    listened_at: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    track_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    album_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    source_plugin_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     played_ms: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     completed: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    context: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    context_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    from_placement: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    to_placement: Option<String>,
     revision: u64,
     updated_by: String,
     updated_at: String,
@@ -125,11 +141,18 @@ fn removing_an_album_deletes_library_rows_but_not_listen_events() {
             &ListenEventRecord {
                 id: String::new(),
                 account_id: String::new(),
-                track_id: "track-heroes".into(),
+                kind: "trackPlayed".into(),
+                happened_at: "2026-08-21T00:00:00Z".into(),
                 device_id: "device-a".into(),
-                listened_at: "2026-08-21T00:00:00Z".into(),
+                track_id: Some("track-heroes".into()),
+                album_id: Some(added.id.clone()),
+                source_plugin_id: None,
                 played_ms: Some(60_000),
                 completed: Some(false),
+                context: Some("album".into()),
+                context_id: Some(added.id.clone()),
+                from_placement: None,
+                to_placement: None,
                 revision: 1,
                 updated_by: "device-a".into(),
                 updated_at: "2026-08-21T00:00:00Z".into(),

@@ -361,6 +361,54 @@
             "_tag",
             "payload"
           ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "_tag": {
+              "type": "string",
+              "const": "listen.events.append"
+            },
+            "payload": {
+              "$ref": "#/$defs/ListenEventsAppendRequest"
+            }
+          },
+          "required": [
+            "_tag",
+            "payload"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "_tag": {
+              "type": "string",
+              "const": "listen.history.list"
+            },
+            "payload": {
+              "$ref": "#/$defs/ListenHistoryRequest"
+            }
+          },
+          "required": [
+            "_tag",
+            "payload"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "_tag": {
+              "type": "string",
+              "const": "library.hotAlbums.list"
+            },
+            "payload": {
+              "$ref": "#/$defs/HotAlbumsListRequest"
+            }
+          },
+          "required": [
+            "_tag",
+            "payload"
+          ]
         }
       ]
     },
@@ -1003,6 +1051,115 @@
         "trackIds"
       ]
     },
+    "ListenEventsAppendRequest": {
+      "type": "object",
+      "properties": {
+        "events": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ListenTrackEventInput"
+          }
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "events"
+      ]
+    },
+    "ListenTrackEventInput": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "trackId": {
+          "type": "string"
+        },
+        "albumId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "deviceId": {
+          "type": "string"
+        },
+        "sourcePluginId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "listenedAt": {
+          "type": "string"
+        },
+        "playedMs": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint32",
+          "minimum": 0
+        },
+        "completed": {
+          "type": "boolean"
+        },
+        "context": {
+          "type": "string"
+        },
+        "contextId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "trackId",
+        "deviceId",
+        "listenedAt",
+        "completed",
+        "context"
+      ]
+    },
+    "ListenHistoryRequest": {
+      "type": "object",
+      "properties": {
+        "limit": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint32",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false
+    },
+    "HotAlbumsListRequest": {
+      "type": "object",
+      "properties": {
+        "minRecentListens": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint32",
+          "minimum": 0
+        },
+        "windowDays": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint32",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false
+    },
     "RpcResponse": {
       "oneOf": [
         {
@@ -1334,6 +1491,54 @@
             },
             "outcome": {
               "$ref": "#/$defs/PlaylistListOutcome"
+            }
+          },
+          "required": [
+            "_tag",
+            "outcome"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "_tag": {
+              "type": "string",
+              "const": "listen.events.append"
+            },
+            "outcome": {
+              "$ref": "#/$defs/ListenAppendOutcome"
+            }
+          },
+          "required": [
+            "_tag",
+            "outcome"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "_tag": {
+              "type": "string",
+              "const": "listen.history.list"
+            },
+            "outcome": {
+              "$ref": "#/$defs/ListenHistoryOutcome"
+            }
+          },
+          "required": [
+            "_tag",
+            "outcome"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "_tag": {
+              "type": "string",
+              "const": "library.hotAlbums.list"
+            },
+            "outcome": {
+              "$ref": "#/$defs/HotAlbumsListOutcome"
             }
           },
           "required": [
@@ -2899,6 +3104,256 @@
             "value"
           ]
         }
+      ]
+    },
+    "ListenAppendOutcome": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "const": "ready"
+            },
+            "value": {
+              "$ref": "#/$defs/RpcListenAppendResult"
+            }
+          },
+          "required": [
+            "status",
+            "value"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "const": "invalid"
+            },
+            "value": {
+              "$ref": "#/$defs/RpcFailure"
+            }
+          },
+          "required": [
+            "status",
+            "value"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "const": "conflict"
+            },
+            "value": {
+              "$ref": "#/$defs/RpcFailure"
+            }
+          },
+          "required": [
+            "status",
+            "value"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "const": "unavailable"
+            },
+            "value": {
+              "$ref": "#/$defs/RpcFailure"
+            }
+          },
+          "required": [
+            "status",
+            "value"
+          ]
+        }
+      ]
+    },
+    "RpcListenAppendResult": {
+      "type": "object",
+      "properties": {
+        "accepted": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "duplicates": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "accepted",
+        "duplicates"
+      ]
+    },
+    "ListenHistoryOutcome": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "const": "ready"
+            },
+            "value": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/RpcListenEvent"
+              }
+            }
+          },
+          "required": [
+            "status",
+            "value"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "const": "unavailable"
+            },
+            "value": {
+              "$ref": "#/$defs/RpcFailure"
+            }
+          },
+          "required": [
+            "status",
+            "value"
+          ]
+        }
+      ]
+    },
+    "RpcListenEvent": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "trackId": {
+          "type": "string"
+        },
+        "albumId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "deviceId": {
+          "type": "string"
+        },
+        "sourcePluginId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "listenedAt": {
+          "type": "string"
+        },
+        "playedMs": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint32",
+          "minimum": 0
+        },
+        "completed": {
+          "type": "boolean"
+        },
+        "context": {
+          "type": "string"
+        },
+        "contextId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "trackId",
+        "deviceId",
+        "listenedAt",
+        "completed",
+        "context"
+      ]
+    },
+    "HotAlbumsListOutcome": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "const": "ready"
+            },
+            "value": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/RpcHotAlbum"
+              }
+            }
+          },
+          "required": [
+            "status",
+            "value"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "const": "unavailable"
+            },
+            "value": {
+              "$ref": "#/$defs/RpcFailure"
+            }
+          },
+          "required": [
+            "status",
+            "value"
+          ]
+        }
+      ]
+    },
+    "RpcHotAlbum": {
+      "type": "object",
+      "properties": {
+        "albumId": {
+          "type": "string"
+        },
+        "listenCount": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "windowStart": {
+          "type": "string"
+        },
+        "computedAt": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "albumId",
+        "listenCount",
+        "windowStart",
+        "computedAt"
       ]
     },
     "RpcProtocolFailureOutcome": {

@@ -9,6 +9,7 @@ pub mod api;
 pub mod db;
 pub mod instance_lock;
 pub mod library;
+pub mod listen;
 pub mod media;
 pub mod plugins;
 pub mod rpc;

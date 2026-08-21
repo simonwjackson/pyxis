@@ -58,6 +58,11 @@ export interface DevicePairRequest {
 export interface EmptyRequest {
 }
 
+export interface HotAlbumsListRequest {
+	minRecentListens?: number;
+	windowDays?: number;
+}
+
 export interface LibrarySourceReference {
 	pluginId: string;
 	externalId: string;
@@ -77,6 +82,27 @@ export interface LibraryAlbumAddRequest {
 	year?: number;
 	sourceReference?: LibrarySourceReference;
 	tracks: LibraryTrackInput[];
+}
+
+export interface ListenTrackEventInput {
+	id: string;
+	trackId: string;
+	albumId?: string;
+	deviceId: string;
+	sourcePluginId?: string;
+	listenedAt: string;
+	playedMs?: number;
+	completed: boolean;
+	context: string;
+	contextId?: string;
+}
+
+export interface ListenEventsAppendRequest {
+	events: ListenTrackEventInput[];
+}
+
+export interface ListenHistoryRequest {
+	limit?: number;
 }
 
 export enum RpcPlacement {
@@ -219,6 +245,13 @@ export interface RpcFidelity {
 	sampleRateHz?: number;
 }
 
+export interface RpcHotAlbum {
+	albumId: string;
+	listenCount: number;
+	windowStart: string;
+	computedAt: string;
+}
+
 export interface RpcLibraryTrack {
 	id: string;
 	title: string;
@@ -239,6 +272,24 @@ export interface RpcLibraryAlbum {
 	addedAt: string;
 	revision: number;
 	tracks: RpcLibraryTrack[];
+}
+
+export interface RpcListenAppendResult {
+	accepted: number;
+	duplicates: number;
+}
+
+export interface RpcListenEvent {
+	id: string;
+	trackId: string;
+	albumId?: string;
+	deviceId: string;
+	sourcePluginId?: string;
+	listenedAt: string;
+	playedMs?: number;
+	completed: boolean;
+	context: string;
+	contextId?: string;
 }
 
 /**
@@ -428,6 +479,20 @@ export type DevicePairOutcome =
 	| { status: "expired", value?: undefined }
 	| { status: "unavailable", value: RpcFailure };
 
+export type HotAlbumsListOutcome =
+	| { status: "ready", value: RpcHotAlbum[] }
+	| { status: "unavailable", value: RpcFailure };
+
+export type ListenAppendOutcome =
+	| { status: "ready", value: RpcListenAppendResult }
+	| { status: "invalid", value: RpcFailure }
+	| { status: "conflict", value: RpcFailure }
+	| { status: "unavailable", value: RpcFailure };
+
+export type ListenHistoryOutcome =
+	| { status: "ready", value: RpcListenEvent[] }
+	| { status: "unavailable", value: RpcFailure };
+
 export type PairingCreateOutcome =
 	| { status: "ready", value: RpcPairingCode }
 	| { status: "unavailable", value: RpcFailure };
@@ -480,7 +545,10 @@ export type RpcRequest =
 	| { _tag: "library.bookmarks.list", payload: EmptyRequest }
 	| { _tag: "library.bookmark.command.run", payload: BookmarkCommandRequest }
 	| { _tag: "library.playlist.create", payload: PlaylistCreateRequest }
-	| { _tag: "library.playlists.list", payload: EmptyRequest };
+	| { _tag: "library.playlists.list", payload: EmptyRequest }
+	| { _tag: "listen.events.append", payload: ListenEventsAppendRequest }
+	| { _tag: "listen.history.list", payload: ListenHistoryRequest }
+	| { _tag: "library.hotAlbums.list", payload: HotAlbumsListRequest };
 
 export type RpcResponse =
 	| { _tag: "system.status.get", outcome: SystemStatusOutcome }
@@ -504,6 +572,9 @@ export type RpcResponse =
 	| { _tag: "library.bookmark.command.run", outcome: BookmarkCommandOutcome }
 	| { _tag: "library.playlist.create", outcome: PlaylistCreateOutcome }
 	| { _tag: "library.playlists.list", outcome: PlaylistListOutcome }
+	| { _tag: "listen.events.append", outcome: ListenAppendOutcome }
+	| { _tag: "listen.history.list", outcome: ListenHistoryOutcome }
+	| { _tag: "library.hotAlbums.list", outcome: HotAlbumsListOutcome }
 	| { _tag: "rpc.failure", outcome: RpcProtocolFailureOutcome };
 
 export type SessionCommandOutcome =

@@ -714,6 +714,115 @@ pub enum PlaylistListOutcome {
 
 #[typeshare]
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct ListenTrackEventInput {
+    pub id: String,
+    pub track_id: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub album_id: Option<String>,
+    pub device_id: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub source_plugin_id: Option<String>,
+    pub listened_at: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub played_ms: Option<u32>,
+    pub completed: bool,
+    pub context: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub context_id: Option<String>,
+}
+
+#[typeshare]
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct ListenEventsAppendRequest {
+    pub events: Vec<ListenTrackEventInput>,
+}
+
+#[typeshare]
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct RpcListenAppendResult {
+    pub accepted: u32,
+    pub duplicates: u32,
+}
+
+#[typeshare]
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(tag = "status", content = "value", rename_all = "camelCase")]
+pub enum ListenAppendOutcome {
+    Ready(RpcListenAppendResult),
+    Invalid(RpcFailure),
+    Conflict(RpcFailure),
+    Unavailable(RpcFailure),
+}
+
+#[typeshare]
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct ListenHistoryRequest {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub limit: Option<u32>,
+}
+
+#[typeshare]
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct RpcListenEvent {
+    pub id: String,
+    pub track_id: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub album_id: Option<String>,
+    pub device_id: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub source_plugin_id: Option<String>,
+    pub listened_at: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub played_ms: Option<u32>,
+    pub completed: bool,
+    pub context: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub context_id: Option<String>,
+}
+
+#[typeshare]
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(tag = "status", content = "value", rename_all = "camelCase")]
+pub enum ListenHistoryOutcome {
+    Ready(Vec<RpcListenEvent>),
+    Unavailable(RpcFailure),
+}
+
+#[typeshare]
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct HotAlbumsListRequest {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub min_recent_listens: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub window_days: Option<u32>,
+}
+
+#[typeshare]
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct RpcHotAlbum {
+    pub album_id: String,
+    pub listen_count: u32,
+    pub window_start: String,
+    pub computed_at: String,
+}
+
+#[typeshare]
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(tag = "status", content = "value", rename_all = "camelCase")]
+pub enum HotAlbumsListOutcome {
+    Ready(Vec<RpcHotAlbum>),
+    Unavailable(RpcFailure),
+}
+
+#[typeshare]
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
 #[serde(tag = "_tag", content = "payload")]
 pub enum RpcRequest {
     #[serde(rename = "system.status.get")]
@@ -758,6 +867,12 @@ pub enum RpcRequest {
     LibraryPlaylistCreate(PlaylistCreateRequest),
     #[serde(rename = "library.playlists.list")]
     LibraryPlaylistsList(EmptyRequest),
+    #[serde(rename = "listen.events.append")]
+    ListenEventsAppend(ListenEventsAppendRequest),
+    #[serde(rename = "listen.history.list")]
+    ListenHistoryList(ListenHistoryRequest),
+    #[serde(rename = "library.hotAlbums.list")]
+    LibraryHotAlbumsList(HotAlbumsListRequest),
 }
 
 /// A request that cannot enter operation dispatch. This is separate from an operation's
@@ -815,12 +930,18 @@ pub enum RpcResponse {
     LibraryPlaylistCreate(PlaylistCreateOutcome),
     #[serde(rename = "library.playlists.list")]
     LibraryPlaylistsList(PlaylistListOutcome),
+    #[serde(rename = "listen.events.append")]
+    ListenEventsAppend(ListenAppendOutcome),
+    #[serde(rename = "listen.history.list")]
+    ListenHistoryList(ListenHistoryOutcome),
+    #[serde(rename = "library.hotAlbums.list")]
+    LibraryHotAlbumsList(HotAlbumsListOutcome),
     #[serde(rename = "rpc.failure")]
     Failure(RpcProtocolFailureOutcome),
 }
 
 impl RpcRequest {
-    pub const KNOWN_TAGS: [&'static str; 21] = [
+    pub const KNOWN_TAGS: [&'static str; 24] = [
         "system.status.get",
         "auth.device.claim",
         "auth.device.pair",
@@ -842,6 +963,9 @@ impl RpcRequest {
         "library.bookmark.command.run",
         "library.playlist.create",
         "library.playlists.list",
+        "listen.events.append",
+        "listen.history.list",
+        "library.hotAlbums.list",
     ];
 
     /// The operation tag as it appears on the wire. Used for logging and authorization.
@@ -868,6 +992,9 @@ impl RpcRequest {
             RpcRequest::LibraryBookmarkCommandRun(_) => "library.bookmark.command.run",
             RpcRequest::LibraryPlaylistCreate(_) => "library.playlist.create",
             RpcRequest::LibraryPlaylistsList(_) => "library.playlists.list",
+            RpcRequest::ListenEventsAppend(_) => "listen.events.append",
+            RpcRequest::ListenHistoryList(_) => "listen.history.list",
+            RpcRequest::LibraryHotAlbumsList(_) => "library.hotAlbums.list",
         }
     }
 
@@ -902,6 +1029,10 @@ impl RpcRequest {
             | RpcRequest::LibraryAlbumCommandRun(_)
             | RpcRequest::LibraryBookmarkCommandRun(_)
             | RpcRequest::LibraryPlaylistCreate(_) => Some("library:write"),
+            RpcRequest::ListenEventsAppend(_) => Some("listen:write"),
+            RpcRequest::ListenHistoryList(_) | RpcRequest::LibraryHotAlbumsList(_) => {
+                Some("listen:read")
+            }
             RpcRequest::AuthPairingCreate(_)
             | RpcRequest::AuthTokenCreate(_)
             | RpcRequest::AuthTokenRevoke(_)
@@ -911,7 +1042,7 @@ impl RpcRequest {
 }
 
 impl RpcResponse {
-    pub const KNOWN_OPERATION_TAGS: [&'static str; 21] = RpcRequest::KNOWN_TAGS;
+    pub const KNOWN_OPERATION_TAGS: [&'static str; 24] = RpcRequest::KNOWN_TAGS;
 
     pub fn tag(&self) -> &'static str {
         match self {
@@ -936,6 +1067,9 @@ impl RpcResponse {
             RpcResponse::LibraryBookmarkCommandRun(_) => "library.bookmark.command.run",
             RpcResponse::LibraryPlaylistCreate(_) => "library.playlist.create",
             RpcResponse::LibraryPlaylistsList(_) => "library.playlists.list",
+            RpcResponse::ListenEventsAppend(_) => "listen.events.append",
+            RpcResponse::ListenHistoryList(_) => "listen.history.list",
+            RpcResponse::LibraryHotAlbumsList(_) => "library.hotAlbums.list",
             RpcResponse::Failure(_) => "rpc.failure",
         }
     }

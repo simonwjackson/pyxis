@@ -24,6 +24,7 @@ function client(plugins: Awaited<ReturnType<ReferenceClient["listPlugins"]>>): R
     command: async () => {
       throw new Error("not used")
     },
+    appendListen: async () => {},
     loadStream: async () => "blob:test",
   }
 }
@@ -118,6 +119,7 @@ describe("reference client", () => {
         if (command._tag === "transport.play") session = { ...session, transport: "playing" }
         return session
       },
+      appendListen: async () => {},
       loadStream: async (_token, trackId) => {
         loadedTrack = trackId
         return "blob:test"

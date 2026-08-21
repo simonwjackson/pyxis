@@ -29,6 +29,7 @@ pub const STATIONS: &str = "stations";
 pub const BOOKMARKS: &str = "bookmarks";
 pub const FEEDBACK: &str = "feedback";
 pub const LISTEN_EVENTS: &str = "listenEvents";
+pub const HOT_ALBUMS: &str = "hotAlbums";
 pub const SETTINGS: &str = "settings";
 pub const API_TOKENS: &str = "apiTokens";
 pub const PLUGIN_CREDENTIALS: &str = "pluginCredentials";
@@ -256,15 +257,34 @@ pub fn listen_events() -> CollectionDescriptor {
     let mut descriptor = scoped(
         LISTEN_EVENTS,
         vec![
-            field("trackId", SchemaNode::Str),
+            field("kind", SchemaNode::Str),
+            field("happenedAt", SchemaNode::Str),
             field("deviceId", SchemaNode::Str),
-            field("listenedAt", SchemaNode::Str),
+            field("trackId", optional(SchemaNode::Str)),
+            field("albumId", optional(SchemaNode::Str)),
+            field("sourcePluginId", optional(SchemaNode::Str)),
             field("playedMs", optional(SchemaNode::Num)),
             field("completed", optional(SchemaNode::Bool)),
+            field("context", optional(SchemaNode::Str)),
+            field("contextId", optional(SchemaNode::Str)),
+            field("fromPlacement", optional(SchemaNode::Str)),
+            field("toPlacement", optional(SchemaNode::Str)),
         ],
     );
     descriptor.append_only = true;
     descriptor
+}
+
+pub fn hot_albums() -> CollectionDescriptor {
+    scoped(
+        HOT_ALBUMS,
+        vec![
+            field("albumId", SchemaNode::Str),
+            field("listenCount", SchemaNode::Num),
+            field("windowStart", SchemaNode::Str),
+            field("computedAt", SchemaNode::Str),
+        ],
+    )
 }
 
 pub fn settings() -> CollectionDescriptor {
@@ -343,6 +363,7 @@ pub fn all() -> Vec<CollectionDescriptor> {
         bookmarks(),
         feedback(),
         listen_events(),
+        hot_albums(),
         settings(),
         api_tokens(),
         plugin_credentials(),

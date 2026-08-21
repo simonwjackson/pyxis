@@ -4,25 +4,30 @@
 //! receives a valid request plus its account context and always returns the matching
 //! operation tag. Domain failures become operation outcomes rather than framework errors.
 
+use chrono::Utc;
+
 use crate::accounts::{
     Account, AccountError, ApiTokenGrant, AuthContext, AuthGrant, ClaimOutcome, PairOutcome,
+    Principal,
 };
 use crate::api::AppState;
 use crate::library::{
     Album, AlbumInput, Bookmark, LibraryError, Placement, Playlist, PlaylistInput, SourceReference,
     TrackInput,
 };
+use crate::listen::{HotConfig, ListenError, TrackListenInput};
 use crate::rpc::contract::{
     AccountCreateOutcome, AccountListOutcome, AlbumAddOutcome, AlbumCommandOutcome,
     AlbumListOutcome, ApiTokenCreateOutcome, BookmarkCommandOutcome, BookmarkListOutcome,
-    CommandOutcome, DeviceClaimOutcome, DevicePairOutcome, PairingCreateOutcome,
-    PlaylistCreateOutcome, PlaylistListOutcome, PluginListOutcome, RpcAccount, RpcAlbumCommand,
-    RpcApiToken, RpcApiTokenGrant, RpcAuthGrant, RpcBookmark, RpcBookmarkCommand, RpcDevice,
-    RpcFailure, RpcLibraryAlbum, RpcLibraryTrack, RpcPairingCode, RpcPlacement, RpcPlaylist,
-    RpcPlugin, RpcRequest, RpcResponse, RpcSearchTrack, RpcSession, RpcSessionCommand,
-    RpcSourceFailure, RpcSourceSearchResult, RpcSystemStatus, RpcTransport, SessionCommandOutcome,
-    SessionCreateOutcome, SessionListOutcome, SessionStateOutcome, SourceSearchOutcome,
-    SystemStatusOutcome, CONTRACT_ID,
+    CommandOutcome, DeviceClaimOutcome, DevicePairOutcome, HotAlbumsListOutcome,
+    ListenAppendOutcome, ListenHistoryOutcome, PairingCreateOutcome, PlaylistCreateOutcome,
+    PlaylistListOutcome, PluginListOutcome, RpcAccount, RpcAlbumCommand, RpcApiToken,
+    RpcApiTokenGrant, RpcAuthGrant, RpcBookmark, RpcBookmarkCommand, RpcDevice, RpcFailure,
+    RpcHotAlbum, RpcLibraryAlbum, RpcLibraryTrack, RpcListenAppendResult, RpcListenEvent,
+    RpcPairingCode, RpcPlacement, RpcPlaylist, RpcPlugin, RpcRequest, RpcResponse, RpcSearchTrack,
+    RpcSession, RpcSessionCommand, RpcSourceFailure, RpcSourceSearchResult, RpcSystemStatus,
+    RpcTransport, SessionCommandOutcome, SessionCreateOutcome, SessionListOutcome,
+    SessionStateOutcome, SourceSearchOutcome, SystemStatusOutcome, CONTRACT_ID,
 };
 use crate::sessions::{Session, SessionCommand as DomainSessionCommand, SessionError, Transport};
 use crate::source_catalog::SearchOutcome;
@@ -445,6 +450,120 @@ pub fn dispatch(state: &AppState, request: RpcRequest, auth: Option<AuthContext>
                 )),
             }
         }
+        RpcRequest::ListenEventsAppend(request) => {
+            let Some(auth) = auth else {
+                return auth_required();
+            };
+            if let Principal::Device { id } = &auth.principal {
+                if request.events.iter().any(|event| &event.device_id != id) {
+                    return RpcResponse::ListenEventsAppend(ListenAppendOutcome::Invalid(
+                        RpcFailure::permanent(
+                            "listen.deviceMismatch",
+                            "a device token can only append its own events",
+                        ),
+                    ));
+                }
+            }
+            let events = request
+                .events
+                .into_iter()
+                .map(|event| TrackListenInput {
+                    id: event.id,
+                    track_id: event.track_id,
+                    album_id: event.album_id,
+                    device_id: event.device_id,
+                    source_plugin_id: event.source_plugin_id,
+                    listened_at: event.listened_at,
+                    played_ms: event.played_ms.map(u64::from),
+                    completed: event.completed,
+                    context: event.context,
+                    context_id: event.context_id,
+                })
+                .collect();
+            match state
+                .listen
+                .append_batch(&auth.account_id, events, auth.principal_id())
+            {
+                Ok(result) => RpcResponse::ListenEventsAppend(ListenAppendOutcome::Ready(
+                    RpcListenAppendResult {
+                        accepted: u32::try_from(result.accepted).unwrap_or(u32::MAX),
+                        duplicates: u32::try_from(result.duplicates).unwrap_or(u32::MAX),
+                    },
+                )),
+                Err(ListenError::InvalidEventId(_) | ListenError::InvalidTime(_)) => {
+                    RpcResponse::ListenEventsAppend(ListenAppendOutcome::Invalid(
+                        RpcFailure::permanent("listen.invalidEvent", "listen event is invalid"),
+                    ))
+                }
+                Err(ListenError::EventIdConflict(id)) => RpcResponse::ListenEventsAppend(
+                    ListenAppendOutcome::Conflict(RpcFailure::permanent(
+                        "listen.eventIdConflict",
+                        format!("event id '{id}' has different content"),
+                    )),
+                ),
+                Err(error) => RpcResponse::ListenEventsAppend(ListenAppendOutcome::Unavailable(
+                    listen_failure(error),
+                )),
+            }
+        }
+        RpcRequest::ListenHistoryList(request) => {
+            let Some(auth) = auth else {
+                return auth_required();
+            };
+            let limit = usize::try_from(request.limit.unwrap_or(100).min(1000)).unwrap_or(1000);
+            match state.listen.history(&auth.account_id, limit) {
+                Ok(events) => RpcResponse::ListenHistoryList(ListenHistoryOutcome::Ready(
+                    events
+                        .into_iter()
+                        .map(|event| RpcListenEvent {
+                            id: event.id,
+                            track_id: event.track_id,
+                            album_id: event.album_id,
+                            device_id: event.device_id,
+                            source_plugin_id: event.source_plugin_id,
+                            listened_at: event.listened_at,
+                            played_ms: event
+                                .played_ms
+                                .map(|played| u32::try_from(played).unwrap_or(u32::MAX)),
+                            completed: event.completed,
+                            context: event.context,
+                            context_id: event.context_id,
+                        })
+                        .collect(),
+                )),
+                Err(error) => RpcResponse::ListenHistoryList(ListenHistoryOutcome::Unavailable(
+                    listen_failure(error),
+                )),
+            }
+        }
+        RpcRequest::LibraryHotAlbumsList(request) => {
+            let Some(auth) = auth else {
+                return auth_required();
+            };
+            let config = HotConfig {
+                min_recent_listens: request.min_recent_listens.unwrap_or(3),
+                window_days: u64::from(request.window_days.unwrap_or(30)),
+            };
+            match state
+                .projections
+                .rebuild_hot(&auth.account_id, config, Utc::now())
+            {
+                Ok(albums) => RpcResponse::LibraryHotAlbumsList(HotAlbumsListOutcome::Ready(
+                    albums
+                        .into_iter()
+                        .map(|album| RpcHotAlbum {
+                            album_id: album.album_id,
+                            listen_count: album.listen_count,
+                            window_start: album.window_start,
+                            computed_at: album.computed_at,
+                        })
+                        .collect(),
+                )),
+                Err(error) => RpcResponse::LibraryHotAlbumsList(HotAlbumsListOutcome::Unavailable(
+                    listen_failure(error),
+                )),
+            }
+        }
     }
 }
 
@@ -623,6 +742,10 @@ fn session_failure(error: SessionError) -> RpcFailure {
 
 fn library_failure(error: LibraryError) -> RpcFailure {
     RpcFailure::retryable("library.unavailable", error.to_string())
+}
+
+fn listen_failure(error: ListenError) -> RpcFailure {
+    RpcFailure::retryable("listen.unavailable", error.to_string())
 }
 
 fn account_failure(error: AccountError) -> RpcFailure {

@@ -1,5 +1,6 @@
 import type { ReactNode } from "react"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { ulid } from "ulid"
 import type {
   RpcAuthGrant,
   RpcPlugin,
@@ -183,13 +184,26 @@ export function ReferenceApp({ client = liveClient, children }: ReferenceAppProp
   }, [client, currentToken, run, session])
 
   const reportEnded = useCallback(async () => {
-    if (session === undefined) return
+    if (session === undefined || grant === undefined || session.currentTrackId === undefined) return
+    const track = tracks.find((candidate) => candidate.id === session.currentTrackId)
+    const playedMs = Math.min(Math.round((audioElement.current?.duration ?? 0) * 1000), 0xffffffff)
+    await client.appendListen(currentToken(), {
+      id: ulid(),
+      trackId: session.currentTrackId,
+      deviceId: grant.device.id,
+      ...(track?.sourcePluginId === undefined ? {} : { sourcePluginId: track.sourcePluginId }),
+      listenedAt: new Date().toISOString(),
+      ...(playedMs === 0 ? {} : { playedMs }),
+      completed: true,
+      context: "queue",
+      contextId: session.id,
+    })
     const updated = await client.command(currentToken(), session.id, {
       _tag: "transport.trackEnded",
       payload: {},
     })
     setSession(updated)
-  }, [client, currentToken, session])
+  }, [client, currentToken, grant, session, tracks])
 
   const attachAudio = useCallback((element: HTMLAudioElement | null) => {
     audioElement.current = element
