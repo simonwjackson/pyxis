@@ -9,6 +9,8 @@ pkgs.mkShell {
     pkgs.rust-analyzer
     pkgs.bun
     pkgs.biome
+    pkgs.yt-dlp
+    pkgs.ffmpeg-headless
     pkgs.typeshare
     pkgs.just
     pkgs.jq

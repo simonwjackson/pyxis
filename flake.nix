@@ -23,8 +23,15 @@
       system:
       let
         pkgs = import nixpkgs { inherit system; };
+        pluginYtmusic = import ./nix/plugin-ytmusic.nix { inherit pkgs; };
       in
       {
+        packages = {
+          plugin-ytmusic = pluginYtmusic;
+        };
+        checks = {
+          plugin-ytmusic = pluginYtmusic;
+        };
         devShells.default = import ./nix/devshell.nix { inherit pkgs proseql; };
       }
     );

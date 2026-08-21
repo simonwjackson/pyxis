@@ -7,7 +7,7 @@ import {
   type PluginResponse,
   type PluginResponseEnvelope,
 } from "../../../contracts/generated/pyxis"
-import { dispatchCapability, type PluginDefinition } from "./capabilities.ts"
+import { dispatchCapability, type PluginDefinition, pluginFailure } from "./capabilities.ts"
 
 export const PLUGIN_PROTOCOL_VERSION = 1
 
@@ -23,6 +23,15 @@ export interface PluginRuntime {
 }
 
 export function createPluginRuntime(definition: PluginDefinition): PluginRuntime {
+  let initialization: Promise<PluginFailure | undefined> | undefined
+  const initialize = (): Promise<PluginFailure | undefined> => {
+    initialization ??= Promise.resolve()
+      .then(() => definition.initialize?.())
+      .then(() => undefined)
+      .catch((error: unknown) => pluginFailure(error))
+    return initialization
+  }
+
   return {
     async handleLine(line) {
       const parsed = parseEnvelope(line)
@@ -31,35 +40,42 @@ export function createPluginRuntime(definition: PluginDefinition): PluginRuntime
 
       let response: PluginResponse
       if (request._tag === "plugin.handshake") {
+        const initializationFailure = await initialize()
         response = {
           _tag: "plugin.handshake",
           outcome:
-            request.payload.protocolVersion === PLUGIN_PROTOCOL_VERSION
+            request.payload.protocolVersion !== PLUGIN_PROTOCOL_VERSION
               ? {
-                  status: "ready",
-                  value: {
-                    ...definition.manifest,
-                    protocolVersion: PLUGIN_PROTOCOL_VERSION,
-                  },
-                }
-              : {
                   status: "rejected",
                   value: {
                     code: "protocol.versionMismatch",
                     message: `core requested protocol ${request.payload.protocolVersion}; plugin supports ${PLUGIN_PROTOCOL_VERSION}`,
                     retryable: false,
                   },
-                },
+                }
+              : initializationFailure !== undefined
+                ? { status: "rejected", value: initializationFailure }
+                : {
+                    status: "ready",
+                    value: {
+                      ...definition.manifest,
+                      protocolVersion: PLUGIN_PROTOCOL_VERSION,
+                    },
+                  },
         }
       } else {
+        const initializationFailure = await initialize()
         response = {
           _tag: "capability.call",
-          outcome: await dispatchCapability(
-            definition,
-            request.payload.capability,
-            request.payload.operation,
-            request.payload.input,
-          ),
+          outcome:
+            initializationFailure === undefined
+              ? await dispatchCapability(
+                  definition,
+                  request.payload.capability,
+                  request.payload.operation,
+                  request.payload.input,
+                )
+              : { status: "unavailable", value: initializationFailure },
         }
       }
 

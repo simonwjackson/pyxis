@@ -1,6 +1,7 @@
 import type {
   PluginCallOutcome,
   PluginCapability,
+  PluginFailure,
   PluginManifest,
 } from "../../../contracts/generated/pyxis"
 
@@ -14,6 +15,8 @@ export type PluginManifestInput = Omit<PluginManifest, "protocolVersion">
 
 export interface PluginDefinition {
   readonly manifest: PluginManifestInput
+  /// Runs once before the first handshake or capability call. Its result is cached.
+  readonly initialize?: () => void | Promise<void>
   readonly capabilities: CapabilityHandlers
 }
 
@@ -72,24 +75,21 @@ export async function dispatchCapability(
   try {
     return { status: "ready", value: await handler(input) }
   } catch (error) {
-    if (error instanceof PluginOperationError) {
-      return {
-        status: "unavailable",
-        value: {
-          code: error.code,
-          message: error.message,
-          retryable: error.retryable,
-        },
-      }
-    }
+    return { status: "unavailable", value: pluginFailure(error) }
+  }
+}
+
+export function pluginFailure(error: unknown): PluginFailure {
+  if (error instanceof PluginOperationError) {
     return {
-      status: "unavailable",
-      value: {
-        code: "plugin.defect",
-        message:
-          error instanceof Error ? error.message : "plugin operation threw a non-Error value",
-        retryable: false,
-      },
+      code: error.code,
+      message: error.message,
+      retryable: error.retryable,
     }
+  }
+  return {
+    code: "plugin.defect",
+    message: error instanceof Error ? error.message : "plugin operation threw a non-Error value",
+    retryable: false,
   }
 }

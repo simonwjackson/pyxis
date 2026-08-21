@@ -9,7 +9,7 @@
   ],
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "test": "bun test"
+    "test": "bun test --path-ignore-patterns='result/**'"
   },
   "devDependencies": {
     "@types/bun": "1.3.13",

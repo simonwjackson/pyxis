@@ -36,7 +36,7 @@ lint-ts:
     biome check .
 
 test-ts:
-    bun test
+    bun run test
 
 # Run the service from source.
 dev *ARGS:

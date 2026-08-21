@@ -13,9 +13,18 @@
       "name": "@pyxis/plugin-sdk",
       "version": "1.0.0",
     },
+    "plugins/ytmusic": {
+      "name": "@pyxis/plugin-ytmusic",
+      "version": "1.0.0",
+      "dependencies": {
+        "@pyxis/plugin-sdk": "workspace:*",
+      },
+    },
   },
   "packages": {
     "@pyxis/plugin-sdk": ["@pyxis/plugin-sdk@workspace:packages/plugin-sdk"],
+
+    "@pyxis/plugin-ytmusic": ["@pyxis/plugin-ytmusic@workspace:plugins/ytmusic"],
 
     "@types/bun": ["@types/bun@1.3.13", "", { "dependencies": { "bun-types": "1.3.13" } }, "sha512-9fqXWk5YIHGGnUau9TEi+qdlTYDAnOj+xLCmSTwXfAIqXr2x4tytJb43E9uCvt09zJURKXwAtkoH4nLQfzeTXw=="],
 
