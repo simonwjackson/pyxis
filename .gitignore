@@ -11,6 +11,9 @@ result
 result-*
 .direnv/
 
+# Flake-managed symlink to the proseql checkout, created by the devshell hook.
+.cache/
+
 # Local tooling caches
 .lab/
 .fallow/
