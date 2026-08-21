@@ -1,4 +1,4 @@
-{ pkgs, proseql }:
+{ pkgs, proseql, bun2nixPkgs }:
 
 pkgs.mkShell {
   buildInputs = [
@@ -8,6 +8,7 @@ pkgs.mkShell {
     pkgs.rustfmt
     pkgs.rust-analyzer
     pkgs.bun
+    bun2nixPkgs.default
     pkgs.biome
     pkgs.yt-dlp
     pkgs.ffmpeg-headless

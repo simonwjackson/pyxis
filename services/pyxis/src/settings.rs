@@ -18,6 +18,7 @@ pub struct Settings {
     pub host: IpAddr,
     pub port: u16,
     pub state_dir: PathBuf,
+    pub web_root: Option<PathBuf>,
 }
 
 impl Settings {
@@ -27,12 +28,14 @@ impl Settings {
         host: Option<IpAddr>,
         port: Option<u16>,
         state_dir: Option<PathBuf>,
+        web_root: Option<PathBuf>,
         env: &impl EnvSource,
     ) -> Self {
         Settings {
             host: host.unwrap_or(DEFAULT_HOST),
             port: port.unwrap_or(DEFAULT_PORT),
             state_dir: state_dir.unwrap_or_else(|| default_state_dir(env)),
+            web_root,
         }
     }
 }
@@ -90,7 +93,8 @@ mod tests {
 
     #[test]
     fn defaults_to_loopback_so_the_core_is_never_exposed_accidentally() {
-        let settings = Settings::resolve(None, None, None, &MapEnv::new(&[("HOME", "/home/x")]));
+        let settings =
+            Settings::resolve(None, None, None, None, &MapEnv::new(&[("HOME", "/home/x")]));
 
         assert_eq!(settings.host, DEFAULT_HOST);
         assert_eq!(settings.port, DEFAULT_PORT);
@@ -102,12 +106,14 @@ mod tests {
             Some(IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0))),
             Some(9000),
             Some(PathBuf::from("/tmp/pyxis")),
+            Some(PathBuf::from("/tmp/web")),
             &MapEnv::new(&[("HOME", "/home/x")]),
         );
 
         assert_eq!(settings.host, IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)));
         assert_eq!(settings.port, 9000);
         assert_eq!(settings.state_dir, PathBuf::from("/tmp/pyxis"));
+        assert_eq!(settings.web_root, Some(PathBuf::from("/tmp/web")));
     }
 
     #[test]

@@ -22,6 +22,10 @@ struct Args {
     /// State directory. Defaults to $XDG_DATA_HOME/pyxis.
     #[arg(long, env = "PYXIS_STATE_DIR")]
     state_dir: Option<PathBuf>,
+
+    /// Built web client root. Omit in API-only deployments and development with Vite.
+    #[arg(long, env = "PYXIS_WEB_ROOT")]
+    web_root: Option<PathBuf>,
 }
 
 #[tokio::main]
@@ -34,7 +38,13 @@ async fn main() -> anyhow::Result<()> {
         .init();
 
     let args = Args::parse();
-    let settings = Settings::resolve(args.host, args.port, args.state_dir, &ProcessEnv);
+    let settings = Settings::resolve(
+        args.host,
+        args.port,
+        args.state_dir,
+        args.web_root,
+        &ProcessEnv,
+    );
 
     // Acquire before opening ProseQL. The engine requires one process owner per store, so
     // detecting a second server after the database opens is already too late.

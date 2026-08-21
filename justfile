@@ -58,6 +58,10 @@ dev-core *ARGS:
 build:
     cargo build --release
 
+# Regenerate the deterministic Bun dependency closure after bun.lock changes.
+nix-lock:
+    bun2nix --lock-file bun.lock --output-file bun.nix
+
 # Repoint the proseql input at the local checkout's current HEAD.
 # The rev is pinned in flake.nix because Nix cannot lock a dirty local input.
 proseql-pin:

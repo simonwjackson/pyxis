@@ -53,6 +53,12 @@ The core runs and serves with zero plugins installed.
 
 ## Install
 
-The YouTube Music plugin already builds as `.#plugin-ytmusic`, including its nightly
-yt-dlp updater and user timer. The complete product is not installed yet. Profile packaging
-and the tailnet edge land in M2/U25.
+The aggregate profile package now builds:
+
+```sh
+nix profile add .#pyxis
+```
+
+Do not enable its user units until the old NixOS `pyxis.service` and
+`tsnet-proxy-pyxis.service` are inactive. See [`docs/install.md`](docs/install.md) for the
+verified handoff, state paths, user units, upgrades, and rollback boundary.

@@ -13,7 +13,8 @@ pkgs.runCommand "pyxis-ytdlp-update-units" { } ''
 
   [Service]
   Type=oneshot
-  ExecStart=%h/.nix-profile/bin/pyxis-ytdlp-update
+  ExecSearchPath=%h/.nix-profile/bin
+  ExecStart=pyxis-ytdlp-update
   EOF
 
   cat > $out/share/systemd/user/pyxis-ytdlp-update.timer <<'EOF'

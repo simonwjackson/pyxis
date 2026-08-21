@@ -4,6 +4,7 @@
 //! and the PWA shell joins at its own milestone. Keeping this router small makes it a real
 //! public-contract test target instead of hiding behavior behind a running process.
 
+use std::path::PathBuf;
 use std::sync::Arc;
 
 use anyhow::Context;
@@ -12,6 +13,7 @@ use axum::http::StatusCode;
 use axum::routing::{get, post};
 use axum::Router;
 use tokio::net::TcpListener;
+use tower_http::services::{ServeDir, ServeFile};
 
 use crate::accounts::Accounts;
 use crate::db::store::Store;
@@ -78,14 +80,26 @@ impl AppState {
 }
 
 pub fn router(state: AppState) -> Router {
-    Router::new()
+    router_with_web(state, None)
+}
+
+pub fn router_with_web(state: AppState, web_root: Option<PathBuf>) -> Router {
+    let app = Router::new()
         .route("/healthz", get(healthz))
         .route("/rpc", post(transport::rpc))
         .route("/stream/:track_id", get(stream::stream))
         // RPC payloads are metadata and commands, never media bytes. A 1 MiB request is
         // already pathological and should be rejected before it enters the contract parser.
         .layer(DefaultBodyLimit::max(1024 * 1024))
-        .with_state(Arc::new(state))
+        .with_state(Arc::new(state));
+
+    match web_root {
+        None => app,
+        Some(root) => {
+            let index = root.join("index.html");
+            app.fallback_service(ServeDir::new(root).fallback(ServeFile::new(index)))
+        }
+    }
 }
 
 pub async fn serve(settings: &Settings, state: AppState) -> anyhow::Result<()> {
@@ -96,7 +110,7 @@ pub async fn serve(settings: &Settings, state: AppState) -> anyhow::Result<()> {
 
     tracing::info!(%address, "pyxis listening");
 
-    axum::serve(listener, router(state))
+    axum::serve(listener, router_with_web(state, settings.web_root.clone()))
         .with_graceful_shutdown(shutdown_signal())
         .await
         .context("serve HTTP")

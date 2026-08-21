@@ -5,7 +5,7 @@
       "**",
       "!!target",
       "!!node_modules",
-      "!!result",
+      "!!result*",
       "!!.cache",
       "!!.direnv",
       "!!contracts/generated",

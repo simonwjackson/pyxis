@@ -4,6 +4,7 @@
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
     flake-utils.url = "github:numtide/flake-utils";
+    bun2nix.url = "github:nix-community/bun2nix?ref=refs/tags/1.5.2";
     # Pinned to an explicit rev because the local proseql checkout carries uncommitted
     # work, and Nix refuses to lock a dirty local input. The rev matches the one ossicle
     # pins, so both projects build against the same engine. Bump with `just proseql-pin`.
@@ -16,6 +17,7 @@
   outputs =
     { nixpkgs
     , flake-utils
+    , bun2nix
     , proseql
     , ...
     }:
@@ -23,16 +25,35 @@
       system:
       let
         pkgs = import nixpkgs { inherit system; };
-        pluginYtmusic = import ./nix/plugin-ytmusic.nix { inherit pkgs; };
+        mkBunDerivation = bun2nix.lib.${system}.mkBunDerivation;
+        client = import ./nix/client.nix { inherit pkgs mkBunDerivation; };
+        core = import ./nix/core.nix { inherit pkgs proseql; };
+        plugins = import ./nix/plugins.nix { inherit pkgs mkBunDerivation; };
+        tsnet = import ./nix/pyxis-tsnet.nix { inherit pkgs; };
+        pyxis = import ./nix/package.nix {
+          inherit pkgs core client tsnet;
+          pluginYtmusic = plugins.ytmusic;
+          pluginPandora = plugins.pandora;
+        };
       in
       {
         packages = {
-          plugin-ytmusic = pluginYtmusic;
+          inherit core client pyxis;
+          plugin-ytmusic = plugins.ytmusic;
+          plugin-pandora = plugins.pandora;
+          pyxis-tsnet = tsnet;
+          default = pyxis;
         };
         checks = {
-          plugin-ytmusic = pluginYtmusic;
+          inherit core client pyxis;
+          plugin-ytmusic = plugins.ytmusic;
+          plugin-pandora = plugins.pandora;
+          pyxis-tsnet = tsnet;
         };
-        devShells.default = import ./nix/devshell.nix { inherit pkgs proseql; };
+        devShells.default = import ./nix/devshell.nix {
+          inherit pkgs proseql;
+          bun2nixPkgs = bun2nix.packages.${system};
+        };
       }
     );
 }
