@@ -19,6 +19,7 @@ use crate::library::Library;
 use crate::listen::{ListenLog, Projections};
 use crate::matching::Matcher;
 use crate::media::Media;
+use crate::plugin_credentials::CredentialVault;
 use crate::plugins::host::PluginHost;
 use crate::rpc::transport;
 use crate::sessions::Sessions;
@@ -34,6 +35,7 @@ pub struct AppState {
     pub matcher: Matcher,
     pub media: Media,
     pub projections: Projections,
+    pub(crate) plugin_credentials: CredentialVault,
     pub(crate) plugins: PluginHost,
     pub sessions: Sessions,
     pub(crate) sources: SourceCatalog,
@@ -54,15 +56,18 @@ impl AppState {
         let listen = ListenLog::open(store.clone());
         let matcher = Matcher::open(store.clone());
         let media = Media::open(store.clone())?;
+        let plugin_credentials = CredentialVault::open(store.clone())?;
         let projections = Projections::open(store.clone());
         let sessions = Sessions::open(store);
-        let sources = SourceCatalog::new(plugins.clone(), media.clone());
+        let sources =
+            SourceCatalog::new(plugins.clone(), media.clone(), plugin_credentials.clone());
         Ok(AppState {
             accounts,
             library,
             listen,
             matcher,
             media,
+            plugin_credentials,
             projections,
             plugins,
             sessions,

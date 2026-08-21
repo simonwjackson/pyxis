@@ -19,7 +19,9 @@ use tokio_util::io::ReaderStream;
 
 use crate::accounts::SCOPE_ACCOUNT_READ;
 use crate::api::AppState;
+use crate::db::store::AccountId;
 use crate::media::{ResolveOutcome, ResolvedLocation};
+use crate::plugin_credentials::CredentialVault;
 use crate::plugins::host::PluginHost;
 use crate::rpc::contract::RpcFailure;
 
@@ -130,6 +132,8 @@ pub async fn stream(
         } => {
             let mut descriptor = match resolve_plugin_stream(
                 plugins.clone(),
+                state.plugin_credentials.clone(),
+                auth.account_id.clone(),
                 plugin_id.clone(),
                 external_id.clone(),
             )
@@ -152,6 +156,8 @@ pub async fn stream(
             if matches!(fetched, Err(ProxyError::Status(401 | 403 | 410))) {
                 descriptor = match resolve_plugin_stream(
                     plugins.clone(),
+                    state.plugin_credentials.clone(),
+                    auth.account_id.clone(),
                     plugin_id.clone(),
                     external_id.clone(),
                 )
@@ -176,6 +182,8 @@ pub async fn stream(
                         &state.stream.cache,
                         &candidate.id,
                         plugins,
+                        state.plugin_credentials.clone(),
+                        auth.account_id.clone(),
                         plugin_id,
                         external_id,
                     )
@@ -200,22 +208,32 @@ pub async fn stream(
 
 async fn resolve_plugin_stream(
     plugins: PluginHost,
+    credentials: CredentialVault,
+    account_id: AccountId,
     plugin_id: String,
     external_id: String,
 ) -> Result<RemoteStreamDescriptor, RpcFailure> {
     let resolved = tokio::task::spawn_blocking(move || {
-        plugins.call(
-            &plugin_id,
-            "source",
-            "stream.resolve",
-            json!({ "trackId": external_id }),
-        )
+        let config = credentials
+            .get(&account_id, &plugin_id)
+            .map_err(|error| error.to_string())?
+            .map(serde_json::Value::from);
+        plugins
+            .call_for_account(
+                &plugin_id,
+                "source",
+                "stream.resolve",
+                json!({ "trackId": external_id }),
+                account_id.as_str(),
+                config,
+            )
+            .map_err(|error| error.to_string())
     })
     .await;
     let value = match resolved {
         Ok(Ok(value)) => value,
         Ok(Err(error)) => {
-            return Err(RpcFailure::retryable("plugin.stream", error.to_string()));
+            return Err(RpcFailure::retryable("plugin.stream", error));
         }
         Err(error) => {
             return Err(RpcFailure::retryable("plugin.stream", error.to_string()));
@@ -236,6 +254,8 @@ async fn fetch_via_plugin(
     cache: &StreamCache,
     key: &str,
     plugins: PluginHost,
+    credentials: CredentialVault,
+    account_id: AccountId,
     plugin_id: String,
     external_id: String,
 ) -> Result<std::path::PathBuf, RpcFailure> {
@@ -253,12 +273,20 @@ async fn fetch_via_plugin(
     let target_path = temporary.to_string_lossy().into_owned();
     let operation_path = target_path.clone();
     let called = tokio::task::spawn_blocking(move || {
-        plugins.call(
-            &plugin_id,
-            "source",
-            "stream.fetch",
-            json!({ "trackId": external_id, "targetPath": operation_path }),
-        )
+        let config = credentials
+            .get(&account_id, &plugin_id)
+            .map_err(|error| error.to_string())?
+            .map(serde_json::Value::from);
+        plugins
+            .call_for_account(
+                &plugin_id,
+                "source",
+                "stream.fetch",
+                json!({ "trackId": external_id, "targetPath": operation_path }),
+                account_id.as_str(),
+                config,
+            )
+            .map_err(|error| error.to_string())
     })
     .await;
     let result = async {

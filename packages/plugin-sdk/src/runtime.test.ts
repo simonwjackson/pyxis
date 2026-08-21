@@ -22,6 +22,7 @@ const reference = definePlugin({
   capabilities: {
     source: {
       search: async (input) => ({ plugin: "reference", input }),
+      context: async (_input, context) => context,
       fail: async () => {
         throw new PluginOperationError("source.unavailable", "source is offline", true)
       },
@@ -91,6 +92,38 @@ describe("plugin runtime", () => {
     expect(enricher).toMatchObject({
       _tag: "response",
       envelope: { response: { outcome: { status: "ready" } } },
+    })
+  })
+
+  test("passes account id and decrypted config only to the operation context", async () => {
+    const runtime = createPluginRuntime(reference)
+
+    const result = await runtime.handleLine(
+      request({
+        _tag: "capability.call",
+        payload: {
+          capability: PluginCapability.Source,
+          operation: "context",
+          input: {},
+          accountId: "account-a",
+          config: { username: "user", password: "secret" },
+        },
+      }),
+    )
+
+    expect(result).toMatchObject({
+      _tag: "response",
+      envelope: {
+        response: {
+          outcome: {
+            status: "ready",
+            value: {
+              accountId: "account-a",
+              config: { username: "user", password: "secret" },
+            },
+          },
+        },
+      },
     })
   })
 

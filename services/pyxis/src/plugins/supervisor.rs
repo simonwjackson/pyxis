@@ -75,11 +75,17 @@ pub enum PluginCallError {
     },
 }
 
+pub struct PluginInvocation {
+    pub capability: PluginCapability,
+    pub operation: String,
+    pub input: Value,
+    pub account_id: Option<String>,
+    pub config: Option<Value>,
+}
+
 pub enum SupervisorCommand {
     Call {
-        capability: PluginCapability,
-        operation: String,
-        input: Value,
+        invocation: Box<PluginInvocation>,
         reply: Sender<Result<Value, PluginCallError>>,
     },
     Shutdown,
@@ -166,20 +172,8 @@ fn supervise(
                 registry.set_status(&id, PluginStatus::Stopped, None);
                 return;
             }
-            Ok(SupervisorCommand::Call {
-                capability,
-                operation,
-                input,
-                reply,
-            }) => {
-                let outcome = call_process(
-                    &mut running,
-                    &id,
-                    capability,
-                    &operation,
-                    input,
-                    policy.call_timeout,
-                );
+            Ok(SupervisorCommand::Call { invocation, reply }) => {
+                let outcome = call_process(&mut running, &id, &invocation, policy.call_timeout);
                 let process_failed = matches!(
                     outcome,
                     Err(PluginCallError::ProcessExited { .. })
@@ -350,15 +344,17 @@ fn restart_after_failure(
 fn call_process(
     running: &mut RunningPlugin,
     plugin_id: &str,
-    capability: PluginCapability,
-    operation: &str,
-    input: Value,
+    invocation: &PluginInvocation,
     timeout: Duration,
 ) -> Result<Value, PluginCallError> {
-    if !running.manifest.capabilities.contains(&capability) {
+    if !running
+        .manifest
+        .capabilities
+        .contains(&invocation.capability)
+    {
         return Err(PluginCallError::CapabilityUnavailable {
             plugin_id: plugin_id.into(),
-            capability: capability.as_str().into(),
+            capability: invocation.capability.as_str().into(),
         });
     }
 
@@ -366,15 +362,17 @@ fn call_process(
     let envelope = PluginRequestEnvelope {
         id: id.clone(),
         request: PluginRequest::CapabilityCall(PluginCapabilityCall {
-            capability,
-            operation: operation.to_string(),
-            input: PluginValue::from(input),
+            capability: invocation.capability,
+            operation: invocation.operation.clone(),
+            input: PluginValue::from(invocation.input.clone()),
+            account_id: invocation.account_id.clone(),
+            config: invocation.config.clone().map(PluginValue::from),
         }),
     };
     if write_line(&mut running.stdin, &envelope).is_err() {
         return Err(PluginCallError::ProcessExited {
             plugin_id: plugin_id.into(),
-            operation: operation.into(),
+            operation: invocation.operation.clone(),
         });
     }
 
@@ -390,13 +388,13 @@ fn call_process(
             let _ = running.child.kill();
             return Err(PluginCallError::Timeout {
                 plugin_id: plugin_id.into(),
-                operation: operation.into(),
+                operation: invocation.operation.clone(),
             });
         }
         Err(RecvTimeoutError::Disconnected) => {
             return Err(PluginCallError::ProcessExited {
                 plugin_id: plugin_id.into(),
-                operation: operation.into(),
+                operation: invocation.operation.clone(),
             });
         }
     };
@@ -417,7 +415,7 @@ fn call_process(
         PluginResponse::CapabilityCall(PluginCallOutcome::Unavailable(failure)) => {
             Err(PluginCallError::Plugin {
                 plugin_id: plugin_id.into(),
-                operation: operation.into(),
+                operation: invocation.operation.clone(),
                 code: failure.code,
                 message: failure.message,
                 retryable: failure.retryable,

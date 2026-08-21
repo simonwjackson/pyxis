@@ -325,7 +325,8 @@ pub fn plugin_credentials() -> CollectionDescriptor {
         PLUGIN_CREDENTIALS,
         vec![
             field("pluginId", SchemaNode::Str),
-            field("secret", SchemaNode::Str),
+            field("ciphertext", SchemaNode::Str),
+            field("nonce", SchemaNode::Str),
         ],
     )
 }

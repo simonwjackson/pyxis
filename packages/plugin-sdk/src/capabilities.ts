@@ -5,7 +5,15 @@ import type {
   PluginManifest,
 } from "../../../contracts/generated/pyxis"
 
-export type CapabilityHandler = (input: unknown) => unknown | Promise<unknown>
+export interface CapabilityContext {
+  readonly accountId?: string
+  readonly config: unknown
+}
+
+export type CapabilityHandler = (
+  input: unknown,
+  context: CapabilityContext,
+) => unknown | Promise<unknown>
 
 export type CapabilityHandlers = Partial<
   Record<PluginCapability, Readonly<Record<string, CapabilityHandler>>>
@@ -59,6 +67,7 @@ export async function dispatchCapability(
   capability: PluginCapability,
   operation: string,
   input: unknown,
+  context: CapabilityContext,
 ): Promise<PluginCallOutcome> {
   const handler = definition.capabilities[capability]?.[operation]
   if (handler === undefined) {
@@ -73,7 +82,7 @@ export async function dispatchCapability(
   }
 
   try {
-    return { status: "ready", value: await handler(input) }
+    return { status: "ready", value: await handler(input, context) }
   } catch (error) {
     return { status: "unavailable", value: pluginFailure(error) }
   }

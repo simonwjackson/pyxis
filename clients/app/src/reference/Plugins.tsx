@@ -14,7 +14,8 @@ export function ReferencePlugins() {
         <ul>
           {plugins.map((plugin) => (
             <li key={plugin.id}>
-              {plugin.name} ({plugin.id}) — {plugin.status} — {plugin.capabilities.join(", ")}
+              {plugin.name} ({plugin.id}) — {plugin.status} — {plugin.capabilities.join(", ")} —{" "}
+              {plugin.configured ? "configured" : "not configured"}
             </li>
           ))}
         </ul>

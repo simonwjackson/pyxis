@@ -6,6 +6,7 @@ export type {
 } from "../../../contracts/generated/pyxis"
 export { PluginCapability } from "../../../contracts/generated/pyxis"
 export type {
+  CapabilityContext,
   CapabilityHandler,
   CapabilityHandlers,
   PluginDefinition,

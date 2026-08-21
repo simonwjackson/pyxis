@@ -15,7 +15,7 @@ use serde_json::Value;
 
 use super::protocol::PluginCapability;
 use super::registry::{PluginInfo, PluginRegistry, PluginStatus};
-use super::supervisor::{self, StartOutcome, SupervisorCommand};
+use super::supervisor::{self, PluginInvocation, StartOutcome, SupervisorCommand};
 pub use super::supervisor::{HostPolicy, PluginCallError};
 
 const PLUGIN_PREFIX: &str = "pyxis-plugin-";
@@ -141,6 +141,37 @@ impl PluginHost {
         operation: &str,
         input: Value,
     ) -> Result<Value, PluginCallError> {
+        self.call_with_context(plugin_id, capability, operation, input, None, None)
+    }
+
+    pub fn call_for_account(
+        &self,
+        plugin_id: &str,
+        capability: &str,
+        operation: &str,
+        input: Value,
+        account_id: &str,
+        config: Option<Value>,
+    ) -> Result<Value, PluginCallError> {
+        self.call_with_context(
+            plugin_id,
+            capability,
+            operation,
+            input,
+            Some(account_id.to_string()),
+            config,
+        )
+    }
+
+    fn call_with_context(
+        &self,
+        plugin_id: &str,
+        capability: &str,
+        operation: &str,
+        input: Value,
+        account_id: Option<String>,
+        config: Option<Value>,
+    ) -> Result<Value, PluginCallError> {
         let capability = PluginCapability::parse(capability).ok_or_else(|| {
             PluginCallError::CapabilityUnavailable {
                 plugin_id: plugin_id.into(),
@@ -186,9 +217,13 @@ impl PluginHost {
         let (reply, outcome) = mpsc::channel();
         sender
             .send(SupervisorCommand::Call {
-                capability,
-                operation: operation.into(),
-                input,
+                invocation: Box::new(PluginInvocation {
+                    capability,
+                    operation: operation.into(),
+                    input,
+                    account_id,
+                    config,
+                }),
                 reply,
             })
             .map_err(|_| PluginCallError::Unavailable {

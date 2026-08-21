@@ -139,21 +139,35 @@ pub fn dispatch(state: &AppState, request: RpcRequest, auth: Option<AuthContext>
                 )),
             }
         }
-        RpcRequest::PluginList(_) => RpcResponse::PluginList(PluginListOutcome::Ready(
-            state
-                .plugins
-                .list()
-                .into_iter()
-                .map(|plugin| RpcPlugin {
+        RpcRequest::PluginList(_) => {
+            let Some(auth) = auth else {
+                return auth_required();
+            };
+            let mut plugins = Vec::new();
+            for plugin in state.plugins.list() {
+                let configured = match state
+                    .plugin_credentials
+                    .is_configured(&auth.account_id, &plugin.id)
+                {
+                    Ok(configured) => configured,
+                    Err(error) => {
+                        return RpcResponse::PluginList(PluginListOutcome::Unavailable(
+                            RpcFailure::retryable("plugin.configUnavailable", error.to_string()),
+                        ));
+                    }
+                };
+                plugins.push(RpcPlugin {
                     id: plugin.id,
                     name: plugin.name,
                     version: plugin.version,
                     capabilities: plugin.capabilities,
                     status: plugin.status.as_str().into(),
+                    configured,
                     reason: plugin.reason,
-                })
-                .collect(),
-        )),
+                });
+            }
+            RpcResponse::PluginList(PluginListOutcome::Ready(plugins))
+        }
         RpcRequest::SessionCreate(request) => {
             let Some(auth) = auth else {
                 return auth_required();
@@ -636,6 +650,37 @@ pub fn dispatch(state: &AppState, request: RpcRequest, auth: Option<AuthContext>
                 Ok(false) => RpcResponse::MatchingOverrideRemove(CommandOutcome::Unknown),
                 Err(error) => RpcResponse::MatchingOverrideRemove(CommandOutcome::Unavailable(
                     RpcFailure::retryable("matching.unavailable", error.to_string()),
+                )),
+            }
+        }
+        RpcRequest::PluginConfigSet(request) => {
+            let Some(auth) = auth else {
+                return auth_required();
+            };
+            match state.plugin_credentials.set(
+                &auth.account_id,
+                &request.plugin_id,
+                &request.config,
+                auth.principal_id(),
+            ) {
+                Ok(()) => RpcResponse::PluginConfigSet(CommandOutcome::Succeeded),
+                Err(error) => RpcResponse::PluginConfigSet(CommandOutcome::Unavailable(
+                    RpcFailure::retryable("plugin.configUnavailable", error.to_string()),
+                )),
+            }
+        }
+        RpcRequest::PluginConfigRemove(request) => {
+            let Some(auth) = auth else {
+                return auth_required();
+            };
+            match state
+                .plugin_credentials
+                .remove(&auth.account_id, &request.plugin_id)
+            {
+                Ok(true) => RpcResponse::PluginConfigRemove(CommandOutcome::Succeeded),
+                Ok(false) => RpcResponse::PluginConfigRemove(CommandOutcome::Unknown),
+                Err(error) => RpcResponse::PluginConfigRemove(CommandOutcome::Unavailable(
+                    RpcFailure::retryable("plugin.configUnavailable", error.to_string()),
                 )),
             }
         }

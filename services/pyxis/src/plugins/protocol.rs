@@ -140,6 +140,12 @@ pub struct PluginCapabilityCall {
     pub capability: PluginCapability,
     pub operation: String,
     pub input: PluginValue,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub account_id: Option<String>,
+    /// Decrypted per-account config. It exists only in this request and plugin memory;
+    /// plaintext is never stored in ProseQL or logged by core.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub config: Option<PluginValue>,
 }
 
 #[typeshare]

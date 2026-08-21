@@ -162,6 +162,21 @@ export interface PluginCapabilityCall {
 	capability: PluginCapability;
 	operation: string;
 	input: PluginValue;
+	accountId?: string;
+	/**
+	 * Decrypted per-account config. It exists only in this request and plugin memory;
+	 * plaintext is never stored in ProseQL or logged by core.
+	 */
+	config?: PluginValue;
+}
+
+export interface PluginConfigRemoveRequest {
+	pluginId: string;
+}
+
+export interface PluginConfigSetRequest {
+	pluginId: string;
+	config: PluginValue;
 }
 
 export interface PluginFailure {
@@ -377,6 +392,7 @@ export interface RpcPlugin {
 	version: string;
 	capabilities: string[];
 	status: string;
+	configured: boolean;
 	reason?: string;
 }
 
@@ -609,7 +625,9 @@ export type RpcRequest =
 	| { _tag: "library.hotAlbums.list", payload: HotAlbumsListRequest }
 	| { _tag: "matching.evaluate", payload: MatchingEvaluateRequest }
 	| { _tag: "matching.override.set", payload: MatchingOverrideSetRequest }
-	| { _tag: "matching.override.remove", payload: MatchingOverrideRemoveRequest };
+	| { _tag: "matching.override.remove", payload: MatchingOverrideRemoveRequest }
+	| { _tag: "plugin.config.set", payload: PluginConfigSetRequest }
+	| { _tag: "plugin.config.remove", payload: PluginConfigRemoveRequest };
 
 export type RpcResponse =
 	| { _tag: "system.status.get", outcome: SystemStatusOutcome }
@@ -639,6 +657,8 @@ export type RpcResponse =
 	| { _tag: "matching.evaluate", outcome: MatchingEvaluateOutcome }
 	| { _tag: "matching.override.set", outcome: CommandOutcome }
 	| { _tag: "matching.override.remove", outcome: CommandOutcome }
+	| { _tag: "plugin.config.set", outcome: CommandOutcome }
+	| { _tag: "plugin.config.remove", outcome: CommandOutcome }
 	| { _tag: "rpc.failure", outcome: RpcProtocolFailureOutcome };
 
 export type SessionCommandOutcome =

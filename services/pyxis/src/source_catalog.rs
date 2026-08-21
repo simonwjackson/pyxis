@@ -4,6 +4,7 @@ use serde::Deserialize;
 
 use crate::accounts::AuthContext;
 use crate::media::{Fidelity, Media, PluginCandidateInput};
+use crate::plugin_credentials::{CredentialError, CredentialVault};
 use crate::plugins::host::{PluginCallError, PluginHost};
 use crate::plugins::registry::PluginStatus;
 
@@ -39,6 +40,8 @@ pub enum SearchOutcome {
 pub enum SourceCatalogError {
     #[error(transparent)]
     Media(#[from] crate::media::MediaError),
+    #[error(transparent)]
+    Credentials(#[from] CredentialError),
 }
 
 #[derive(Debug, Deserialize)]
@@ -64,11 +67,16 @@ struct PluginSearchTrack {
 pub struct SourceCatalog {
     plugins: PluginHost,
     media: Media,
+    credentials: CredentialVault,
 }
 
 impl SourceCatalog {
-    pub fn new(plugins: PluginHost, media: Media) -> Self {
-        SourceCatalog { plugins, media }
+    pub fn new(plugins: PluginHost, media: Media, credentials: CredentialVault) -> Self {
+        SourceCatalog {
+            plugins,
+            media,
+            credentials,
+        }
     }
 
     pub fn search(
@@ -96,11 +104,17 @@ impl SourceCatalog {
         let mut tracks = Vec::new();
         let mut failures = Vec::new();
         for source in sources {
-            let output = match self.plugins.call(
+            let config = self
+                .credentials
+                .get(&auth.account_id, &source.id)?
+                .map(serde_json::Value::from);
+            let output = match self.plugins.call_for_account(
                 &source.id,
                 "source",
                 "search",
                 serde_json::json!({ "query": query, "limit": limit }),
+                auth.account_id.as_str(),
+                config,
             ) {
                 Ok(output) => output,
                 Err(error) => {

@@ -21,7 +21,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use typeshare::typeshare;
 
-use crate::plugins::protocol::{PluginRequestEnvelope, PluginResponseEnvelope};
+use crate::plugins::protocol::{PluginRequestEnvelope, PluginResponseEnvelope, PluginValue};
 
 /// Wire identity. v2 shares no protocol lineage with v1, and a client that speaks the v1
 /// protocol must fail rather than half-work.
@@ -256,6 +256,7 @@ pub struct RpcPlugin {
     pub version: String,
     pub capabilities: Vec<String>,
     pub status: String,
+    pub configured: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub reason: Option<String>,
 }
@@ -266,6 +267,21 @@ pub struct RpcPlugin {
 pub enum PluginListOutcome {
     Ready(Vec<RpcPlugin>),
     Unavailable(RpcFailure),
+}
+
+#[typeshare]
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct PluginConfigSetRequest {
+    pub plugin_id: String,
+    pub config: PluginValue,
+}
+
+#[typeshare]
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct PluginConfigRemoveRequest {
+    pub plugin_id: String,
 }
 
 #[typeshare]
@@ -971,6 +987,10 @@ pub enum RpcRequest {
     MatchingOverrideSet(MatchingOverrideSetRequest),
     #[serde(rename = "matching.override.remove")]
     MatchingOverrideRemove(MatchingOverrideRemoveRequest),
+    #[serde(rename = "plugin.config.set")]
+    PluginConfigSet(PluginConfigSetRequest),
+    #[serde(rename = "plugin.config.remove")]
+    PluginConfigRemove(PluginConfigRemoveRequest),
 }
 
 /// A request that cannot enter operation dispatch. This is separate from an operation's
@@ -1040,12 +1060,16 @@ pub enum RpcResponse {
     MatchingOverrideSet(CommandOutcome),
     #[serde(rename = "matching.override.remove")]
     MatchingOverrideRemove(CommandOutcome),
+    #[serde(rename = "plugin.config.set")]
+    PluginConfigSet(CommandOutcome),
+    #[serde(rename = "plugin.config.remove")]
+    PluginConfigRemove(CommandOutcome),
     #[serde(rename = "rpc.failure")]
     Failure(RpcProtocolFailureOutcome),
 }
 
 impl RpcRequest {
-    pub const KNOWN_TAGS: [&'static str; 27] = [
+    pub const KNOWN_TAGS: [&'static str; 29] = [
         "system.status.get",
         "auth.device.claim",
         "auth.device.pair",
@@ -1073,6 +1097,8 @@ impl RpcRequest {
         "matching.evaluate",
         "matching.override.set",
         "matching.override.remove",
+        "plugin.config.set",
+        "plugin.config.remove",
     ];
 
     /// The operation tag as it appears on the wire. Used for logging and authorization.
@@ -1105,6 +1131,8 @@ impl RpcRequest {
             RpcRequest::MatchingEvaluate(_) => "matching.evaluate",
             RpcRequest::MatchingOverrideSet(_) => "matching.override.set",
             RpcRequest::MatchingOverrideRemove(_) => "matching.override.remove",
+            RpcRequest::PluginConfigSet(_) => "plugin.config.set",
+            RpcRequest::PluginConfigRemove(_) => "plugin.config.remove",
         }
     }
 
@@ -1147,6 +1175,9 @@ impl RpcRequest {
             RpcRequest::MatchingOverrideSet(_) | RpcRequest::MatchingOverrideRemove(_) => {
                 Some("library:write")
             }
+            RpcRequest::PluginConfigSet(_) | RpcRequest::PluginConfigRemove(_) => {
+                Some("account:admin")
+            }
             RpcRequest::AuthPairingCreate(_)
             | RpcRequest::AuthTokenCreate(_)
             | RpcRequest::AuthTokenRevoke(_)
@@ -1156,7 +1187,7 @@ impl RpcRequest {
 }
 
 impl RpcResponse {
-    pub const KNOWN_OPERATION_TAGS: [&'static str; 27] = RpcRequest::KNOWN_TAGS;
+    pub const KNOWN_OPERATION_TAGS: [&'static str; 29] = RpcRequest::KNOWN_TAGS;
 
     pub fn tag(&self) -> &'static str {
         match self {
@@ -1187,6 +1218,8 @@ impl RpcResponse {
             RpcResponse::MatchingEvaluate(_) => "matching.evaluate",
             RpcResponse::MatchingOverrideSet(_) => "matching.override.set",
             RpcResponse::MatchingOverrideRemove(_) => "matching.override.remove",
+            RpcResponse::PluginConfigSet(_) => "plugin.config.set",
+            RpcResponse::PluginConfigRemove(_) => "plugin.config.remove",
             RpcResponse::Failure(_) => "rpc.failure",
         }
     }

@@ -457,6 +457,38 @@
             "_tag",
             "payload"
           ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "_tag": {
+              "type": "string",
+              "const": "plugin.config.set"
+            },
+            "payload": {
+              "$ref": "#/$defs/PluginConfigSetRequest"
+            }
+          },
+          "required": [
+            "_tag",
+            "payload"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "_tag": {
+              "type": "string",
+              "const": "plugin.config.remove"
+            },
+            "payload": {
+              "$ref": "#/$defs/PluginConfigRemoveRequest"
+            }
+          },
+          "required": [
+            "_tag",
+            "payload"
+          ]
         }
       ]
     },
@@ -1309,6 +1341,73 @@
         "rightId"
       ]
     },
+    "PluginConfigSetRequest": {
+      "type": "object",
+      "properties": {
+        "pluginId": {
+          "type": "string"
+        },
+        "config": {
+          "$ref": "#/$defs/PluginValue"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "pluginId",
+        "config"
+      ]
+    },
+    "PluginValue": {
+      "description": "JSON represented as a recursive, language-neutral sum type rather than `any`. This is\nthe input/output escape hatch for capability-specific operations while their envelopes\nand failure behavior stay fully typed.",
+      "anyOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "integer",
+          "format": "int64"
+        },
+        {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0
+        },
+        {
+          "type": "number",
+          "format": "double"
+        },
+        {
+          "type": "string"
+        },
+        {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/PluginValue"
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/PluginValue"
+          }
+        }
+      ]
+    },
+    "PluginConfigRemoveRequest": {
+      "type": "object",
+      "properties": {
+        "pluginId": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "pluginId"
+      ]
+    },
     "RpcResponse": {
       "oneOf": [
         {
@@ -1733,6 +1832,38 @@
             "_tag": {
               "type": "string",
               "const": "matching.override.remove"
+            },
+            "outcome": {
+              "$ref": "#/$defs/CommandOutcome"
+            }
+          },
+          "required": [
+            "_tag",
+            "outcome"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "_tag": {
+              "type": "string",
+              "const": "plugin.config.set"
+            },
+            "outcome": {
+              "$ref": "#/$defs/CommandOutcome"
+            }
+          },
+          "required": [
+            "_tag",
+            "outcome"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "_tag": {
+              "type": "string",
+              "const": "plugin.config.remove"
             },
             "outcome": {
               "$ref": "#/$defs/CommandOutcome"
@@ -2364,6 +2495,9 @@
         "status": {
           "type": "string"
         },
+        "configured": {
+          "type": "boolean"
+        },
         "reason": {
           "type": [
             "string",
@@ -2377,7 +2511,8 @@
         "name",
         "version",
         "capabilities",
-        "status"
+        "status",
+        "configured"
       ]
     },
     "SessionCreateOutcome": {
@@ -3780,6 +3915,23 @@
         },
         "input": {
           "$ref": "#/$defs/PluginValue"
+        },
+        "accountId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "config": {
+          "description": "Decrypted per-account config. It exists only in this request and plugin memory;\nplaintext is never stored in ProseQL or logged by core.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PluginValue"
+            },
+            {
+              "type": "null"
+            }
+          ]
         }
       },
       "additionalProperties": false,
@@ -3796,45 +3948,6 @@
         "output",
         "provider",
         "enricher"
-      ]
-    },
-    "PluginValue": {
-      "description": "JSON represented as a recursive, language-neutral sum type rather than `any`. This is\nthe input/output escape hatch for capability-specific operations while their envelopes\nand failure behavior stay fully typed.",
-      "anyOf": [
-        {
-          "type": "null"
-        },
-        {
-          "type": "boolean"
-        },
-        {
-          "type": "integer",
-          "format": "int64"
-        },
-        {
-          "type": "integer",
-          "format": "uint64",
-          "minimum": 0
-        },
-        {
-          "type": "number",
-          "format": "double"
-        },
-        {
-          "type": "string"
-        },
-        {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/PluginValue"
-          }
-        },
-        {
-          "type": "object",
-          "additionalProperties": {
-            "$ref": "#/$defs/PluginValue"
-          }
-        }
       ]
     },
     "PluginResponseEnvelope": {

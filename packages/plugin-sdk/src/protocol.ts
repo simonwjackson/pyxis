@@ -74,6 +74,12 @@ export function createPluginRuntime(definition: PluginDefinition): PluginRuntime
                   request.payload.capability,
                   request.payload.operation,
                   request.payload.input,
+                  {
+                    ...(request.payload.accountId === undefined
+                      ? {}
+                      : { accountId: request.payload.accountId }),
+                    config: request.payload.config ?? null,
+                  },
                 )
               : { status: "unavailable", value: initializationFailure },
         }
@@ -145,10 +151,15 @@ function parseRequest(value: unknown): PluginRequest | undefined {
   }
   if (value._tag === "capability.call") {
     if (
-      !hasExactKeys(value.payload, ["capability", "operation", "input"]) ||
+      !hasRequiredAndAllowedKeys(
+        value.payload,
+        ["capability", "operation", "input"],
+        ["capability", "operation", "input", "accountId", "config"],
+      ) ||
       !isPluginCapability(value.payload.capability) ||
       typeof value.payload.operation !== "string" ||
-      value.payload.operation.length === 0
+      value.payload.operation.length === 0 ||
+      (value.payload.accountId !== undefined && typeof value.payload.accountId !== "string")
     ) {
       return undefined
     }
@@ -158,6 +169,8 @@ function parseRequest(value: unknown): PluginRequest | undefined {
         capability: value.payload.capability,
         operation: value.payload.operation,
         input: value.payload.input,
+        ...(value.payload.accountId === undefined ? {} : { accountId: value.payload.accountId }),
+        ...(value.payload.config === undefined ? {} : { config: value.payload.config }),
       },
     }
   }
@@ -179,6 +192,15 @@ function hasExactKeys(value: Record<string, unknown>, expected: readonly string[
   const actual = Object.keys(value).sort()
   const wanted = [...expected].sort()
   return actual.length === wanted.length && actual.every((key, index) => key === wanted[index])
+}
+
+function hasRequiredAndAllowedKeys(
+  value: Record<string, unknown>,
+  required: readonly string[],
+  allowed: readonly string[],
+): boolean {
+  const keys = Object.keys(value)
+  return required.every((key) => keys.includes(key)) && keys.every((key) => allowed.includes(key))
 }
 
 function isPluginCapability(value: unknown): value is PluginCapability {
