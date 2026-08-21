@@ -24,6 +24,10 @@ export interface ApiTokenRevokeRequest {
 	tokenId: string;
 }
 
+export interface CursorJumpCommand {
+	index: number;
+}
+
 export interface DeviceClaimRequest {
 	name: string;
 }
@@ -85,6 +89,19 @@ export type PluginResponse =
 export interface PluginResponseEnvelope {
 	id: string;
 	response: PluginResponse;
+}
+
+export interface PositionReportCommand {
+	positionMs: number;
+	durationMs?: number;
+}
+
+export interface QueueAddCommand {
+	trackIds: string[];
+}
+
+export interface QueueRemoveCommand {
+	index: number;
 }
 
 export interface RpcAccount {
@@ -168,6 +185,30 @@ export interface RpcPlugin {
 	reason?: string;
 }
 
+export enum RpcTransport {
+	Stopped = "stopped",
+	Playing = "playing",
+	Paused = "paused",
+	Ended = "ended",
+}
+
+export interface RpcSession {
+	id: string;
+	name: string;
+	hostDeviceId: string;
+	queue: string[];
+	cursor?: number;
+	currentTrackId?: string;
+	streamPath?: string;
+	transport: RpcTransport;
+	positionMs: number;
+	durationMs?: number;
+	volume: number;
+	reachable: boolean;
+	revision: number;
+	updatedAt: string;
+}
+
 /**
  * Service health and capability summary.
  *
@@ -185,6 +226,36 @@ export interface RpcSystemStatus {
 	 * `source` or `output`. Empty is a valid, working state.
 	 */
 	capabilities: string[];
+}
+
+export type RpcSessionCommand =
+	| { _tag: "queue.add", payload: QueueAddCommand }
+	| { _tag: "queue.remove", payload: QueueRemoveCommand }
+	| { _tag: "queue.clear", payload: EmptyRequest }
+	| { _tag: "queue.shuffle", payload: EmptyRequest }
+	| { _tag: "cursor.jump", payload: CursorJumpCommand }
+	| { _tag: "transport.play", payload: EmptyRequest }
+	| { _tag: "transport.pause", payload: EmptyRequest }
+	| { _tag: "transport.stop", payload: EmptyRequest }
+	| { _tag: "transport.trackEnded", payload: EmptyRequest }
+	| { _tag: "position.report", payload: PositionReportCommand }
+	| { _tag: "volume.set", payload: VolumeSetCommand };
+
+export interface SessionCommandRequest {
+	sessionId: string;
+	command: RpcSessionCommand;
+}
+
+export interface SessionCreateRequest {
+	name: string;
+}
+
+export interface SessionIdRequest {
+	sessionId: string;
+}
+
+export interface VolumeSetCommand {
+	volume: number;
 }
 
 export type AccountCreateOutcome =
@@ -249,7 +320,11 @@ export type RpcRequest =
 	| { _tag: "auth.token.revoke", payload: ApiTokenRevokeRequest }
 	| { _tag: "account.list", payload: EmptyRequest }
 	| { _tag: "account.create", payload: AccountCreateRequest }
-	| { _tag: "plugin.list", payload: EmptyRequest };
+	| { _tag: "plugin.list", payload: EmptyRequest }
+	| { _tag: "session.create", payload: SessionCreateRequest }
+	| { _tag: "session.list", payload: EmptyRequest }
+	| { _tag: "session.state.get", payload: SessionIdRequest }
+	| { _tag: "session.command.run", payload: SessionCommandRequest };
 
 export type RpcResponse =
 	| { _tag: "system.status.get", outcome: SystemStatusOutcome }
@@ -261,7 +336,33 @@ export type RpcResponse =
 	| { _tag: "account.list", outcome: AccountListOutcome }
 	| { _tag: "account.create", outcome: AccountCreateOutcome }
 	| { _tag: "plugin.list", outcome: PluginListOutcome }
+	| { _tag: "session.create", outcome: SessionCreateOutcome }
+	| { _tag: "session.list", outcome: SessionListOutcome }
+	| { _tag: "session.state.get", outcome: SessionStateOutcome }
+	| { _tag: "session.command.run", outcome: SessionCommandOutcome }
 	| { _tag: "rpc.failure", outcome: RpcProtocolFailureOutcome };
+
+export type SessionCommandOutcome =
+	| { status: "applied", value: RpcSession }
+	| { status: "unknownSession", value?: undefined }
+	| { status: "notHost", value?: undefined }
+	| { status: "notDevice", value?: undefined }
+	| { status: "rejected", value: RpcFailure }
+	| { status: "unavailable", value: RpcFailure };
+
+export type SessionCreateOutcome =
+	| { status: "ready", value: RpcSession }
+	| { status: "notDevice", value?: undefined }
+	| { status: "unavailable", value: RpcFailure };
+
+export type SessionListOutcome =
+	| { status: "ready", value: RpcSession[] }
+	| { status: "unavailable", value: RpcFailure };
+
+export type SessionStateOutcome =
+	| { status: "ready", value: RpcSession }
+	| { status: "unknown", value?: undefined }
+	| { status: "unavailable", value: RpcFailure };
 
 export type SystemStatusOutcome =
 	| { status: "ready", value: RpcSystemStatus }

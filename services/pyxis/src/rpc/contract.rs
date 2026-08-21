@@ -296,6 +296,165 @@ pub struct RpcMediaCandidate {
 }
 
 #[typeshare]
+#[derive(Clone, Copy, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub enum RpcTransport {
+    Stopped,
+    Playing,
+    Paused,
+    Ended,
+}
+
+#[typeshare]
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct RpcSession {
+    pub id: String,
+    pub name: String,
+    pub host_device_id: String,
+    pub queue: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cursor: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub current_track_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub stream_path: Option<String>,
+    pub transport: RpcTransport,
+    pub position_ms: u32,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub duration_ms: Option<u32>,
+    pub volume: u8,
+    pub reachable: bool,
+    pub revision: u32,
+    pub updated_at: String,
+}
+
+#[typeshare]
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct SessionCreateRequest {
+    pub name: String,
+}
+
+#[typeshare]
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct SessionIdRequest {
+    pub session_id: String,
+}
+
+#[typeshare]
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct QueueAddCommand {
+    pub track_ids: Vec<String>,
+}
+
+#[typeshare]
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct QueueRemoveCommand {
+    pub index: u32,
+}
+
+#[typeshare]
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct CursorJumpCommand {
+    pub index: u32,
+}
+
+#[typeshare]
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct PositionReportCommand {
+    pub position_ms: u32,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub duration_ms: Option<u32>,
+}
+
+#[typeshare]
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct VolumeSetCommand {
+    pub volume: u8,
+}
+
+#[typeshare]
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(tag = "_tag", content = "payload")]
+pub enum RpcSessionCommand {
+    #[serde(rename = "queue.add")]
+    QueueAdd(QueueAddCommand),
+    #[serde(rename = "queue.remove")]
+    QueueRemove(QueueRemoveCommand),
+    #[serde(rename = "queue.clear")]
+    QueueClear(EmptyRequest),
+    #[serde(rename = "queue.shuffle")]
+    QueueShuffle(EmptyRequest),
+    #[serde(rename = "cursor.jump")]
+    CursorJump(CursorJumpCommand),
+    #[serde(rename = "transport.play")]
+    Play(EmptyRequest),
+    #[serde(rename = "transport.pause")]
+    Pause(EmptyRequest),
+    #[serde(rename = "transport.stop")]
+    Stop(EmptyRequest),
+    #[serde(rename = "transport.trackEnded")]
+    TrackEnded(EmptyRequest),
+    #[serde(rename = "position.report")]
+    PositionReport(PositionReportCommand),
+    #[serde(rename = "volume.set")]
+    VolumeSet(VolumeSetCommand),
+}
+
+#[typeshare]
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct SessionCommandRequest {
+    pub session_id: String,
+    pub command: RpcSessionCommand,
+}
+
+#[typeshare]
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(tag = "status", content = "value", rename_all = "camelCase")]
+pub enum SessionCreateOutcome {
+    Ready(RpcSession),
+    NotDevice,
+    Unavailable(RpcFailure),
+}
+
+#[typeshare]
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(tag = "status", content = "value", rename_all = "camelCase")]
+pub enum SessionListOutcome {
+    Ready(Vec<RpcSession>),
+    Unavailable(RpcFailure),
+}
+
+#[typeshare]
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(tag = "status", content = "value", rename_all = "camelCase")]
+pub enum SessionStateOutcome {
+    Ready(RpcSession),
+    Unknown,
+    Unavailable(RpcFailure),
+}
+
+#[typeshare]
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(tag = "status", content = "value", rename_all = "camelCase")]
+pub enum SessionCommandOutcome {
+    Applied(RpcSession),
+    UnknownSession,
+    NotHost,
+    NotDevice,
+    Rejected(RpcFailure),
+    Unavailable(RpcFailure),
+}
+
+#[typeshare]
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
 #[serde(tag = "_tag", content = "payload")]
 pub enum RpcRequest {
@@ -317,6 +476,14 @@ pub enum RpcRequest {
     AccountCreate(AccountCreateRequest),
     #[serde(rename = "plugin.list")]
     PluginList(EmptyRequest),
+    #[serde(rename = "session.create")]
+    SessionCreate(SessionCreateRequest),
+    #[serde(rename = "session.list")]
+    SessionList(EmptyRequest),
+    #[serde(rename = "session.state.get")]
+    SessionStateGet(SessionIdRequest),
+    #[serde(rename = "session.command.run")]
+    SessionCommandRun(SessionCommandRequest),
 }
 
 /// A request that cannot enter operation dispatch. This is separate from an operation's
@@ -350,12 +517,20 @@ pub enum RpcResponse {
     AccountCreate(AccountCreateOutcome),
     #[serde(rename = "plugin.list")]
     PluginList(PluginListOutcome),
+    #[serde(rename = "session.create")]
+    SessionCreate(SessionCreateOutcome),
+    #[serde(rename = "session.list")]
+    SessionList(SessionListOutcome),
+    #[serde(rename = "session.state.get")]
+    SessionStateGet(SessionStateOutcome),
+    #[serde(rename = "session.command.run")]
+    SessionCommandRun(SessionCommandOutcome),
     #[serde(rename = "rpc.failure")]
     Failure(RpcProtocolFailureOutcome),
 }
 
 impl RpcRequest {
-    pub const KNOWN_TAGS: [&'static str; 9] = [
+    pub const KNOWN_TAGS: [&'static str; 13] = [
         "system.status.get",
         "auth.device.claim",
         "auth.device.pair",
@@ -365,6 +540,10 @@ impl RpcRequest {
         "account.list",
         "account.create",
         "plugin.list",
+        "session.create",
+        "session.list",
+        "session.state.get",
+        "session.command.run",
     ];
 
     /// The operation tag as it appears on the wire. Used for logging and authorization.
@@ -379,6 +558,10 @@ impl RpcRequest {
             RpcRequest::AccountList(_) => "account.list",
             RpcRequest::AccountCreate(_) => "account.create",
             RpcRequest::PluginList(_) => "plugin.list",
+            RpcRequest::SessionCreate(_) => "session.create",
+            RpcRequest::SessionList(_) => "session.list",
+            RpcRequest::SessionStateGet(_) => "session.state.get",
+            RpcRequest::SessionCommandRun(_) => "session.command.run",
         }
     }
 
@@ -401,6 +584,10 @@ impl RpcRequest {
             | RpcRequest::AuthDeviceClaim(_)
             | RpcRequest::AuthDevicePair(_) => None,
             RpcRequest::AccountList(_) | RpcRequest::PluginList(_) => Some("account:read"),
+            RpcRequest::SessionList(_) | RpcRequest::SessionStateGet(_) => Some("session:read"),
+            RpcRequest::SessionCreate(_) | RpcRequest::SessionCommandRun(_) => {
+                Some("session:control")
+            }
             RpcRequest::AuthPairingCreate(_)
             | RpcRequest::AuthTokenCreate(_)
             | RpcRequest::AuthTokenRevoke(_)
@@ -410,7 +597,7 @@ impl RpcRequest {
 }
 
 impl RpcResponse {
-    pub const KNOWN_OPERATION_TAGS: [&'static str; 9] = RpcRequest::KNOWN_TAGS;
+    pub const KNOWN_OPERATION_TAGS: [&'static str; 13] = RpcRequest::KNOWN_TAGS;
 
     pub fn tag(&self) -> &'static str {
         match self {
@@ -423,6 +610,10 @@ impl RpcResponse {
             RpcResponse::AccountList(_) => "account.list",
             RpcResponse::AccountCreate(_) => "account.create",
             RpcResponse::PluginList(_) => "plugin.list",
+            RpcResponse::SessionCreate(_) => "session.create",
+            RpcResponse::SessionList(_) => "session.list",
+            RpcResponse::SessionStateGet(_) => "session.state.get",
+            RpcResponse::SessionCommandRun(_) => "session.command.run",
             RpcResponse::Failure(_) => "rpc.failure",
         }
     }

@@ -18,6 +18,7 @@ use crate::db::store::Store;
 use crate::media::Media;
 use crate::plugins::host::PluginHost;
 use crate::rpc::transport;
+use crate::sessions::Sessions;
 use crate::settings::Settings;
 use crate::stream::{self, StreamService};
 
@@ -26,6 +27,7 @@ pub struct AppState {
     pub(crate) accounts: Accounts,
     pub media: Media,
     pub(crate) plugins: PluginHost,
+    pub sessions: Sessions,
     pub(crate) stream: StreamService,
 }
 
@@ -39,11 +41,13 @@ impl AppState {
     pub fn open_with_plugins(store: Store, plugins: PluginHost) -> anyhow::Result<Self> {
         let stream = StreamService::open(store.state_dir())?;
         let accounts = Accounts::open(store.clone())?;
-        let media = Media::open(store)?;
+        let media = Media::open(store.clone())?;
+        let sessions = Sessions::open(store);
         Ok(AppState {
             accounts,
             media,
             plugins,
+            sessions,
             stream,
         })
     }

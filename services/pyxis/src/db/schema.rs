@@ -108,9 +108,11 @@ pub fn sessions() -> CollectionDescriptor {
     scoped(
         SESSIONS,
         vec![
+            field("name", SchemaNode::Str),
             field("hostDeviceId", SchemaNode::Str),
             field("transport", SchemaNode::Str),
             field("positionMs", SchemaNode::Num),
+            field("durationMs", optional(SchemaNode::Num)),
             field("volume", SchemaNode::Num),
             field("cursor", optional(SchemaNode::Num)),
             field("outputRef", optional(SchemaNode::Str)),

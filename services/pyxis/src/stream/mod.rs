@@ -19,6 +19,7 @@ use tokio_util::io::ReaderStream;
 use crate::accounts::SCOPE_ACCOUNT_READ;
 use crate::api::AppState;
 use crate::media::{ResolveOutcome, ResolvedLocation};
+use crate::plugins::host::PluginHost;
 use crate::rpc::contract::RpcFailure;
 
 use cache::StreamCache;
@@ -122,60 +123,81 @@ pub async fn stream(
             plugin_id,
             external_id,
         } => {
-            let operation_plugin = plugin_id.clone();
-            let resolved = tokio::task::spawn_blocking(move || {
-                plugins.call(
-                    &operation_plugin,
-                    "source",
-                    "stream.resolve",
-                    json!({ "trackId": external_id }),
-                )
-            })
-            .await;
-            let value = match resolved {
-                Ok(Ok(value)) => value,
-                Ok(Err(error)) => {
-                    return failure(
-                        StatusCode::BAD_GATEWAY,
-                        RpcFailure::retryable("plugin.stream", error.to_string()),
-                    );
-                }
-                Err(error) => {
-                    return failure(
-                        StatusCode::BAD_GATEWAY,
-                        RpcFailure::retryable("plugin.stream", error.to_string()),
-                    );
-                }
-            };
-            let descriptor: RemoteStreamDescriptor = match serde_json::from_value(value) {
+            let mut descriptor = match resolve_plugin_stream(
+                plugins.clone(),
+                plugin_id.clone(),
+                external_id.clone(),
+            )
+            .await
+            {
                 Ok(descriptor) => descriptor,
-                Err(error) => {
-                    return failure(
-                        StatusCode::BAD_GATEWAY,
-                        RpcFailure::permanent("plugin.invalidStream", error.to_string()),
-                    );
-                }
+                Err(error) => return failure(StatusCode::BAD_GATEWAY, error),
             };
-            let format = descriptor
-                .format
-                .clone()
-                .or_else(|| candidate.format.clone());
-            let path = match fetch_to_cache(
+            let mut fetched = fetch_to_cache(
                 &state.stream.cache,
                 &candidate.id,
                 &descriptor,
                 &state.stream.client,
             )
-            .await
-            {
+            .await;
+
+            // Provider media URLs expire, but sessions persist only track identity. A
+            // credential-style status gets one fresh resolution; every other failure is
+            // returned immediately, and a second expiry is not retried again.
+            if matches!(fetched, Err(ProxyError::Status(401 | 403 | 410))) {
+                descriptor = match resolve_plugin_stream(plugins, plugin_id, external_id).await {
+                    Ok(descriptor) => descriptor,
+                    Err(error) => return failure(StatusCode::BAD_GATEWAY, error),
+                };
+                fetched = fetch_to_cache(
+                    &state.stream.cache,
+                    &candidate.id,
+                    &descriptor,
+                    &state.stream.client,
+                )
+                .await;
+            }
+
+            let path = match fetched {
                 Ok(path) => path,
                 Err(error) => return proxy_failure(error),
             };
+            let format = descriptor
+                .format
+                .clone()
+                .or_else(|| candidate.format.clone());
             (path, format)
         }
     };
 
     serve_file(&path, format.as_deref(), headers.get(header::RANGE)).await
+}
+
+async fn resolve_plugin_stream(
+    plugins: PluginHost,
+    plugin_id: String,
+    external_id: String,
+) -> Result<RemoteStreamDescriptor, RpcFailure> {
+    let resolved = tokio::task::spawn_blocking(move || {
+        plugins.call(
+            &plugin_id,
+            "source",
+            "stream.resolve",
+            json!({ "trackId": external_id }),
+        )
+    })
+    .await;
+    let value = match resolved {
+        Ok(Ok(value)) => value,
+        Ok(Err(error)) => {
+            return Err(RpcFailure::retryable("plugin.stream", error.to_string()));
+        }
+        Err(error) => {
+            return Err(RpcFailure::retryable("plugin.stream", error.to_string()));
+        }
+    };
+    serde_json::from_value(value)
+        .map_err(|error| RpcFailure::permanent("plugin.invalidStream", error.to_string()))
 }
 
 async fn serve_file(path: &Path, format: Option<&str>, range: Option<&HeaderValue>) -> Response {

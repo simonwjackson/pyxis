@@ -64,6 +64,10 @@ fn laboratory(url: &str) -> PluginCandidate {
         .with_env("PYXIS_LAB_STREAM_URL", url)
 }
 
+fn refreshing_laboratory(expired_url: &str, fresh_url: &str) -> PluginCandidate {
+    laboratory(expired_url).with_env("PYXIS_LAB_STREAM_URL_SECOND", fresh_url)
+}
+
 fn state_with_remote(url: &str) -> (TempDir, AppState) {
     let dir = tempfile::tempdir().expect("temp dir");
     let store = Store::open(dir.path()).expect("open store");
@@ -253,6 +257,51 @@ async fn upstream_failure_is_typed_and_never_becomes_a_cached_partial() {
         assert_eq!(failure["failure"]["code"], "upstream.status");
         assert_eq!(upstream.requests.load(Ordering::SeqCst), expected_count);
     }
+}
+
+#[tokio::test]
+async fn an_expired_plugin_url_is_resolved_once_more_before_failing() {
+    let expired = upstream(StatusCode::FORBIDDEN).await;
+    let fresh = upstream(StatusCode::OK).await;
+    let dir = tempfile::tempdir().expect("temp dir");
+    let store = Store::open(dir.path()).expect("open store");
+    let plugins = PluginHost::start(
+        vec![refreshing_laboratory(&expired.url, &fresh.url)],
+        HostPolicy::default(),
+    )
+    .expect("host");
+    let state = AppState::open_with_plugins(store, plugins).expect("state");
+    state
+        .media
+        .add_plugin_candidate(
+            &AccountId::new("default"),
+            "track-1",
+            PluginCandidateInput {
+                plugin_id: "stream-source".into(),
+                external_id: "external-1".into(),
+                format: Some("webm/opus".into()),
+                fidelity: Fidelity {
+                    lossless: false,
+                    bitrate_kbps: Some(128),
+                    sample_rate_hz: Some(48_000),
+                },
+                source_priority: 10,
+            },
+            "test",
+        )
+        .expect("candidate");
+    let app = router(state);
+    let token = claim(&app).await;
+
+    let response = app
+        .oneshot(stream_request(&token, None))
+        .await
+        .expect("stream response");
+
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(body(response).await, AUDIO);
+    assert_eq!(expired.requests.load(Ordering::SeqCst), 1);
+    assert_eq!(fresh.requests.load(Ordering::SeqCst), 1);
 }
 
 #[tokio::test]

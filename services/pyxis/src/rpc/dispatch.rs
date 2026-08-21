@@ -12,8 +12,11 @@ use crate::rpc::contract::{
     AccountCreateOutcome, AccountListOutcome, ApiTokenCreateOutcome, CommandOutcome,
     DeviceClaimOutcome, DevicePairOutcome, PairingCreateOutcome, PluginListOutcome, RpcAccount,
     RpcApiToken, RpcApiTokenGrant, RpcAuthGrant, RpcDevice, RpcFailure, RpcPairingCode, RpcPlugin,
-    RpcRequest, RpcResponse, RpcSystemStatus, SystemStatusOutcome, CONTRACT_ID,
+    RpcRequest, RpcResponse, RpcSession, RpcSessionCommand, RpcSystemStatus, RpcTransport,
+    SessionCommandOutcome, SessionCreateOutcome, SessionListOutcome, SessionStateOutcome,
+    SystemStatusOutcome, CONTRACT_ID,
 };
+use crate::sessions::{Session, SessionCommand as DomainSessionCommand, SessionError, Transport};
 
 pub fn dispatch(state: &AppState, request: RpcRequest, auth: Option<AuthContext>) -> RpcResponse {
     match request {
@@ -134,6 +137,82 @@ pub fn dispatch(state: &AppState, request: RpcRequest, auth: Option<AuthContext>
                 })
                 .collect(),
         )),
+        RpcRequest::SessionCreate(request) => {
+            let Some(auth) = auth else {
+                return auth_required();
+            };
+            match state.sessions.create(&auth, &request.name) {
+                Ok(session) => {
+                    RpcResponse::SessionCreate(SessionCreateOutcome::Ready(rpc_session(session)))
+                }
+                Err(SessionError::NotDevice) => {
+                    RpcResponse::SessionCreate(SessionCreateOutcome::NotDevice)
+                }
+                Err(error) => RpcResponse::SessionCreate(SessionCreateOutcome::Unavailable(
+                    session_failure(error),
+                )),
+            }
+        }
+        RpcRequest::SessionList(_) => {
+            let Some(auth) = auth else {
+                return auth_required();
+            };
+            match state.sessions.list(&auth) {
+                Ok(sessions) => RpcResponse::SessionList(SessionListOutcome::Ready(
+                    sessions.into_iter().map(rpc_session).collect(),
+                )),
+                Err(error) => RpcResponse::SessionList(SessionListOutcome::Unavailable(
+                    session_failure(error),
+                )),
+            }
+        }
+        RpcRequest::SessionStateGet(request) => {
+            let Some(auth) = auth else {
+                return auth_required();
+            };
+            match state.sessions.get(&auth, &request.session_id) {
+                Ok(Some(session)) => {
+                    RpcResponse::SessionStateGet(SessionStateOutcome::Ready(rpc_session(session)))
+                }
+                Ok(None) => RpcResponse::SessionStateGet(SessionStateOutcome::Unknown),
+                Err(error) => RpcResponse::SessionStateGet(SessionStateOutcome::Unavailable(
+                    session_failure(error),
+                )),
+            }
+        }
+        RpcRequest::SessionCommandRun(request) => {
+            let Some(auth) = auth else {
+                return auth_required();
+            };
+            let command = domain_command(request.command);
+            match state.sessions.command(&auth, &request.session_id, command) {
+                Ok(session) => RpcResponse::SessionCommandRun(SessionCommandOutcome::Applied(
+                    rpc_session(session),
+                )),
+                Err(SessionError::UnknownSession) => {
+                    RpcResponse::SessionCommandRun(SessionCommandOutcome::UnknownSession)
+                }
+                Err(SessionError::NotHost) => {
+                    RpcResponse::SessionCommandRun(SessionCommandOutcome::NotHost)
+                }
+                Err(SessionError::NotDevice) => {
+                    RpcResponse::SessionCommandRun(SessionCommandOutcome::NotDevice)
+                }
+                Err(SessionError::Queue(error)) => {
+                    RpcResponse::SessionCommandRun(SessionCommandOutcome::Rejected(
+                        RpcFailure::permanent("session.invalidQueueCommand", error.to_string()),
+                    ))
+                }
+                Err(SessionError::Machine(error)) => {
+                    RpcResponse::SessionCommandRun(SessionCommandOutcome::Rejected(
+                        RpcFailure::permanent("session.invalidTransportCommand", error.to_string()),
+                    ))
+                }
+                Err(error) => RpcResponse::SessionCommandRun(SessionCommandOutcome::Unavailable(
+                    session_failure(error),
+                )),
+            }
+        }
     }
 }
 
@@ -187,11 +266,70 @@ fn rpc_api_token_grant(grant: ApiTokenGrant) -> RpcApiTokenGrant {
     }
 }
 
+fn rpc_session(session: Session) -> RpcSession {
+    let current_track_id = session.current_track_id().map(str::to_string);
+    let stream_path = session.stream_path();
+    RpcSession {
+        id: session.id,
+        name: session.name,
+        host_device_id: session.host_device_id,
+        queue: session.queue,
+        cursor: session.cursor.and_then(|cursor| u32::try_from(cursor).ok()),
+        current_track_id,
+        stream_path,
+        transport: match session.transport {
+            Transport::Stopped => RpcTransport::Stopped,
+            Transport::Playing => RpcTransport::Playing,
+            Transport::Paused => RpcTransport::Paused,
+            Transport::Ended => RpcTransport::Ended,
+        },
+        position_ms: u32::try_from(session.position_ms).unwrap_or(u32::MAX),
+        duration_ms: session
+            .duration_ms
+            .map(|duration| u32::try_from(duration).unwrap_or(u32::MAX)),
+        volume: session.volume,
+        reachable: session.reachable,
+        revision: u32::try_from(session.revision).unwrap_or(u32::MAX),
+        updated_at: session.updated_at,
+    }
+}
+
+fn domain_command(command: RpcSessionCommand) -> DomainSessionCommand {
+    match command {
+        RpcSessionCommand::QueueAdd(command) => DomainSessionCommand::QueueAdd {
+            track_ids: command.track_ids,
+        },
+        RpcSessionCommand::QueueRemove(command) => DomainSessionCommand::QueueRemove {
+            index: usize::try_from(command.index).unwrap_or(usize::MAX),
+        },
+        RpcSessionCommand::QueueClear(_) => DomainSessionCommand::QueueClear,
+        RpcSessionCommand::QueueShuffle(_) => DomainSessionCommand::QueueShuffle,
+        RpcSessionCommand::CursorJump(command) => DomainSessionCommand::CursorJump {
+            index: usize::try_from(command.index).unwrap_or(usize::MAX),
+        },
+        RpcSessionCommand::Play(_) => DomainSessionCommand::Play,
+        RpcSessionCommand::Pause(_) => DomainSessionCommand::Pause,
+        RpcSessionCommand::Stop(_) => DomainSessionCommand::Stop,
+        RpcSessionCommand::TrackEnded(_) => DomainSessionCommand::TrackEnded,
+        RpcSessionCommand::PositionReport(command) => DomainSessionCommand::PositionReport {
+            position_ms: u64::from(command.position_ms),
+            duration_ms: command.duration_ms.map(u64::from),
+        },
+        RpcSessionCommand::VolumeSet(command) => DomainSessionCommand::VolumeSet {
+            volume: command.volume,
+        },
+    }
+}
+
 fn auth_required() -> RpcResponse {
     RpcResponse::rejected(RpcFailure::permanent(
         "auth.required",
         "this RPC operation requires a bearer token",
     ))
+}
+
+fn session_failure(error: SessionError) -> RpcFailure {
+    RpcFailure::retryable("session.unavailable", error.to_string())
 }
 
 fn account_failure(error: AccountError) -> RpcFailure {

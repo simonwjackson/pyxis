@@ -53,6 +53,7 @@ fn main() -> anyhow::Result<()> {
         std::process::exit(23);
     }
 
+    let mut stream_resolutions = 0_u32;
     for line in lines {
         let envelope: PluginRequestEnvelope = serde_json::from_str(&line?)?;
         let PluginRequest::CapabilityCall(call) = envelope.request else {
@@ -79,7 +80,13 @@ fn main() -> anyhow::Result<()> {
 
         let mut value = BTreeMap::new();
         if call.operation == "stream.resolve" {
-            if let Ok(url) = std::env::var("PYXIS_LAB_STREAM_URL") {
+            if let Ok(first) = std::env::var("PYXIS_LAB_STREAM_URL") {
+                let url = if stream_resolutions == 0 {
+                    first
+                } else {
+                    std::env::var("PYXIS_LAB_STREAM_URL_SECOND").unwrap_or(first)
+                };
+                stream_resolutions += 1;
                 value.insert("kind".into(), PluginValue::String("remote".into()));
                 value.insert("url".into(), PluginValue::String(url));
                 value.insert("headers".into(), PluginValue::Object(BTreeMap::new()));

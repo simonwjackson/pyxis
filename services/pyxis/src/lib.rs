@@ -11,6 +11,7 @@ pub mod instance_lock;
 pub mod media;
 pub mod plugins;
 pub mod rpc;
+pub mod sessions;
 pub mod settings;
 pub mod stream;
 

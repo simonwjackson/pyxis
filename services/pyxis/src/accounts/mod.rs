@@ -22,7 +22,14 @@ use tokens::{issue, verifies, TokenKind};
 pub const DEFAULT_ACCOUNT_ID: &str = "default";
 pub const SCOPE_ACCOUNT_READ: &str = "account:read";
 pub const SCOPE_ACCOUNT_ADMIN: &str = "account:admin";
-const ALLOWED_API_SCOPES: [&str; 2] = [SCOPE_ACCOUNT_READ, SCOPE_ACCOUNT_ADMIN];
+pub const SCOPE_SESSION_READ: &str = "session:read";
+pub const SCOPE_SESSION_CONTROL: &str = "session:control";
+const ALLOWED_API_SCOPES: [&str; 4] = [
+    SCOPE_ACCOUNT_READ,
+    SCOPE_ACCOUNT_ADMIN,
+    SCOPE_SESSION_READ,
+    SCOPE_SESSION_CONTROL,
+];
 
 #[derive(Debug, thiserror::Error)]
 pub enum AccountError {
