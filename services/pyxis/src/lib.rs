@@ -8,6 +8,7 @@ pub mod accounts;
 pub mod api;
 pub mod db;
 pub mod instance_lock;
+pub mod plugins;
 pub mod rpc;
 pub mod settings;
 

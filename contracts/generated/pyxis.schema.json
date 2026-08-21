@@ -9,11 +9,19 @@
     },
     "response": {
       "$ref": "#/$defs/RpcResponse"
+    },
+    "plugin_request": {
+      "$ref": "#/$defs/PluginRequestEnvelope"
+    },
+    "plugin_response": {
+      "$ref": "#/$defs/PluginResponseEnvelope"
     }
   },
   "required": [
     "request",
-    "response"
+    "response",
+    "plugin_request",
+    "plugin_response"
   ],
   "$defs": {
     "RpcRequest": {
@@ -139,6 +147,22 @@
             },
             "payload": {
               "$ref": "#/$defs/AccountCreateRequest"
+            }
+          },
+          "required": [
+            "_tag",
+            "payload"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "_tag": {
+              "type": "string",
+              "const": "plugin.list"
+            },
+            "payload": {
+              "$ref": "#/$defs/EmptyRequest"
             }
           },
           "required": [
@@ -351,6 +375,22 @@
             },
             "outcome": {
               "$ref": "#/$defs/AccountCreateOutcome"
+            }
+          },
+          "required": [
+            "_tag",
+            "outcome"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "_tag": {
+              "type": "string",
+              "const": "plugin.list"
+            },
+            "outcome": {
+              "$ref": "#/$defs/PluginListOutcome"
             }
           },
           "required": [
@@ -919,6 +959,82 @@
         }
       ]
     },
+    "PluginListOutcome": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "const": "ready"
+            },
+            "value": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/RpcPlugin"
+              }
+            }
+          },
+          "required": [
+            "status",
+            "value"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "const": "unavailable"
+            },
+            "value": {
+              "$ref": "#/$defs/RpcFailure"
+            }
+          },
+          "required": [
+            "status",
+            "value"
+          ]
+        }
+      ]
+    },
+    "RpcPlugin": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "version": {
+          "type": "string"
+        },
+        "capabilities": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "status": {
+          "type": "string"
+        },
+        "reason": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "name",
+        "version",
+        "capabilities",
+        "status"
+      ]
+    },
     "RpcProtocolFailureOutcome": {
       "description": "A request that cannot enter operation dispatch. This is separate from an operation's\n`unavailable` outcome: no operation exists yet to own the failure.",
       "oneOf": [
@@ -931,6 +1047,322 @@
             },
             "value": {
               "$ref": "#/$defs/RpcFailure"
+            }
+          },
+          "required": [
+            "status",
+            "value"
+          ]
+        }
+      ]
+    },
+    "PluginRequestEnvelope": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "request": {
+          "$ref": "#/$defs/PluginRequest"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "request"
+      ]
+    },
+    "PluginRequest": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "_tag": {
+              "type": "string",
+              "const": "plugin.handshake"
+            },
+            "payload": {
+              "$ref": "#/$defs/PluginHandshakeRequest"
+            }
+          },
+          "required": [
+            "_tag",
+            "payload"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "_tag": {
+              "type": "string",
+              "const": "capability.call"
+            },
+            "payload": {
+              "$ref": "#/$defs/PluginCapabilityCall"
+            }
+          },
+          "required": [
+            "_tag",
+            "payload"
+          ]
+        }
+      ]
+    },
+    "PluginHandshakeRequest": {
+      "type": "object",
+      "properties": {
+        "protocolVersion": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "protocolVersion"
+      ]
+    },
+    "PluginCapabilityCall": {
+      "type": "object",
+      "properties": {
+        "capability": {
+          "$ref": "#/$defs/PluginCapability"
+        },
+        "operation": {
+          "type": "string"
+        },
+        "input": {
+          "$ref": "#/$defs/PluginValue"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "capability",
+        "operation",
+        "input"
+      ]
+    },
+    "PluginCapability": {
+      "type": "string",
+      "enum": [
+        "source",
+        "output",
+        "provider",
+        "enricher"
+      ]
+    },
+    "PluginValue": {
+      "description": "JSON represented as a recursive, language-neutral sum type rather than `any`. This is\nthe input/output escape hatch for capability-specific operations while their envelopes\nand failure behavior stay fully typed.",
+      "anyOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "integer",
+          "format": "int64"
+        },
+        {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0
+        },
+        {
+          "type": "number",
+          "format": "double"
+        },
+        {
+          "type": "string"
+        },
+        {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/PluginValue"
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/PluginValue"
+          }
+        }
+      ]
+    },
+    "PluginResponseEnvelope": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "response": {
+          "$ref": "#/$defs/PluginResponse"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "response"
+      ]
+    },
+    "PluginResponse": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "_tag": {
+              "type": "string",
+              "const": "plugin.handshake"
+            },
+            "outcome": {
+              "$ref": "#/$defs/PluginHandshakeOutcome"
+            }
+          },
+          "required": [
+            "_tag",
+            "outcome"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "_tag": {
+              "type": "string",
+              "const": "capability.call"
+            },
+            "outcome": {
+              "$ref": "#/$defs/PluginCallOutcome"
+            }
+          },
+          "required": [
+            "_tag",
+            "outcome"
+          ]
+        }
+      ]
+    },
+    "PluginHandshakeOutcome": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "const": "ready"
+            },
+            "value": {
+              "$ref": "#/$defs/PluginManifest"
+            }
+          },
+          "required": [
+            "status",
+            "value"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "const": "rejected"
+            },
+            "value": {
+              "$ref": "#/$defs/PluginFailure"
+            }
+          },
+          "required": [
+            "status",
+            "value"
+          ]
+        }
+      ]
+    },
+    "PluginManifest": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "version": {
+          "type": "string"
+        },
+        "protocolVersion": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "capabilities": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/PluginCapability"
+          }
+        },
+        "configSchema": {
+          "description": "JSON Schema for per-account plugin configuration and credentials.",
+          "$ref": "#/$defs/PluginValue"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "name",
+        "version",
+        "protocolVersion",
+        "capabilities",
+        "configSchema"
+      ]
+    },
+    "PluginFailure": {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "string"
+        },
+        "message": {
+          "type": "string"
+        },
+        "retryable": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "code",
+        "message",
+        "retryable"
+      ]
+    },
+    "PluginCallOutcome": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "const": "ready"
+            },
+            "value": {
+              "$ref": "#/$defs/PluginValue"
+            }
+          },
+          "required": [
+            "status",
+            "value"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "const": "unavailable"
+            },
+            "value": {
+              "$ref": "#/$defs/PluginFailure"
             }
           },
           "required": [

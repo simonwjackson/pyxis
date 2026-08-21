@@ -237,6 +237,22 @@ async fn scoped_api_tokens_authenticate_and_revocation_takes_effect_immediately(
 }
 
 #[tokio::test]
+async fn plugin_list_is_ready_and_empty_when_nothing_is_installed() {
+    let (_dir, app) = test_app();
+    let device = claim_device(&app, "plugin inspector").await;
+
+    let plugins = rpc(
+        &app,
+        json!({ "_tag": "plugin.list", "payload": {} }),
+        Some(bearer(&device)),
+    )
+    .await;
+
+    assert_eq!(plugins["outcome"]["status"], "ready");
+    assert_eq!(plugins["outcome"]["value"], json!([]));
+}
+
+#[tokio::test]
 async fn unknown_operation_fails_closed_with_a_typed_protocol_error() {
     let (_dir, app) = test_app();
 

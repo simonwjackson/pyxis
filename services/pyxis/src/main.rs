@@ -5,6 +5,7 @@ use clap::Parser;
 use pyxis::api::{self, AppState};
 use pyxis::db::store::Store;
 use pyxis::instance_lock::InstanceLock;
+use pyxis::plugins::host::{HostPolicy, PluginHost};
 use pyxis::settings::{ProcessEnv, Settings};
 
 #[derive(Parser, Debug)]
@@ -48,7 +49,12 @@ async fn main() -> anyhow::Result<()> {
         "pyxis starting"
     );
 
-    let state = AppState::open(store.clone())?;
+    let plugins = PluginHost::discover(
+        &settings.state_dir.join("plugins"),
+        std::env::var_os("PATH").as_deref(),
+        HostPolicy::default(),
+    )?;
+    let state = AppState::open_with_plugins(store.clone(), plugins)?;
     let served = api::serve(&settings, state).await;
     store.close()?;
     served

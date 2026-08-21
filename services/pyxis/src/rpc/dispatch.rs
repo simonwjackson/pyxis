@@ -10,9 +10,9 @@ use crate::accounts::{
 use crate::api::AppState;
 use crate::rpc::contract::{
     AccountCreateOutcome, AccountListOutcome, ApiTokenCreateOutcome, CommandOutcome,
-    DeviceClaimOutcome, DevicePairOutcome, PairingCreateOutcome, RpcAccount, RpcApiToken,
-    RpcApiTokenGrant, RpcAuthGrant, RpcDevice, RpcFailure, RpcPairingCode, RpcRequest, RpcResponse,
-    RpcSystemStatus, SystemStatusOutcome, CONTRACT_ID,
+    DeviceClaimOutcome, DevicePairOutcome, PairingCreateOutcome, PluginListOutcome, RpcAccount,
+    RpcApiToken, RpcApiTokenGrant, RpcAuthGrant, RpcDevice, RpcFailure, RpcPairingCode, RpcPlugin,
+    RpcRequest, RpcResponse, RpcSystemStatus, SystemStatusOutcome, CONTRACT_ID,
 };
 
 pub fn dispatch(state: &AppState, request: RpcRequest, auth: Option<AuthContext>) -> RpcResponse {
@@ -119,20 +119,34 @@ pub fn dispatch(state: &AppState, request: RpcRequest, auth: Option<AuthContext>
                 )),
             }
         }
+        RpcRequest::PluginList(_) => RpcResponse::PluginList(PluginListOutcome::Ready(
+            state
+                .plugins
+                .list()
+                .into_iter()
+                .map(|plugin| RpcPlugin {
+                    id: plugin.id,
+                    name: plugin.name,
+                    version: plugin.version,
+                    capabilities: plugin.capabilities,
+                    status: plugin.status.as_str().into(),
+                    reason: plugin.reason,
+                })
+                .collect(),
+        )),
     }
 }
 
 fn system_status(state: &AppState) -> RpcResponse {
     match state.accounts.count() {
         Ok(account_count) => {
+            let (plugin_count, capabilities) = state.plugins.live_summary();
             RpcResponse::SystemStatusGet(SystemStatusOutcome::Ready(RpcSystemStatus {
                 version: crate::version().to_string(),
                 contract_id: CONTRACT_ID.to_string(),
                 account_count: u32::try_from(account_count).unwrap_or(u32::MAX),
-                // U7 replaces these constants with the live capability registry. Empty is
-                // already a valid product state, not a placeholder error.
-                plugin_count: 0,
-                capabilities: Vec::new(),
+                plugin_count: u32::try_from(plugin_count).unwrap_or(u32::MAX),
+                capabilities,
             }))
         }
         Err(error) => {

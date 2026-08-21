@@ -15,18 +15,26 @@ use tokio::net::TcpListener;
 
 use crate::accounts::Accounts;
 use crate::db::store::Store;
+use crate::plugins::host::PluginHost;
 use crate::rpc::transport;
 use crate::settings::Settings;
 
 #[derive(Clone)]
 pub struct AppState {
     pub(crate) accounts: Accounts,
+    pub(crate) plugins: PluginHost,
 }
 
 impl AppState {
+    /// Open with an empty plugin registry. Tests and callers that need deterministic
+    /// zero-plugin behavior use this; production passes discovered plugins explicitly.
     pub fn open(store: Store) -> anyhow::Result<Self> {
+        Self::open_with_plugins(store, PluginHost::empty())
+    }
+
+    pub fn open_with_plugins(store: Store, plugins: PluginHost) -> anyhow::Result<Self> {
         let accounts = Accounts::open(store)?;
-        Ok(AppState { accounts })
+        Ok(AppState { accounts, plugins })
     }
 }
 

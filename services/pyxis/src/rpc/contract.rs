@@ -21,6 +21,8 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use typeshare::typeshare;
 
+use crate::plugins::protocol::{PluginRequestEnvelope, PluginResponseEnvelope};
+
 /// Wire identity. v2 shares no protocol lineage with v1, and a client that speaks the v1
 /// protocol must fail rather than half-work.
 pub const CONTRACT_ID: &str = "pyxis-rpc-v2";
@@ -247,6 +249,27 @@ pub enum CommandOutcome {
 
 #[typeshare]
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct RpcPlugin {
+    pub id: String,
+    pub name: String,
+    pub version: String,
+    pub capabilities: Vec<String>,
+    pub status: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reason: Option<String>,
+}
+
+#[typeshare]
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(tag = "status", content = "value", rename_all = "camelCase")]
+pub enum PluginListOutcome {
+    Ready(Vec<RpcPlugin>),
+    Unavailable(RpcFailure),
+}
+
+#[typeshare]
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
 #[serde(tag = "_tag", content = "payload")]
 pub enum RpcRequest {
     #[serde(rename = "system.status.get")]
@@ -265,6 +288,8 @@ pub enum RpcRequest {
     AccountList(EmptyRequest),
     #[serde(rename = "account.create")]
     AccountCreate(AccountCreateRequest),
+    #[serde(rename = "plugin.list")]
+    PluginList(EmptyRequest),
 }
 
 /// A request that cannot enter operation dispatch. This is separate from an operation's
@@ -296,12 +321,14 @@ pub enum RpcResponse {
     AccountList(AccountListOutcome),
     #[serde(rename = "account.create")]
     AccountCreate(AccountCreateOutcome),
+    #[serde(rename = "plugin.list")]
+    PluginList(PluginListOutcome),
     #[serde(rename = "rpc.failure")]
     Failure(RpcProtocolFailureOutcome),
 }
 
 impl RpcRequest {
-    pub const KNOWN_TAGS: [&'static str; 8] = [
+    pub const KNOWN_TAGS: [&'static str; 9] = [
         "system.status.get",
         "auth.device.claim",
         "auth.device.pair",
@@ -310,6 +337,7 @@ impl RpcRequest {
         "auth.token.revoke",
         "account.list",
         "account.create",
+        "plugin.list",
     ];
 
     /// The operation tag as it appears on the wire. Used for logging and authorization.
@@ -323,6 +351,7 @@ impl RpcRequest {
             RpcRequest::AuthTokenRevoke(_) => "auth.token.revoke",
             RpcRequest::AccountList(_) => "account.list",
             RpcRequest::AccountCreate(_) => "account.create",
+            RpcRequest::PluginList(_) => "plugin.list",
         }
     }
 
@@ -344,7 +373,7 @@ impl RpcRequest {
             RpcRequest::SystemStatusGet(_)
             | RpcRequest::AuthDeviceClaim(_)
             | RpcRequest::AuthDevicePair(_) => None,
-            RpcRequest::AccountList(_) => Some("account:read"),
+            RpcRequest::AccountList(_) | RpcRequest::PluginList(_) => Some("account:read"),
             RpcRequest::AuthPairingCreate(_)
             | RpcRequest::AuthTokenCreate(_)
             | RpcRequest::AuthTokenRevoke(_)
@@ -354,7 +383,7 @@ impl RpcRequest {
 }
 
 impl RpcResponse {
-    pub const KNOWN_OPERATION_TAGS: [&'static str; 8] = RpcRequest::KNOWN_TAGS;
+    pub const KNOWN_OPERATION_TAGS: [&'static str; 9] = RpcRequest::KNOWN_TAGS;
 
     pub fn tag(&self) -> &'static str {
         match self {
@@ -366,6 +395,7 @@ impl RpcResponse {
             RpcResponse::AuthTokenRevoke(_) => "auth.token.revoke",
             RpcResponse::AccountList(_) => "account.list",
             RpcResponse::AccountCreate(_) => "account.create",
+            RpcResponse::PluginList(_) => "plugin.list",
             RpcResponse::Failure(_) => "rpc.failure",
         }
     }
@@ -380,6 +410,8 @@ impl RpcResponse {
 pub struct RpcContractSchema {
     pub request: RpcRequest,
     pub response: RpcResponse,
+    pub plugin_request: PluginRequestEnvelope,
+    pub plugin_response: PluginResponseEnvelope,
 }
 
 #[cfg(test)]

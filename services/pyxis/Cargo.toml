@@ -8,6 +8,12 @@ license.workspace = true
 name = "pyxis"
 path = "src/main.rs"
 
+# Real configurable protocol implementation used by the subprocess acceptance suite.
+# Packaging selects only the `pyxis` binary, so this laboratory never ships to users.
+[[bin]]
+name = "pyxis-plugin-laboratory"
+path = "tests/support/plugin_laboratory.rs"
+
 [lib]
 name = "pyxis"
 path = "src/lib.rs"
