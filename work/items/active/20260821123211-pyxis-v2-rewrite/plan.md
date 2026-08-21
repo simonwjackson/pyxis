@@ -95,10 +95,14 @@ everything provider-shaped lives at the edge behind a plugin protocol.
 - NixOS module, replacing the `nix profile` install.
 - Soulseek optimistic pre-fetch for Pandora and YouTube Music playlist tracks (R8 "eventually").
 - Metadata enricher plugins (MusicBrainz, Discogs). The enricher capability class is
-  designed in U7 but no enricher ships in v1.
+  designed in U7 but no enricher ships in v1. `VISION.md` marks Enrichment accordingly.
 - Chromecast and AirPlay output plugins. The output capability class makes them possible.
-- Amending `VISION.md` principle 5, which still says the daemon "controls all playback
-  targets". D3 changes this. Left for the user, since product vision is theirs.
+- **Weekly Mix.** A first-class `VISION.md` feature that this plan does not build. It needs
+  upstream recommendations, which now arrive through source plugins, so it cannot precede
+  Phase 3. The listen events and placement data it depends on are recorded from U8 and U9
+  onward, so deferring it loses no history. `VISION.md` carries a matching status note.
+- Album-level neglect detection and time-travel history views. The append-only log in U9
+  makes both pure projections, but neither is built in v1.
 
 ---
 
@@ -541,22 +545,33 @@ nix/                         packaging, systemd user units
 **Dependencies:** U8
 
 **Files:**
-- Create: `services/pyxis/src/matching/mod.rs`, `services/pyxis/src/matching/score.rs`
+- Create: `services/pyxis/src/matching/mod.rs`, `services/pyxis/src/matching/score.rs`, `services/pyxis/src/matching/overrides.rs`
+- Modify: `services/pyxis/src/rpc/contract.rs`
 
 **Approach:**
 - Pure scoring over artist, title, album, and duration with a tolerance band.
 - Returns a confidence score plus a decision band, never a bare boolean, because U11 and
   U19 need to refuse ambiguous matches rather than guess.
 - No plugin dependency, per D6.
+- Manual overrides are persistent and always beat the scorer. `VISION.md` calls the ability
+  to split a wrong merge critical, because automated matching will get it wrong. A split is
+  a durable negative assertion ("these two are not the same recording"), so re-running the
+  matcher can never silently re-merge them.
+- Overrides sync like any other account record, so a correction made on one device holds
+  everywhere.
 
 **Test scenarios:**
 - Happy path: identical metadata scores at the top of the range.
+- Happy path: splitting a wrongly merged pair separates them and survives a re-run.
+- Happy path: a manual merge of two items the scorer rejected holds.
 - Edge case: remaster and live variants score below the auto-accept band.
 - Edge case: featured-artist and punctuation differences still match.
 - Edge case: a duration difference beyond tolerance drops the score below acceptance.
+- Edge case: a split pair stays split after new candidates arrive for either side.
 - Error path: missing duration degrades confidence rather than erroring.
 
-**Verification:** A fixture table of real-world title variants classifies as expected.
+**Verification:** A fixture table of real-world title variants classifies as expected, and
+a manual split cannot be undone by the automatic matcher.
 
 ---
 
@@ -1075,8 +1090,11 @@ of any share configuration. Upgrades appear without any client-visible action.
   exists in one place. Losing them loses user work. Treat that queue as precious.
 - **API surface parity:** Every operation must be reachable by a third-party client with a
   token, not only by the first-party app (R10).
-- **Unchanged invariants:** `VISION.md` product principles carry forward, except principle
-  5, which D3 amends and which is listed as deferred follow-up.
+- **Unchanged invariants:** `VISION.md` product principles carry forward. Principle 5 was
+  amended on 2026-08-21 to separate library ownership (the service) from playback ownership
+  (the device), and principles 6 through 9 were added for console mode, plugin sources,
+  offline, and quiet fidelity upgrades. The placement model, listening-history-is-truth,
+  album-as-unit-of-art, and progressive disclosure are unchanged and binding.
 
 ---
 
