@@ -577,6 +577,8 @@ export interface RpcSystemStatus {
 
 export interface SessionCommandRequest {
 	sessionId: string;
+	/** Idempotency key for a host command replayed from an offline outbox. */
+	commandId?: string;
 	command: RpcSessionCommand;
 }
 

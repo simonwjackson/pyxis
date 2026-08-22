@@ -542,6 +542,10 @@ pub enum RpcSessionCommand {
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct SessionCommandRequest {
     pub session_id: String,
+    /// Idempotency key for a host command replayed from an offline outbox.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[schemars(length(min = 1, max = 128))]
+    pub command_id: Option<String>,
     pub command: RpcSessionCommand,
 }
 

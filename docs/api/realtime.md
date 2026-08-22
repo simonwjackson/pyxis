@@ -144,10 +144,11 @@ Rules for a conforming host:
 1. **Directives bypass topic filtering.** They are addressed to your device, not published
    to a topic you chose. You receive them even with no subscriptions.
 2. **Apply, then report.** Do what the command says to your audio, then call
-   `session.command.run` with it. That call is what makes the change real and fans the new
-   state out to every console.
+   `session.command.run` with it. Send the directive's `directiveId` as `commandId`. That
+   call makes the change durable and fans the new state out to every console.
 3. **Deduplicate on `directiveId`.** A reconnect can redeliver one, and applying
-   `queue.add` twice adds the same track twice.
+   `queue.add` twice adds the same track twice. Keep a local applied-ID set because the
+   audio action happens before the report. The core also deduplicates the report.
 4. Exactly one socket per device receives a given directive, so a second open tab does not
    double-apply. Do not rely on receiving it on every socket.
 

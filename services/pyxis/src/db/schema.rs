@@ -8,9 +8,8 @@
 //! commit on purpose: retrofitting optimistic concurrency onto records that already exist
 //! in the wild is far more expensive than carrying two fields nobody reads yet.
 //!
-//! Unlike a system that has already shipped, every collection here is present at launch,
-//! so all of them may declare `version: 1`. There is no such thing as a pyxis v2 store
-//! written by an older build.
+//! New collections can appear after launch. ProseQL opens missing version-1 collections
+//! beside existing data, while changes to an existing collection still require migrations.
 
 use proseql_engine::descriptor::{
     CollectionDescriptor, IdStrategy, SchemaNode, StructField, ValidationMode,
@@ -19,6 +18,7 @@ use proseql_engine::descriptor::{
 pub const ACCOUNTS: &str = "accounts";
 pub const DEVICES: &str = "devices";
 pub const SESSIONS: &str = "sessions";
+pub const SESSION_COMMAND_RECEIPTS: &str = "sessionCommandReceipts";
 pub const ALBUMS: &str = "albums";
 pub const ALBUM_SOURCE_REFS: &str = "albumSourceRefs";
 pub const ALBUM_TRACKS: &str = "albumTracks";
@@ -136,6 +136,18 @@ pub fn sessions() -> CollectionDescriptor {
             ),
         ],
     )
+}
+
+pub fn session_command_receipts() -> CollectionDescriptor {
+    added_after_m1(scoped(
+        SESSION_COMMAND_RECEIPTS,
+        vec![
+            field("sessionId", SchemaNode::Str),
+            field("commandId", SchemaNode::Str),
+            field("fingerprint", SchemaNode::Str),
+            field("applied", SchemaNode::Bool),
+        ],
+    ))
 }
 
 pub fn albums() -> CollectionDescriptor {
@@ -376,6 +388,7 @@ pub fn all() -> Vec<CollectionDescriptor> {
         accounts(),
         devices(),
         sessions(),
+        session_command_receipts(),
         albums(),
         album_source_refs(),
         album_tracks(),

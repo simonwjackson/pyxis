@@ -122,6 +122,16 @@ Two operations look similar and are not:
 `dispatched`, never `applied`, because the core only routed it. The resulting state arrives
 as a realtime event once the host has applied it.
 
+A host can include a 1-to-128-character `commandId` in `session.command.run`. The core stores
+a separate durable receipt with the command content. Repeating the same pair returns the
+current session without applying the command again. Reusing the ID for different content
+returns `rejected`. Offline clients must use their outbox command ID here, especially for
+`queue.add`.
+
+A console can include `commandId` in `session.command.send`. The core copies it to the
+resulting directive as `directiveId`. A retry therefore reaches the host with the same ID,
+which lets both the host and `session.command.run` deduplicate it.
+
 `session.command.send` refuses `position.report` and `transport.trackEnded` with `hostOnly`.
 Those are reports about what audio actually did, and only the host can make them truthfully.
 

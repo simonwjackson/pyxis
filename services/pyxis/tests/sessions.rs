@@ -103,6 +103,57 @@ fn queue_edits_persist_and_survive_a_store_reopen() {
 }
 
 #[test]
+fn reserved_command_ids_bind_content_and_apply_once() {
+    let dir = tempfile::tempdir().expect("temp dir");
+    let sessions = Sessions::open(Store::open(dir.path()).expect("store"));
+    let host = auth("account-a", "device-a");
+    let session = sessions.create(&host, "Desk").expect("create");
+
+    sessions
+        .reserve_command(&host, &session.id, &"é".repeat(100), "unicode")
+        .expect("128-character limit counts characters, not UTF-8 bytes");
+    assert!(matches!(
+        sessions.reserve_command(&host, &session.id, &"x".repeat(129), "too-long"),
+        Err(SessionError::InvalidCommandId)
+    ));
+    sessions
+        .reserve_command(&host, &session.id, "01COMMAND", "queue-track-1")
+        .expect("reserve");
+    sessions
+        .reserve_command(&host, &session.id, "01COMMAND", "queue-track-1")
+        .expect("same reservation");
+    assert!(matches!(
+        sessions.reserve_command(&host, &session.id, "01COMMAND", "queue-track-2"),
+        Err(SessionError::CommandIdConflict)
+    ));
+
+    let first = sessions
+        .command_once(
+            &host,
+            &session.id,
+            SessionCommand::QueueAdd {
+                track_ids: vec!["track-1".into()],
+            },
+            Some(("01COMMAND", "queue-track-1")),
+        )
+        .expect("apply");
+    let replay = sessions
+        .command_once(
+            &host,
+            &session.id,
+            SessionCommand::QueueAdd {
+                track_ids: vec!["track-1".into()],
+            },
+            Some(("01COMMAND", "queue-track-1")),
+        )
+        .expect("replay");
+
+    assert_eq!(first.queue, ["track-1"]);
+    assert_eq!(replay.queue, ["track-1"]);
+    assert_eq!(replay.revision, first.revision);
+}
+
+#[test]
 fn a_non_host_position_report_is_rejected() {
     let dir = tempfile::tempdir().expect("temp dir");
     let sessions = Sessions::open(Store::open(dir.path()).expect("store"));

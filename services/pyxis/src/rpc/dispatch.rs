@@ -222,8 +222,17 @@ pub fn dispatch(state: &AppState, request: RpcRequest, auth: Option<AuthContext>
             let Some(auth) = auth else {
                 return auth_required();
             };
+            let command_fingerprint =
+                serde_json::to_string(&request.command).expect("session command serializes");
             let command = domain_command(request.command);
-            match state.sessions.command(&auth, &request.session_id, command) {
+            let command_receipt = request
+                .command_id
+                .as_deref()
+                .map(|id| (id, command_fingerprint.as_str()));
+            match state
+                .sessions
+                .command_once(&auth, &request.session_id, command, command_receipt)
+            {
                 Ok(session) => {
                     let session = rpc_session(session);
                     publish_session(state, &auth, &session);
@@ -238,6 +247,18 @@ pub fn dispatch(state: &AppState, request: RpcRequest, auth: Option<AuthContext>
                 Err(SessionError::NotDevice) => {
                     RpcResponse::SessionCommandRun(SessionCommandOutcome::NotDevice)
                 }
+                Err(SessionError::CommandIdConflict) => RpcResponse::SessionCommandRun(
+                    SessionCommandOutcome::Rejected(RpcFailure::permanent(
+                        "session.commandIdConflict",
+                        "commandId was already used for different command content",
+                    )),
+                ),
+                Err(SessionError::InvalidCommandId) => RpcResponse::SessionCommandRun(
+                    SessionCommandOutcome::Rejected(RpcFailure::permanent(
+                        "session.invalidCommandId",
+                        "commandId must contain 1 to 128 characters",
+                    )),
+                ),
                 Err(SessionError::Queue(error)) => {
                     RpcResponse::SessionCommandRun(SessionCommandOutcome::Rejected(
                         RpcFailure::permanent("session.invalidQueueCommand", error.to_string()),
@@ -276,12 +297,38 @@ pub fn dispatch(state: &AppState, request: RpcRequest, auth: Option<AuthContext>
                     RpcResponse::SessionCommandSend(SessionCommandSendOutcome::Unreachable)
                 }
                 console::Route::ToHost { device_id } => {
+                    if let Some(command_id) = request.command_id.as_deref() {
+                        let fingerprint = serde_json::to_string(&request.command)
+                            .expect("session command serializes");
+                        if let Err(error) = state.sessions.reserve_command(
+                            &auth,
+                            &request.session_id,
+                            command_id,
+                            &fingerprint,
+                        ) {
+                            let failure = match error {
+                                SessionError::CommandIdConflict => RpcFailure::permanent(
+                                    "session.commandIdConflict",
+                                    "commandId was already used for different command content",
+                                ),
+                                SessionError::InvalidCommandId => RpcFailure::permanent(
+                                    "session.invalidCommandId",
+                                    "commandId must contain 1 to 128 characters",
+                                ),
+                                other => session_failure(other),
+                            };
+                            return RpcResponse::SessionCommandSend(
+                                SessionCommandSendOutcome::Unavailable(failure),
+                            );
+                        }
+                    }
                     match state.realtime.deliver(
                         &device_id,
                         directive(
                             &request.session_id,
                             request.command.clone(),
                             auth.principal_id(),
+                            request.command_id.as_deref(),
                         ),
                     ) {
                         Delivery::Sent => {
@@ -318,6 +365,7 @@ pub fn dispatch(state: &AppState, request: RpcRequest, auth: Option<AuthContext>
                             &source.id,
                             RpcSessionCommand::Stop(EmptyRequest {}),
                             auth.principal_id(),
+                            None,
                         ),
                     );
                     let source = rpc_session(source);
@@ -974,12 +1022,15 @@ fn directive(
     session_id: &str,
     command: RpcSessionCommand,
     issued_by: &str,
+    directive_id: Option<&str>,
 ) -> RealtimeServerMessage {
     RealtimeServerMessage::Command(RpcSessionDirective {
         session_id: session_id.to_string(),
         command,
         issued_by: issued_by.to_string(),
-        directive_id: ulid::Ulid::new().to_string(),
+        directive_id: directive_id
+            .map(str::to_string)
+            .unwrap_or_else(|| ulid::Ulid::new().to_string()),
     })
 }
 

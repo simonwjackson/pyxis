@@ -685,6 +685,15 @@
         "sessionId": {
           "type": "string"
         },
+        "commandId": {
+          "description": "Idempotency key for a host command replayed from an offline outbox.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "minLength": 1,
+          "maxLength": 128
+        },
         "command": {
           "$ref": "#/$defs/RpcSessionCommand"
         }

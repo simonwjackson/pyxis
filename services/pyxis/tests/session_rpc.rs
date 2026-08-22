@@ -116,6 +116,67 @@ async fn host_device_creates_queues_and_drives_its_session_through_one_command_u
 }
 
 #[tokio::test]
+async fn replaying_one_session_command_id_applies_it_once() {
+    let dir = tempfile::tempdir().expect("temp dir");
+    let state = AppState::open(Store::open(dir.path()).expect("store")).expect("state");
+    let app = router(state);
+    let host = claim(&app, "desk").await;
+    let created = rpc(
+        &app,
+        json!({ "_tag": "session.create", "payload": { "name": "Desk" } }),
+        Some(token(&host)),
+    )
+    .await;
+    let session_id = created["outcome"]["value"]["id"]
+        .as_str()
+        .expect("session id");
+    let request = json!({
+        "_tag": "session.command.run",
+        "payload": {
+            "sessionId": session_id,
+            "commandId": "01COMMAND",
+            "command": {
+                "_tag": "queue.add",
+                "payload": { "trackIds": ["track-1"] }
+            }
+        }
+    });
+
+    let first = rpc(&app, request.clone(), Some(token(&host))).await;
+    let replay = rpc(&app, request, Some(token(&host))).await;
+
+    assert_eq!(first["outcome"]["status"], "applied");
+    assert_eq!(replay["outcome"]["status"], "applied");
+    assert_eq!(replay["outcome"]["value"]["queue"], json!(["track-1"]));
+    assert_eq!(
+        replay["outcome"]["value"]["revision"],
+        first["outcome"]["value"]["revision"]
+    );
+
+    let conflicting = rpc(
+        &app,
+        json!({
+            "_tag": "session.command.run",
+            "payload": {
+                "sessionId": session_id,
+                "commandId": "01COMMAND",
+                "command": {
+                    "_tag": "queue.add",
+                    "payload": { "trackIds": ["track-2"] }
+                }
+            }
+        }),
+        Some(token(&host)),
+    )
+    .await;
+    assert_eq!(conflicting["outcome"]["status"], "rejected");
+    assert_eq!(
+        conflicting["outcome"]["value"]["code"],
+        "session.commandIdConflict"
+    );
+}
+
+#[tokio::test]
 async fn another_device_can_read_but_cannot_report_host_transport_state() {
     let dir = tempfile::tempdir().expect("temp dir");
     let state = AppState::open(Store::open(dir.path()).expect("store")).expect("state");

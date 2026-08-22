@@ -36,6 +36,10 @@ pub enum SessionError {
     UnknownSession,
     #[error("caller is not the session host")]
     NotHost,
+    #[error("command id was already used for different content")]
+    CommandIdConflict,
+    #[error("command id must contain 1 to 128 characters")]
+    InvalidCommandId,
     #[error(transparent)]
     Queue(#[from] QueueError),
     #[error(transparent)]
@@ -124,6 +128,20 @@ struct SessionRecord {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     output_ref: Option<String>,
     queue: Vec<String>,
+    revision: u64,
+    updated_by: String,
+    updated_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct CommandReceiptRecord {
+    id: String,
+    account_id: String,
+    session_id: String,
+    command_id: String,
+    fingerprint: String,
+    applied: bool,
     revision: u64,
     updated_by: String,
     updated_at: String,
@@ -225,11 +243,70 @@ impl Sessions {
             .map(|record| self.session(record)))
     }
 
+    pub fn reserve_command(
+        &self,
+        auth: &AuthContext,
+        session_id: &str,
+        command_id: &str,
+        fingerprint: &str,
+    ) -> Result<(), SessionError> {
+        validate_command_id(command_id)?;
+        let _guard = self.mutation.lock().expect("session mutation poisoned");
+        if self
+            .store
+            .get::<SessionRecord>(schema::SESSIONS, &auth.account_id, session_id)?
+            .is_none()
+        {
+            return Err(SessionError::UnknownSession);
+        }
+        let receipt_id = command_receipt_id(session_id, command_id);
+        if let Some(existing) = self.store.get::<CommandReceiptRecord>(
+            schema::SESSION_COMMAND_RECEIPTS,
+            &auth.account_id,
+            &receipt_id,
+        )? {
+            return if existing.fingerprint == fingerprint {
+                Ok(())
+            } else {
+                Err(SessionError::CommandIdConflict)
+            };
+        }
+        let timestamp = now();
+        let receipt = CommandReceiptRecord {
+            id: receipt_id,
+            account_id: String::new(),
+            session_id: session_id.to_string(),
+            command_id: command_id.to_string(),
+            fingerprint: fingerprint.to_string(),
+            applied: false,
+            revision: 1,
+            updated_by: auth.principal_id().to_string(),
+            updated_at: timestamp,
+        };
+        self.store.put(
+            schema::SESSION_COMMAND_RECEIPTS,
+            &auth.account_id,
+            &receipt.id,
+            &receipt,
+        )?;
+        Ok(())
+    }
+
     pub fn command(
         &self,
         auth: &AuthContext,
         session_id: &str,
         command: SessionCommand,
+    ) -> Result<Session, SessionError> {
+        self.command_once(auth, session_id, command, None)
+    }
+
+    pub fn command_once(
+        &self,
+        auth: &AuthContext,
+        session_id: &str,
+        command: SessionCommand,
+        command_receipt: Option<(&str, &str)>,
     ) -> Result<Session, SessionError> {
         let caller = device_id(auth)?;
         let _guard = self.mutation.lock().expect("session mutation poisoned");
@@ -242,6 +319,34 @@ impl Sessions {
         if record.host_device_id != caller {
             return Err(SessionError::NotHost);
         }
+        let mut receipt = if let Some((command_id, fingerprint)) = command_receipt {
+            validate_command_id(command_id)?;
+            let receipt_id = command_receipt_id(session_id, command_id);
+            match self.store.get::<CommandReceiptRecord>(
+                schema::SESSION_COMMAND_RECEIPTS,
+                &auth.account_id,
+                &receipt_id,
+            )? {
+                Some(existing) if existing.fingerprint != fingerprint => {
+                    return Err(SessionError::CommandIdConflict)
+                }
+                Some(existing) if existing.applied => return Ok(self.session(record)),
+                Some(existing) => Some(existing),
+                None => Some(CommandReceiptRecord {
+                    id: receipt_id,
+                    account_id: String::new(),
+                    session_id: session_id.to_string(),
+                    command_id: command_id.to_string(),
+                    fingerprint: fingerprint.to_string(),
+                    applied: false,
+                    revision: 1,
+                    updated_by: caller.to_string(),
+                    updated_at: now(),
+                }),
+            }
+        } else {
+            None
+        };
 
         match command {
             SessionCommand::QueueAdd { track_ids } => {
@@ -291,8 +396,26 @@ impl Sessions {
         record.revision += 1;
         record.updated_by = caller.to_string();
         record.updated_at = now();
-        self.store
-            .put(schema::SESSIONS, &auth.account_id, session_id, &record)?;
+        if let Some(receipt) = &mut receipt {
+            receipt.applied = true;
+            receipt.revision += 1;
+            receipt.updated_by = caller.to_string();
+            receipt.updated_at = now();
+            self.store.put_mixed_batch(
+                &auth.account_id,
+                &[
+                    Store::write(schema::SESSIONS, session_id.to_string(), &record)?,
+                    Store::write(
+                        schema::SESSION_COMMAND_RECEIPTS,
+                        receipt.id.clone(),
+                        receipt,
+                    )?,
+                ],
+            )?;
+        } else {
+            self.store
+                .put(schema::SESSIONS, &auth.account_id, session_id, &record)?;
+        }
         Ok(self.session(record))
     }
 
@@ -417,6 +540,17 @@ impl Sessions {
             updated_at: record.updated_at,
         }
     }
+}
+
+fn validate_command_id(command_id: &str) -> Result<(), SessionError> {
+    if command_id.is_empty() || command_id.chars().count() > 128 {
+        return Err(SessionError::InvalidCommandId);
+    }
+    Ok(())
+}
+
+fn command_receipt_id(session_id: &str, command_id: &str) -> String {
+    format!("{session_id}:{command_id}")
 }
 
 fn device_id(auth: &AuthContext) -> Result<&str, SessionError> {

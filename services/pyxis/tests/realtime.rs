@@ -543,6 +543,7 @@ async fn a_console_command_reaches_the_host_and_the_host_applies_it() {
             "_tag": "session.command.send",
             "payload": {
                 "sessionId": session_id,
+                "commandId": "01CONSOLE",
                 "command": { "_tag": "transport.pause", "payload": {} }
             }
         }),
@@ -553,6 +554,24 @@ async fn a_console_command_reaches_the_host_and_the_host_applies_it() {
         dispatched["outcome"]["status"], "dispatched",
         "the core routes the command; only the host can say what its audio did"
     );
+    let conflicting = rpc(
+        &server,
+        json!({
+            "_tag": "session.command.send",
+            "payload": {
+                "sessionId": session_id,
+                "commandId": "01CONSOLE",
+                "command": { "_tag": "transport.play", "payload": {} }
+            }
+        }),
+        Some(&console_bearer),
+    )
+    .await;
+    assert_eq!(conflicting["outcome"]["status"], "unavailable");
+    assert_eq!(
+        conflicting["outcome"]["value"]["code"],
+        "session.commandIdConflict"
+    );
 
     // The host receives the directive addressed to it.
     let directive = loop {
@@ -562,6 +581,7 @@ async fn a_console_command_reaches_the_host_and_the_host_applies_it() {
         }
     };
     assert_eq!(directive["payload"]["sessionId"], session_id);
+    assert_eq!(directive["payload"]["directiveId"], "01CONSOLE");
     assert_eq!(directive["payload"]["command"]["_tag"], "transport.pause");
 
     // The host applies it, which is what makes the state change real.
@@ -571,6 +591,7 @@ async fn a_console_command_reaches_the_host_and_the_host_applies_it() {
             "_tag": "session.command.run",
             "payload": {
                 "sessionId": session_id,
+                "commandId": directive["payload"]["directiveId"].clone(),
                 "command": directive["payload"]["command"].clone()
             }
         }),
