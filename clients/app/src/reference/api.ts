@@ -1,5 +1,7 @@
 import type {
   ListenTrackEventInput,
+  RealtimeEvent,
+  RealtimeServerMessage,
   RpcAuthGrant,
   RpcLibraryAlbum,
   RpcPlacement,
@@ -9,7 +11,17 @@ import type {
   RpcSearchTrack,
   RpcSession,
   RpcSessionCommand,
+  RpcSessionDirective,
 } from "../../../../contracts/generated/pyxis"
+
+export interface RealtimeHandlers {
+  onEvent(event: RealtimeEvent): void
+  /// A console asked this device to change one of its sessions.
+  onDirective(directive: RpcSessionDirective): void
+  /// The server could not replay what was missed. Local state may be stale and has to be
+  /// refetched rather than patched.
+  onResync(): void
+}
 
 export interface SearchResult {
   readonly tracks: readonly RpcSearchTrack[]
@@ -27,9 +39,15 @@ export interface ReferenceClient {
     placement: RpcPlacement,
   ): Promise<RpcLibraryAlbum>
   search(token: string, query: string): Promise<SearchResult>
-  listSessions(token: string): Promise<readonly RpcSession[]>
+  /// Reachable sessions only, unless `includeUnreachable` asks the durable question.
+  listSessions(token: string, includeUnreachable?: boolean): Promise<readonly RpcSession[]>
   createSession(token: string, name: string): Promise<RpcSession>
   command(token: string, sessionId: string, command: RpcSessionCommand): Promise<RpcSession>
+  /// Ask the device hosting `sessionId` to run a command. Resolves once the core has
+  /// routed it; the resulting state arrives as a realtime event.
+  sendCommand(token: string, sessionId: string, command: RpcSessionCommand): Promise<void>
+  handoff(token: string, sessionId: string, targetSessionId: string): Promise<RpcSession>
+  connectRealtime(token: string, handlers: RealtimeHandlers): () => void
   appendListen(token: string, event: ListenTrackEventInput): Promise<void>
   loadStream(token: string, trackId: string): Promise<string>
 }
@@ -37,11 +55,13 @@ export interface ReferenceClient {
 interface ReferenceClientConfig {
   readonly fetch?: typeof fetch
   readonly createObjectUrl?: (blob: Blob) => string
+  readonly realtimeUrl?: string
 }
 
 export function createReferenceClient(config: ReferenceClientConfig = {}): ReferenceClient {
   const request = config.fetch ?? globalThis.fetch
   const createObjectUrl = config.createObjectUrl ?? URL.createObjectURL
+  const realtimeUrl = config.realtimeUrl ?? defaultRealtimeUrl()
 
   const rpc = async (payload: RpcRequest, bearer?: string): Promise<RpcResponse> => {
     const response = await request("/rpc", {
@@ -127,8 +147,8 @@ export function createReferenceClient(config: ReferenceClientConfig = {}): Refer
       }
     },
 
-    async listSessions(token) {
-      const response = await rpc({ _tag: "session.list", payload: {} }, token)
+    async listSessions(token, includeUnreachable = false) {
+      const response = await rpc({ _tag: "session.list", payload: { includeUnreachable } }, token)
       if (response._tag !== "session.list" || response.outcome.status !== "ready") {
         throw new Error("session list is unavailable")
       }
@@ -158,6 +178,89 @@ export function createReferenceClient(config: ReferenceClientConfig = {}): Refer
       return response.outcome.value
     },
 
+    async sendCommand(token, sessionId, command) {
+      const response = await rpc(
+        { _tag: "session.command.send", payload: { sessionId, command } },
+        token,
+      )
+      if (response._tag !== "session.command.send") throw new Error("invalid console response")
+      if (response.outcome.status !== "dispatched") {
+        throw new Error(`console command was not delivered: ${response.outcome.status}`)
+      }
+    },
+
+    async handoff(token, sessionId, targetSessionId) {
+      const response = await rpc(
+        { _tag: "session.handoff", payload: { sessionId, targetSessionId } },
+        token,
+      )
+      if (response._tag !== "session.handoff") throw new Error("invalid handoff response")
+      if (response.outcome.status !== "ready") {
+        throw new Error(`handoff was refused: ${response.outcome.status}`)
+      }
+      return response.outcome.value
+    },
+
+    connectRealtime(token, handlers) {
+      let closed = false
+      let socket: WebSocket | undefined
+      let retry: ReturnType<typeof setTimeout> | undefined
+      // Kept across reconnects so a brief drop replays instead of losing state.
+      let resumeToken: string | undefined
+
+      const open = () => {
+        if (closed) return
+        socket = new WebSocket(realtimeUrl)
+        socket.addEventListener("open", () => {
+          socket?.send(
+            JSON.stringify({
+              _tag: "realtime.hello",
+              payload: {
+                bearerToken: token,
+                topics: ["sessions", "library"],
+                ...(resumeToken === undefined ? {} : { resumeToken }),
+              },
+            }),
+          )
+        })
+        socket.addEventListener("message", (message: MessageEvent<string>) => {
+          let parsed: unknown
+          try {
+            parsed = JSON.parse(message.data)
+          } catch {
+            // A truncated frame is not worth tearing the socket down for.
+            return
+          }
+          if (!isRecord(parsed) || typeof parsed._tag !== "string") return
+          const frame = parsed as RealtimeServerMessage
+          if (frame._tag === "realtime.welcome") {
+            resumeToken = frame.payload.resumeToken
+            // Either the replay was incomplete or this is a fresh epoch after a restart.
+            // Patching from here would leave the client permanently stale.
+            if (frame.payload.missedEventsDropped) handlers.onResync()
+            return
+          }
+          if (frame._tag === "realtime.event") {
+            resumeToken = frame.payload.resumeToken
+            handlers.onEvent(frame.payload)
+            return
+          }
+          if (frame._tag === "realtime.command") handlers.onDirective(frame.payload)
+        })
+        socket.addEventListener("close", () => {
+          if (closed) return
+          retry = setTimeout(open, 1000)
+        })
+      }
+
+      open()
+      return () => {
+        closed = true
+        if (retry !== undefined) clearTimeout(retry)
+        socket?.close()
+      }
+    },
+
     async appendListen(token, event) {
       const response = await rpc(
         { _tag: "listen.events.append", payload: { events: [event] } },
@@ -178,6 +281,12 @@ export function createReferenceClient(config: ReferenceClientConfig = {}): Refer
       return createObjectUrl(await response.blob())
     },
   }
+}
+
+function defaultRealtimeUrl(): string {
+  const location = globalThis.location
+  if (location === undefined) return "ws://127.0.0.1:4488/realtime"
+  return `${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/realtime`
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

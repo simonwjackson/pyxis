@@ -8,6 +8,8 @@ import type {
   RpcSession,
 } from "../../../../contracts/generated/pyxis"
 
+export type ConsoleCommand = "play" | "pause" | "stop"
+
 export interface ReferenceContextValue {
   readonly status: "booting" | "ready" | "busy" | "error"
   readonly grant?: RpcAuthGrant
@@ -18,6 +20,8 @@ export interface ReferenceContextValue {
   readonly searchHasNoSources: boolean
   readonly sourceFailures: readonly string[]
   readonly session?: RpcSession
+  /// Other devices on this account that can be driven right now.
+  readonly remoteSessions: readonly RpcSession[]
   readonly audioUrl?: string
   readonly error?: string
   setQuery(value: string): void
@@ -29,6 +33,8 @@ export interface ReferenceContextValue {
   stop(): Promise<void>
   clearQueue(): Promise<void>
   reportEnded(): Promise<void>
+  driveRemote(sessionId: string, command: ConsoleCommand): Promise<void>
+  handOffTo(targetSessionId: string): Promise<void>
   attachAudio(element: HTMLAudioElement | null): void
 }
 

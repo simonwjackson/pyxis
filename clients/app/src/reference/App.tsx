@@ -8,14 +8,22 @@ import type {
   RpcPlugin,
   RpcSearchTrack,
   RpcSession,
+  RpcSessionCommand,
 } from "../../../../contracts/generated/pyxis"
 import { createReferenceClient, type ReferenceClient } from "./api.ts"
 import { ReferenceConsole } from "./Console.tsx"
 import { ReferenceLibrary } from "./Library.tsx"
 import { ReferencePlugins } from "./Plugins.tsx"
-import { ReferenceContext } from "./Reference.context.tsx"
+import { type ConsoleCommand, ReferenceContext } from "./Reference.context.tsx"
 import { ReferenceAudio } from "./ReferenceAudio.tsx"
+import { ReferenceRemote } from "./Remote.tsx"
 import { ReferenceSessions } from "./Sessions.tsx"
+
+const CONSOLE_COMMANDS: Record<ConsoleCommand, RpcSessionCommand> = {
+  play: { _tag: "transport.play", payload: {} },
+  pause: { _tag: "transport.pause", payload: {} },
+  stop: { _tag: "transport.stop", payload: {} },
+}
 
 interface ReferenceAppProps {
   readonly client?: ReferenceClient
@@ -40,8 +48,11 @@ export function ReferenceApp({ client = liveClient, children }: ReferenceAppProp
   const [searchHasNoSources, setSearchHasNoSources] = useState(false)
   const [sourceFailures, setSourceFailures] = useState<readonly string[]>([])
   const [session, setSession] = useState<RpcSession>()
+  const [remoteSessions, setRemoteSessions] = useState<readonly RpcSession[]>([])
   const [audioUrl, setAudioUrl] = useState<string>()
   const [error, setError] = useState<string>()
+  const sessionRef = useRef<RpcSession>()
+  const appliedDirectives = useRef<string[]>([])
 
   useEffect(() => {
     if (started.current) return
@@ -52,14 +63,23 @@ export function ReferenceApp({ client = liveClient, children }: ReferenceAppProp
         const [nextPlugins, nextAlbums, sessions] = await Promise.all([
           client.listPlugins(nextGrant.bearerToken),
           client.listAlbums(nextGrant.bearerToken),
-          client.listSessions(nextGrant.bearerToken),
+          // Whether this device already owns a session is a durable question. Its own
+          // realtime socket does not exist yet, so it is not reachable at this moment.
+          client.listSessions(nextGrant.bearerToken, true),
         ])
         setGrant(nextGrant)
         setPlugins(nextPlugins)
         albumsRef.current = nextAlbums
         confirmedAlbumsRef.current = nextAlbums
         setAlbums(nextAlbums)
-        setSession(sessions.find((candidate) => candidate.hostDeviceId === nextGrant.device.id))
+        const hosted = sessions.find((candidate) => candidate.hostDeviceId === nextGrant.device.id)
+        sessionRef.current = hosted
+        setSession(hosted)
+        setRemoteSessions(
+          sessions.filter(
+            (candidate) => candidate.hostDeviceId !== nextGrant.device.id && candidate.reachable,
+          ),
+        )
         setStatus("ready")
       } catch (cause) {
         setError(message(cause))
@@ -67,6 +87,105 @@ export function ReferenceApp({ client = liveClient, children }: ReferenceAppProp
       }
     })()
   }, [client])
+
+  useEffect(() => {
+    sessionRef.current = session
+  }, [session])
+
+  // The realtime socket is also what makes this device reachable, so a console can drive
+  // it. Without a live socket the core correctly reports this session as uncontrollable.
+  useEffect(() => {
+    if (grant === undefined) return
+    const token = grant.bearerToken
+    const deviceId = grant.device.id
+    return client.connectRealtime(token, {
+      onEvent: (event) => {
+        const state = event.state
+        if (state._tag === "session.state") {
+          const updated = state.payload
+          if (updated.hostDeviceId === deviceId) {
+            setSession(updated)
+            return
+          }
+          setRemoteSessions((current) => {
+            const others = current.filter((candidate) => candidate.id !== updated.id)
+            return updated.reachable ? [...others, updated] : others
+          })
+          return
+        }
+        if (state._tag === "library.album.state") {
+          const updated = state.payload
+          // A local write in flight is newer intent than anything the socket can carry,
+          // and an older revision must never overwrite a newer one: the two channels have
+          // no ordering with respect to each other.
+          if (placementQueues.current.has(updated.id)) return
+          setAlbums((current) => {
+            const existing = current.find((album) => album.id === updated.id)
+            if (existing !== undefined && existing.revision > updated.revision) return current
+            const next =
+              existing === undefined
+                ? [...current, updated]
+                : current.map((album) => (album.id === updated.id ? updated : album))
+            albumsRef.current = next
+            confirmedAlbumsRef.current = next
+            return next
+          })
+          return
+        }
+        const removedId = state.payload.id
+        setAlbums((current) => {
+          const next = current.filter((album) => album.id !== removedId)
+          albumsRef.current = next
+          confirmedAlbumsRef.current = next
+          return next
+        })
+      },
+      onResync: () => {
+        // The server said the replay was incomplete. Refetch rather than patch.
+        void (async () => {
+          try {
+            const [freshAlbums, freshSessions] = await Promise.all([
+              client.listAlbums(token),
+              client.listSessions(token, true),
+            ])
+            albumsRef.current = freshAlbums
+            confirmedAlbumsRef.current = freshAlbums
+            setAlbums(freshAlbums)
+            setSession(freshSessions.find((candidate) => candidate.hostDeviceId === deviceId))
+            setRemoteSessions(
+              freshSessions.filter(
+                (candidate) => candidate.hostDeviceId !== deviceId && candidate.reachable,
+              ),
+            )
+          } catch (cause) {
+            setError(message(cause))
+          }
+        })()
+      },
+      onDirective: (directive) => {
+        // A reconnect can redeliver a directive. Applying `queue.add` twice would add the
+        // same track twice, so identity decides, not arrival.
+        if (appliedDirectives.current.includes(directive.directiveId)) return
+        appliedDirectives.current = [
+          ...appliedDirectives.current.slice(-511),
+          directive.directiveId,
+        ]
+        void (async () => {
+          try {
+            if (directive.command._tag === "transport.play") {
+              const current = sessionRef.current
+              if (current?.currentTrackId !== undefined) {
+                setAudioUrl(await client.loadStream(token, current.currentTrackId))
+              }
+            }
+            setSession(await client.command(token, directive.sessionId, directive.command))
+          } catch (cause) {
+            setError(message(cause))
+          }
+        })()
+      },
+    })
+  }, [client, grant])
 
   useEffect(
     () => () => {
@@ -275,6 +394,27 @@ export function ReferenceApp({ client = liveClient, children }: ReferenceAppProp
     setSession(updated)
   }, [client, currentToken, grant, session, tracks])
 
+  const driveRemote = useCallback(
+    async (sessionId: string, command: ConsoleCommand) => {
+      await run(async () => {
+        await client.sendCommand(currentToken(), sessionId, CONSOLE_COMMANDS[command])
+      })
+    },
+    [client, currentToken, run],
+  )
+
+  const handOffTo = useCallback(
+    async (targetSessionId: string) => {
+      const source = session
+      if (source === undefined) return
+      await run(async () => {
+        await client.handoff(currentToken(), source.id, targetSessionId)
+        setAudioUrl(undefined)
+      })
+    },
+    [client, currentToken, run, session],
+  )
+
   const attachAudio = useCallback((element: HTMLAudioElement | null) => {
     audioElement.current = element
   }, [])
@@ -290,6 +430,7 @@ export function ReferenceApp({ client = liveClient, children }: ReferenceAppProp
       searchHasNoSources,
       sourceFailures,
       ...(session === undefined ? {} : { session }),
+      remoteSessions,
       ...(audioUrl === undefined ? {} : { audioUrl }),
       ...(error === undefined ? {} : { error }),
       setQuery,
@@ -301,6 +442,8 @@ export function ReferenceApp({ client = liveClient, children }: ReferenceAppProp
       stop,
       clearQueue,
       reportEnded,
+      driveRemote,
+      handOffTo,
       attachAudio,
     }),
     [
@@ -313,6 +456,7 @@ export function ReferenceApp({ client = liveClient, children }: ReferenceAppProp
       searchHasNoSources,
       sourceFailures,
       session,
+      remoteSessions,
       audioUrl,
       error,
       search,
@@ -323,6 +467,8 @@ export function ReferenceApp({ client = liveClient, children }: ReferenceAppProp
       stop,
       clearQueue,
       reportEnded,
+      driveRemote,
+      handOffTo,
       attachAudio,
     ],
   )
@@ -336,6 +482,7 @@ export function ReferenceApp({ client = liveClient, children }: ReferenceAppProp
           <ReferencePlugins />
           <ReferenceLibrary />
           <ReferenceSessions />
+          <ReferenceRemote />
           <ReferenceConsole />
           <ReferenceAudio />
         </main>

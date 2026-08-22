@@ -1,11 +1,32 @@
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { afterEach, describe, expect, test } from "vitest"
-import { RpcPlacement } from "../../../../contracts/generated/pyxis"
+import {
+  RpcPlacement,
+  type RpcSession,
+  type RpcSessionDirective,
+} from "../../../../contracts/generated/pyxis"
 import { ReferenceApp } from "./App.tsx"
 import type { ReferenceClient } from "./api.ts"
 import { ReferenceConsole } from "./Console.tsx"
 import { ReferenceLibrary } from "./Library.tsx"
+import { ReferenceRemote } from "./Remote.tsx"
 import { ReferenceSessions } from "./Sessions.tsx"
+
+function session(overrides: Partial<RpcSession> = {}): RpcSession {
+  return {
+    id: "session-remote",
+    name: "Kitchen",
+    hostDeviceId: "device-2",
+    queue: [],
+    transport: "stopped",
+    positionMs: 0,
+    volume: 100,
+    reachable: true,
+    revision: 1,
+    updatedAt: "now",
+    ...overrides,
+  } as RpcSession
+}
 
 afterEach(cleanup)
 
@@ -29,10 +50,143 @@ function client(plugins: Awaited<ReturnType<ReferenceClient["listPlugins"]>>): R
     command: async () => {
       throw new Error("not used")
     },
+    sendCommand: async () => {
+      throw new Error("not used")
+    },
+    handoff: async () => {
+      throw new Error("not used")
+    },
+    connectRealtime: () => () => {},
     appendListen: async () => {},
     loadStream: async () => "blob:test",
   }
 }
+
+describe("console mode", () => {
+  test("drives a session hosted by another device", async () => {
+    const sent: string[] = []
+    const configured: ReferenceClient = {
+      ...client([]),
+      listSessions: async () => [session()],
+      sendCommand: async (_token, sessionId, command) => {
+        sent.push(`${sessionId}:${command._tag}`)
+      },
+    }
+
+    render(
+      <ReferenceApp client={configured}>
+        <ReferenceRemote />
+      </ReferenceApp>,
+    )
+
+    await waitFor(() => expect(screen.getByText(/Kitchen/)).toBeTruthy())
+    fireEvent.click(screen.getByRole("button", { name: "pause" }))
+    await waitFor(() => expect(sent).toEqual(["session-remote:transport.pause"]))
+  })
+
+  test("shows only devices that can answer a command", async () => {
+    const configured: ReferenceClient = {
+      ...client([]),
+      listSessions: async () => [],
+    }
+
+    render(
+      <ReferenceApp client={configured}>
+        <ReferenceRemote />
+      </ReferenceApp>,
+    )
+
+    await waitFor(() =>
+      expect(
+        screen.getByText(
+          "No other device is connected. Open this page on a second device to control it.",
+        ),
+      ).toBeTruthy(),
+    )
+  })
+
+  test("refetches instead of patching when the server dropped missed events", async () => {
+    let resync: (() => void) | undefined
+    let albumCalls = 0
+    const configured: ReferenceClient = {
+      ...client([]),
+      listAlbums: async () => {
+        albumCalls += 1
+        return albumCalls === 1
+          ? []
+          : [
+              {
+                id: "album-1",
+                title: "Heroes",
+                artist: "David Bowie",
+                placement: RpcPlacement.Discovery,
+                placementUpdatedAt: "now",
+                addedAt: "now",
+                revision: 1,
+                tracks: [],
+              },
+            ]
+      },
+      connectRealtime: (_token, handlers) => {
+        resync = handlers.onResync
+        return () => {}
+      },
+    }
+
+    render(
+      <ReferenceApp client={configured}>
+        <ReferenceLibrary />
+      </ReferenceApp>,
+    )
+    await waitFor(() => expect(resync).toBeTypeOf("function"))
+
+    await act(async () => {
+      resync?.()
+      await Promise.resolve()
+    })
+
+    await waitFor(() => expect(screen.getByText(/Heroes/)).toBeTruthy())
+  })
+
+  test("applies a directive from a console exactly once", async () => {
+    const applied: string[] = []
+    let deliver: ((directive: RpcSessionDirective) => void) | undefined
+    const configured: ReferenceClient = {
+      ...client([]),
+      listSessions: async () => [session({ id: "mine", hostDeviceId: "device-1" })],
+      connectRealtime: (_token, handlers) => {
+        deliver = handlers.onDirective
+        return () => {}
+      },
+      command: async (_token, sessionId, command) => {
+        applied.push(`${sessionId}:${command._tag}`)
+        return session({ id: sessionId, hostDeviceId: "device-1", transport: "paused" })
+      },
+    }
+
+    render(
+      <ReferenceApp client={configured}>
+        <ReferenceSessions />
+      </ReferenceApp>,
+    )
+    await waitFor(() => expect(deliver).toBeTypeOf("function"))
+
+    const directive: RpcSessionDirective = {
+      sessionId: "mine",
+      command: { _tag: "transport.pause", payload: {} },
+      issuedBy: "device-2",
+      directiveId: "directive-1",
+    }
+    await act(async () => {
+      deliver?.(directive)
+      // A reconnect can redeliver the same directive.
+      deliver?.(directive)
+      await Promise.resolve()
+    })
+
+    await waitFor(() => expect(applied).toEqual(["mine:transport.pause"]))
+  })
+})
 
 describe("reference client", () => {
   test("explains the valid zero-plugin product state", async () => {
@@ -324,6 +478,7 @@ describe("reference client", () => {
     let session: Awaited<ReturnType<ReferenceClient["createSession"]>> | undefined
     let loadedTrack: string | undefined
     const configured: ReferenceClient = {
+      ...client([]),
       claimDevice: async () => ({
         account: { id: "default", name: "default", isDefault: true, createdAt: "now" },
         device: { id: "device-1", name: "reference browser" },
