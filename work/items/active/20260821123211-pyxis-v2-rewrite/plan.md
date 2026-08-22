@@ -123,7 +123,7 @@ Settled. Do not re-open without the user asking.
 | D8 | Media bytes never cross the plugin stdio boundary | Plugins return a URL plus headers, or a local file path. The core does all fetching and caching |
 | D9 | No auth until a second account exists; the first device claims `default` | Satisfies R3 zero-friction boot. Cost: on a shared tailnet, the first caller wins |
 | D10 | Soulseek never uploads | User decision. Cost: many peers refuse download-only clients, so expect long queues and a low hit rate. The plugin is designed to be patient, not fast |
-| D11 | Legacy import is an external ephemeral tool emitting a re-acquisition manifest | Honors R2 and R14. The 371 v1 albums are re-resolved through plugins as if added by hand. Old source-ref bindings are discarded deliberately |
+| D11 | Legacy import is an external ephemeral tool emitting a re-acquisition manifest | Honors R2 and R14. The live manifest contains 386 v1 albums, which are re-resolved through plugins as if added by hand. Old source-ref bindings are discarded deliberately |
 | D12 | Monorepo, separate flake output per plugin | Fast iteration while plugins still only speak the public protocol, which keeps the third-party contract honest |
 | D13 | `nix profile` plus `systemctl --user` for v1 | Matches the reference projects and iterates faster than a system rebuild. NixOS module deferred |
 | D14 | The Rust contract module is the protocol source of truth, with typeshare and schemars codegen | One definition produces TypeScript types and a JSON Schema. The schema is the runtime trust boundary, mirroring the reference projects |
@@ -137,7 +137,7 @@ Settled. Do not re-open without the user asking.
 ### Verified findings from the v1 system
 
 - v1 data lives at `/var/lib/pyxis/pyxis/db/` under a systemd `DynamicUser`, so reading it
-  requires sudo. Contents: `albums.yaml` (371 albums), `album-tracks.yaml`,
+  requires sudo. Contents: `albums.yaml` (386 live manifest entries), `album-tracks.yaml`,
   `album-source-refs.yaml`, `listen-log.jsonl` (107 events), plus ephemeral runtime state.
   Total 2.1 MB.
 - **There are no recorded Pandora fixtures.** The v1 `.gitignore` excludes `fixtures/*.json`
@@ -278,7 +278,7 @@ milestone below answers a question the user can only answer by using the thing.
 | # | Ships | Units, in execution order | The question it answers |
 |---|---|---|---|
 | M1 | **A song plays.** Local dev shell, one plugin, ugly client | U1, U2, U3, U4, U6, U7, U15, U17, U11, U14, U12, U24 | Does the plugin architecture work end to end, and does audio come out? |
-| M2 | **The library is back, installed on the tailnet** | U8, U9, U10, U16, U25, U27 | Are my 371 albums right, and does the placement model feel correct? |
+| M2 | **The library is back, installed on the tailnet** | U8, U9, U10, U16, U25, U27 | Are my 386 legacy albums accounted for, and does the placement model feel correct? |
 | M3 | **Console control from a second device** | U5, U13 | Does console mode feel good, and is the session model right? |
 | M4 | **It plays on the Sonos** | U18 | Does output-as-a-plugin hold up against real hardware? |
 | M5 | **It works with no network** | U20, U21, U22, U23 | Does offline survive real use, or only tests? |
@@ -1081,7 +1081,7 @@ U13, and U23 land.
 
 ### U27. Ephemeral legacy import, then deletion
 
-**Goal:** Recover the 371-album library, then delete the tooling.
+**Goal:** Account for the live 386-album manifest, then delete the tooling.
 
 **Requirements:** R14, R2
 
@@ -1096,7 +1096,7 @@ U13, and U23 land.
   events are discarded deliberately (D11).
 - Feed the manifest through the public API, resolving each album through plugins as if
   added by hand. This doubles as the strongest end-to-end test of the plugin layer.
-- Report unresolved albums for manual handling. Expect roughly 10 to 30 of 371.
+- Report unresolved albums for manual handling. Expect roughly 10 to 30 of 386.
 - The final commit of this unit deletes `tools/import-legacy/` entirely (R14).
 
 **Test scenarios:**

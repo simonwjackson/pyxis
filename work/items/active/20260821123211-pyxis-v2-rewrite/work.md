@@ -23,11 +23,20 @@ requirements and decisions were captured directly into `plan.md` sections
 
 ## Current position
 
-**Milestone M1 — "A song plays" — shipped locally.** Product is running at
-`http://127.0.0.1:5173` for validation. Next: **M2 / U8**.
+**Milestone M2 implementation is complete locally. Tailnet activation is pending the
+external `mountainous` deployment.** The live 386-entry legacy manifest is fully accounted:
+370 albums are in Discovery, 16 remain unresolved after manual review, and no import
+request failed. The durable audit is
+`docs/operations/2026-08-21-v1-album-import.md`.
+
+The packaged product reopened the completed `~/.local/share/pyxis` store at
+`http://127.0.0.1:4491`. The old system `pyxis.service` and
+`tsnet-proxy-pyxis.service` units remain active and conflict with the new user units. The
+user owns their removal through the pending `mountainous` deployment.
+
+Next: validate M2 through `https://pyxis.hummingbird-lake.ts.net`, then execute **M3 / U5**.
 
 Execution order is the `Shipping Milestones` table in `plan.md`, not numeric U-ID order.
-Update this line when a milestone boundary is crossed. Per-unit progress comes from
-`git log`, not from this file.
+Per-unit progress comes from `git log`, not from this file.
 
 Ship only at a milestone boundary.
