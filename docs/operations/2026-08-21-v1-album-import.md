@@ -88,6 +88,22 @@ The parser now reads header metadata first, selects the shelf that matches the h
 
 Shared track identity now keeps title, artist, and duration on the shared track while each album relationship owns its track number. Sixteen albums that share track ids received one final targeted reacquisition after that schema change.
 
+## Tailnet deployment validation
+
+Commit `18a5cce` was installed through `nix profile`. The user core, tailnet edge, and
+nightly yt-dlp timer are active. The old system core and tsnet proxy are stopped.
+
+Validation through `https://pyxis.hummingbird-lake.ts.net` confirmed:
+
+- The reference client returns HTTP 200 over trusted HTTPS.
+- `/healthz` returns HTTP 200.
+- Plain HTTP redirects to the exact HTTPS origin.
+- `system.status.get` reports Pyxis 2.0.0, contract `pyxis-rpc-v2`, one account, and two
+  live source plugins.
+- `library.albums.list` returns 370 albums, all in Discovery.
+- The tailnet response contains zero `Unknown` track artists and zero duplicate track ids
+  within an album.
+
 ## Remaining cost
 
 The 16 unresolved entries are mostly video mixes, niche releases absent from YouTube Music album search, or exact-title collisions with another artist. This migration does not recover those items. A future source plugin can reacquire them without importing v1 ids or wire data.
