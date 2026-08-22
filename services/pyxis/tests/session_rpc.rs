@@ -132,9 +132,22 @@ async fn another_device_can_read_but_cannot_report_host_transport_state() {
         .as_str()
         .expect("session id");
 
-    let listed = rpc(
+    // No host holds a realtime socket here, so the session exists but is not reachable.
+    // The default list is the console view; the durable view has to be asked for.
+    let reachable_only = rpc(
         &app,
         json!({ "_tag": "session.list", "payload": {} }),
+        Some(token(&other)),
+    )
+    .await;
+    assert_eq!(
+        reachable_only["outcome"]["value"].as_array().unwrap().len(),
+        0
+    );
+
+    let listed = rpc(
+        &app,
+        json!({ "_tag": "session.list", "payload": { "includeUnreachable": true } }),
         Some(token(&other)),
     )
     .await;

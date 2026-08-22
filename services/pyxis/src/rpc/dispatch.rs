@@ -20,20 +20,24 @@ use crate::matching::{Decision, MatchItem, OverrideDecision};
 use crate::rpc::contract::{
     AccountCreateOutcome, AccountListOutcome, AlbumAddOutcome, AlbumCommandOutcome,
     AlbumListOutcome, ApiTokenCreateOutcome, BookmarkCommandOutcome, BookmarkListOutcome,
-    CommandOutcome, DeviceClaimOutcome, DevicePairOutcome, HotAlbumsListOutcome,
+    CommandOutcome, DeviceClaimOutcome, DevicePairOutcome, EmptyRequest, HotAlbumsListOutcome,
     ListenAppendOutcome, ListenHistoryOutcome, MatchingEvaluateOutcome, PairingCreateOutcome,
-    PlaylistCreateOutcome, PlaylistListOutcome, PluginListOutcome, RpcAccount, RpcAlbumCommand,
-    RpcApiToken, RpcApiTokenGrant, RpcAuthGrant, RpcBookmark, RpcBookmarkCommand, RpcDevice,
-    RpcFailure, RpcHotAlbum, RpcLibraryAlbum, RpcLibraryTrack, RpcListenAppendResult,
-    RpcListenEvent, RpcMatchDecision, RpcMatchItem, RpcMatchResult, RpcMatchScore,
-    RpcOverrideDecision, RpcPairingCode, RpcPlacement, RpcPlaylist, RpcPlugin, RpcRealtimeRemoval,
-    RpcRealtimeState, RpcRealtimeTopic, RpcRequest, RpcResponse, RpcSearchTrack, RpcSession,
-    RpcSessionCommand, RpcSourceAlbum, RpcSourceAlbumSummary, RpcSourceFailure,
-    RpcSourceSearchResult, RpcSystemStatus, RpcTransport, SessionCommandOutcome,
-    SessionCreateOutcome, SessionListOutcome, SessionStateOutcome, SourceAlbumGetOutcome,
-    SourceAlbumSearchOutcome, SourceSearchOutcome, SystemStatusOutcome, CONTRACT_ID,
+    PlaylistCreateOutcome, PlaylistListOutcome, PluginListOutcome, RealtimeServerMessage,
+    RpcAccount, RpcAlbumCommand, RpcApiToken, RpcApiTokenGrant, RpcAuthGrant, RpcBookmark,
+    RpcBookmarkCommand, RpcDevice, RpcFailure, RpcHotAlbum, RpcLibraryAlbum, RpcLibraryTrack,
+    RpcListenAppendResult, RpcListenEvent, RpcMatchDecision, RpcMatchItem, RpcMatchResult,
+    RpcMatchScore, RpcOverrideDecision, RpcPairingCode, RpcPlacement, RpcPlaylist, RpcPlugin,
+    RpcRealtimeRemoval, RpcRealtimeState, RpcRealtimeTopic, RpcRequest, RpcResponse,
+    RpcSearchTrack, RpcSession, RpcSessionCommand, RpcSessionDirective, RpcSourceAlbum,
+    RpcSourceAlbumSummary, RpcSourceFailure, RpcSourceSearchResult, RpcSystemStatus, RpcTransport,
+    SessionCommandOutcome, SessionCommandSendOutcome, SessionCreateOutcome, SessionHandoffOutcome,
+    SessionListOutcome, SessionStateOutcome, SourceAlbumGetOutcome, SourceAlbumSearchOutcome,
+    SourceSearchOutcome, SystemStatusOutcome, CONTRACT_ID,
 };
-use crate::sessions::{Session, SessionCommand as DomainSessionCommand, SessionError, Transport};
+use crate::rpc::realtime::Delivery;
+use crate::sessions::{
+    console, Session, SessionCommand as DomainSessionCommand, SessionError, Transport,
+};
 use crate::source_catalog::SearchOutcome;
 
 pub fn dispatch(state: &AppState, request: RpcRequest, auth: Option<AuthContext>) -> RpcResponse {
@@ -187,11 +191,11 @@ pub fn dispatch(state: &AppState, request: RpcRequest, auth: Option<AuthContext>
                 )),
             }
         }
-        RpcRequest::SessionList(_) => {
+        RpcRequest::SessionList(request) => {
             let Some(auth) = auth else {
                 return auth_required();
             };
-            match state.sessions.list(&auth) {
+            match state.sessions.list(&auth, request.include_unreachable) {
                 Ok(sessions) => RpcResponse::SessionList(SessionListOutcome::Ready(
                     sessions.into_iter().map(rpc_session).collect(),
                 )),
@@ -245,6 +249,102 @@ pub fn dispatch(state: &AppState, request: RpcRequest, auth: Option<AuthContext>
                     ))
                 }
                 Err(error) => RpcResponse::SessionCommandRun(SessionCommandOutcome::Unavailable(
+                    session_failure(error),
+                )),
+            }
+        }
+        RpcRequest::SessionCommandSend(request) => {
+            let Some(auth) = auth else {
+                return auth_required();
+            };
+            let session = match state.sessions.get(&auth, &request.session_id) {
+                Ok(session) => session,
+                Err(error) => {
+                    return RpcResponse::SessionCommandSend(SessionCommandSendOutcome::Unavailable(
+                        session_failure(error),
+                    ))
+                }
+            };
+            if !console::is_console_issuable(&request.command) {
+                return RpcResponse::SessionCommandSend(SessionCommandSendOutcome::HostOnly);
+            }
+            match console::route(session.as_ref()) {
+                console::Route::UnknownSession => {
+                    RpcResponse::SessionCommandSend(SessionCommandSendOutcome::UnknownSession)
+                }
+                console::Route::Unreachable => {
+                    RpcResponse::SessionCommandSend(SessionCommandSendOutcome::Unreachable)
+                }
+                console::Route::ToHost { device_id } => {
+                    match state.realtime.deliver(
+                        &device_id,
+                        directive(
+                            &request.session_id,
+                            request.command.clone(),
+                            auth.principal_id(),
+                        ),
+                    ) {
+                        Delivery::Sent => {
+                            RpcResponse::SessionCommandSend(SessionCommandSendOutcome::Dispatched)
+                        }
+                        // The host's socket closed between the reachability read and the
+                        // delivery attempt.
+                        Delivery::NoSocket => {
+                            RpcResponse::SessionCommandSend(SessionCommandSendOutcome::Unreachable)
+                        }
+                        Delivery::Full => {
+                            RpcResponse::SessionCommandSend(SessionCommandSendOutcome::Busy)
+                        }
+                    }
+                }
+            }
+        }
+        RpcRequest::SessionHandoff(request) => {
+            let Some(auth) = auth else {
+                return auth_required();
+            };
+            match state
+                .sessions
+                .handoff(&auth, &request.session_id, &request.target_session_id)
+            {
+                Ok((source, target)) => {
+                    // Tell the source host directly, not only through the sessions topic.
+                    // A host is not required to subscribe to anything, and one that keeps
+                    // playing a queue the store has already moved is the exact failure
+                    // handoff exists to prevent.
+                    state.realtime.deliver(
+                        &source.host_device_id,
+                        directive(
+                            &source.id,
+                            RpcSessionCommand::Stop(EmptyRequest {}),
+                            auth.principal_id(),
+                        ),
+                    );
+                    let source = rpc_session(source);
+                    let target = rpc_session(target);
+                    publish_session(state, &auth, &source);
+                    publish_session(state, &auth, &target);
+                    RpcResponse::SessionHandoff(SessionHandoffOutcome::Ready(target))
+                }
+                Err(SessionError::UnknownSession) => {
+                    RpcResponse::SessionHandoff(SessionHandoffOutcome::UnknownSession)
+                }
+                Err(SessionError::UnknownTarget) => {
+                    RpcResponse::SessionHandoff(SessionHandoffOutcome::UnknownTarget)
+                }
+                Err(SessionError::SourceUnreachable) => {
+                    RpcResponse::SessionHandoff(SessionHandoffOutcome::SourceUnreachable)
+                }
+                Err(SessionError::TargetUnreachable) => {
+                    RpcResponse::SessionHandoff(SessionHandoffOutcome::TargetUnreachable)
+                }
+                Err(SessionError::TargetBusy) => {
+                    RpcResponse::SessionHandoff(SessionHandoffOutcome::TargetBusy)
+                }
+                Err(SessionError::SameSession) => {
+                    RpcResponse::SessionHandoff(SessionHandoffOutcome::SameSession)
+                }
+                Err(error) => RpcResponse::SessionHandoff(SessionHandoffOutcome::Unavailable(
                     session_failure(error),
                 )),
             }
@@ -866,6 +966,21 @@ fn rpc_api_token_grant(grant: ApiTokenGrant) -> RpcApiTokenGrant {
         },
         bearer_token: grant.bearer_token,
     }
+}
+
+/// One addressed command, uniquely identified so a host that reconnects mid-delivery can
+/// discard a repeat instead of applying it twice.
+fn directive(
+    session_id: &str,
+    command: RpcSessionCommand,
+    issued_by: &str,
+) -> RealtimeServerMessage {
+    RealtimeServerMessage::Command(RpcSessionDirective {
+        session_id: session_id.to_string(),
+        command,
+        issued_by: issued_by.to_string(),
+        directive_id: ulid::Ulid::new().to_string(),
+    })
 }
 
 /// Publish after the write succeeded, never before. A subscriber must not see state that

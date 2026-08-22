@@ -202,7 +202,7 @@
               "const": "session.list"
             },
             "payload": {
-              "$ref": "#/$defs/EmptyRequest"
+              "$ref": "#/$defs/SessionListRequest"
             }
           },
           "required": [
@@ -235,6 +235,38 @@
             },
             "payload": {
               "$ref": "#/$defs/SessionCommandRequest"
+            }
+          },
+          "required": [
+            "_tag",
+            "payload"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "_tag": {
+              "type": "string",
+              "const": "session.command.send"
+            },
+            "payload": {
+              "$ref": "#/$defs/SessionCommandRequest"
+            }
+          },
+          "required": [
+            "_tag",
+            "payload"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "_tag": {
+              "type": "string",
+              "const": "session.handoff"
+            },
+            "payload": {
+              "$ref": "#/$defs/SessionHandoffRequest"
             }
           },
           "required": [
@@ -624,6 +656,17 @@
         "name"
       ]
     },
+    "SessionListRequest": {
+      "description": "Sessions outlive their host's connection, so listing has to say which view is wanted.\nThe default is the console view: places you can actually send a command right now.",
+      "type": "object",
+      "properties": {
+        "includeUnreachable": {
+          "type": "boolean",
+          "default": false
+        }
+      },
+      "additionalProperties": false
+    },
     "SessionIdRequest": {
       "type": "object",
       "properties": {
@@ -910,6 +953,22 @@
       "additionalProperties": false,
       "required": [
         "volume"
+      ]
+    },
+    "SessionHandoffRequest": {
+      "type": "object",
+      "properties": {
+        "sessionId": {
+          "type": "string"
+        },
+        "targetSessionId": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "sessionId",
+        "targetSessionId"
       ]
     },
     "SourceSearchRequest": {
@@ -1683,6 +1742,38 @@
             },
             "outcome": {
               "$ref": "#/$defs/SessionCommandOutcome"
+            }
+          },
+          "required": [
+            "_tag",
+            "outcome"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "_tag": {
+              "type": "string",
+              "const": "session.command.send"
+            },
+            "outcome": {
+              "$ref": "#/$defs/SessionCommandSendOutcome"
+            }
+          },
+          "required": [
+            "_tag",
+            "outcome"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "_tag": {
+              "type": "string",
+              "const": "session.handoff"
+            },
+            "outcome": {
+              "$ref": "#/$defs/SessionHandoffOutcome"
             }
           },
           "required": [
@@ -2917,6 +3008,200 @@
           "required": [
             "status",
             "value"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "const": "unavailable"
+            },
+            "value": {
+              "$ref": "#/$defs/RpcFailure"
+            }
+          },
+          "required": [
+            "status",
+            "value"
+          ]
+        }
+      ]
+    },
+    "SessionCommandSendOutcome": {
+      "oneOf": [
+        {
+          "description": "Delivered to the host. The resulting state arrives as a realtime event, not here:\nonly the host can say what actually happened to its audio.",
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "const": "dispatched"
+            }
+          },
+          "required": [
+            "status"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "const": "unknownSession"
+            }
+          },
+          "required": [
+            "status"
+          ]
+        },
+        {
+          "description": "The host is not connected. The command is refused rather than queued, because a\ncommand applied minutes later is not what the person pressing the button meant.",
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "const": "unreachable"
+            }
+          },
+          "required": [
+            "status"
+          ]
+        },
+        {
+          "description": "The host is connected but is not draining commands. Refused so a wedged renderer\ncannot turn a console into an unbounded write amplifier.",
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "const": "busy"
+            }
+          },
+          "required": [
+            "status"
+          ]
+        },
+        {
+          "description": "The command reports what the host's audio actually did. Only the host may say that\nabout itself, so it cannot be issued from a console.",
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "const": "hostOnly"
+            }
+          },
+          "required": [
+            "status"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "const": "unavailable"
+            },
+            "value": {
+              "$ref": "#/$defs/RpcFailure"
+            }
+          },
+          "required": [
+            "status",
+            "value"
+          ]
+        }
+      ]
+    },
+    "SessionHandoffOutcome": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "const": "ready"
+            },
+            "value": {
+              "$ref": "#/$defs/RpcSession"
+            }
+          },
+          "required": [
+            "status",
+            "value"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "const": "unknownSession"
+            }
+          },
+          "required": [
+            "status"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "const": "unknownTarget"
+            }
+          },
+          "required": [
+            "status"
+          ]
+        },
+        {
+          "description": "The source host is not connected, so it cannot be told to stop. Its audio may still\nbe playing, and moving the queue anyway is how two rooms end up playing at once.",
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "const": "sourceUnreachable"
+            }
+          },
+          "required": [
+            "status"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "const": "targetUnreachable"
+            }
+          },
+          "required": [
+            "status"
+          ]
+        },
+        {
+          "description": "The target already holds a queue. Refused rather than silently overwriting music\nsomebody is listening to.",
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "const": "targetBusy"
+            }
+          },
+          "required": [
+            "status"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "const": "sameSession"
+            }
+          },
+          "required": [
+            "status"
           ]
         },
         {
@@ -4262,6 +4547,23 @@
           ]
         },
         {
+          "description": "A console asked this device to change one of its sessions.",
+          "type": "object",
+          "properties": {
+            "_tag": {
+              "type": "string",
+              "const": "realtime.command"
+            },
+            "payload": {
+              "$ref": "#/$defs/RpcSessionDirective"
+            }
+          },
+          "required": [
+            "_tag",
+            "payload"
+          ]
+        },
+        {
           "description": "Terminal. The socket closes immediately after this frame.",
           "type": "object",
           "properties": {
@@ -4401,6 +4703,33 @@
       "additionalProperties": false,
       "required": [
         "id"
+      ]
+    },
+    "RpcSessionDirective": {
+      "description": "A command routed to the device that hosts a session.\n\nThe core never applies a console command itself. The host owns transport truth, so it\napplies the command and reports the result through `session.command.run`, which is what\nfans the new state back out.",
+      "type": "object",
+      "properties": {
+        "sessionId": {
+          "type": "string"
+        },
+        "command": {
+          "$ref": "#/$defs/RpcSessionCommand"
+        },
+        "issuedBy": {
+          "description": "The device or token that asked. Present so a host can show who is driving it.",
+          "type": "string"
+        },
+        "directiveId": {
+          "description": "Unique per directive. A host that reconnects mid-delivery can discard a repeat\nrather than adding the same tracks to its queue twice.",
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "sessionId",
+        "command",
+        "issuedBy",
+        "directiveId"
       ]
     },
     "PluginRequestEnvelope": {

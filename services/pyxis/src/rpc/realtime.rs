@@ -10,6 +10,7 @@
 //! refetches through RPC.
 
 use std::collections::{HashMap, HashSet, VecDeque};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
@@ -18,7 +19,7 @@ use axum::extract::State;
 use axum::response::Response;
 use futures_util::stream::{SplitSink, SplitStream};
 use futures_util::{SinkExt, StreamExt};
-use tokio::sync::broadcast;
+use tokio::sync::{broadcast, mpsc};
 use ulid::Ulid;
 
 use crate::accounts::{AuthContext, Principal};
@@ -57,11 +58,56 @@ const IDLE_TIMEOUT: Duration = Duration::from_secs(45);
 /// A peer that stops reading must not pin a task and its buffers forever.
 const WRITE_TIMEOUT: Duration = Duration::from_secs(10);
 
+/// Pending directed commands per socket. Bounded so a console pressing a button at a
+/// wedged renderer is refused rather than absorbed into server memory.
+const DIRECTED_CAPACITY: usize = 64;
+
+/// Whether a directed message reached a socket.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Delivery {
+    Sent,
+    /// The device has no live socket.
+    NoSocket,
+    /// A socket exists but is not draining its commands.
+    Full,
+}
+
+/// Removes this socket from the directed registry when the socket ends.
+struct DeviceRegistration {
+    realtime: Realtime,
+    device: String,
+    registration: u64,
+    receiver: Option<mpsc::Receiver<RealtimeServerMessage>>,
+}
+
+impl DeviceRegistration {
+    fn take_receiver(&mut self) -> Option<mpsc::Receiver<RealtimeServerMessage>> {
+        self.receiver.take()
+    }
+}
+
+impl Drop for DeviceRegistration {
+    fn drop(&mut self) {
+        self.realtime
+            .deregister_device(&self.device, self.registration);
+    }
+}
+
 /// Account-scoped publish and subscribe hub.
 #[derive(Clone)]
 pub struct Realtime {
     epoch: Arc<str>,
     accounts: Arc<Mutex<HashMap<String, AccountChannel>>>,
+    /// Sockets addressable by host device, for commands aimed at one device rather than
+    /// fanned out to an account. Registrations are keyed so a closing socket can remove
+    /// exactly its own entry.
+    devices: Arc<Mutex<HashMap<String, Vec<DeviceSocket>>>>,
+    next_registration: Arc<AtomicU64>,
+}
+
+struct DeviceSocket {
+    registration: u64,
+    sender: mpsc::Sender<RealtimeServerMessage>,
 }
 
 struct AccountChannel {
@@ -99,6 +145,69 @@ impl Realtime {
         Realtime {
             epoch: Ulid::new().to_string().into(),
             accounts: Arc::new(Mutex::new(HashMap::new())),
+            devices: Arc::new(Mutex::new(HashMap::new())),
+            next_registration: Arc::new(AtomicU64::new(0)),
+        }
+    }
+
+    /// Send one directed message to a device.
+    ///
+    /// Exactly one socket receives it. A device with several tabs open would otherwise
+    /// apply one console press once per tab, which turns `queue.add` into duplicate
+    /// tracks. The newest socket wins, because that is the one the person is looking at.
+    pub fn deliver(&self, device_id: &str, message: RealtimeServerMessage) -> Delivery {
+        let mut devices = self.devices.lock().expect("realtime devices poisoned");
+        let Some(sockets) = devices.get_mut(device_id) else {
+            return Delivery::NoSocket;
+        };
+        sockets.retain(|socket| !socket.sender.is_closed());
+
+        let mut outcome = Delivery::NoSocket;
+        for socket in sockets.iter().rev() {
+            match socket.sender.try_send(message.clone()) {
+                Ok(()) => {
+                    outcome = Delivery::Sent;
+                    break;
+                }
+                // Wedged renderer: try an older socket of the same device before giving up.
+                Err(mpsc::error::TrySendError::Full(_)) => outcome = Delivery::Full,
+                Err(mpsc::error::TrySendError::Closed(_)) => continue,
+            }
+        }
+        if sockets.is_empty() {
+            devices.remove(device_id);
+        }
+        outcome
+    }
+
+    fn register_device(&self, device_id: &str) -> DeviceRegistration {
+        let (sender, receiver) = mpsc::channel(DIRECTED_CAPACITY);
+        let registration = self.next_registration.fetch_add(1, Ordering::Relaxed);
+        self.devices
+            .lock()
+            .expect("realtime devices poisoned")
+            .entry(device_id.to_string())
+            .or_default()
+            .push(DeviceSocket {
+                registration,
+                sender,
+            });
+        DeviceRegistration {
+            realtime: self.clone(),
+            device: device_id.to_string(),
+            registration,
+            receiver: Some(receiver),
+        }
+    }
+
+    fn deregister_device(&self, device_id: &str, registration: u64) {
+        let mut devices = self.devices.lock().expect("realtime devices poisoned");
+        let Some(sockets) = devices.get_mut(device_id) else {
+            return;
+        };
+        sockets.retain(|socket| socket.registration != registration);
+        if sockets.is_empty() {
+            devices.remove(device_id);
         }
     }
 
@@ -257,7 +366,9 @@ async fn publish_hosted_sessions(state: &Arc<AppState>, context: &AuthContext, d
     let context = context.clone();
     let device = device.to_string();
     let _ = tokio::task::spawn_blocking(move || {
-        let Ok(sessions) = state.sessions.list(&context) else {
+        // Include unreachable: on disconnect the session that must be republished is
+        // precisely the one that just stopped being reachable.
+        let Ok(sessions) = state.sessions.list(&context, true) else {
             return;
         };
         for session in sessions
@@ -292,14 +403,17 @@ async fn serve_socket(state: Arc<AppState>, socket: WebSocket) {
     }
 
     let presence = accepted.presence;
+    let registration = accepted.registration;
     pump(
         accepted.context,
         accepted.topics,
         accepted.receiver,
+        accepted.directed,
         sink,
         stream,
     )
     .await;
+    drop(registration);
     drop(presence);
 
     if let Some(device) = &device {
@@ -312,6 +426,10 @@ struct Accepted {
     topics: HashSet<RpcRealtimeTopic>,
     receiver: broadcast::Receiver<Arc<RealtimeEvent>>,
     device: Option<String>,
+    /// Commands addressed to this device specifically, rather than to its account.
+    directed: Option<mpsc::Receiver<RealtimeServerMessage>>,
+    /// Dropped when the socket ends, removing this socket from the directed registry.
+    registration: Option<DeviceRegistration>,
     /// Dropped when the socket ends, which is what makes the host unreachable again.
     presence: Option<DevicePresence>,
 }
@@ -407,6 +525,12 @@ async fn accept(
     let presence = device
         .as_deref()
         .map(|device| DevicePresence::hold(&state.sessions, device));
+    let mut registration = device
+        .as_deref()
+        .map(|device| state.realtime.register_device(device));
+    let directed = registration
+        .as_mut()
+        .and_then(DeviceRegistration::take_receiver);
 
     let attachment = state
         .realtime
@@ -443,6 +567,8 @@ async fn accept(
         topics,
         receiver: attachment.receiver,
         device,
+        directed,
+        registration,
         presence,
     })
 }
@@ -451,9 +577,15 @@ async fn pump(
     context: AuthContext,
     mut topics: HashSet<RpcRealtimeTopic>,
     mut receiver: broadcast::Receiver<Arc<RealtimeEvent>>,
+    directed: Option<mpsc::Receiver<RealtimeServerMessage>>,
     mut sink: SplitSink<WebSocket, Message>,
     mut stream: SplitStream<WebSocket>,
 ) {
+    // An API token has no device, so it can watch but can never be commanded.
+    let (mut directed, has_directed) = match directed {
+        Some(directed) => (directed, true),
+        None => (mpsc::channel(1).1, false),
+    };
     let mut heartbeat = tokio::time::interval(HEARTBEAT);
     heartbeat.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
     heartbeat.tick().await;
@@ -472,6 +604,16 @@ async fn pump(
                 {
                     return;
                 }
+            },
+            addressed = directed.recv(), if has_directed => match addressed {
+                // A directed command bypasses topic filtering: it is addressed to this
+                // device, not published to a topic the device chose to watch.
+                Some(message) => {
+                    if send(&mut sink, &message).await.is_err() {
+                        return;
+                    }
+                }
+                None => return,
             },
             published = receiver.recv() => match published {
                 Ok(event) => {

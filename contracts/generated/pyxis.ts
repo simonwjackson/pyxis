@@ -495,6 +495,38 @@ export interface RpcSession {
 	updatedAt: string;
 }
 
+export type RpcSessionCommand =
+	| { _tag: "queue.add", payload: QueueAddCommand }
+	| { _tag: "queue.remove", payload: QueueRemoveCommand }
+	| { _tag: "queue.clear", payload: EmptyRequest }
+	| { _tag: "queue.shuffle", payload: EmptyRequest }
+	| { _tag: "cursor.jump", payload: CursorJumpCommand }
+	| { _tag: "transport.play", payload: EmptyRequest }
+	| { _tag: "transport.pause", payload: EmptyRequest }
+	| { _tag: "transport.stop", payload: EmptyRequest }
+	| { _tag: "transport.trackEnded", payload: EmptyRequest }
+	| { _tag: "position.report", payload: PositionReportCommand }
+	| { _tag: "volume.set", payload: VolumeSetCommand };
+
+/**
+ * A command routed to the device that hosts a session.
+ *
+ * The core never applies a console command itself. The host owns transport truth, so it
+ * applies the command and reports the result through `session.command.run`, which is what
+ * fans the new state back out.
+ */
+export interface RpcSessionDirective {
+	sessionId: string;
+	command: RpcSessionCommand;
+	/** The device or token that asked. Present so a host can show who is driving it. */
+	issuedBy: string;
+	/**
+	 * Unique per directive. A host that reconnects mid-delivery can discard a repeat
+	 * rather than adding the same tracks to its queue twice.
+	 */
+	directiveId: string;
+}
+
 export interface RpcSourceAlbum {
 	externalId: string;
 	title: string;
@@ -543,19 +575,6 @@ export interface RpcSystemStatus {
 	capabilities: string[];
 }
 
-export type RpcSessionCommand =
-	| { _tag: "queue.add", payload: QueueAddCommand }
-	| { _tag: "queue.remove", payload: QueueRemoveCommand }
-	| { _tag: "queue.clear", payload: EmptyRequest }
-	| { _tag: "queue.shuffle", payload: EmptyRequest }
-	| { _tag: "cursor.jump", payload: CursorJumpCommand }
-	| { _tag: "transport.play", payload: EmptyRequest }
-	| { _tag: "transport.pause", payload: EmptyRequest }
-	| { _tag: "transport.stop", payload: EmptyRequest }
-	| { _tag: "transport.trackEnded", payload: EmptyRequest }
-	| { _tag: "position.report", payload: PositionReportCommand }
-	| { _tag: "volume.set", payload: VolumeSetCommand };
-
 export interface SessionCommandRequest {
 	sessionId: string;
 	command: RpcSessionCommand;
@@ -565,8 +584,21 @@ export interface SessionCreateRequest {
 	name: string;
 }
 
+export interface SessionHandoffRequest {
+	sessionId: string;
+	targetSessionId: string;
+}
+
 export interface SessionIdRequest {
 	sessionId: string;
+}
+
+/**
+ * Sessions outlive their host's connection, so listing has to say which view is wanted.
+ * The default is the console view: places you can actually send a command right now.
+ */
+export interface SessionListRequest {
+	includeUnreachable?: boolean;
 }
 
 export interface SourceAlbumGetRequest {
@@ -698,6 +730,8 @@ export type RealtimeServerMessage =
 	 * client can wait for this before assuming a subscription change has taken effect.
 	 */
 	| { _tag: "realtime.subscribed", payload: RealtimeTopics }
+	/** A console asked this device to change one of its sessions. */
+	| { _tag: "realtime.command", payload: RpcSessionDirective }
 	/** Terminal. The socket closes immediately after this frame. */
 	| { _tag: "realtime.failure", payload: RpcFailure };
 
@@ -719,9 +753,11 @@ export type RpcRequest =
 	| { _tag: "account.create", payload: AccountCreateRequest }
 	| { _tag: "plugin.list", payload: EmptyRequest }
 	| { _tag: "session.create", payload: SessionCreateRequest }
-	| { _tag: "session.list", payload: EmptyRequest }
+	| { _tag: "session.list", payload: SessionListRequest }
 	| { _tag: "session.state.get", payload: SessionIdRequest }
 	| { _tag: "session.command.run", payload: SessionCommandRequest }
+	| { _tag: "session.command.send", payload: SessionCommandRequest }
+	| { _tag: "session.handoff", payload: SessionHandoffRequest }
 	| { _tag: "source.search.run", payload: SourceSearchRequest }
 	| { _tag: "library.album.add", payload: LibraryAlbumAddRequest }
 	| { _tag: "library.albums.list", payload: EmptyRequest }
@@ -755,6 +791,8 @@ export type RpcResponse =
 	| { _tag: "session.list", outcome: SessionListOutcome }
 	| { _tag: "session.state.get", outcome: SessionStateOutcome }
 	| { _tag: "session.command.run", outcome: SessionCommandOutcome }
+	| { _tag: "session.command.send", outcome: SessionCommandSendOutcome }
+	| { _tag: "session.handoff", outcome: SessionHandoffOutcome }
 	| { _tag: "source.search.run", outcome: SourceSearchOutcome }
 	| { _tag: "library.album.add", outcome: AlbumAddOutcome }
 	| { _tag: "library.albums.list", outcome: AlbumListOutcome }
@@ -783,9 +821,51 @@ export type SessionCommandOutcome =
 	| { status: "rejected", value: RpcFailure }
 	| { status: "unavailable", value: RpcFailure };
 
+export type SessionCommandSendOutcome =
+	/**
+	 * Delivered to the host. The resulting state arrives as a realtime event, not here:
+	 * only the host can say what actually happened to its audio.
+	 */
+	| { status: "dispatched", value?: undefined }
+	| { status: "unknownSession", value?: undefined }
+	/**
+	 * The host is not connected. The command is refused rather than queued, because a
+	 * command applied minutes later is not what the person pressing the button meant.
+	 */
+	| { status: "unreachable", value?: undefined }
+	/**
+	 * The host is connected but is not draining commands. Refused so a wedged renderer
+	 * cannot turn a console into an unbounded write amplifier.
+	 */
+	| { status: "busy", value?: undefined }
+	/**
+	 * The command reports what the host's audio actually did. Only the host may say that
+	 * about itself, so it cannot be issued from a console.
+	 */
+	| { status: "hostOnly", value?: undefined }
+	| { status: "unavailable", value: RpcFailure };
+
 export type SessionCreateOutcome =
 	| { status: "ready", value: RpcSession }
 	| { status: "notDevice", value?: undefined }
+	| { status: "unavailable", value: RpcFailure };
+
+export type SessionHandoffOutcome =
+	| { status: "ready", value: RpcSession }
+	| { status: "unknownSession", value?: undefined }
+	| { status: "unknownTarget", value?: undefined }
+	/**
+	 * The source host is not connected, so it cannot be told to stop. Its audio may still
+	 * be playing, and moving the queue anyway is how two rooms end up playing at once.
+	 */
+	| { status: "sourceUnreachable", value?: undefined }
+	| { status: "targetUnreachable", value?: undefined }
+	/**
+	 * The target already holds a queue. Refused rather than silently overwriting music
+	 * somebody is listening to.
+	 */
+	| { status: "targetBusy", value?: undefined }
+	| { status: "sameSession", value?: undefined }
 	| { status: "unavailable", value: RpcFailure };
 
 export type SessionListOutcome =

@@ -545,6 +545,80 @@ pub struct SessionCommandRequest {
     pub command: RpcSessionCommand,
 }
 
+/// Sessions outlive their host's connection, so listing has to say which view is wanted.
+/// The default is the console view: places you can actually send a command right now.
+#[typeshare]
+#[derive(Clone, Debug, Default, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct SessionListRequest {
+    #[serde(default)]
+    pub include_unreachable: bool,
+}
+
+#[typeshare]
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct SessionHandoffRequest {
+    pub session_id: String,
+    pub target_session_id: String,
+}
+
+/// A command routed to the device that hosts a session.
+///
+/// The core never applies a console command itself. The host owns transport truth, so it
+/// applies the command and reports the result through `session.command.run`, which is what
+/// fans the new state back out.
+#[typeshare]
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct RpcSessionDirective {
+    pub session_id: String,
+    pub command: RpcSessionCommand,
+    /// The device or token that asked. Present so a host can show who is driving it.
+    pub issued_by: String,
+    /// Unique per directive. A host that reconnects mid-delivery can discard a repeat
+    /// rather than adding the same tracks to its queue twice.
+    pub directive_id: String,
+}
+
+#[typeshare]
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(tag = "status", content = "value", rename_all = "camelCase")]
+pub enum SessionCommandSendOutcome {
+    /// Delivered to the host. The resulting state arrives as a realtime event, not here:
+    /// only the host can say what actually happened to its audio.
+    Dispatched,
+    UnknownSession,
+    /// The host is not connected. The command is refused rather than queued, because a
+    /// command applied minutes later is not what the person pressing the button meant.
+    Unreachable,
+    /// The host is connected but is not draining commands. Refused so a wedged renderer
+    /// cannot turn a console into an unbounded write amplifier.
+    Busy,
+    /// The command reports what the host's audio actually did. Only the host may say that
+    /// about itself, so it cannot be issued from a console.
+    HostOnly,
+    Unavailable(RpcFailure),
+}
+
+#[typeshare]
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(tag = "status", content = "value", rename_all = "camelCase")]
+pub enum SessionHandoffOutcome {
+    Ready(RpcSession),
+    UnknownSession,
+    UnknownTarget,
+    /// The source host is not connected, so it cannot be told to stop. Its audio may still
+    /// be playing, and moving the queue anyway is how two rooms end up playing at once.
+    SourceUnreachable,
+    TargetUnreachable,
+    /// The target already holds a queue. Refused rather than silently overwriting music
+    /// somebody is listening to.
+    TargetBusy,
+    SameSession,
+    Unavailable(RpcFailure),
+}
+
 #[typeshare]
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
 #[serde(tag = "status", content = "value", rename_all = "camelCase")]
@@ -1109,6 +1183,9 @@ pub enum RealtimeServerMessage {
     /// client can wait for this before assuming a subscription change has taken effect.
     #[serde(rename = "realtime.subscribed")]
     Subscribed(RealtimeTopics),
+    /// A console asked this device to change one of its sessions.
+    #[serde(rename = "realtime.command")]
+    Command(RpcSessionDirective),
     /// Terminal. The socket closes immediately after this frame.
     #[serde(rename = "realtime.failure")]
     Failure(RpcFailure),
@@ -1139,11 +1216,15 @@ pub enum RpcRequest {
     #[serde(rename = "session.create")]
     SessionCreate(SessionCreateRequest),
     #[serde(rename = "session.list")]
-    SessionList(EmptyRequest),
+    SessionList(SessionListRequest),
     #[serde(rename = "session.state.get")]
     SessionStateGet(SessionIdRequest),
     #[serde(rename = "session.command.run")]
     SessionCommandRun(SessionCommandRequest),
+    #[serde(rename = "session.command.send")]
+    SessionCommandSend(SessionCommandRequest),
+    #[serde(rename = "session.handoff")]
+    SessionHandoff(SessionHandoffRequest),
     #[serde(rename = "source.search.run")]
     SourceSearchRun(SourceSearchRequest),
     #[serde(rename = "library.album.add")]
@@ -1221,6 +1302,10 @@ pub enum RpcResponse {
     SessionStateGet(SessionStateOutcome),
     #[serde(rename = "session.command.run")]
     SessionCommandRun(SessionCommandOutcome),
+    #[serde(rename = "session.command.send")]
+    SessionCommandSend(SessionCommandSendOutcome),
+    #[serde(rename = "session.handoff")]
+    SessionHandoff(SessionHandoffOutcome),
     #[serde(rename = "source.search.run")]
     SourceSearchRun(SourceSearchOutcome),
     #[serde(rename = "library.album.add")]
@@ -1262,7 +1347,7 @@ pub enum RpcResponse {
 }
 
 impl RpcRequest {
-    pub const KNOWN_TAGS: [&'static str; 31] = [
+    pub const KNOWN_TAGS: [&'static str; 33] = [
         "system.status.get",
         "auth.device.claim",
         "auth.device.pair",
@@ -1276,6 +1361,8 @@ impl RpcRequest {
         "session.list",
         "session.state.get",
         "session.command.run",
+        "session.command.send",
+        "session.handoff",
         "source.search.run",
         "library.album.add",
         "library.albums.list",
@@ -1312,6 +1399,8 @@ impl RpcRequest {
             RpcRequest::SessionList(_) => "session.list",
             RpcRequest::SessionStateGet(_) => "session.state.get",
             RpcRequest::SessionCommandRun(_) => "session.command.run",
+            RpcRequest::SessionCommandSend(_) => "session.command.send",
+            RpcRequest::SessionHandoff(_) => "session.handoff",
             RpcRequest::SourceSearchRun(_) => "source.search.run",
             RpcRequest::LibraryAlbumAdd(_) => "library.album.add",
             RpcRequest::LibraryAlbumsList(_) => "library.albums.list",
@@ -1353,9 +1442,10 @@ impl RpcRequest {
             | RpcRequest::AuthDevicePair(_) => None,
             RpcRequest::AccountList(_) | RpcRequest::PluginList(_) => Some("account:read"),
             RpcRequest::SessionList(_) | RpcRequest::SessionStateGet(_) => Some("session:read"),
-            RpcRequest::SessionCreate(_) | RpcRequest::SessionCommandRun(_) => {
-                Some("session:control")
-            }
+            RpcRequest::SessionCreate(_)
+            | RpcRequest::SessionCommandRun(_)
+            | RpcRequest::SessionCommandSend(_)
+            | RpcRequest::SessionHandoff(_) => Some("session:control"),
             RpcRequest::SourceSearchRun(_) => Some("source:read"),
             RpcRequest::LibraryAlbumsList(_)
             | RpcRequest::LibraryBookmarksList(_)
@@ -1385,7 +1475,7 @@ impl RpcRequest {
 }
 
 impl RpcResponse {
-    pub const KNOWN_OPERATION_TAGS: [&'static str; 31] = RpcRequest::KNOWN_TAGS;
+    pub const KNOWN_OPERATION_TAGS: [&'static str; 33] = RpcRequest::KNOWN_TAGS;
 
     pub fn tag(&self) -> &'static str {
         match self {
@@ -1402,6 +1492,8 @@ impl RpcResponse {
             RpcResponse::SessionList(_) => "session.list",
             RpcResponse::SessionStateGet(_) => "session.state.get",
             RpcResponse::SessionCommandRun(_) => "session.command.run",
+            RpcResponse::SessionCommandSend(_) => "session.command.send",
+            RpcResponse::SessionHandoff(_) => "session.handoff",
             RpcResponse::SourceSearchRun(_) => "source.search.run",
             RpcResponse::LibraryAlbumAdd(_) => "library.album.add",
             RpcResponse::LibraryAlbumsList(_) => "library.albums.list",

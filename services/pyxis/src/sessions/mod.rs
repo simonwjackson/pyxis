@@ -5,6 +5,8 @@
 //! unreachable until its host reconnects. Stream URLs are never stored; the current track
 //! always maps back to `/stream/:trackId`, which re-resolves provider URLs on demand.
 
+pub mod console;
+pub mod handoff;
 pub mod machine;
 pub mod queue;
 
@@ -38,6 +40,16 @@ pub enum SessionError {
     Queue(#[from] QueueError),
     #[error(transparent)]
     Machine(#[from] MachineError),
+    #[error("target session does not exist")]
+    UnknownTarget,
+    #[error("a session cannot hand off to itself")]
+    SameSession,
+    #[error("the source session's host is not connected")]
+    SourceUnreachable,
+    #[error("the target session's host is not connected")]
+    TargetUnreachable,
+    #[error("the target session already holds a queue")]
+    TargetBusy,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -117,6 +129,29 @@ struct SessionRecord {
     updated_at: String,
 }
 
+impl SessionRecord {
+    fn playback(&self) -> handoff::Playback {
+        handoff::Playback {
+            queue: self.queue.clone(),
+            cursor: self.cursor,
+            position_ms: self.position_ms,
+            duration_ms: self.duration_ms,
+            transport: self.transport,
+        }
+    }
+
+    fn apply(&mut self, playback: handoff::Playback, actor: &str) {
+        self.queue = playback.queue;
+        self.cursor = playback.cursor;
+        self.position_ms = playback.position_ms;
+        self.duration_ms = playback.duration_ms;
+        self.transport = playback.transport;
+        self.revision += 1;
+        self.updated_by = actor.to_string();
+        self.updated_at = now();
+    }
+}
+
 #[derive(Clone)]
 pub struct Sessions {
     store: Store,
@@ -160,12 +195,22 @@ impl Sessions {
         Ok(self.session(record))
     }
 
-    pub fn list(&self, auth: &AuthContext) -> Result<Vec<Session>, SessionError> {
+    /// Sessions on the account.
+    ///
+    /// `include_unreachable` separates the two honest questions: "where can I send a
+    /// command right now" and "what sessions exist". A console asking the first must not
+    /// be offered a device that cannot answer.
+    pub fn list(
+        &self,
+        auth: &AuthContext,
+        include_unreachable: bool,
+    ) -> Result<Vec<Session>, SessionError> {
         Ok(self
             .store
             .list::<SessionRecord>(schema::SESSIONS, &auth.account_id)?
             .into_iter()
             .map(|record| self.session(record))
+            .filter(|session| include_unreachable || session.reachable)
             .collect())
     }
 
@@ -249,6 +294,77 @@ impl Sessions {
         self.store
             .put(schema::SESSIONS, &auth.account_id, session_id, &record)?;
         Ok(self.session(record))
+    }
+
+    /// Move queue, cursor, position and transport intent to another session.
+    ///
+    /// Both sessions are rewritten under the same guard, so a listener can never observe
+    /// the queue existing in two places or in neither.
+    ///
+    /// A target that already holds a queue is refused rather than overwritten: erasing
+    /// what somebody else is listening to is not a reasonable side effect of moving your
+    /// own music. Both hosts must be connected, because a source that cannot be told to
+    /// stop may keep playing the queue this call just moved away from it.
+    ///
+    /// Reachability is read outside the mutation guard, so a host that disconnects during
+    /// the commit can still end up holding the queue. The listener recovers by handing
+    /// back, and no state is lost.
+    pub fn handoff(
+        &self,
+        auth: &AuthContext,
+        session_id: &str,
+        target_session_id: &str,
+    ) -> Result<(Session, Session), SessionError> {
+        if session_id == target_session_id {
+            return Err(SessionError::SameSession);
+        }
+        let actor = auth.principal_id().to_string();
+        let _guard = self.mutation.lock().expect("session mutation poisoned");
+
+        let Some(mut source) =
+            self.store
+                .get::<SessionRecord>(schema::SESSIONS, &auth.account_id, session_id)?
+        else {
+            return Err(SessionError::UnknownSession);
+        };
+        let Some(mut target) = self.store.get::<SessionRecord>(
+            schema::SESSIONS,
+            &auth.account_id,
+            target_session_id,
+        )?
+        else {
+            return Err(SessionError::UnknownTarget);
+        };
+        if !self.device_is_reachable(&source.host_device_id) {
+            return Err(SessionError::SourceUnreachable);
+        }
+        if !self.device_is_reachable(&target.host_device_id) {
+            return Err(SessionError::TargetUnreachable);
+        }
+        if !target.playback().is_idle() {
+            return Err(SessionError::TargetBusy);
+        }
+
+        let mut playback = source.playback();
+        let carried = handoff::take(&mut playback);
+        source.apply(playback, &actor);
+        target.apply(carried, &actor);
+
+        self.store.put_mixed_batch(
+            &auth.account_id,
+            &[
+                Store::write(schema::SESSIONS, source.id.clone(), &source)?,
+                Store::write(schema::SESSIONS, target.id.clone(), &target)?,
+            ],
+        )?;
+        Ok((self.session(source), self.session(target)))
+    }
+
+    pub fn device_is_reachable(&self, device_id: &str) -> bool {
+        self.reachable_devices
+            .read()
+            .expect("session reachability poisoned")
+            .contains_key(device_id)
     }
 
     /// One realtime socket opened for `device_id`.
