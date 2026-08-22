@@ -1,4 +1,4 @@
-{ pkgs, proseql, bun2nixPkgs }:
+{ pkgs, proseql, proseqlBrowser, bun2nixPkgs }:
 
 pkgs.mkShell {
   buildInputs = [
@@ -25,8 +25,13 @@ pkgs.mkShell {
   # Cargo path dependencies cannot reach into the Nix store by absolute path without
   # pinning the store hash into a committed file. Symlinking keeps Cargo.toml stable
   # while the flake input decides which proseql revision is used.
+  # Consumed by tools/link-proseql, which runs after `bun install` rather than once at
+  # shell entry, because bun removes anything it does not manage from node_modules.
+  PYXIS_PROSEQL_BROWSER = proseqlBrowser;
+
   shellHook = ''
     mkdir -p .cache
     ln -sfn ${proseql} .cache/proseql
+    tools/link-proseql || echo "link-proseql failed; run it manually before building the client" >&2
   '';
 }

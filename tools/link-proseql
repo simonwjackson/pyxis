@@ -1,0 +1,37 @@
+#!/usr/bin/env bash
+# Link the Nix-built @proseql browser packages into node_modules.
+#
+# They are not installed by Bun. The published npm builds omit the worker WASM runtime the
+# offline client needs, so these come from the same Nix build that produces the Rust
+# engine. `bun install` removes anything it does not manage, so this runs after it rather
+# than once at shell entry.
+set -euo pipefail
+
+if [ -z "${PYXIS_PROSEQL_BROWSER:-}" ]; then
+  echo "link-proseql: PYXIS_PROSEQL_BROWSER is unset. Run inside 'nix develop'." >&2
+  exit 1
+fi
+
+closure="$PYXIS_PROSEQL_BROWSER/closure/node_modules"
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+target="$root/node_modules"
+
+mkdir -p "$target"
+
+# The closure carries the @proseql packages plus their own runtime dependencies. Bun knows
+# about none of them, so linking only the scope would leave the bundler unable to resolve
+# what those packages import.
+for entry in "$closure"/*; do
+  name="$(basename "$entry")"
+  case "$name" in
+    @*)
+      mkdir -p "$target/$name"
+      for scoped in "$entry"/*; do
+        ln -sfn "$scoped" "$target/$name/$(basename "$scoped")"
+      done
+      ;;
+    *)
+      ln -sfn "$entry" "$target/$name"
+      ;;
+  esac
+done

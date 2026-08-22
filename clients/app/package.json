@@ -8,6 +8,7 @@
     "build": "vite build",
     "test": "vitest run"
   },
+  "//effect": "Not installed here. It arrives with the Nix-supplied @proseql closure, and a second copy would give ProseQL schemas a different class identity than the engine reading them.",
   "dependencies": {
     "react": "19.2.8",
     "react-dom": "19.2.8",

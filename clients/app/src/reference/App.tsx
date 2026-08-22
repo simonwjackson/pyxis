@@ -10,11 +10,14 @@ import type {
   RpcSession,
   RpcSessionCommand,
 } from "../../../../contracts/generated/pyxis"
+import type { WorkerClient } from "../worker/client.ts"
+import { spawnWorkerClient } from "../worker/client.ts"
 import { createReferenceClient, type ReferenceClient } from "./api.ts"
 import { ReferenceConsole } from "./Console.tsx"
 import { ReferenceLibrary } from "./Library.tsx"
+import { ReferenceOffline } from "./Offline.tsx"
 import { ReferencePlugins } from "./Plugins.tsx"
-import { type ConsoleCommand, ReferenceContext } from "./Reference.context.tsx"
+import { type ConsoleCommand, type LocalState, ReferenceContext } from "./Reference.context.tsx"
 import { ReferenceAudio } from "./ReferenceAudio.tsx"
 import { ReferenceRemote } from "./Remote.tsx"
 import { ReferenceSessions } from "./Sessions.tsx"
@@ -27,12 +30,14 @@ const CONSOLE_COMMANDS: Record<ConsoleCommand, RpcSessionCommand> = {
 
 interface ReferenceAppProps {
   readonly client?: ReferenceClient
+  /// Injected by tests. Omitted in the browser, where a real worker is spawned.
+  readonly worker?: WorkerClient
   readonly children?: ReactNode
 }
 
 const liveClient = createReferenceClient()
 
-export function ReferenceApp({ client = liveClient, children }: ReferenceAppProps) {
+export function ReferenceApp({ client = liveClient, worker, children }: ReferenceAppProps) {
   const started = useRef(false)
   const audioElement = useRef<HTMLAudioElement | null>(null)
   const placementQueues = useRef(new Map<string, Promise<void>>())
@@ -49,6 +54,7 @@ export function ReferenceApp({ client = liveClient, children }: ReferenceAppProp
   const [sourceFailures, setSourceFailures] = useState<readonly string[]>([])
   const [session, setSession] = useState<RpcSession>()
   const [remoteSessions, setRemoteSessions] = useState<readonly RpcSession[]>([])
+  const [local, setLocal] = useState<LocalState>()
   const [audioUrl, setAudioUrl] = useState<string>()
   const [error, setError] = useState<string>()
   const sessionRef = useRef<RpcSession>()
@@ -100,6 +106,31 @@ export function ReferenceApp({ client = liveClient, children }: ReferenceAppProp
   useEffect(() => {
     sessionRef.current = session
   }, [session])
+
+  // The local store is opened separately from the network boot, because its whole point is
+  // to be usable when that boot fails.
+  useEffect(() => {
+    const store = worker ?? spawnWorkerClient()
+    let live = true
+    void (async () => {
+      try {
+        const report = await store.open()
+        const [settings, albums] = await Promise.all([store.settings(), store.albums()])
+        if (!live) return
+        setLocal({
+          report,
+          ...(settings.deviceId === undefined ? {} : { deviceId: settings.deviceId }),
+          albumCount: albums.length,
+        })
+      } catch (cause) {
+        if (live) setError(message(cause))
+      }
+    })()
+    return () => {
+      live = false
+      if (worker === undefined) store.terminate()
+    }
+  }, [worker])
 
   // The realtime socket is also what makes this device reachable, so a console can drive
   // it. Without a live socket the core correctly reports this session as uncontrollable.
@@ -522,6 +553,7 @@ export function ReferenceApp({ client = liveClient, children }: ReferenceAppProp
       sourceFailures,
       ...(session === undefined ? {} : { session }),
       remoteSessions,
+      ...(local === undefined ? {} : { local }),
       ...(audioUrl === undefined ? {} : { audioUrl }),
       ...(error === undefined ? {} : { error }),
       setQuery,
@@ -549,6 +581,7 @@ export function ReferenceApp({ client = liveClient, children }: ReferenceAppProp
       sourceFailures,
       session,
       remoteSessions,
+      local,
       audioUrl,
       error,
       search,
@@ -575,6 +608,7 @@ export function ReferenceApp({ client = liveClient, children }: ReferenceAppProp
           <ReferencePlugins />
           <ReferenceLibrary />
           <ReferenceSessions />
+          <ReferenceOffline />
           <ReferenceRemote />
           <ReferenceConsole />
           <ReferenceAudio />

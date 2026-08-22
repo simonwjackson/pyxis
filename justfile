@@ -27,24 +27,29 @@ lint:
     cargo clippy --all-targets --all-features -- -D warnings
 
 lint-shell:
-    shellcheck tools/dev tools/test-pandora-fixtures tools/verify-api-example
+    shellcheck tools/dev tools/link-proseql tools/test-pandora-fixtures tools/verify-api-example
 
 test-rust:
     cargo test --all
 
-typecheck:
+# The @proseql browser packages come from Nix rather than the lockfile, and `bun install`
+# removes them. Every recipe that resolves TypeScript imports relinks them first.
+link-proseql:
+    tools/link-proseql
+
+typecheck: link-proseql
     bun run typecheck
 
 lint-ts:
     biome check .
 
-test-ts:
+test-ts: link-proseql
     bun run test
 
 test-pandora-fixtures:
     tools/test-pandora-fixtures
 
-build-client:
+build-client: link-proseql
     bun run --cwd clients/app build
 
 # Start core, the YouTube Music plugin, and the unstyled reference client.

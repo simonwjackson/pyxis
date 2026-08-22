@@ -5,10 +5,12 @@ import {
   type RpcSession,
   type RpcSessionDirective,
 } from "../../../../contracts/generated/pyxis"
+import { createDirectWorkerClient } from "../worker/client.ts"
 import { ReferenceApp } from "./App.tsx"
 import type { ReferenceClient } from "./api.ts"
 import { ReferenceConsole } from "./Console.tsx"
 import { ReferenceLibrary } from "./Library.tsx"
+import { ReferenceOffline } from "./Offline.tsx"
 import { ReferenceAudio } from "./ReferenceAudio.tsx"
 import { ReferenceRemote } from "./Remote.tsx"
 import { ReferenceSessions } from "./Sessions.tsx"
@@ -72,6 +74,52 @@ function client(plugins: Awaited<ReturnType<ReferenceClient["listPlugins"]>>): R
     loadStream: async () => "blob:test",
   }
 }
+
+describe("local store", () => {
+  test("opens at boot and reports what it kept", async () => {
+    const store = createDirectWorkerClient()
+    for (const id of ["album-1", "album-2"]) {
+      await store.putAlbum({
+        id,
+        title: "Heroes",
+        artist: "David Bowie",
+        placement: RpcPlacement.Discovery,
+        placementUpdatedAt: "now",
+        addedAt: "now",
+        revision: 1,
+        tracks: [],
+      })
+    }
+
+    render(
+      <ReferenceApp client={client([])} worker={store}>
+        <ReferenceOffline />
+      </ReferenceApp>,
+    )
+
+    await waitFor(() => expect(screen.getByText("created")).toBeTruthy())
+    expect(screen.getByText("2")).toBeTruthy()
+    // An in-process store must not claim to keep anything.
+    expect(screen.getByText("false")).toBeTruthy()
+  })
+
+  test("a network failure at boot still leaves the local store usable", async () => {
+    const offline: ReferenceClient = {
+      ...client([]),
+      claimDevice: async () => {
+        throw new Error("offline")
+      },
+    }
+
+    render(
+      <ReferenceApp client={offline} worker={createDirectWorkerClient()}>
+        <ReferenceOffline />
+      </ReferenceApp>,
+    )
+
+    await waitFor(() => expect(screen.getByText("created")).toBeTruthy())
+  })
+})
 
 describe("console mode", () => {
   test("drives a session hosted by another device", async () => {

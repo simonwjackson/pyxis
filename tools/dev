@@ -49,4 +49,7 @@ if [[ "$ready" != true ]]; then
   exit 1
 fi
 
+# `bun install` removes the Nix-supplied @proseql packages, so relink before serving.
+tools/link-proseql
+
 bun run --cwd clients/app dev

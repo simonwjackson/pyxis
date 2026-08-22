@@ -7,8 +7,16 @@ import type {
   RpcSearchTrack,
   RpcSession,
 } from "../../../../contracts/generated/pyxis"
+import type { WorkerOpenReport } from "../worker/contract.ts"
 
 export type ConsoleCommand = "play" | "pause" | "stop"
+
+/// What the device knows without the network. Absent until the local store has opened.
+export interface LocalState {
+  readonly report: WorkerOpenReport
+  readonly deviceId?: string
+  readonly albumCount: number
+}
 
 export interface ReferenceContextValue {
   readonly status: "booting" | "ready" | "busy" | "error"
@@ -22,6 +30,7 @@ export interface ReferenceContextValue {
   readonly session?: RpcSession
   /// Other devices on this account that can be driven right now.
   readonly remoteSessions: readonly RpcSession[]
+  readonly local?: LocalState
   readonly audioUrl?: string
   readonly error?: string
   setQuery(value: string): void

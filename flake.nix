@@ -8,9 +8,11 @@
     # Pinned to an explicit rev because the local proseql checkout carries uncommitted
     # work, and Nix refuses to lock a dirty local input. The rev matches the one ossicle
     # pins, so both projects build against the same engine. Bump with `just proseql-pin`.
+    #
+    # Consumed twice: as source for the Rust crates, and as a flake for the browser bundle,
+    # which carries the worker WASM runtime the published npm packages leave out.
     proseql = {
       url = "git+file:///home/simonwjackson/code/github/simonwjackson/proseql?rev=0f9c9cc46fe2a1219dc4efccaa75092518dd7724";
-      flake = false;
     };
   };
 
@@ -31,7 +33,8 @@
           patches = [ ./nix/patches/proseql-yaml-trailing-colon.patch ];
         };
         mkBunDerivation = bun2nix.lib.${system}.mkBunDerivation;
-        client = import ./nix/client.nix { inherit pkgs mkBunDerivation; };
+        proseqlBrowser = proseql.packages.${system}.browser;
+        client = import ./nix/client.nix { inherit pkgs mkBunDerivation proseqlBrowser; };
         core = import ./nix/core.nix {
           inherit pkgs;
           proseql = proseqlPatched;
@@ -59,7 +62,7 @@
           pyxis-tsnet = tsnet;
         };
         devShells.default = import ./nix/devshell.nix {
-          inherit pkgs;
+          inherit pkgs proseqlBrowser;
           proseql = proseqlPatched;
           bun2nixPkgs = bun2nix.packages.${system};
         };
