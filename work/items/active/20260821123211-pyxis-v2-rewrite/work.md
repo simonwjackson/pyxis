@@ -42,9 +42,12 @@ albums, listens, and device-hosted session commands. The fix also moved the work
 to version 6, added durable command receipts and sync notices, and made server album
 removal win with an explicit conflict under D17.
 
-**The revised U21 browser path still needs one live check after deployment.** Reload the
-client twice. It must report schema version 6, `opened`, the same device id, and 370 cached
-albums. A first reload can report `migrated` while schema 2 moves to 6.
+**The revised U21 build is deployed and needs one live browser check.** The core reopened
+the deployed store with the new command-receipt collection, HTTPS health is 200, the server
+library still contains 370 albums, and the worker JavaScript plus WASM return 200 with the
+right content types. Reload the client twice. It must report schema version 6, `opened`,
+the same device id, and 370 cached albums. A first reload can report `migrated` while schema
+2 moves to 6.
 
 U22 offline downloads and U23 service worker are not started.
 
