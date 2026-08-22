@@ -9,6 +9,7 @@ import { ReferenceApp } from "./App.tsx"
 import type { ReferenceClient } from "./api.ts"
 import { ReferenceConsole } from "./Console.tsx"
 import { ReferenceLibrary } from "./Library.tsx"
+import { ReferenceAudio } from "./ReferenceAudio.tsx"
 import { ReferenceRemote } from "./Remote.tsx"
 import { ReferenceSessions } from "./Sessions.tsx"
 
@@ -29,6 +30,16 @@ function session(overrides: Partial<RpcSession> = {}): RpcSession {
 }
 
 afterEach(cleanup)
+
+// jsdom has no media stack. Give the element just enough behaviour to assert against.
+Object.defineProperty(HTMLMediaElement.prototype, "play", {
+  configurable: true,
+  value: () => Promise.resolve(),
+})
+Object.defineProperty(HTMLMediaElement.prototype, "pause", {
+  configurable: true,
+  value: () => {},
+})
 
 function client(plugins: Awaited<ReturnType<ReferenceClient["listPlugins"]>>): ReferenceClient {
   return {
@@ -102,6 +113,119 @@ describe("console mode", () => {
           "No other device is connected. Open this page on a second device to control it.",
         ),
       ).toBeTruthy(),
+    )
+  })
+
+  test("resuming after a pause does not reload the track", async () => {
+    const loads: string[] = []
+    let transport: RpcSession["transport"] = "stopped"
+    const configured: ReferenceClient = {
+      ...client([]),
+      listSessions: async () => [
+        session({
+          id: "mine",
+          hostDeviceId: "device-1",
+          queue: ["track-1"],
+          cursor: 0,
+          currentTrackId: "track-1",
+        }),
+      ],
+      command: async (_token, _sessionId, command) => {
+        if (command._tag === "transport.play") transport = "playing"
+        if (command._tag === "transport.pause") transport = "paused"
+        return session({
+          id: "mine",
+          hostDeviceId: "device-1",
+          queue: ["track-1"],
+          cursor: 0,
+          currentTrackId: "track-1",
+          transport,
+        })
+      },
+      loadStream: async (_token, trackId) => {
+        loads.push(trackId)
+        return `blob:${trackId}`
+      },
+    }
+
+    render(
+      <ReferenceApp client={configured}>
+        <ReferenceConsole />
+      </ReferenceApp>,
+    )
+    await waitFor(() => expect(screen.getByRole("button", { name: "Play" })).toBeTruthy())
+
+    fireEvent.click(screen.getByRole("button", { name: "Play" }))
+    await waitFor(() => expect(loads).toEqual(["track-1"]))
+    fireEvent.click(screen.getByRole("button", { name: "Pause" }))
+    await waitFor(() => expect(transport).toBe("paused"))
+    fireEvent.click(screen.getByRole("button", { name: "Play" }))
+    await waitFor(() => expect(transport).toBe("playing"))
+
+    expect(loads).toEqual(["track-1"])
+  })
+
+  test("reports the paused position and resumes there after a reload", async () => {
+    const commands: { tag: string; positionMs?: number }[] = []
+    let transport: RpcSession["transport"] = "playing"
+    let positionMs = 0
+    const configured: ReferenceClient = {
+      ...client([]),
+      listSessions: async () => [
+        session({
+          id: "mine",
+          hostDeviceId: "device-1",
+          queue: ["track-1"],
+          cursor: 0,
+          currentTrackId: "track-1",
+          transport: "playing",
+          positionMs: 45_000,
+        }),
+      ],
+      command: async (_token, _sessionId, command) => {
+        commands.push({
+          tag: command._tag,
+          ...(command._tag === "position.report" ? { positionMs: command.payload.positionMs } : {}),
+        })
+        if (command._tag === "transport.pause") transport = "paused"
+        if (command._tag === "position.report") positionMs = command.payload.positionMs
+        return session({
+          id: "mine",
+          hostDeviceId: "device-1",
+          queue: ["track-1"],
+          cursor: 0,
+          currentTrackId: "track-1",
+          transport,
+          positionMs,
+          revision: commands.length + 1,
+        })
+      },
+      loadStream: async () => "blob:track-1",
+    }
+
+    render(
+      <ReferenceApp client={configured}>
+        <ReferenceConsole />
+        <ReferenceAudio />
+      </ReferenceApp>,
+    )
+
+    // The session is already playing, so the host loads and seeks to where it was.
+    const audio = await waitFor(() => {
+      const element = document.querySelector("audio")
+      if (element === null) throw new Error("audio element not mounted")
+      return element
+    })
+    await waitFor(() => expect(Math.round(audio.currentTime)).toBe(45))
+
+    audio.currentTime = 61
+    fireEvent.click(screen.getByRole("button", { name: "Pause" }))
+
+    await waitFor(() =>
+      expect(commands).toEqual([
+        { tag: "transport.pause" },
+        { tag: "position.report", positionMs: 61_000 },
+      ]),
     )
   })
 

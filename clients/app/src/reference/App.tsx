@@ -53,6 +53,15 @@ export function ReferenceApp({ client = liveClient, children }: ReferenceAppProp
   const [error, setError] = useState<string>()
   const sessionRef = useRef<RpcSession>()
   const appliedDirectives = useRef<string[]>([])
+  /// Which track the currently loaded audio URL belongs to. Reloading the same track
+  /// would swap the element's src and silently reset it to the beginning.
+  const loadedTrack = useRef<string>()
+  /// In-flight load, so a double click or a StrictMode double-invoke cannot download the
+  /// same track twice and swap the element's src out from under playback.
+  const loading = useRef<{ trackId: string; promise: Promise<void> }>()
+  /// Where freshly loaded audio should start. Consumed once, so it can never fight a
+  /// manual seek later.
+  const pendingSeekMs = useRef<number>()
 
   useEffect(() => {
     if (started.current) return
@@ -103,11 +112,17 @@ export function ReferenceApp({ client = liveClient, children }: ReferenceAppProp
         const state = event.state
         if (state._tag === "session.state") {
           const updated = state.payload
+          // An older frame must never overwrite newer state. Pause writes twice, and the
+          // socket has no ordering with respect to the RPC responses.
           if (updated.hostDeviceId === deviceId) {
-            setSession(updated)
+            setSession((current) =>
+              current !== undefined && current.revision >= updated.revision ? current : updated,
+            )
             return
           }
           setRemoteSessions((current) => {
+            const existing = current.find((candidate) => candidate.id === updated.id)
+            if (existing !== undefined && existing.revision >= updated.revision) return current
             const others = current.filter((candidate) => candidate.id !== updated.id)
             return updated.reachable ? [...others, updated] : others
           })
@@ -170,14 +185,10 @@ export function ReferenceApp({ client = liveClient, children }: ReferenceAppProp
           ...appliedDirectives.current.slice(-511),
           directive.directiveId,
         ]
+        // Audio loading follows session state, so a console-driven play needs no special
+        // case here: applying the command is enough.
         void (async () => {
           try {
-            if (directive.command._tag === "transport.play") {
-              const current = sessionRef.current
-              if (current?.currentTrackId !== undefined) {
-                setAudioUrl(await client.loadStream(token, current.currentTrackId))
-              }
-            }
             setSession(await client.command(token, directive.sessionId, directive.command))
           } catch (cause) {
             setError(message(cause))
@@ -200,6 +211,12 @@ export function ReferenceApp({ client = liveClient, children }: ReferenceAppProp
     const audio = audioElement.current
     if (audio === null) return
     if (session?.transport === "playing" && audioUrl !== undefined) {
+      // Freshly loaded audio starts at zero even when the session is mid-track, which is
+      // what a reload or a handoff looks like. Consumed once: a later manual rewind is the
+      // listener's decision, not something to undo.
+      const resumeFrom = pendingSeekMs.current
+      pendingSeekMs.current = undefined
+      if (resumeFrom !== undefined && resumeFrom > 0) audio.currentTime = resumeFrom / 1000
       void audio.play().catch(() => {
         setError("Browser blocked autoplay. Use the native audio control once.")
       })
@@ -338,12 +355,53 @@ export function ReferenceApp({ client = liveClient, children }: ReferenceAppProp
     [client, currentToken, run],
   )
 
+  /// Load audio only when the track actually changed. Resuming reuses the loaded element,
+  /// which is what preserves the playback position.
+  const loadAudioFor = useCallback(
+    async (trackId: string) => {
+      if (loadedTrack.current === trackId && audioUrl !== undefined) return
+      const inFlight = loading.current
+      if (inFlight?.trackId === trackId) {
+        await inFlight.promise
+        return
+      }
+      const promise = (async () => {
+        const nextAudioUrl = await client.loadStream(currentToken(), trackId)
+        loadedTrack.current = trackId
+        pendingSeekMs.current = sessionRef.current?.positionMs ?? 0
+        setAudioUrl(nextAudioUrl)
+      })()
+      loading.current = { trackId, promise }
+      try {
+        await promise
+      } finally {
+        if (loading.current?.promise === promise) loading.current = undefined
+      }
+    },
+    [audioUrl, client, currentToken],
+  )
+
+  /// Tell the core where this host actually is. Only the host knows, and without it a
+  /// console or a handoff would resume every track from zero.
+  const reportPosition = useCallback(
+    async (sessionId: string) => {
+      const positionMs = Math.round((audioElement.current?.currentTime ?? 0) * 1000)
+      if (positionMs <= 0) return
+      setSession(
+        await client.command(currentToken(), sessionId, {
+          _tag: "position.report",
+          payload: { positionMs },
+        }),
+      )
+    },
+    [client, currentToken],
+  )
+
   const play = useCallback(async () => {
     await run(async () => {
       const target = await ensureSession()
       if (target.currentTrackId === undefined) throw new Error("queue is empty")
-      const nextAudioUrl = await client.loadStream(currentToken(), target.currentTrackId)
-      setAudioUrl(nextAudioUrl)
+      await loadAudioFor(target.currentTrackId)
       setSession(
         await client.command(currentToken(), target.id, {
           _tag: "transport.play",
@@ -351,7 +409,7 @@ export function ReferenceApp({ client = liveClient, children }: ReferenceAppProp
         }),
       )
     })
-  }, [client, currentToken, ensureSession, run])
+  }, [client, currentToken, ensureSession, loadAudioFor, run])
 
   const pause = useCallback(async () => {
     if (session === undefined) return
@@ -362,8 +420,9 @@ export function ReferenceApp({ client = liveClient, children }: ReferenceAppProp
           payload: {},
         }),
       )
+      await reportPosition(session.id)
     })
-  }, [client, currentToken, run, session])
+  }, [client, currentToken, reportPosition, run, session])
 
   const stop = useCallback(async () => {
     if (session === undefined) return
@@ -374,6 +433,8 @@ export function ReferenceApp({ client = liveClient, children }: ReferenceAppProp
           payload: {},
         }),
       )
+      loadedTrack.current = undefined
+      pendingSeekMs.current = undefined
       setAudioUrl(undefined)
     })
   }, [client, currentToken, run, session])
@@ -387,6 +448,8 @@ export function ReferenceApp({ client = liveClient, children }: ReferenceAppProp
           payload: {},
         }),
       )
+      loadedTrack.current = undefined
+      pendingSeekMs.current = undefined
       setAudioUrl(undefined)
     })
   }, [client, currentToken, run, session])
@@ -433,6 +496,15 @@ export function ReferenceApp({ client = liveClient, children }: ReferenceAppProp
     },
     [client, currentToken, run, session],
   )
+
+  // Whatever is playing must be loaded, whoever asked for it. A console can start this
+  // device, and a reload can find it already playing.
+  useEffect(() => {
+    const trackId = session?.currentTrackId
+    if (session?.transport !== "playing" || trackId === undefined) return
+    if (loadedTrack.current === trackId && audioUrl !== undefined) return
+    void loadAudioFor(trackId).catch((cause: unknown) => setError(message(cause)))
+  }, [audioUrl, loadAudioFor, session?.currentTrackId, session?.transport])
 
   const attachAudio = useCallback((element: HTMLAudioElement | null) => {
     audioElement.current = element
