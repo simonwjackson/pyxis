@@ -76,22 +76,35 @@ export interface ProseqlEngineHandle {
   readonly clear: () => Promise<void>
 }
 
-export async function createProseqlEngine(): Promise<ProseqlEngineHandle> {
-  await initializeWorkerWasmBindings()
+export interface ProseqlEngineOptions {
+  /// Where rows are kept. Defaults to IndexedDB, which only exists in a browser. Tests
+  /// supply their own so this adapter can be exercised against the real engine.
+  readonly storageHost?: unknown
+  /// Pre-fetched WASM. The default fetches it relative to the package, which needs a
+  /// browser.
+  readonly wasm?: WebAssembly.Module
+}
 
-  const storageHost = createServiceWorkerIndexedDBEngineStorageHost({
-    databaseName: WORKER_DATABASE_NAME,
-    storeName: "collections",
-    version: 1,
-    keyPrefix: KEY_PREFIX,
-    channelName: CHANNEL_NAME,
-    originId: ORIGIN_ID,
-  })
+export async function createProseqlEngine(
+  options: ProseqlEngineOptions = {},
+): Promise<ProseqlEngineHandle> {
+  await initializeWorkerWasmBindings(options.wasm)
+
+  const storageHost =
+    options.storageHost ??
+    createServiceWorkerIndexedDBEngineStorageHost({
+      databaseName: WORKER_DATABASE_NAME,
+      storeName: "collections",
+      version: 1,
+      keyPrefix: KEY_PREFIX,
+      channelName: CHANNEL_NAME,
+      originId: ORIGIN_ID,
+    })
 
   const database = await createServiceWorkerEngineDatabase(
     config,
-    { meta: [], settings: [], albums: [] },
-    { storageHost, writeDebounce: 0 },
+    { meta: [], settings: [], albums: [], outbox: [] },
+    { storageHost, writeDebounce: 0 } as never,
   )
 
   const raw = database as unknown as RawEngine
@@ -117,18 +130,44 @@ export async function createProseqlEngine(): Promise<ProseqlEngineHandle> {
     clear: async () => {
       for (const collection of [raw.meta, raw.settings, raw.albums, raw.outbox]) {
         for (const row of plain<{ id: string }[]>(await collection.query())) {
-          await collection.delete(row.id)
+          await optional(() => collection.delete(row.id))
         }
       }
     },
   }
 }
 
+/// The engine's real surface.
+///
+/// Three details decide whether any of this works, and all three were assumed wrongly the
+/// first time: `findById` and `delete` reject with a not-found error rather than resolving
+/// to nothing, and `upsert` takes a where/create/update triple rather than a row.
 interface RawCollection {
   findById(id: string): Promise<unknown>
   query(config?: unknown): Promise<unknown>
-  upsert(row: unknown): Promise<unknown>
+  upsert(input: { where: { id: string }; create: unknown; update: unknown }): Promise<unknown>
   delete(id: string): Promise<unknown>
+}
+
+/// Absence is an ordinary answer here, not a failure. The engine reports it by rejecting,
+/// so every read has to translate that back into a value.
+async function optional<T>(read: () => Promise<unknown>): Promise<T | undefined> {
+  try {
+    const found = await read()
+    return found === null ? undefined : (found as T)
+  } catch (cause) {
+    if (isNotFound(cause)) return undefined
+    throw cause
+  }
+}
+
+function isNotFound(cause: unknown): boolean {
+  return (
+    typeof cause === "object" &&
+    cause !== null &&
+    "name" in cause &&
+    (cause as { name?: unknown }).name === "NotFoundError"
+  )
 }
 
 interface RawEngine {
@@ -142,21 +181,21 @@ interface RawEngine {
 function adapt<T extends { readonly id: string }>(collection: RawCollection): WorkerCollection<T> {
   return {
     async findById(id) {
-      const found = await collection.findById(id)
-      return found === undefined || found === null ? undefined : plain<T>(found)
+      const found = await optional<unknown>(() => collection.findById(id))
+      return found === undefined ? undefined : plain<T>(found)
     },
     async all() {
       return plain<T[]>(await collection.query())
     },
     async upsert(row) {
-      await collection.upsert(row)
+      // The engine treats `id` as immutable, so the update half must not restate it.
+      const { id: _id, ...changes } = row
+      await collection.upsert({ where: { id: row.id }, create: row, update: changes })
       return row
     },
     async delete(id) {
-      const existing = await collection.findById(id)
-      if (existing === undefined || existing === null) return false
-      await collection.delete(id)
-      return true
+      const removed = await optional<unknown>(() => collection.delete(id))
+      return removed !== undefined
     },
   }
 }
@@ -171,22 +210,21 @@ function wrapped<T extends { readonly id: string }>(
   const unwrap = (stored: Stored): T => stored.body as T
   return {
     async findById(id) {
-      const found = await collection.findById(id)
-      if (found === undefined || found === null) return undefined
-      return unwrap(plain<Stored>(found))
+      const found = await optional<unknown>(() => collection.findById(id))
+      return found === undefined ? undefined : unwrap(plain<Stored>(found))
     },
     async all() {
       return plain<Stored[]>(await collection.query()).map(unwrap)
     },
     async upsert(row) {
-      await collection.upsert({ ...indexed(row), id: row.id, body: row })
+      const stored = { ...indexed(row), id: row.id, body: row }
+      const { id: _id, ...changes } = stored
+      await collection.upsert({ where: { id: row.id }, create: stored, update: changes })
       return row
     },
     async delete(id) {
-      const existing = await collection.findById(id)
-      if (existing === undefined || existing === null) return false
-      await collection.delete(id)
-      return true
+      const removed = await optional<unknown>(() => collection.delete(id))
+      return removed !== undefined
     },
   }
 }
