@@ -23,7 +23,10 @@ export function ReferenceConsole() {
       <button type="button" disabled={session === undefined} onClick={() => void stop()}>
         Stop
       </button>
-      <p>Cross-device console control lands in M3. These buttons drive this browser's session.</p>
+      <p>
+        These buttons drive this browser's own session. To drive another device, use Other devices
+        above.
+      </p>
     </section>
   )
 }

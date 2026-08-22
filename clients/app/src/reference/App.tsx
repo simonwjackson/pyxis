@@ -260,6 +260,25 @@ export function ReferenceApp({ client = liveClient, children }: ReferenceAppProp
     [client, currentToken, ensureSession, run],
   )
 
+  const enqueueAlbum = useCallback(
+    async (albumId: string) => {
+      await run(async () => {
+        const album = albumsRef.current.find((candidate) => candidate.id === albumId)
+        if (album === undefined) throw new Error("album is not in the library")
+        if (album.tracks.length === 0) throw new Error("album has no tracks")
+        const target = await ensureSession()
+        // One command, so the album lands in the queue in order and as one revision.
+        setSession(
+          await client.command(currentToken(), target.id, {
+            _tag: "queue.add",
+            payload: { trackIds: album.tracks.map((track) => track.id) },
+          }),
+        )
+      })
+    },
+    [client, currentToken, ensureSession, run],
+  )
+
   const setAlbumPlacement = useCallback(
     async (albumId: string, placement: RpcPlacement) => {
       const sequence = (placementSequences.current.get(albumId) ?? 0) + 1
@@ -436,6 +455,7 @@ export function ReferenceApp({ client = liveClient, children }: ReferenceAppProp
       setQuery,
       search,
       enqueue,
+      enqueueAlbum,
       setAlbumPlacement,
       play,
       pause,
@@ -461,6 +481,7 @@ export function ReferenceApp({ client = liveClient, children }: ReferenceAppProp
       error,
       search,
       enqueue,
+      enqueueAlbum,
       setAlbumPlacement,
       play,
       pause,

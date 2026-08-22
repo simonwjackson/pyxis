@@ -27,6 +27,8 @@ export interface ReferenceContextValue {
   setQuery(value: string): void
   search(): Promise<void>
   enqueue(trackId: string): Promise<void>
+  /// Queue every track of a library album, in album order.
+  enqueueAlbum(albumId: string): Promise<void>
   setAlbumPlacement(albumId: string, placement: RpcPlacement): Promise<void>
   play(): Promise<void>
   pause(): Promise<void>

@@ -10,6 +10,7 @@ export function ReferenceLibrary() {
     searchHasNoSources,
     sourceFailures,
     enqueue,
+    enqueueAlbum,
     albums,
     setAlbumPlacement,
   } = useReference()
@@ -53,6 +54,18 @@ export function ReferenceLibrary() {
           <li key={album.id}>
             <strong>{album.title}</strong> — {album.artist} — {album.placement} — revision{" "}
             {album.revision} — {album.tracks.length} tracks{" "}
+            <button
+              type="button"
+              disabled={album.tracks.length === 0}
+              onClick={() => void enqueueAlbum(album.id)}
+            >
+              Queue album
+            </button>{" "}
+            {album.tracks.map((track) => (
+              <button key={track.id} type="button" onClick={() => void enqueue(track.id)}>
+                {track.trackNumber ?? "?"}
+              </button>
+            ))}{" "}
             {Object.values(RpcPlacement).map((placement) => (
               <button
                 key={placement}

@@ -105,6 +105,43 @@ describe("console mode", () => {
     )
   })
 
+  test("queues a whole library album in one command", async () => {
+    const queued: string[][] = []
+    const configured: ReferenceClient = {
+      ...client([]),
+      listAlbums: async () => [
+        {
+          id: "album-1",
+          title: "Heroes",
+          artist: "David Bowie",
+          placement: RpcPlacement.Discovery,
+          placementUpdatedAt: "now",
+          addedAt: "now",
+          revision: 1,
+          tracks: [
+            { id: "track-1", title: "Beauty", artist: "David Bowie", trackNumber: 1, revision: 1 },
+            { id: "track-2", title: "Heroes", artist: "David Bowie", trackNumber: 2, revision: 1 },
+          ],
+        },
+      ],
+      createSession: async () => session({ id: "mine", hostDeviceId: "device-1" }),
+      command: async (_token, _sessionId, command) => {
+        if (command._tag === "queue.add") queued.push(command.payload.trackIds)
+        return session({ id: "mine", hostDeviceId: "device-1" })
+      },
+    }
+
+    render(
+      <ReferenceApp client={configured}>
+        <ReferenceLibrary />
+      </ReferenceApp>,
+    )
+    await waitFor(() => expect(screen.getByRole("button", { name: "Queue album" })).toBeTruthy())
+    fireEvent.click(screen.getByRole("button", { name: "Queue album" }))
+
+    await waitFor(() => expect(queued).toEqual([["track-1", "track-2"]]))
+  })
+
   test("refetches instead of patching when the server dropped missed events", async () => {
     let resync: (() => void) | undefined
     let albumCalls = 0
