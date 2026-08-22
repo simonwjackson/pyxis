@@ -180,6 +180,13 @@ export function createDirectWorkerClient(
 /// environment, rather than failing to start.
 export function spawnWorkerClient(): WorkerClient {
   if (typeof Worker === "undefined") return createDirectWorkerClient()
-  const worker = new Worker(new URL("./entry.ts", import.meta.url), { type: "module" })
-  return createWorkerClient(worker)
+  try {
+    return createWorkerClient(
+      new Worker(new URL("./entry.ts", import.meta.url), { type: "module" }),
+    )
+  } catch {
+    // A blocked or unsupported worker must not take the page down with it. The fallback
+    // keeps nothing, and says so in its open report.
+    return createDirectWorkerClient()
+  }
 }
