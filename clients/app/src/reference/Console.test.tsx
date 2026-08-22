@@ -1,5 +1,5 @@
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react"
-import { afterEach, describe, expect, test } from "vitest"
+import { afterEach, describe, expect, test, vi } from "vitest"
 import {
   RpcPlacement,
   type RpcSession,
@@ -14,6 +14,7 @@ import { ReferenceOffline } from "./Offline.tsx"
 import { ReferenceAudio } from "./ReferenceAudio.tsx"
 import { ReferenceRemote } from "./Remote.tsx"
 import { ReferenceSessions } from "./Sessions.tsx"
+import { ReferenceUpdate } from "./Update.tsx"
 
 function session(overrides: Partial<RpcSession> = {}): RpcSession {
   return {
@@ -74,6 +75,44 @@ function client(plugins: Awaited<ReturnType<ReferenceClient["listPlugins"]>>): R
     loadStream: async () => "blob:test",
   }
 }
+
+describe("update banner", () => {
+  test("stays hidden until the server serves a newer build", async () => {
+    let announce: (() => void) | undefined
+    const updates = {
+      start: (onUpdate: () => void) => {
+        announce = onUpdate
+        return () => {}
+      },
+    }
+    const reload = vi.fn()
+
+    render(
+      <ReferenceApp
+        client={client([])}
+        worker={createDirectWorkerClient()}
+        updates={updates}
+        reload={reload}
+      >
+        <ReferenceUpdate />
+      </ReferenceApp>,
+    )
+
+    await waitFor(() => expect(announce).toBeTypeOf("function"))
+    expect(screen.queryByRole("button", { name: "Reload to update" })).toBeNull()
+
+    await act(async () => {
+      announce?.()
+      await Promise.resolve()
+    })
+
+    const button = await screen.findByRole("button", { name: "Reload to update" })
+    // Nothing reloads until the person asks.
+    expect(reload).not.toHaveBeenCalled()
+    fireEvent.click(button)
+    expect(reload).toHaveBeenCalledTimes(1)
+  })
+})
 
 describe("local store", () => {
   test("opens at boot and reports what it kept", async () => {

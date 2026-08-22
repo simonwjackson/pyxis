@@ -8,8 +8,10 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use anyhow::Context;
-use axum::extract::DefaultBodyLimit;
-use axum::http::StatusCode;
+use axum::extract::{DefaultBodyLimit, Request};
+use axum::http::{header, HeaderValue, StatusCode};
+use axum::middleware::{self, Next};
+use axum::response::Response;
 use axum::routing::{get, post};
 use axum::Router;
 use tokio::net::TcpListener;
@@ -101,7 +103,14 @@ pub fn router_with_web(state: AppState, web_root: Option<PathBuf>) -> Router {
         None => app,
         Some(root) => {
             let index = root.join("index.html");
-            app.fallback_service(ServeDir::new(root).fallback(ServeFile::new(index)))
+            let assets = Router::new()
+                .fallback_service(ServeDir::new(root.join("assets")))
+                .layer(middleware::from_fn(immutable_asset));
+            let shell = Router::new()
+                .fallback_service(ServeDir::new(root).fallback(ServeFile::new(index)))
+                .layer(middleware::from_fn(always_fresh_shell));
+
+            app.nest("/assets", assets).fallback_service(shell)
         }
     }
 }
@@ -118,6 +127,41 @@ pub async fn serve(settings: &Settings, state: AppState) -> anyhow::Result<()> {
         .with_graceful_shutdown(shutdown_signal())
         .await
         .context("serve HTTP")
+}
+
+/// Asset filenames carry a content hash, so a given URL's bytes never change and may be
+/// kept for a year. Only successes: a miss during a deploy would otherwise pin a negative
+/// answer for just as long.
+async fn immutable_asset(request: Request, next: Next) -> Response {
+    let mut response = next.run(request).await;
+    if response.status().is_success() {
+        response.headers_mut().insert(
+            header::CACHE_CONTROL,
+            HeaderValue::from_static("public, max-age=31536000, immutable"),
+        );
+    }
+    response
+}
+
+/// The shell names the hashed assets, so a stale copy pins the whole client to an old
+/// build.
+///
+/// Marking it uncacheable is not enough on its own. Every file in the Nix store carries the
+/// same zeroed mtime, so a browser that kept the old shell revalidates with a matching
+/// `Last-Modified` and is told 304 for genuinely different content. The validators are
+/// therefore stripped in both directions: a request cannot ask to be told 304, and a
+/// response carries nothing that would let it ask next time. The shell is a few hundred
+/// bytes, so always sending it costs nothing worth measuring.
+async fn always_fresh_shell(mut request: Request, next: Next) -> Response {
+    request.headers_mut().remove(header::IF_MODIFIED_SINCE);
+    request.headers_mut().remove(header::IF_NONE_MATCH);
+
+    let mut response = next.run(request).await;
+    let headers = response.headers_mut();
+    headers.remove(header::LAST_MODIFIED);
+    headers.remove(header::ETAG);
+    headers.insert(header::CACHE_CONTROL, HeaderValue::from_static("no-store"));
+    response
 }
 
 async fn healthz() -> StatusCode {

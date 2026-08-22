@@ -21,6 +21,8 @@ import { type ConsoleCommand, type LocalState, ReferenceContext } from "./Refere
 import { ReferenceAudio } from "./ReferenceAudio.tsx"
 import { ReferenceRemote } from "./Remote.tsx"
 import { ReferenceSessions } from "./Sessions.tsx"
+import { ReferenceUpdate } from "./Update.tsx"
+import { createUpdateWatcher, type UpdateWatcher } from "./updates.ts"
 
 const CONSOLE_COMMANDS: Record<ConsoleCommand, RpcSessionCommand> = {
   play: { _tag: "transport.play", payload: {} },
@@ -32,12 +34,22 @@ interface ReferenceAppProps {
   readonly client?: ReferenceClient
   /// Injected by tests. Omitted in the browser, where a real worker is spawned.
   readonly worker?: WorkerClient
+  /// Injected by tests. Omitted in the browser, where the deployed shell is watched.
+  readonly updates?: UpdateWatcher
+  /// Injected by tests, because a test that genuinely reloads cannot assert anything.
+  readonly reload?: () => void
   readonly children?: ReactNode
 }
 
 const liveClient = createReferenceClient()
 
-export function ReferenceApp({ client = liveClient, worker, children }: ReferenceAppProps) {
+export function ReferenceApp({
+  client = liveClient,
+  worker,
+  updates,
+  reload,
+  children,
+}: ReferenceAppProps) {
   const started = useRef(false)
   const audioElement = useRef<HTMLAudioElement | null>(null)
   const placementQueues = useRef(new Map<string, Promise<void>>())
@@ -55,6 +67,7 @@ export function ReferenceApp({ client = liveClient, worker, children }: Referenc
   const [session, setSession] = useState<RpcSession>()
   const [remoteSessions, setRemoteSessions] = useState<readonly RpcSession[]>([])
   const [local, setLocal] = useState<LocalState>()
+  const [updateAvailable, setUpdateAvailable] = useState(false)
   const [audioUrl, setAudioUrl] = useState<string>()
   const [error, setError] = useState<string>()
   const sessionRef = useRef<RpcSession>()
@@ -106,6 +119,18 @@ export function ReferenceApp({ client = liveClient, worker, children }: Referenc
   useEffect(() => {
     sessionRef.current = session
   }, [session])
+
+  useEffect(() => {
+    const watcher = updates ?? createUpdateWatcher()
+    return watcher.start(() => setUpdateAvailable(true))
+  }, [updates])
+
+  const applyUpdate = useCallback(() => {
+    // A plain reload is enough now that the shell is never stored. The browser asks the
+    // server for it, gets the new bundle names, and loads them.
+    if (reload !== undefined) reload()
+    else window.location.reload()
+  }, [reload])
 
   // The local store is opened separately from the network boot, because its whole point is
   // to be usable when that boot fails.
@@ -554,6 +579,8 @@ export function ReferenceApp({ client = liveClient, worker, children }: Referenc
       ...(session === undefined ? {} : { session }),
       remoteSessions,
       ...(local === undefined ? {} : { local }),
+      updateAvailable,
+      applyUpdate,
       ...(audioUrl === undefined ? {} : { audioUrl }),
       ...(error === undefined ? {} : { error }),
       setQuery,
@@ -582,6 +609,8 @@ export function ReferenceApp({ client = liveClient, worker, children }: Referenc
       session,
       remoteSessions,
       local,
+      updateAvailable,
+      applyUpdate,
       audioUrl,
       error,
       search,
@@ -605,6 +634,7 @@ export function ReferenceApp({ client = liveClient, worker, children }: Referenc
         <main>
           <h1>Pyxis reference client</h1>
           <p>This page is intentionally unstyled. It proves behavior, not design.</p>
+          <ReferenceUpdate />
           <ReferencePlugins />
           <ReferenceLibrary />
           <ReferenceSessions />

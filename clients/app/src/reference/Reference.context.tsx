@@ -31,6 +31,8 @@ export interface ReferenceContextValue {
   /// Other devices on this account that can be driven right now.
   readonly remoteSessions: readonly RpcSession[]
   readonly local?: LocalState
+  /// The server is serving a newer build than this page is running.
+  readonly updateAvailable: boolean
   readonly audioUrl?: string
   readonly error?: string
   setQuery(value: string): void
@@ -44,6 +46,7 @@ export interface ReferenceContextValue {
   stop(): Promise<void>
   clearQueue(): Promise<void>
   reportEnded(): Promise<void>
+  applyUpdate(): void
   driveRemote(sessionId: string, command: ConsoleCommand): Promise<void>
   handOffTo(targetSessionId: string): Promise<void>
   attachAudio(element: HTMLAudioElement | null): void
