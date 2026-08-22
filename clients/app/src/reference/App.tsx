@@ -27,6 +27,10 @@ const liveClient = createReferenceClient()
 export function ReferenceApp({ client = liveClient, children }: ReferenceAppProps) {
   const started = useRef(false)
   const audioElement = useRef<HTMLAudioElement | null>(null)
+  const placementQueues = useRef(new Map<string, Promise<void>>())
+  const placementSequences = useRef(new Map<string, number>())
+  const albumsRef = useRef<readonly RpcLibraryAlbum[]>([])
+  const confirmedAlbumsRef = useRef<readonly RpcLibraryAlbum[]>([])
   const [status, setStatus] = useState<"booting" | "ready" | "busy" | "error">("booting")
   const [grant, setGrant] = useState<RpcAuthGrant>()
   const [plugins, setPlugins] = useState<readonly RpcPlugin[]>([])
@@ -52,6 +56,8 @@ export function ReferenceApp({ client = liveClient, children }: ReferenceAppProp
         ])
         setGrant(nextGrant)
         setPlugins(nextPlugins)
+        albumsRef.current = nextAlbums
+        confirmedAlbumsRef.current = nextAlbums
         setAlbums(nextAlbums)
         setSession(sessions.find((candidate) => candidate.hostDeviceId === nextGrant.device.id))
         setStatus("ready")
@@ -137,9 +143,58 @@ export function ReferenceApp({ client = liveClient, children }: ReferenceAppProp
 
   const setAlbumPlacement = useCallback(
     async (albumId: string, placement: RpcPlacement) => {
+      const sequence = (placementSequences.current.get(albumId) ?? 0) + 1
+      placementSequences.current.set(albumId, sequence)
+      const optimistic = albumsRef.current.map((album) =>
+        album.id === albumId ? { ...album, placement } : album,
+      )
+      albumsRef.current = optimistic
+      setAlbums(optimistic)
+
       await run(async () => {
-        const updated = await client.setAlbumPlacement(currentToken(), albumId, placement)
-        setAlbums((current) => current.map((album) => (album.id === albumId ? updated : album)))
+        const previous = placementQueues.current.get(albumId) ?? Promise.resolve()
+        const request = previous
+          .catch(() => undefined)
+          .then(() => client.setAlbumPlacement(currentToken(), albumId, placement))
+        const queued = request.then(
+          () => undefined,
+          () => undefined,
+        )
+        placementQueues.current.set(albumId, queued)
+        try {
+          const updated = await request
+          confirmedAlbumsRef.current = confirmedAlbumsRef.current.map((album) =>
+            album.id === albumId && updated.revision >= album.revision ? updated : album,
+          )
+          if (placementSequences.current.get(albumId) === sequence) {
+            albumsRef.current = confirmedAlbumsRef.current
+            setAlbums(confirmedAlbumsRef.current)
+          }
+        } catch (cause) {
+          if (placementSequences.current.get(albumId) === sequence) {
+            try {
+              const refreshed = await client.listAlbums(currentToken())
+              confirmedAlbumsRef.current = mergeConfirmedAlbums(
+                confirmedAlbumsRef.current,
+                refreshed,
+              )
+              if (placementSequences.current.get(albumId) === sequence) {
+                albumsRef.current = confirmedAlbumsRef.current
+                setAlbums(confirmedAlbumsRef.current)
+              }
+            } catch {
+              if (placementSequences.current.get(albumId) === sequence) {
+                albumsRef.current = confirmedAlbumsRef.current
+                setAlbums(confirmedAlbumsRef.current)
+              }
+            }
+          }
+          throw cause
+        } finally {
+          if (placementQueues.current.get(albumId) === queued) {
+            placementQueues.current.delete(albumId)
+          }
+        }
       })
     },
     [client, currentToken, run],
@@ -287,6 +342,17 @@ export function ReferenceApp({ client = liveClient, children }: ReferenceAppProp
       )}
     </ReferenceContext.Provider>
   )
+}
+
+function mergeConfirmedAlbums(
+  current: readonly RpcLibraryAlbum[],
+  incoming: readonly RpcLibraryAlbum[],
+): readonly RpcLibraryAlbum[] {
+  const currentById = new Map(current.map((album) => [album.id, album]))
+  return incoming.map((album) => {
+    const existing = currentById.get(album.id)
+    return existing !== undefined && existing.revision > album.revision ? existing : album
+  })
 }
 
 function message(cause: unknown): string {

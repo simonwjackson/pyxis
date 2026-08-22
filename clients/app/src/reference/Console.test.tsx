@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react"
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { afterEach, describe, expect, test } from "vitest"
 import { RpcPlacement } from "../../../../contracts/generated/pyxis"
 import { ReferenceApp } from "./App.tsx"
@@ -106,6 +106,218 @@ describe("reference client", () => {
 
     await waitFor(() => expect(placement).toBe(RpcPlacement.Collection))
     expect(screen.getByText(/collection — revision 2/)).toBeTruthy()
+  })
+
+  test("ignores an older placement response that completes last", async () => {
+    let resolveFirst:
+      | ((album: Awaited<ReturnType<ReferenceClient["setAlbumPlacement"]>>) => void)
+      | undefined
+    let resolveSecond:
+      | ((album: Awaited<ReturnType<ReferenceClient["setAlbumPlacement"]>>) => void)
+      | undefined
+    let call = 0
+    const configured: ReferenceClient = {
+      ...client([]),
+      listAlbums: async () => [
+        {
+          id: "album-1",
+          title: "Heroes",
+          artist: "David Bowie",
+          placement: RpcPlacement.Discovery,
+          placementUpdatedAt: "now",
+          addedAt: "now",
+          revision: 1,
+          tracks: [],
+        },
+      ],
+      setAlbumPlacement: async () =>
+        new Promise((resolve) => {
+          call += 1
+          if (call === 1) resolveFirst = resolve
+          else resolveSecond = resolve
+        }),
+    }
+
+    render(
+      <ReferenceApp client={configured}>
+        <ReferenceLibrary />
+      </ReferenceApp>,
+    )
+    await waitFor(() => expect(screen.getByText(/Heroes/)).toBeTruthy())
+    fireEvent.click(screen.getByRole("button", { name: "collection" }))
+    fireEvent.click(screen.getByRole("button", { name: "archive" }))
+
+    expect(screen.getByText(/archive — revision 1/)).toBeTruthy()
+    await waitFor(() => expect(resolveFirst).toBeTypeOf("function"))
+    await act(async () => {
+      resolveFirst?.({
+        id: "album-1",
+        title: "Heroes",
+        artist: "David Bowie",
+        placement: RpcPlacement.Collection,
+        placementUpdatedAt: "second",
+        addedAt: "now",
+        revision: 2,
+        tracks: [],
+      })
+      await Promise.resolve()
+    })
+    expect(screen.getByText(/archive — revision 1/)).toBeTruthy()
+    await waitFor(() => expect(resolveSecond).toBeTypeOf("function"))
+    await act(async () => {
+      resolveSecond?.({
+        id: "album-1",
+        title: "Heroes",
+        artist: "David Bowie",
+        placement: RpcPlacement.Archive,
+        placementUpdatedAt: "third",
+        addedAt: "now",
+        revision: 3,
+        tracks: [],
+      })
+      await Promise.resolve()
+    })
+
+    expect(screen.getByText(/archive — revision 3/)).toBeTruthy()
+  })
+
+  test("rolls back an optimistic placement when mutation and refresh both fail", async () => {
+    let listCalls = 0
+    const configured: ReferenceClient = {
+      ...client([]),
+      listAlbums: async () => {
+        listCalls += 1
+        if (listCalls > 1) throw new Error("offline")
+        return [
+          {
+            id: "album-1",
+            title: "Heroes",
+            artist: "David Bowie",
+            placement: RpcPlacement.Discovery,
+            placementUpdatedAt: "now",
+            addedAt: "now",
+            revision: 1,
+            tracks: [],
+          },
+        ]
+      },
+      setAlbumPlacement: async () => {
+        throw new Error("offline")
+      },
+    }
+
+    render(
+      <ReferenceApp client={configured}>
+        <ReferenceLibrary />
+      </ReferenceApp>,
+    )
+    await waitFor(() => expect(screen.getByText(/discovery — revision 1/)).toBeTruthy())
+    fireEvent.click(screen.getByRole("button", { name: "collection" }))
+    expect(screen.getByText(/collection — revision 1/)).toBeTruthy()
+
+    await waitFor(() => expect(screen.getByText(/discovery — revision 1/)).toBeTruthy())
+  })
+
+  test("rolls back two failed queued placements to the last confirmed album", async () => {
+    let listCalls = 0
+    const configured: ReferenceClient = {
+      ...client([]),
+      listAlbums: async () => {
+        listCalls += 1
+        if (listCalls > 1) throw new Error("offline")
+        return [
+          {
+            id: "album-1",
+            title: "Heroes",
+            artist: "David Bowie",
+            placement: RpcPlacement.Discovery,
+            placementUpdatedAt: "now",
+            addedAt: "now",
+            revision: 1,
+            tracks: [],
+          },
+        ]
+      },
+      setAlbumPlacement: async () => {
+        throw new Error("offline")
+      },
+    }
+
+    render(
+      <ReferenceApp client={configured}>
+        <ReferenceLibrary />
+      </ReferenceApp>,
+    )
+    await waitFor(() => expect(screen.getByText(/discovery — revision 1/)).toBeTruthy())
+    fireEvent.click(screen.getByRole("button", { name: "collection" }))
+    fireEvent.click(screen.getByRole("button", { name: "archive" }))
+    expect(screen.getByText(/archive — revision 1/)).toBeTruthy()
+
+    await waitFor(() => expect(screen.getByText(/discovery — revision 1/)).toBeTruthy())
+  })
+
+  test("keeps a stale refresh as confirmed truth for a later rollback", async () => {
+    let listCalls = 0
+    let resolveRefresh:
+      | ((albums: Awaited<ReturnType<ReferenceClient["listAlbums"]>>) => void)
+      | undefined
+    const configured: ReferenceClient = {
+      ...client([]),
+      listAlbums: async () => {
+        listCalls += 1
+        if (listCalls === 1) {
+          return [
+            {
+              id: "album-1",
+              title: "Heroes",
+              artist: "David Bowie",
+              placement: RpcPlacement.Discovery,
+              placementUpdatedAt: "now",
+              addedAt: "now",
+              revision: 1,
+              tracks: [],
+            },
+          ]
+        }
+        if (listCalls === 2) {
+          return new Promise((resolve) => {
+            resolveRefresh = resolve
+          })
+        }
+        throw new Error("offline")
+      },
+      setAlbumPlacement: async () => {
+        throw new Error("response lost")
+      },
+    }
+
+    render(
+      <ReferenceApp client={configured}>
+        <ReferenceLibrary />
+      </ReferenceApp>,
+    )
+    await waitFor(() => expect(screen.getByText(/discovery — revision 1/)).toBeTruthy())
+    fireEvent.click(screen.getByRole("button", { name: "collection" }))
+    await waitFor(() => expect(resolveRefresh).toBeTypeOf("function"))
+    fireEvent.click(screen.getByRole("button", { name: "archive" }))
+    expect(screen.getByText(/archive — revision 1/)).toBeTruthy()
+    await act(async () => {
+      resolveRefresh?.([
+        {
+          id: "album-1",
+          title: "Heroes",
+          artist: "David Bowie",
+          placement: RpcPlacement.Collection,
+          placementUpdatedAt: "confirmed",
+          addedAt: "now",
+          revision: 2,
+          tracks: [],
+        },
+      ])
+      await Promise.resolve()
+    })
+
+    await waitFor(() => expect(screen.getByText(/collection — revision 2/)).toBeTruthy())
   })
 
   test("searches, queues, and loads audio through the reference binding", async () => {
