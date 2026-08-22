@@ -10,8 +10,8 @@ use std::path::PathBuf;
 use std::time::Duration;
 
 use pyxis::plugins::protocol::{
-    PluginCallOutcome, PluginCapability, PluginHandshakeOutcome, PluginManifest, PluginRequest,
-    PluginRequestEnvelope, PluginResponse, PluginResponseEnvelope, PluginValue,
+    PluginCallOutcome, PluginCapability, PluginFailure, PluginHandshakeOutcome, PluginManifest,
+    PluginRequest, PluginRequestEnvelope, PluginResponse, PluginResponseEnvelope, PluginValue,
     PLUGIN_PROTOCOL_VERSION,
 };
 
@@ -118,6 +118,22 @@ fn main() -> anyhow::Result<()> {
                 }
             }
         }
+        if call.operation == "album.get" && behavior == "album-permanent" {
+            send(
+                &mut stdout,
+                PluginResponseEnvelope {
+                    id: envelope.id,
+                    response: PluginResponse::CapabilityCall(PluginCallOutcome::Unavailable(
+                        PluginFailure {
+                            code: "album.permanent".into(),
+                            message: "album cannot be loaded".into(),
+                            retryable: false,
+                        },
+                    )),
+                },
+            )?;
+            continue;
+        }
         if call.operation == "album.get" {
             if let Ok(album) = std::env::var("PYXIS_LAB_ALBUM") {
                 let fields: Vec<_> = album.split('|').collect();
@@ -133,10 +149,17 @@ fn main() -> anyhow::Result<()> {
                     track.insert("title".into(), PluginValue::String("Track One".into()));
                     track.insert("artist".into(), PluginValue::String(fields[2].into()));
                     track.insert("trackNumber".into(), PluginValue::Unsigned(1));
-                    value.insert(
-                        "tracks".into(),
-                        PluginValue::Array(vec![PluginValue::Object(track)]),
-                    );
+                    let tracks = if std::env::var("PYXIS_LAB_ALBUM_MODE").as_deref()
+                        == Ok("duplicate-track")
+                    {
+                        vec![
+                            PluginValue::Object(track.clone()),
+                            PluginValue::Object(track),
+                        ]
+                    } else {
+                        vec![PluginValue::Object(track)]
+                    };
+                    value.insert("tracks".into(), PluginValue::Array(tracks));
                 }
             }
         }

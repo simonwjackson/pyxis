@@ -94,6 +94,17 @@ impl Media {
             .ensure_plugin(account, track_id, input, updated_by)?)
     }
 
+    pub fn ensure_plugin_candidates(
+        &self,
+        account: &AccountId,
+        inputs: Vec<(String, PluginCandidateInput)>,
+        updated_by: &str,
+    ) -> Result<Vec<MediaCandidate>, MediaError> {
+        Ok(self
+            .candidates
+            .ensure_plugins(account, inputs, updated_by)?)
+    }
+
     pub fn import_local_candidate(
         &self,
         account: &AccountId,

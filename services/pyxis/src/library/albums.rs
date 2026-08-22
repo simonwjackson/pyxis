@@ -96,6 +96,8 @@ pub(crate) struct AlbumTrackRecord {
     pub album_id: String,
     pub track_id: String,
     pub position: u32,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub track_number: Option<u32>,
     pub revision: u64,
     pub updated_by: String,
     pub updated_at: String,

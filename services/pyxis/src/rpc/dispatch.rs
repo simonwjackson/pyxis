@@ -707,11 +707,9 @@ pub fn dispatch(state: &AppState, request: RpcRequest, auth: Option<AuthContext>
                         })
                         .collect(),
                 )),
-                Err(error) => {
-                    RpcResponse::SourceAlbumSearch(SourceAlbumSearchOutcome::Unavailable(
-                        RpcFailure::retryable("source.albumSearch", error.to_string()),
-                    ))
-                }
+                Err(error) => RpcResponse::SourceAlbumSearch(
+                    SourceAlbumSearchOutcome::Unavailable(source_album_failure(error)),
+                ),
             }
         }
         RpcRequest::SourceAlbumGet(request) => {
@@ -747,10 +745,59 @@ pub fn dispatch(state: &AppState, request: RpcRequest, auth: Option<AuthContext>
                     }))
                 }
                 Err(error) => RpcResponse::SourceAlbumGet(SourceAlbumGetOutcome::Unavailable(
-                    RpcFailure::retryable("source.albumGet", error.to_string()),
+                    source_album_failure(error),
                 )),
             }
         }
+    }
+}
+
+fn source_album_failure(error: crate::source_catalog::SourceCatalogError) -> RpcFailure {
+    use crate::db::store::StoreError;
+    use crate::plugin_credentials::CredentialError;
+    use crate::plugins::host::PluginCallError;
+    use crate::source_catalog::SourceCatalogError;
+
+    match error {
+        SourceCatalogError::Plugin(plugin_error) => match plugin_error {
+            PluginCallError::Unavailable { ref reason, .. }
+                if reason == "plugin is not installed" =>
+            {
+                RpcFailure::permanent("source.albumUnavailable", plugin_error.to_string())
+            }
+            PluginCallError::Unavailable { .. }
+            | PluginCallError::ProcessExited { .. }
+            | PluginCallError::Timeout { .. }
+            | PluginCallError::Plugin {
+                retryable: true, ..
+            } => RpcFailure::retryable("source.albumUnavailable", plugin_error.to_string()),
+            PluginCallError::CapabilityUnavailable { .. }
+            | PluginCallError::Protocol { .. }
+            | PluginCallError::Plugin {
+                retryable: false, ..
+            } => RpcFailure::permanent("source.albumUnavailable", plugin_error.to_string()),
+        },
+        SourceCatalogError::InvalidOutput(message) => {
+            RpcFailure::permanent("source.albumInvalidOutput", message)
+        }
+        SourceCatalogError::Media(error) => {
+            RpcFailure::retryable("source.albumMediaUnavailable", error.to_string())
+        }
+        SourceCatalogError::Credentials(error) => match error {
+            CredentialError::Store(StoreError::Decode { .. } | StoreError::NotAnObject { .. }) => {
+                RpcFailure::permanent("source.albumCredentialsInvalid", error.to_string())
+            }
+            CredentialError::Store(StoreError::Engine(_)) | CredentialError::Io(_) => {
+                RpcFailure::retryable("source.albumCredentialsUnavailable", error.to_string())
+            }
+            CredentialError::InvalidKey
+            | CredentialError::Encode(_)
+            | CredentialError::Encrypt
+            | CredentialError::Decrypt
+            | CredentialError::InvalidEncoding => {
+                RpcFailure::permanent("source.albumCredentialsInvalid", error.to_string())
+            }
+        },
     }
 }
 

@@ -57,6 +57,13 @@ fn operation(reason: &str, message: String) -> EngineError {
     })
 }
 
+#[derive(Debug, Clone)]
+pub struct StoreWrite {
+    collection: String,
+    id: String,
+    value: Value,
+}
+
 #[derive(Clone)]
 pub struct Store {
     runtime: NativeRuntime,
@@ -155,6 +162,74 @@ impl Store {
         self.upsert(collection, id, value)
     }
 
+    pub fn write<T: Serialize>(
+        collection: &str,
+        id: impl Into<String>,
+        record: &T,
+    ) -> Result<StoreWrite> {
+        Ok(StoreWrite {
+            collection: collection.into(),
+            id: id.into(),
+            value: to_object(collection, record)?,
+        })
+    }
+
+    /// Write records across several collections as one durable ProseQL commit.
+    pub fn put_mixed_batch(&self, account: &AccountId, writes: &[StoreWrite]) -> Result<()> {
+        if writes.is_empty() {
+            return Ok(());
+        }
+        let account_id = account.as_str().to_string();
+        let mut writes = writes.to_vec();
+        for write in &mut writes {
+            let Value::Object(fields) = &mut write.value else {
+                unreachable!("store write is not an object")
+            };
+            fields.insert("id".into(), Value::String(write.id.clone()));
+            fields.insert("accountId".into(), Value::String(account_id.clone()));
+        }
+        self.runtime
+            .mutate(move |database| {
+                for write in writes {
+                    if let Some(existing) = database.find_by_id(&write.collection, &write.id)? {
+                        if !belongs_to_id(&existing, &account_id) {
+                            return Err(operation(
+                                "scope-collision",
+                                format!(
+                                    "record '{}' in collection '{}' belongs to another account",
+                                    write.id, write.collection
+                                ),
+                            ));
+                        }
+                        let Value::Object(mut updates) = write.value else {
+                            unreachable!("store write is not an object")
+                        };
+                        updates.remove("id");
+                        updates.remove("createdAt");
+                        database.update(&write.collection, &write.id, Value::Object(updates))?;
+                    } else {
+                        database.create(&write.collection, write.value)?;
+                    }
+                }
+                Ok(())
+            })
+            .map_err(engine)
+    }
+
+    /// Write several records in one collection as one durable ProseQL commit.
+    pub fn put_batch<T: Serialize>(
+        &self,
+        collection: &str,
+        account: &AccountId,
+        records: &[(String, T)],
+    ) -> Result<()> {
+        let writes = records
+            .iter()
+            .map(|(id, record)| Store::write(collection, id.clone(), record))
+            .collect::<Result<Vec<_>>>()?;
+        self.put_mixed_batch(account, &writes)
+    }
+
     /// Read a record from an account's scope. A record belonging to another account reads
     /// as absent rather than leaking across the boundary.
     pub fn get<T: DeserializeOwned>(
@@ -232,10 +307,25 @@ impl Store {
     fn upsert(&self, collection: &str, id: &str, value: Value) -> Result<()> {
         let collection_name = collection.to_string();
         let id = id.to_string();
+        let account_id = value
+            .get("accountId")
+            .and_then(Value::as_str)
+            .map(str::to_owned);
 
         self.runtime
             .mutate(move |database| {
-                if database.find_by_id(&collection_name, &id)?.is_some() {
+                if let Some(existing) = database.find_by_id(&collection_name, &id)? {
+                    if account_id
+                        .as_deref()
+                        .is_some_and(|account_id| !belongs_to_id(&existing, account_id))
+                    {
+                        return Err(operation(
+                            "scope-collision",
+                            format!(
+                                "record '{id}' in collection '{collection_name}' belongs to another account"
+                            ),
+                        ));
+                    }
                     let updates = match &value {
                         Value::Object(fields) => {
                             let mut updates = fields.clone();
@@ -275,10 +365,14 @@ impl Store {
 }
 
 fn belongs_to(value: &Value, account: &AccountId) -> bool {
+    belongs_to_id(value, account.as_str())
+}
+
+fn belongs_to_id(value: &Value, account_id: &str) -> bool {
     value
         .get("accountId")
         .and_then(Value::as_str)
-        .is_some_and(|id| id == account.as_str())
+        .is_some_and(|id| id == account_id)
 }
 
 fn to_object<T: Serialize>(collection: &str, record: &T) -> Result<Value> {
@@ -404,6 +498,37 @@ mod tests {
     }
 
     #[test]
+    fn scoped_writes_cannot_take_an_id_from_another_account() {
+        let (_dir, store) = temp_store();
+        let first = AccountId::new("acct-1");
+        let second = AccountId::new("acct-2");
+        store
+            .put(schema::ALBUMS, &first, "shared-id", &album("Geogaddi"))
+            .expect("first put");
+
+        store
+            .put(schema::ALBUMS, &second, "shared-id", &album("Stolen"))
+            .expect_err("single put must reject cross-account id collision");
+        store
+            .put_batch(
+                schema::ALBUMS,
+                &second,
+                &[("shared-id".into(), album("Stolen in batch"))],
+            )
+            .expect_err("batch put must reject cross-account id collision");
+
+        let owner: AlbumRecord = store
+            .get(schema::ALBUMS, &first, "shared-id")
+            .expect("get owner")
+            .expect("owner record");
+        let thief: Option<AlbumRecord> = store
+            .get(schema::ALBUMS, &second, "shared-id")
+            .expect("get thief");
+        assert_eq!(owner.title, "Geogaddi");
+        assert!(thief.is_none());
+    }
+
+    #[test]
     fn identically_titled_albums_in_two_accounts_do_not_collide() {
         let (_dir, store) = temp_store();
         let first = AccountId::new("acct-1");
@@ -469,6 +594,37 @@ mod tests {
             .expect("get");
 
         assert_eq!(found.expect("record").title, "Campfire Headphase");
+    }
+
+    #[test]
+    fn store_created_before_later_collections_reopens_with_current_descriptors() {
+        let dir = tempfile::tempdir().expect("temp dir");
+        let path = Store::path_for(dir.path());
+        std::fs::create_dir_all(path.parent().expect("db parent")).expect("db dir");
+        let later = [
+            schema::ALBUM_SOURCE_REFS,
+            schema::ALBUM_TRACKS,
+            schema::HOT_ALBUMS,
+            schema::MATCH_OVERRIDES,
+        ];
+        let original = NativeRuntime::open(NativeRuntimeConfig {
+            path: path.to_string_lossy().into_owned(),
+            collections: schema::all()
+                .into_iter()
+                .filter(|descriptor| !later.contains(&descriptor.name.as_str()))
+                .map(NativeCollectionConfig::new)
+                .collect(),
+        })
+        .expect("open pre-library store");
+        original.close().expect("close pre-library store");
+
+        let reopened = Store::open(dir.path()).expect("reopen with current schema");
+        for collection in later {
+            let records: Vec<Value> = reopened
+                .list(collection, &AccountId::new("acct-1"))
+                .expect("list later collection");
+            assert!(records.is_empty(), "{collection} must open empty");
+        }
     }
 
     #[test]

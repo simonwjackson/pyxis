@@ -172,6 +172,7 @@ pub fn album_tracks() -> CollectionDescriptor {
             field("albumId", SchemaNode::Str),
             field("trackId", SchemaNode::Str),
             field("position", SchemaNode::Num),
+            field("trackNumber", optional(SchemaNode::Num)),
         ],
     ))
 }

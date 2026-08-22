@@ -3,6 +3,7 @@
 use std::cmp::Ordering;
 use std::collections::BTreeSet;
 use std::path::PathBuf;
+use std::sync::{Arc, Mutex};
 
 use chrono::{SecondsFormat, Utc};
 use serde::{Deserialize, Serialize};
@@ -120,11 +121,15 @@ struct CandidateRecord {
 #[derive(Clone)]
 pub struct CandidateRepository {
     store: Store,
+    mutation: Arc<Mutex<()>>,
 }
 
 impl CandidateRepository {
     pub fn new(store: Store) -> Self {
-        CandidateRepository { store }
+        CandidateRepository {
+            store,
+            mutation: Arc::new(Mutex::new(())),
+        }
     }
 
     pub fn ensure_plugin(
@@ -134,20 +139,53 @@ impl CandidateRepository {
         input: PluginCandidateInput,
         updated_by: &str,
     ) -> Result<MediaCandidate, CandidateError> {
-        if let Some(existing) =
-            self.list_for_track(account, track_id)?
-                .into_iter()
-                .find(|candidate| {
-                    matches!(
+        self.ensure_plugins(account, vec![(track_id.into(), input)], updated_by)
+            .map(|mut candidates| candidates.remove(0))
+    }
+
+    pub fn ensure_plugins(
+        &self,
+        account: &AccountId,
+        inputs: Vec<(String, PluginCandidateInput)>,
+        updated_by: &str,
+    ) -> Result<Vec<MediaCandidate>, CandidateError> {
+        let _guard = self.mutation.lock().expect("candidate mutation poisoned");
+        let existing = self.list(account)?;
+        let mut created = Vec::new();
+        let mut candidates = Vec::with_capacity(inputs.len());
+        for (track_id, input) in inputs {
+            if let Some(candidate) = existing.iter().find(|candidate| {
+                candidate.track_id == track_id
+                    && matches!(
                         &candidate.location,
                         CandidateLocation::Plugin { plugin_id, external_id }
                             if plugin_id == &input.plugin_id && external_id == &input.external_id
                     )
-                })
-        {
-            return Ok(existing);
+            }) {
+                candidates.push(candidate.clone());
+                continue;
+            }
+            let candidate = MediaCandidate {
+                id: Ulid::new().to_string(),
+                track_id,
+                location: CandidateLocation::Plugin {
+                    plugin_id: input.plugin_id,
+                    external_id: input.external_id,
+                },
+                format: input.format,
+                fidelity: input.fidelity,
+                source_priority: input.source_priority,
+                discovered_at: now(),
+            };
+            created.push((
+                candidate.id.clone(),
+                candidate_record(&candidate, updated_by),
+            ));
+            candidates.push(candidate);
         }
-        self.add_plugin(account, track_id, input, updated_by)
+        self.store
+            .put_batch(schema::TRACK_CANDIDATES, account, &created)?;
+        Ok(candidates)
     }
 
     pub fn add_plugin(
@@ -280,41 +318,48 @@ impl CandidateRepository {
         candidate: &MediaCandidate,
         updated_by: &str,
     ) -> Result<(), CandidateError> {
-        let (kind, plugin_id, external_id, media_file_id) = match &candidate.location {
-            CandidateLocation::Plugin {
-                plugin_id,
-                external_id,
-            } => (
-                "plugin",
-                Some(plugin_id.clone()),
-                Some(external_id.clone()),
-                None,
-            ),
-            CandidateLocation::Local { media_file_id } => {
-                ("local", None, None, Some(media_file_id.clone()))
-            }
-        };
-        let record = CandidateRecord {
-            id: candidate.id.clone(),
-            account_id: String::new(),
-            track_id: candidate.track_id.clone(),
-            kind: kind.into(),
+        self.store.put(
+            schema::TRACK_CANDIDATES,
+            account,
+            &candidate.id,
+            &candidate_record(candidate, updated_by),
+        )?;
+        Ok(())
+    }
+}
+
+fn candidate_record(candidate: &MediaCandidate, updated_by: &str) -> CandidateRecord {
+    let (kind, plugin_id, external_id, media_file_id) = match &candidate.location {
+        CandidateLocation::Plugin {
             plugin_id,
             external_id,
-            media_file_id,
-            format: candidate.format.clone(),
-            lossless: candidate.fidelity.lossless,
-            bitrate_kbps: candidate.fidelity.bitrate_kbps,
-            sample_rate_hz: candidate.fidelity.sample_rate_hz,
-            source_priority: candidate.source_priority,
-            discovered_at: candidate.discovered_at.clone(),
-            revision: 1,
-            updated_by: updated_by.into(),
-            updated_at: now(),
-        };
-        self.store
-            .put(schema::TRACK_CANDIDATES, account, &candidate.id, &record)?;
-        Ok(())
+        } => (
+            "plugin",
+            Some(plugin_id.clone()),
+            Some(external_id.clone()),
+            None,
+        ),
+        CandidateLocation::Local { media_file_id } => {
+            ("local", None, None, Some(media_file_id.clone()))
+        }
+    };
+    CandidateRecord {
+        id: candidate.id.clone(),
+        account_id: String::new(),
+        track_id: candidate.track_id.clone(),
+        kind: kind.into(),
+        plugin_id,
+        external_id,
+        media_file_id,
+        format: candidate.format.clone(),
+        lossless: candidate.fidelity.lossless,
+        bitrate_kbps: candidate.fidelity.bitrate_kbps,
+        sample_rate_hz: candidate.fidelity.sample_rate_hz,
+        source_priority: candidate.source_priority,
+        discovered_at: candidate.discovered_at.clone(),
+        revision: 1,
+        updated_by: updated_by.into(),
+        updated_at: now(),
     }
 }
 

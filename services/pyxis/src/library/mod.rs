@@ -6,6 +6,7 @@
 pub mod albums;
 pub mod placement;
 
+use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
 use chrono::{SecondsFormat, Utc};
@@ -129,84 +130,86 @@ impl Library {
             updated_by: updated_by.into(),
             updated_at: timestamp.clone(),
         };
-        self.store.put(schema::ALBUMS, account, &id, &album)?;
-
-        let mut created_tracks = Vec::new();
-        let mut relationships = Vec::new();
-        let result = (|| -> Result<(), LibraryError> {
-            for (index, input) in input.tracks.into_iter().enumerate() {
-                let track_id = input.id.unwrap_or_else(|| Ulid::new().to_string());
-                if self
-                    .store
+        let mut writes = vec![Store::write(schema::ALBUMS, id.clone(), &album)?];
+        for (index, input) in input.tracks.into_iter().enumerate() {
+            let track_id = input.id.unwrap_or_else(|| Ulid::new().to_string());
+            if let Some(mut track) =
+                self.store
                     .get::<TrackRecord>(schema::TRACKS, account, &track_id)?
-                    .is_none()
-                {
-                    let track = TrackRecord {
-                        id: track_id.clone(),
-                        account_id: String::new(),
-                        title: input.title,
-                        artist: input.artist,
-                        duration_ms: input.duration_ms,
-                        track_number: input.track_number,
-                        artwork_url: None,
-                        revision: 1,
-                        updated_by: updated_by.into(),
-                        updated_at: timestamp.clone(),
-                    };
-                    self.store.put(schema::TRACKS, account, &track_id, &track)?;
-                    created_tracks.push(track_id.clone());
+            {
+                let mut changed = false;
+                if is_placeholder(&track.title) && !is_placeholder(&input.title) {
+                    track.title = input.title.clone();
+                    changed = true;
                 }
-                let relationship_id = relationship_id(&id, &track_id);
-                let relationship = AlbumTrackRecord {
-                    id: relationship_id.clone(),
+                if is_placeholder(&track.artist) && !is_placeholder(&input.artist) {
+                    track.artist = input.artist.clone();
+                    changed = true;
+                }
+                if track.duration_ms.is_none() && input.duration_ms.is_some() {
+                    track.duration_ms = input.duration_ms;
+                    changed = true;
+                }
+                if changed {
+                    track.revision += 1;
+                    track.updated_by = updated_by.into();
+                    track.updated_at = timestamp.clone();
+                    writes.push(Store::write(schema::TRACKS, track_id.clone(), &track)?);
+                }
+            } else {
+                let track = TrackRecord {
+                    id: track_id.clone(),
                     account_id: String::new(),
-                    album_id: id.clone(),
-                    track_id,
-                    position: u32::try_from(index).unwrap_or(u32::MAX),
+                    title: input.title.clone(),
+                    artist: input.artist.clone(),
+                    duration_ms: input.duration_ms,
+                    track_number: None,
+                    artwork_url: None,
                     revision: 1,
                     updated_by: updated_by.into(),
                     updated_at: timestamp.clone(),
                 };
-                self.store.put(
-                    schema::ALBUM_TRACKS,
-                    account,
-                    &relationship_id,
-                    &relationship,
-                )?;
-                relationships.push(relationship_id);
+                writes.push(Store::write(schema::TRACKS, track_id.clone(), &track)?);
             }
-
-            if let Some(reference) = input.source_reference {
-                let reference_id =
-                    source_reference_id(account, &reference.plugin_id, &reference.external_id);
-                let record = SourceReferenceRecord {
-                    id: reference_id.clone(),
-                    account_id: String::new(),
-                    album_id: id.clone(),
-                    plugin_id: reference.plugin_id,
-                    external_id: reference.external_id,
-                    revision: 1,
-                    updated_by: updated_by.into(),
-                    updated_at: timestamp,
-                };
-                self.store
-                    .put(schema::ALBUM_SOURCE_REFS, account, &reference_id, &record)?;
-            }
-            Ok(())
-        })();
-
-        if let Err(error) = result {
-            for relationship in relationships {
-                let _ = self
-                    .store
-                    .delete(schema::ALBUM_TRACKS, account, &relationship);
-            }
-            for track in created_tracks {
-                let _ = self.store.delete(schema::TRACKS, account, &track);
-            }
-            let _ = self.store.delete(schema::ALBUMS, account, &id);
-            return Err(error);
+            let relationship_id = relationship_id(&id, &track_id);
+            let relationship = AlbumTrackRecord {
+                id: relationship_id.clone(),
+                account_id: String::new(),
+                album_id: id.clone(),
+                track_id,
+                position: u32::try_from(index).unwrap_or(u32::MAX),
+                track_number: input.track_number,
+                revision: 1,
+                updated_by: updated_by.into(),
+                updated_at: timestamp.clone(),
+            };
+            writes.push(Store::write(
+                schema::ALBUM_TRACKS,
+                relationship_id,
+                &relationship,
+            )?);
         }
+
+        if let Some(reference) = input.source_reference {
+            let reference_id =
+                source_reference_id(account, &reference.plugin_id, &reference.external_id);
+            let record = SourceReferenceRecord {
+                id: reference_id.clone(),
+                account_id: String::new(),
+                album_id: id.clone(),
+                plugin_id: reference.plugin_id,
+                external_id: reference.external_id,
+                revision: 1,
+                updated_by: updated_by.into(),
+                updated_at: timestamp,
+            };
+            writes.push(Store::write(
+                schema::ALBUM_SOURCE_REFS,
+                reference_id,
+                &record,
+            )?);
+        }
+        self.store.put_mixed_batch(account, &writes)?;
 
         self.get_album(account, &id)?
             .ok_or_else(|| LibraryError::Corrupt("new album could not be read back".into()))
@@ -227,10 +230,33 @@ impl Library {
     }
 
     pub fn list_albums(&self, account: &AccountId) -> Result<Vec<Album>, LibraryError> {
-        let mut albums = Vec::new();
-        for record in self.store.list::<AlbumRecord>(schema::ALBUMS, account)? {
-            albums.push(self.album(account, record)?);
+        let mut relationships_by_album: HashMap<String, Vec<AlbumTrackRecord>> = HashMap::new();
+        for relationship in self
+            .store
+            .list::<AlbumTrackRecord>(schema::ALBUM_TRACKS, account)?
+        {
+            relationships_by_album
+                .entry(relationship.album_id.clone())
+                .or_default()
+                .push(relationship);
         }
+        let tracks: HashMap<String, TrackRecord> = self
+            .store
+            .list::<TrackRecord>(schema::TRACKS, account)?
+            .into_iter()
+            .map(|track| (track.id.clone(), track))
+            .collect();
+        let mut albums = self
+            .store
+            .list::<AlbumRecord>(schema::ALBUMS, account)?
+            .into_iter()
+            .map(|record| {
+                let relationships = relationships_by_album
+                    .remove(&record.id)
+                    .unwrap_or_default();
+                album_from_records(record, relationships, &tracks)
+            })
+            .collect::<Result<Vec<_>, _>>()?;
         albums.sort_by(|left, right| {
             left.artist
                 .cmp(&right.artist)
@@ -411,46 +437,70 @@ impl Library {
     }
 
     fn album(&self, account: &AccountId, record: AlbumRecord) -> Result<Album, LibraryError> {
-        let mut relationships: Vec<_> = self
+        let relationships: Vec<AlbumTrackRecord> = self
             .store
             .list::<AlbumTrackRecord>(schema::ALBUM_TRACKS, account)?
             .into_iter()
             .filter(|relationship| relationship.album_id == record.id)
             .collect();
-        relationships.sort_by_key(|relationship| relationship.position);
-        let mut tracks = Vec::new();
-        for relationship in relationships {
-            let track = self
-                .store
-                .get::<TrackRecord>(schema::TRACKS, account, &relationship.track_id)?
-                .ok_or_else(|| {
-                    LibraryError::Corrupt(format!(
-                        "album '{}' references missing track '{}'",
-                        record.id, relationship.track_id
-                    ))
-                })?;
-            tracks.push(Track {
-                id: track.id,
-                title: track.title,
-                artist: track.artist,
-                duration_ms: track.duration_ms,
-                track_number: track.track_number,
-                artwork_url: track.artwork_url,
-                revision: track.revision,
-            });
+        let mut tracks = HashMap::new();
+        for relationship in &relationships {
+            if let Some(track) =
+                self.store
+                    .get::<TrackRecord>(schema::TRACKS, account, &relationship.track_id)?
+            {
+                tracks.insert(track.id.clone(), track);
+            }
         }
-        Ok(Album {
-            id: record.id,
-            title: record.title,
-            artist: record.artist,
-            year: record.year,
-            placement: record.placement,
-            placement_updated_at: record.placement_updated_at,
-            added_at: record.added_at,
-            revision: record.revision,
-            tracks,
-        })
+        album_from_records(record, relationships, &tracks)
     }
+}
+
+fn album_from_records(
+    record: AlbumRecord,
+    mut relationships: Vec<AlbumTrackRecord>,
+    tracks_by_id: &HashMap<String, TrackRecord>,
+) -> Result<Album, LibraryError> {
+    relationships.sort_by_key(|relationship| relationship.position);
+    let tracks = relationships
+        .into_iter()
+        .map(|relationship| {
+            let track = tracks_by_id.get(&relationship.track_id).ok_or_else(|| {
+                LibraryError::Corrupt(format!(
+                    "album '{}' references missing track '{}'",
+                    record.id, relationship.track_id
+                ))
+            })?;
+            Ok(Track {
+                id: track.id.clone(),
+                title: track.title.clone(),
+                artist: track.artist.clone(),
+                duration_ms: track.duration_ms,
+                track_number: relationship.track_number.or(track.track_number),
+                artwork_url: track.artwork_url.clone(),
+                revision: track.revision,
+            })
+        })
+        .collect::<Result<Vec<_>, LibraryError>>()?;
+    Ok(Album {
+        id: record.id,
+        title: record.title,
+        artist: record.artist,
+        year: record.year,
+        placement: record.placement,
+        placement_updated_at: record.placement_updated_at,
+        added_at: record.added_at,
+        revision: record.revision,
+        tracks,
+    })
+}
+
+fn is_placeholder(value: &str) -> bool {
+    let value = value.trim();
+    value.is_empty()
+        || value.eq_ignore_ascii_case("unknown")
+        || value.eq_ignore_ascii_case("unknown track")
+        || value.eq_ignore_ascii_case("unknown artist")
 }
 
 fn relationship_id(album_id: &str, track_id: &str) -> String {

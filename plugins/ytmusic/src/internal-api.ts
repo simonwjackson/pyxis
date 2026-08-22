@@ -25,6 +25,18 @@ export interface YtMusicInternalApi {
 
 const CLIENT_VERSION = "1.20241023.01.00"
 const ALBUM_FILTER = "EgWKAQIYAWoOEAMQBBAJEAoQERAQEBU%3D"
+class YtMusicProviderError extends Error {
+  readonly code: string
+  readonly retryable: boolean
+
+  constructor(code: string, message: string, retryable: boolean) {
+    super(message)
+    this.name = "YtMusicProviderError"
+    this.code = code
+    this.retryable = retryable
+  }
+}
+
 const CONTEXT = {
   context: {
     client: {
@@ -41,23 +53,47 @@ const CONTEXT = {
 
 export function createYtMusicInternalApi(fetcher: typeof fetch = fetch): YtMusicInternalApi {
   const request = async (endpoint: string, body: Record<string, unknown>): Promise<unknown> => {
-    const response = await fetcher(
-      `https://music.youtube.com/youtubei/v1/${endpoint}?prettyPrint=false`,
-      {
-        method: "POST",
-        headers: {
-          "content-type": "application/json",
-          "user-agent": "Mozilla/5.0",
-          "x-youtube-client-name": "67",
-          "x-youtube-client-version": CLIENT_VERSION,
-          origin: "https://music.youtube.com",
+    let response: Response
+    try {
+      response = await fetcher(
+        `https://music.youtube.com/youtubei/v1/${endpoint}?prettyPrint=false`,
+        {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            "user-agent": "Mozilla/5.0",
+            "x-youtube-client-name": "67",
+            "x-youtube-client-version": CLIENT_VERSION,
+            origin: "https://music.youtube.com",
+          },
+          body: JSON.stringify({ ...CONTEXT, ...body }),
+          signal: AbortSignal.timeout(30_000),
         },
-        body: JSON.stringify({ ...CONTEXT, ...body }),
-        signal: AbortSignal.timeout(30_000),
-      },
-    )
-    if (!response.ok) throw new Error(`YouTube Music ${endpoint} returned HTTP ${response.status}`)
-    return response.json()
+      )
+    } catch (error) {
+      throw new YtMusicProviderError(
+        "ytmusic.network",
+        error instanceof Error ? error.message : "YouTube Music request failed",
+        true,
+      )
+    }
+    if (!response.ok) {
+      const retryable = response.status === 408 || response.status === 429 || response.status >= 500
+      throw new YtMusicProviderError(
+        `ytmusic.http${response.status}`,
+        `YouTube Music ${endpoint} returned HTTP ${response.status}`,
+        retryable,
+      )
+    }
+    try {
+      return await response.json()
+    } catch (error) {
+      throw new YtMusicProviderError(
+        "ytmusic.invalidResponse",
+        error instanceof Error ? error.message : "YouTube Music returned invalid JSON",
+        false,
+      )
+    }
   }
 
   return {
@@ -115,38 +151,45 @@ export function parseAlbum(value: unknown, requestedId: string): YtMusicAlbum {
   let artist: string | undefined
   let year: number | undefined
   let artworkUrl: string | undefined
-  const tracks: YtMusicAlbumTrack[] = []
+  let expectedTrackCount: number | undefined
 
   walk(value, (record) => {
-    const header = record.musicResponsiveHeaderRenderer
-    if (isRecord(header)) {
-      title ??= firstText(header.title)
-      artist ??= firstArtist(header)
-      year ??= firstYear(header)
-      artworkUrl ??= largestThumbnail(header)
-    }
+    const header = record.musicResponsiveHeaderRenderer ?? record.musicDetailHeaderRenderer
+    if (!isRecord(header)) return
+    title ??= firstText(header.title)
+    artist ??= firstArtist(header)
+    year ??= firstYear(header)
+    artworkUrl ??= largestThumbnail(header)
+    expectedTrackCount ??= firstTrackCount(header)
+  })
 
-    const renderer = record.musicResponsiveListItemRenderer
-    if (!isRecord(renderer)) return
+  if (title === undefined || artist === undefined) {
+    throw new Error(
+      `YouTube Music album '${requestedId}' did not contain album metadata and tracks`,
+    )
+  }
+
+  const tracks: YtMusicAlbumTrack[] = []
+  const seen = new Set<string>()
+  for (const renderer of albumTrackRenderers(value, expectedTrackCount)) {
     const externalId = stringAt(renderer, ["playlistItemData", "videoId"])
-    if (externalId === undefined) return
+    if (externalId === undefined || seen.has(externalId)) continue
     const columns = arrayAt(renderer, ["flexColumns"])
     const trackTitle = runTexts(columns?.[0])[0]
-    if (trackTitle === undefined) return
+    if (trackTitle === undefined) continue
     const trackArtist = runs(columns?.[1]).find((run) => browseId(run)?.startsWith("UC"))?.text
-    const durationText = runTexts(arrayAt(renderer, ["fixedColumns"])?.[0])[0]
+    const parsedDuration = durationMs(runTexts(arrayAt(renderer, ["fixedColumns"])?.[0])[0])
+    seen.add(externalId)
     tracks.push({
       externalId,
       title: trackTitle,
-      artist: typeof trackArtist === "string" ? trackArtist : (artist ?? "Unknown"),
-      ...(durationText === undefined ? {} : { durationMs: durationMs(durationText) }),
+      artist: typeof trackArtist === "string" ? trackArtist : artist,
+      ...(parsedDuration === undefined ? {} : { durationMs: parsedDuration }),
       trackNumber: tracks.length + 1,
     })
-  })
+  }
 
-  if (title === undefined && tracks[0] !== undefined) title = "Unknown Album"
-  if (artist === undefined && tracks[0] !== undefined) artist = tracks[0].artist
-  if (title === undefined || artist === undefined || tracks.length === 0) {
+  if (tracks.length === 0) {
     throw new Error(
       `YouTube Music album '${requestedId}' did not contain album metadata and tracks`,
     )
@@ -159,6 +202,37 @@ export function parseAlbum(value: unknown, requestedId: string): YtMusicAlbum {
     ...(artworkUrl === undefined ? {} : { artworkUrl }),
     tracks,
   }
+}
+
+function albumTrackRenderers(
+  value: unknown,
+  expectedTrackCount: number | undefined,
+): readonly Record<string, unknown>[] {
+  const shelves: Record<string, unknown>[][] = []
+  walk(value, (record) => {
+    const shelf = record.musicShelfRenderer ?? record.musicPlaylistShelfRenderer
+    if (!isRecord(shelf)) return
+    const renderers = (arrayAt(shelf, ["contents"]) ?? []).flatMap((item) =>
+      isRecord(item) && isRecord(item.musicResponsiveListItemRenderer)
+        ? [item.musicResponsiveListItemRenderer]
+        : [],
+    )
+    if (renderers.length > 0) shelves.push(renderers)
+  })
+  if (expectedTrackCount !== undefined) {
+    const exact = shelves.find((shelf) => uniqueVideoIds(shelf) === expectedTrackCount)
+    if (exact !== undefined) return exact
+  }
+  return shelves.sort((left, right) => uniqueVideoIds(right) - uniqueVideoIds(left))[0] ?? []
+}
+
+function uniqueVideoIds(renderers: readonly Record<string, unknown>[]): number {
+  return new Set(
+    renderers.flatMap((renderer) => {
+      const videoId = stringAt(renderer, ["playlistItemData", "videoId"])
+      return videoId === undefined ? [] : [videoId]
+    }),
+  ).size
 }
 
 function walk(value: unknown, visit: (record: Record<string, unknown>) => void): void {
@@ -211,6 +285,16 @@ function firstYear(header: Record<string, unknown>): number | undefined {
   return found
 }
 
+function firstTrackCount(header: Record<string, unknown>): number | undefined {
+  let found: number | undefined
+  walk(header, (record) => {
+    if (found !== undefined || typeof record.text !== "string") return
+    const match = /^(\d+)\s+songs?$/iu.exec(record.text.trim())
+    if (match?.[1] !== undefined) found = Number.parseInt(match[1], 10)
+  })
+  return found
+}
+
 function browseId(run: Record<string, unknown>): string | undefined {
   return stringAt(run, ["navigationEndpoint", "browseEndpoint", "browseId"])
 }
@@ -225,9 +309,16 @@ function largestThumbnail(value: Record<string, unknown>): string | undefined {
   return largest?.url
 }
 
-function durationMs(value: string): number {
+function durationMs(value: string | undefined): number | undefined {
+  if (value === undefined) return undefined
   const parts = value.split(":").map(Number)
-  if (parts.some((part) => !Number.isFinite(part))) return 0
+  if (
+    parts.length < 2 ||
+    parts.length > 3 ||
+    parts.some((part) => !Number.isInteger(part) || part < 0) ||
+    parts.slice(1).some((part) => part >= 60)
+  )
+    return undefined
   return parts.reduce((seconds, part) => seconds * 60 + part, 0) * 1000
 }
 

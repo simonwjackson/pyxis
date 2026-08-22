@@ -72,14 +72,23 @@ fn placement_transition_persists_and_bumps_revision() {
 }
 
 #[test]
-fn yaml_store_round_trips_titles_ending_in_a_colon() {
+fn yaml_store_round_trips_indicator_hazard_titles() {
     let dir = tempfile::tempdir().expect("temp dir");
     let account = AccountId::new("account-a");
     let album_id = {
         let store = Store::open(dir.path()).expect("store");
         let library = Library::open(store.clone());
         let mut input = album();
-        input.tracks[0].title = "Note to Self:".into();
+        let prototype = input.tracks[0].clone();
+        input.tracks = ["Note to Self:", "-", "?"]
+            .into_iter()
+            .enumerate()
+            .map(|(index, title)| TrackInput {
+                id: Some(format!("hazard-track-{index}")),
+                title: title.into(),
+                ..prototype.clone()
+            })
+            .collect();
         let added = library.add_album(&account, input, "device-a").expect("add");
         store.close().expect("close");
         added.id
@@ -91,7 +100,14 @@ fn yaml_store_round_trips_titles_ending_in_a_colon() {
         .expect("get")
         .expect("album");
 
-    assert_eq!(album.tracks[0].title, "Note to Self:");
+    assert_eq!(
+        album
+            .tracks
+            .into_iter()
+            .map(|track| track.title)
+            .collect::<Vec<_>>(),
+        ["Note to Self:", "-", "?"]
+    );
 }
 
 #[test]
@@ -145,6 +161,84 @@ struct ListenEventRecord {
     revision: u64,
     updated_by: String,
     updated_at: String,
+}
+
+#[test]
+fn readding_a_removed_album_refreshes_existing_track_metadata() {
+    let dir = tempfile::tempdir().expect("temp dir");
+    let store = Store::open(dir.path()).expect("store");
+    let library = Library::open(store);
+    let account = AccountId::new("account-a");
+    let mut original = album();
+    original.tracks[0].artist = "Unknown".into();
+    let added = library
+        .add_album(&account, original, "device-a")
+        .expect("add");
+    assert!(library.remove_album(&account, &added.id).expect("remove"));
+
+    let corrected = library
+        .add_album(&account, album(), "device-a")
+        .expect("readd");
+
+    assert_eq!(corrected.tracks[0].artist, "David Bowie");
+    assert_eq!(corrected.tracks[0].revision, 2);
+}
+
+#[test]
+fn failed_cross_account_track_collision_rolls_back_the_whole_album() {
+    let dir = tempfile::tempdir().expect("temp dir");
+    let store = Store::open(dir.path()).expect("store");
+    let library = Library::open(store);
+    let first = AccountId::new("account-a");
+    let second = AccountId::new("account-b");
+    library
+        .add_album(&first, album(), "device-a")
+        .expect("first album");
+
+    library
+        .add_album(&second, album(), "device-b")
+        .expect_err("cross-account track id must fail");
+
+    assert!(library
+        .list_albums(&second)
+        .expect("second library")
+        .is_empty());
+    assert_eq!(library.list_albums(&first).expect("first library").len(), 1);
+}
+
+#[test]
+fn shared_track_identity_keeps_intrinsic_metadata_and_album_specific_numbers() {
+    let dir = tempfile::tempdir().expect("temp dir");
+    let store = Store::open(dir.path()).expect("store");
+    let library = Library::open(store);
+    let account = AccountId::new("account-a");
+    let first = library
+        .add_album(&account, album(), "device-a")
+        .expect("first album");
+    let mut second_input = album();
+    second_input.title = "Bowie Collection".into();
+    second_input.source_reference = Some(SourceReference {
+        plugin_id: "ytmusic".into(),
+        external_id: "bowie-collection".into(),
+    });
+    second_input.tracks[0].title = "Not Heroes".into();
+    second_input.tracks[0].artist = "Not David Bowie".into();
+    second_input.tracks[0].track_number = Some(7);
+    let second = library
+        .add_album(&account, second_input, "device-a")
+        .expect("second album");
+
+    assert_eq!(first.tracks[0].title, "Heroes");
+    let first = library
+        .get_album(&account, &first.id)
+        .expect("get first")
+        .expect("first");
+    assert_eq!(first.tracks[0].title, "Heroes");
+    assert_eq!(first.tracks[0].artist, "David Bowie");
+    assert_eq!(first.tracks[0].track_number, Some(3));
+    assert_eq!(second.tracks[0].title, "Heroes");
+    assert_eq!(second.tracks[0].artist, "David Bowie");
+    assert_eq!(second.tracks[0].track_number, Some(7));
 }
 
 #[test]
