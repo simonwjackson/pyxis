@@ -7,12 +7,16 @@
 /// than a design problem. Everything that has to be right whether or not the network is
 /// there lives below this line. Everything above it renders.
 
-import type { RpcLibraryAlbum } from "../../../../contracts/generated/pyxis"
+import type {
+  ListenTrackEventInput,
+  RpcLibraryAlbum,
+  RpcPlacement,
+} from "../../../../contracts/generated/pyxis"
 
 /// Bumped whenever the stored shape changes. An existing database at a lower version is
 /// migrated in order. A database at a higher version belongs to a newer build, which this
 /// one cannot understand, so it is reset rather than guessed at.
-export const WORKER_SCHEMA_VERSION = 1
+export const WORKER_SCHEMA_VERSION = 2
 
 export const WORKER_DATABASE_NAME = "pyxis-worker"
 
@@ -42,6 +46,45 @@ export interface WorkerSettings {
 }
 
 export type WorkerAlbum = RpcLibraryAlbum & { readonly id: string }
+
+/// A write made locally that the server has not accepted yet.
+///
+/// Queued writes are the only data on a device that exists nowhere else, so they are the
+/// one thing sync may never drop silently.
+export type WorkerOutboxEntry = {
+  /// ULID. Sorts in creation order, and doubles as the idempotency key for listen events.
+  readonly id: string
+  readonly createdAt: string
+  readonly attempts: number
+  readonly lastError?: string
+} & (
+  | {
+      readonly kind: "album.placement"
+      readonly albumId: string
+      readonly placement: RpcPlacement
+      /// Revision the change was made on top of. Used to tell a clean replay from a
+      /// genuine two-device conflict.
+      readonly baseRevision: number
+      readonly basePlacement: RpcPlacement
+    }
+  | {
+      readonly kind: "listen.append"
+      readonly event: ListenTrackEventInput
+    }
+)
+
+/// What happened to one queued write.
+export type OutboxResult =
+  /// Accepted by the server.
+  | "pushed"
+  /// The server already had this exact state. A replay, not a change.
+  | "converged"
+  /// Another device changed the same record. Resolved by rule and reported.
+  | "conflicted"
+  /// Rejected permanently. Dropped so it cannot block everything behind it.
+  | "dropped"
+  /// Could not reach the server. Stays queued.
+  | "deferred"
 
 /// Why a freshly opened database has no data.
 export type WorkerOpenReason =
@@ -81,6 +124,13 @@ export interface WorkerDatabase {
   /// Insert or update one album, keeping the higher revision.
   putAlbum(album: WorkerAlbum): Promise<WorkerAlbum>
   removeAlbum(id: string): Promise<boolean>
+  /// Queued writes in creation order.
+  outbox(): Promise<readonly WorkerOutboxEntry[]>
+  enqueue(entry: WorkerOutboxEntry): Promise<WorkerOutboxEntry>
+  /// Record a failed attempt so a poison entry becomes visible instead of retrying
+  /// silently forever.
+  recordAttempt(id: string, error: string): Promise<void>
+  dequeue(id: string): Promise<boolean>
   close(): Promise<void>
 }
 
@@ -99,6 +149,7 @@ export interface WorkerEngine {
   readonly meta: WorkerCollection<WorkerSchemaRow>
   readonly settings: WorkerCollection<WorkerSettings>
   readonly albums: WorkerCollection<WorkerAlbum>
+  readonly outbox: WorkerCollection<WorkerOutboxEntry>
   close(): Promise<void>
 }
 
@@ -108,7 +159,9 @@ export type WorkerMigration = (engine: WorkerEngine) => Promise<void>
 /// Keyed by the version being migrated *to*.
 export type WorkerMigrations = Readonly<Record<number, WorkerMigration>>
 
-/// No migrations exist yet, because version 1 is the first shipped schema. The mechanism
-/// is exercised by its own tests so that the first real bump is not also the first time
-/// the upgrade path runs.
-export const WORKER_MIGRATIONS: WorkerMigrations = {}
+export const WORKER_MIGRATIONS: WorkerMigrations = {
+  /// Version 2 added the outbox. A collection with no rows needs no data moved, so this
+  /// step exists to say that explicitly. A missing entry would reset the database and
+  /// throw away exactly the queued writes the outbox is for.
+  2: async () => undefined,
+}

@@ -78,7 +78,7 @@ function client(plugins: Awaited<ReturnType<ReferenceClient["listPlugins"]>>): R
 describe("local store", () => {
   test("opens at boot and reports what it kept", async () => {
     const store = createDirectWorkerClient()
-    for (const id of ["album-1", "album-2"]) {
+    for (const id of ["album-1", "album-2", "album-3"]) {
       await store.putAlbum({
         id,
         title: "Heroes",
@@ -98,7 +98,7 @@ describe("local store", () => {
     )
 
     await waitFor(() => expect(screen.getByText("created")).toBeTruthy())
-    expect(screen.getByText("2")).toBeTruthy()
+    expect(screen.getByText("3")).toBeTruthy()
     // An in-process store must not claim to keep anything.
     expect(screen.getByText("false")).toBeTruthy()
   })

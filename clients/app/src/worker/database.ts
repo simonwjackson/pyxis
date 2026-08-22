@@ -16,6 +16,7 @@ import {
   type WorkerMigrations,
   type WorkerOpenReason,
   type WorkerOpenReport,
+  type WorkerOutboxEntry,
   type WorkerSettings,
 } from "./contract"
 
@@ -114,8 +115,12 @@ async function migrate(
 }
 
 async function isEmpty(engine: WorkerEngine): Promise<boolean> {
-  const [settings, albums] = await Promise.all([engine.settings.all(), engine.albums.all()])
-  return settings.length === 0 && albums.length === 0
+  const [settings, albums, outbox] = await Promise.all([
+    engine.settings.all(),
+    engine.albums.all(),
+    engine.outbox.all(),
+  ])
+  return settings.length === 0 && albums.length === 0 && outbox.length === 0
 }
 
 async function discard(options: OpenOptions, cause: unknown): Promise<void> {
@@ -128,7 +133,7 @@ async function discard(options: OpenOptions, cause: unknown): Promise<void> {
 }
 
 async function clearCollections(engine: WorkerEngine): Promise<void> {
-  for (const collection of [engine.meta, engine.settings, engine.albums]) {
+  for (const collection of [engine.meta, engine.settings, engine.albums, engine.outbox]) {
     const rows = await collection.all()
     for (const row of rows) await collection.delete(row.id)
   }
@@ -182,6 +187,31 @@ class LocalWorkerDatabase implements WorkerDatabase {
     return this.engine.albums.delete(id)
   }
 
+  async outbox(): Promise<readonly WorkerOutboxEntry[]> {
+    // ULIDs sort in creation order, so a queue drains in the order the person acted.
+    return [...(await this.engine.outbox.all())].sort((left, right) =>
+      left.id < right.id ? -1 : left.id > right.id ? 1 : 0,
+    )
+  }
+
+  async enqueue(entry: WorkerOutboxEntry): Promise<WorkerOutboxEntry> {
+    return this.engine.outbox.upsert(entry)
+  }
+
+  async recordAttempt(id: string, error: string): Promise<void> {
+    const existing = await this.engine.outbox.findById(id)
+    if (existing === undefined) return
+    await this.engine.outbox.upsert({
+      ...existing,
+      attempts: existing.attempts + 1,
+      lastError: error,
+    })
+  }
+
+  async dequeue(id: string): Promise<boolean> {
+    return this.engine.outbox.delete(id)
+  }
+
   async close(): Promise<void> {
     await this.engine.close()
   }
@@ -202,6 +232,7 @@ export function createMemoryEngine(): WorkerEngine {
     meta: new MemoryCollection(),
     settings: new MemoryCollection(),
     albums: new MemoryCollection(),
+    outbox: new MemoryCollection(),
     close: async () => undefined,
   }
 }

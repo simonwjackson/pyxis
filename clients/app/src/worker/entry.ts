@@ -3,10 +3,13 @@
 /// The database lives here rather than on the page so that storage work, and later sync
 /// and downloads, cannot block rendering. The page talks to it through `client.ts`.
 
+import { ulid } from "ulid"
+import { createWorkerRpc } from "../rpc/client"
 import type { WorkerRequest, WorkerResponse } from "./client"
 import type { WorkerDatabase } from "./contract"
 import { openWorkerDatabase } from "./database"
 import { createProseqlEngine } from "./proseql-engine"
+import { type SyncReport, sync } from "./sync"
 
 /// Declared locally rather than pulled in through the `webworker` lib, which cannot be
 /// combined with the DOM lib the rest of this client compiles against.
@@ -59,6 +62,50 @@ async function handle(request: WorkerRequest): Promise<unknown> {
       return store.putAlbum(request.payload.album)
     case "worker.album.remove":
       return store.removeAlbum(request.payload.id)
+    case "worker.queue.placement": {
+      const { album, placement } = request.payload
+      // Apply locally first. The person's own action must be visible immediately, and the
+      // queued entry records what it was applied on top of so a later conflict is
+      // recognisable.
+      const updated = await store.putAlbum({ ...album, placement })
+      await store.enqueue({
+        id: ulid(),
+        createdAt: new Date().toISOString(),
+        attempts: 0,
+        kind: "album.placement",
+        albumId: album.id,
+        placement,
+        baseRevision: album.revision,
+        basePlacement: album.placement,
+      })
+      return updated
+    }
+    case "worker.sync": {
+      const settings = await store.settings()
+      if (settings.bearerToken === undefined) {
+        // Nothing to reconcile with until this device has an account. That is a
+        // credentials problem, not a network one, and saying so is the difference between
+        // a client that waits forever and one that asks to be paired.
+        const report: SyncReport = {
+          pulled: 0,
+          pushed: 0,
+          converged: 0,
+          dropped: [],
+          deferred: (await store.outbox()).length,
+          conflicts: [],
+          offline: false,
+          authRequired: true,
+        }
+        return report
+      }
+      return sync(
+        store,
+        createWorkerRpc({
+          token: settings.bearerToken,
+          ...(request.payload.origin === undefined ? {} : { origin: request.payload.origin }),
+        }),
+      )
+    }
   }
 }
 

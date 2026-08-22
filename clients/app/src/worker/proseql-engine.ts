@@ -15,6 +15,7 @@ import {
   type WorkerAlbum,
   type WorkerCollection,
   type WorkerEngine,
+  type WorkerOutboxEntry,
   type WorkerSchemaRow,
   type WorkerSettings,
 } from "./contract"
@@ -44,15 +45,23 @@ const AlbumSchema = Schema.Struct({
   body: Schema.Unknown,
 })
 
+/// Queued writes are stored opaquely too. Their shape is a union owned by the worker
+/// contract, and the engine only needs to find them in order.
+const OutboxSchema = Schema.Struct({
+  id: Schema.String,
+  kind: Schema.String,
+  body: Schema.Unknown,
+})
+
 const config = {
   meta: { schema: MetaSchema, file: "./pyxis/meta.json", relationships: {} },
   settings: { schema: SettingsSchema, file: "./pyxis/settings.json", relationships: {} },
   albums: { schema: AlbumSchema, file: "./pyxis/albums.json", relationships: {} },
+  outbox: { schema: OutboxSchema, file: "./pyxis/outbox.json", relationships: {} },
 } as const
 
-interface StoredAlbum {
+interface Stored {
   readonly id: string
-  readonly revision: number
   readonly body: unknown
 }
 
@@ -90,7 +99,14 @@ export async function createProseqlEngine(): Promise<ProseqlEngineHandle> {
   const engine: WorkerEngine = {
     meta: adapt<WorkerSchemaRow>(raw.meta),
     settings: adapt<WorkerSettings>(raw.settings),
-    albums: albumCollection(raw.albums),
+    albums: wrapped<WorkerAlbum>(raw.albums, (album) => ({
+      id: album.id,
+      revision: album.revision,
+    })),
+    outbox: wrapped<WorkerOutboxEntry>(raw.outbox, (entry) => ({
+      id: entry.id,
+      kind: entry.kind,
+    })),
     close: async () => {
       await raw.close?.()
     },
@@ -99,7 +115,7 @@ export async function createProseqlEngine(): Promise<ProseqlEngineHandle> {
   return {
     engine,
     clear: async () => {
-      for (const collection of [raw.meta, raw.settings, raw.albums]) {
+      for (const collection of [raw.meta, raw.settings, raw.albums, raw.outbox]) {
         for (const row of plain<{ id: string }[]>(await collection.query())) {
           await collection.delete(row.id)
         }
@@ -119,6 +135,7 @@ interface RawEngine {
   readonly meta: RawCollection
   readonly settings: RawCollection
   readonly albums: RawCollection
+  readonly outbox: RawCollection
   close?(): Promise<void>
 }
 
@@ -144,22 +161,26 @@ function adapt<T extends { readonly id: string }>(collection: RawCollection): Wo
   }
 }
 
-/// Albums are stored with their identity and revision promoted out of the body, so the
-/// engine can index them without the client contract leaking into the stored schema.
-function albumCollection(collection: RawCollection): WorkerCollection<WorkerAlbum> {
-  const unwrap = (stored: StoredAlbum): WorkerAlbum => stored.body as WorkerAlbum
+/// Records whose shape belongs to a contract elsewhere are stored with only the fields the
+/// engine indexes promoted out of an opaque body. That keeps a server contract change from
+/// becoming a local schema migration.
+function wrapped<T extends { readonly id: string }>(
+  collection: RawCollection,
+  indexed: (row: T) => Record<string, unknown>,
+): WorkerCollection<T> {
+  const unwrap = (stored: Stored): T => stored.body as T
   return {
     async findById(id) {
       const found = await collection.findById(id)
       if (found === undefined || found === null) return undefined
-      return unwrap(plain<StoredAlbum>(found))
+      return unwrap(plain<Stored>(found))
     },
     async all() {
-      return plain<StoredAlbum[]>(await collection.query()).map(unwrap)
+      return plain<Stored[]>(await collection.query()).map(unwrap)
     },
-    async upsert(album) {
-      await collection.upsert({ id: album.id, revision: album.revision, body: album })
-      return album
+    async upsert(row) {
+      await collection.upsert({ ...indexed(row), id: row.id, body: row })
+      return row
     },
     async delete(id) {
       const existing = await collection.findById(id)

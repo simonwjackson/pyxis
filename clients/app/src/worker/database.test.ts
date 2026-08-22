@@ -156,6 +156,7 @@ describe("storage that cannot even be repaired", () => {
       },
       settings: createMemoryEngine().settings,
       albums: createMemoryEngine().albums,
+      outbox: createMemoryEngine().outbox,
       close: async () => undefined,
     }
 
