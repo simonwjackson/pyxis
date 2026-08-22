@@ -230,6 +230,66 @@ export interface QueueRemoveCommand {
 	index: number;
 }
 
+/**
+ * Realtime fan-out topics.
+ *
+ * A subscription is always scoped to the authenticated account, so a topic name can never
+ * widen visibility beyond it. Each topic maps to the same scope its RPC read operations
+ * require, so a token cannot watch what it may not read.
+ */
+export enum RpcRealtimeTopic {
+	Sessions = "sessions",
+	Library = "library",
+}
+
+/**
+ * Published state. Every variant carries the whole record rather than a delta, so a
+ * client that misses an event and refetches converges on the same value.
+ */
+export type RpcRealtimeState =
+	| { _tag: "session.state", payload: RpcSession }
+	| { _tag: "library.album.state", payload: RpcLibraryAlbum }
+	| { _tag: "library.album.removed", payload: RpcRealtimeRemoval };
+
+export interface RealtimeEvent {
+	topic: RpcRealtimeTopic;
+	resumeToken: string;
+	state: RpcRealtimeState;
+}
+
+/**
+ * The first message on every socket.
+ *
+ * Browsers cannot set an `Authorization` header when opening a WebSocket, and a query
+ * string would copy the bearer token into proxy and server logs. An explicit hello frame
+ * keeps the token in the message body, where the RPC transport already keeps it.
+ */
+export interface RealtimeHello {
+	bearerToken: string;
+	topics: RpcRealtimeTopic[];
+	/** Opaque cursor from a previous `welcome` or `event`. Absent on a first connection. */
+	resumeToken?: string;
+}
+
+export interface RealtimeTopics {
+	topics: RpcRealtimeTopic[];
+}
+
+export interface RealtimeWelcome {
+	accountId: string;
+	contractId: string;
+	topics: RpcRealtimeTopic[];
+	/** Opaque cursor to send on the next reconnect. Clients must not parse it. */
+	resumeToken: string;
+	/** True when a resume token was accepted and missed events were replayed below. */
+	resumed: boolean;
+	/**
+	 * True when the requested resume point had already been evicted. The client must
+	 * refetch state through RPC instead of trusting the replay to be complete.
+	 */
+	missedEventsDropped: boolean;
+}
+
 export interface RpcAccount {
 	id: string;
 	name: string;
@@ -394,6 +454,10 @@ export interface RpcPlugin {
 	status: string;
 	configured: boolean;
 	reason?: string;
+}
+
+export interface RpcRealtimeRemoval {
+	id: string;
 }
 
 export interface RpcSearchTrack {
@@ -620,6 +684,22 @@ export type PluginHandshakeOutcome =
 export type PluginListOutcome =
 	| { status: "ready", value: RpcPlugin[] }
 	| { status: "unavailable", value: RpcFailure };
+
+export type RealtimeClientMessage =
+	| { _tag: "realtime.hello", payload: RealtimeHello }
+	| { _tag: "realtime.subscribe", payload: RealtimeTopics }
+	| { _tag: "realtime.unsubscribe", payload: RealtimeTopics };
+
+export type RealtimeServerMessage =
+	| { _tag: "realtime.welcome", payload: RealtimeWelcome }
+	| { _tag: "realtime.event", payload: RealtimeEvent }
+	/**
+	 * Acknowledges a subscribe or unsubscribe and carries the resulting topic set. A
+	 * client can wait for this before assuming a subscription change has taken effect.
+	 */
+	| { _tag: "realtime.subscribed", payload: RealtimeTopics }
+	/** Terminal. The socket closes immediately after this frame. */
+	| { _tag: "realtime.failure", payload: RpcFailure };
 
 /**
  * A request that cannot enter operation dispatch. This is separate from an operation's

@@ -8,7 +8,7 @@
 pub mod machine;
 pub mod queue;
 
-use std::collections::HashSet;
+use std::collections::HashMap;
 use std::sync::{Arc, Mutex, RwLock};
 
 use chrono::{SecondsFormat, Utc};
@@ -120,7 +120,9 @@ struct SessionRecord {
 #[derive(Clone)]
 pub struct Sessions {
     store: Store,
-    reachable_devices: Arc<RwLock<HashSet<String>>>,
+    /// Live realtime sockets per device. A device with several open clients stays reachable
+    /// until the last one goes away, so closing one tab cannot strand a playing session.
+    reachable_devices: Arc<RwLock<HashMap<String, u32>>>,
     mutation: Arc<Mutex<()>>,
 }
 
@@ -128,7 +130,7 @@ impl Sessions {
     pub fn open(store: Store) -> Self {
         Sessions {
             store,
-            reachable_devices: Arc::new(RwLock::new(HashSet::new())),
+            reachable_devices: Arc::new(RwLock::new(HashMap::new())),
             mutation: Arc::new(Mutex::new(())),
         }
     }
@@ -155,7 +157,6 @@ impl Sessions {
         };
         self.store
             .put(schema::SESSIONS, &auth.account_id, &record.id, &record)?;
-        self.mark_device_reachable(device_id, true);
         Ok(self.session(record))
     }
 
@@ -250,14 +251,31 @@ impl Sessions {
         Ok(self.session(record))
     }
 
-    pub fn mark_device_reachable(&self, device_id: &str, reachable: bool) {
+    /// One realtime socket opened for `device_id`.
+    ///
+    /// Reachability has exactly one meaning: the device is holding a live realtime socket
+    /// right now. It is never persisted and never inferred from a past RPC call, so a
+    /// crashed or sleeping host cannot leave a session looking controllable.
+    pub fn attach_device(&self, device_id: &str) {
+        *self
+            .reachable_devices
+            .write()
+            .expect("session reachability poisoned")
+            .entry(device_id.to_string())
+            .or_insert(0) += 1;
+    }
+
+    /// One realtime socket closed. The device stops being reachable at zero.
+    pub fn detach_device(&self, device_id: &str) {
         let mut devices = self
             .reachable_devices
             .write()
             .expect("session reachability poisoned");
-        if reachable {
-            devices.insert(device_id.to_string());
-        } else {
+        let Some(connections) = devices.get_mut(device_id) else {
+            return;
+        };
+        *connections = connections.saturating_sub(1);
+        if *connections == 0 {
             devices.remove(device_id);
         }
     }
@@ -267,7 +285,7 @@ impl Sessions {
             .reachable_devices
             .read()
             .expect("session reachability poisoned")
-            .contains(&record.host_device_id);
+            .contains_key(&record.host_device_id);
         Session {
             id: record.id,
             name: record.name,

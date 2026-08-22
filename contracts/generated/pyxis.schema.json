@@ -10,6 +10,12 @@
     "response": {
       "$ref": "#/$defs/RpcResponse"
     },
+    "realtime_client": {
+      "$ref": "#/$defs/RealtimeClientMessage"
+    },
+    "realtime_server": {
+      "$ref": "#/$defs/RealtimeServerMessage"
+    },
     "plugin_request": {
       "$ref": "#/$defs/PluginRequestEnvelope"
     },
@@ -20,6 +26,8 @@
   "required": [
     "request",
     "response",
+    "realtime_client",
+    "realtime_server",
     "plugin_request",
     "plugin_response"
   ],
@@ -4098,6 +4106,301 @@
             "value"
           ]
         }
+      ]
+    },
+    "RealtimeClientMessage": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "_tag": {
+              "type": "string",
+              "const": "realtime.hello"
+            },
+            "payload": {
+              "$ref": "#/$defs/RealtimeHello"
+            }
+          },
+          "required": [
+            "_tag",
+            "payload"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "_tag": {
+              "type": "string",
+              "const": "realtime.subscribe"
+            },
+            "payload": {
+              "$ref": "#/$defs/RealtimeTopics"
+            }
+          },
+          "required": [
+            "_tag",
+            "payload"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "_tag": {
+              "type": "string",
+              "const": "realtime.unsubscribe"
+            },
+            "payload": {
+              "$ref": "#/$defs/RealtimeTopics"
+            }
+          },
+          "required": [
+            "_tag",
+            "payload"
+          ]
+        }
+      ]
+    },
+    "RealtimeHello": {
+      "description": "The first message on every socket.\n\nBrowsers cannot set an `Authorization` header when opening a WebSocket, and a query\nstring would copy the bearer token into proxy and server logs. An explicit hello frame\nkeeps the token in the message body, where the RPC transport already keeps it.",
+      "type": "object",
+      "properties": {
+        "bearerToken": {
+          "type": "string"
+        },
+        "topics": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/RpcRealtimeTopic"
+          }
+        },
+        "resumeToken": {
+          "description": "Opaque cursor from a previous `welcome` or `event`. Absent on a first connection.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "bearerToken",
+        "topics"
+      ]
+    },
+    "RpcRealtimeTopic": {
+      "description": "Realtime fan-out topics.\n\nA subscription is always scoped to the authenticated account, so a topic name can never\nwiden visibility beyond it. Each topic maps to the same scope its RPC read operations\nrequire, so a token cannot watch what it may not read.",
+      "type": "string",
+      "enum": [
+        "sessions",
+        "library"
+      ]
+    },
+    "RealtimeTopics": {
+      "type": "object",
+      "properties": {
+        "topics": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/RpcRealtimeTopic"
+          }
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "topics"
+      ]
+    },
+    "RealtimeServerMessage": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "_tag": {
+              "type": "string",
+              "const": "realtime.welcome"
+            },
+            "payload": {
+              "$ref": "#/$defs/RealtimeWelcome"
+            }
+          },
+          "required": [
+            "_tag",
+            "payload"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "_tag": {
+              "type": "string",
+              "const": "realtime.event"
+            },
+            "payload": {
+              "$ref": "#/$defs/RealtimeEvent"
+            }
+          },
+          "required": [
+            "_tag",
+            "payload"
+          ]
+        },
+        {
+          "description": "Acknowledges a subscribe or unsubscribe and carries the resulting topic set. A\nclient can wait for this before assuming a subscription change has taken effect.",
+          "type": "object",
+          "properties": {
+            "_tag": {
+              "type": "string",
+              "const": "realtime.subscribed"
+            },
+            "payload": {
+              "$ref": "#/$defs/RealtimeTopics"
+            }
+          },
+          "required": [
+            "_tag",
+            "payload"
+          ]
+        },
+        {
+          "description": "Terminal. The socket closes immediately after this frame.",
+          "type": "object",
+          "properties": {
+            "_tag": {
+              "type": "string",
+              "const": "realtime.failure"
+            },
+            "payload": {
+              "$ref": "#/$defs/RpcFailure"
+            }
+          },
+          "required": [
+            "_tag",
+            "payload"
+          ]
+        }
+      ]
+    },
+    "RealtimeWelcome": {
+      "type": "object",
+      "properties": {
+        "accountId": {
+          "type": "string"
+        },
+        "contractId": {
+          "type": "string"
+        },
+        "topics": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/RpcRealtimeTopic"
+          }
+        },
+        "resumeToken": {
+          "description": "Opaque cursor to send on the next reconnect. Clients must not parse it.",
+          "type": "string"
+        },
+        "resumed": {
+          "description": "True when a resume token was accepted and missed events were replayed below.",
+          "type": "boolean"
+        },
+        "missedEventsDropped": {
+          "description": "True when the requested resume point had already been evicted. The client must\nrefetch state through RPC instead of trusting the replay to be complete.",
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "accountId",
+        "contractId",
+        "topics",
+        "resumeToken",
+        "resumed",
+        "missedEventsDropped"
+      ]
+    },
+    "RealtimeEvent": {
+      "type": "object",
+      "properties": {
+        "topic": {
+          "$ref": "#/$defs/RpcRealtimeTopic"
+        },
+        "resumeToken": {
+          "type": "string"
+        },
+        "state": {
+          "$ref": "#/$defs/RpcRealtimeState"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "topic",
+        "resumeToken",
+        "state"
+      ]
+    },
+    "RpcRealtimeState": {
+      "description": "Published state. Every variant carries the whole record rather than a delta, so a\nclient that misses an event and refetches converges on the same value.",
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "_tag": {
+              "type": "string",
+              "const": "session.state"
+            },
+            "payload": {
+              "$ref": "#/$defs/RpcSession"
+            }
+          },
+          "required": [
+            "_tag",
+            "payload"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "_tag": {
+              "type": "string",
+              "const": "library.album.state"
+            },
+            "payload": {
+              "$ref": "#/$defs/RpcLibraryAlbum"
+            }
+          },
+          "required": [
+            "_tag",
+            "payload"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "_tag": {
+              "type": "string",
+              "const": "library.album.removed"
+            },
+            "payload": {
+              "$ref": "#/$defs/RpcRealtimeRemoval"
+            }
+          },
+          "required": [
+            "_tag",
+            "payload"
+          ]
+        }
+      ]
+    },
+    "RpcRealtimeRemoval": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "id"
       ]
     },
     "PluginRequestEnvelope": {

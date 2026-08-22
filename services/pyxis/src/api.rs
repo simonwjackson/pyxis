@@ -23,6 +23,7 @@ use crate::matching::Matcher;
 use crate::media::Media;
 use crate::plugin_credentials::CredentialVault;
 use crate::plugins::host::PluginHost;
+use crate::rpc::realtime::{self, Realtime};
 use crate::rpc::transport;
 use crate::sessions::Sessions;
 use crate::settings::Settings;
@@ -39,6 +40,7 @@ pub struct AppState {
     pub projections: Projections,
     pub(crate) plugin_credentials: CredentialVault,
     pub(crate) plugins: PluginHost,
+    pub realtime: Realtime,
     pub sessions: Sessions,
     pub(crate) sources: SourceCatalog,
     pub(crate) stream: StreamService,
@@ -72,6 +74,7 @@ impl AppState {
             plugin_credentials,
             projections,
             plugins,
+            realtime: Realtime::new(),
             sessions,
             sources,
             stream,
@@ -87,6 +90,7 @@ pub fn router_with_web(state: AppState, web_root: Option<PathBuf>) -> Router {
     let app = Router::new()
         .route("/healthz", get(healthz))
         .route("/rpc", post(transport::rpc))
+        .route("/realtime", get(realtime::realtime))
         .route("/stream/:track_id", get(stream::stream))
         // RPC payloads are metadata and commands, never media bytes. A 1 MiB request is
         // already pathological and should be rejected before it enters the contract parser.

@@ -992,6 +992,128 @@ pub struct MatchingOverrideRemoveRequest {
     pub right_id: String,
 }
 
+/// Realtime fan-out topics.
+///
+/// A subscription is always scoped to the authenticated account, so a topic name can never
+/// widen visibility beyond it. Each topic maps to the same scope its RPC read operations
+/// require, so a token cannot watch what it may not read.
+#[typeshare]
+#[derive(
+    Clone, Copy, Debug, Deserialize, Serialize, JsonSchema, PartialEq, Eq, Hash, PartialOrd, Ord,
+)]
+#[serde(rename_all = "camelCase")]
+pub enum RpcRealtimeTopic {
+    Sessions,
+    Library,
+}
+
+impl RpcRealtimeTopic {
+    pub fn required_scope(self) -> &'static str {
+        match self {
+            RpcRealtimeTopic::Sessions => "session:read",
+            RpcRealtimeTopic::Library => "library:read",
+        }
+    }
+}
+
+/// The first message on every socket.
+///
+/// Browsers cannot set an `Authorization` header when opening a WebSocket, and a query
+/// string would copy the bearer token into proxy and server logs. An explicit hello frame
+/// keeps the token in the message body, where the RPC transport already keeps it.
+#[typeshare]
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct RealtimeHello {
+    pub bearer_token: String,
+    pub topics: Vec<RpcRealtimeTopic>,
+    /// Opaque cursor from a previous `welcome` or `event`. Absent on a first connection.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub resume_token: Option<String>,
+}
+
+#[typeshare]
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct RealtimeTopics {
+    pub topics: Vec<RpcRealtimeTopic>,
+}
+
+#[typeshare]
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(tag = "_tag", content = "payload")]
+pub enum RealtimeClientMessage {
+    #[serde(rename = "realtime.hello")]
+    Hello(RealtimeHello),
+    #[serde(rename = "realtime.subscribe")]
+    Subscribe(RealtimeTopics),
+    #[serde(rename = "realtime.unsubscribe")]
+    Unsubscribe(RealtimeTopics),
+}
+
+#[typeshare]
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct RealtimeWelcome {
+    pub account_id: String,
+    pub contract_id: String,
+    pub topics: Vec<RpcRealtimeTopic>,
+    /// Opaque cursor to send on the next reconnect. Clients must not parse it.
+    pub resume_token: String,
+    /// True when a resume token was accepted and missed events were replayed below.
+    pub resumed: bool,
+    /// True when the requested resume point had already been evicted. The client must
+    /// refetch state through RPC instead of trusting the replay to be complete.
+    pub missed_events_dropped: bool,
+}
+
+#[typeshare]
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct RpcRealtimeRemoval {
+    pub id: String,
+}
+
+/// Published state. Every variant carries the whole record rather than a delta, so a
+/// client that misses an event and refetches converges on the same value.
+#[typeshare]
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(tag = "_tag", content = "payload")]
+pub enum RpcRealtimeState {
+    #[serde(rename = "session.state")]
+    SessionState(RpcSession),
+    #[serde(rename = "library.album.state")]
+    LibraryAlbumState(RpcLibraryAlbum),
+    #[serde(rename = "library.album.removed")]
+    LibraryAlbumRemoved(RpcRealtimeRemoval),
+}
+
+#[typeshare]
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct RealtimeEvent {
+    pub topic: RpcRealtimeTopic,
+    pub resume_token: String,
+    pub state: RpcRealtimeState,
+}
+
+#[typeshare]
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(tag = "_tag", content = "payload")]
+pub enum RealtimeServerMessage {
+    #[serde(rename = "realtime.welcome")]
+    Welcome(RealtimeWelcome),
+    #[serde(rename = "realtime.event")]
+    Event(RealtimeEvent),
+    /// Acknowledges a subscribe or unsubscribe and carries the resulting topic set. A
+    /// client can wait for this before assuming a subscription change has taken effect.
+    #[serde(rename = "realtime.subscribed")]
+    Subscribed(RealtimeTopics),
+    /// Terminal. The socket closes immediately after this frame.
+    #[serde(rename = "realtime.failure")]
+    Failure(RpcFailure),
+}
+
 #[typeshare]
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
 #[serde(tag = "_tag", content = "payload")]
@@ -1312,6 +1434,8 @@ impl RpcResponse {
 pub struct RpcContractSchema {
     pub request: RpcRequest,
     pub response: RpcResponse,
+    pub realtime_client: RealtimeClientMessage,
+    pub realtime_server: RealtimeServerMessage,
     pub plugin_request: PluginRequestEnvelope,
     pub plugin_response: PluginResponseEnvelope,
 }

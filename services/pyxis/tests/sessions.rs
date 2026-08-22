@@ -130,12 +130,22 @@ fn disconnect_marks_a_session_unreachable_without_destroying_it() {
     let store = Store::open(dir.path()).expect("store");
     let sessions = Sessions::open(store.clone());
     let host = auth("account-a", "device-a");
-    let session = sessions.create(&host, "Desk").expect("create");
-    assert!(session.reachable);
+    let created = sessions.create(&host, "Desk").expect("create");
+    assert!(
+        !created.reachable,
+        "a session is reachable only while its host holds a realtime socket"
+    );
 
-    sessions.mark_device_reachable("device-a", false);
+    sessions.attach_device("device-a");
+    let connected = sessions
+        .get(&host, &created.id)
+        .expect("get")
+        .expect("session");
+    assert!(connected.reachable);
+
+    sessions.detach_device("device-a");
     let disconnected = sessions
-        .get(&host, &session.id)
+        .get(&host, &created.id)
         .expect("get")
         .expect("session");
     assert!(!disconnected.reachable);
@@ -144,7 +154,7 @@ fn disconnect_marks_a_session_unreachable_without_destroying_it() {
     drop(sessions);
     let reopened = Sessions::open(Store::open(dir.path()).expect("reopen"));
     let after_restart = reopened
-        .get(&host, &session.id)
+        .get(&host, &created.id)
         .expect("get")
         .expect("session");
     assert!(!after_restart.reachable);

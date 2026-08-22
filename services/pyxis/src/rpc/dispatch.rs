@@ -26,12 +26,12 @@ use crate::rpc::contract::{
     RpcApiToken, RpcApiTokenGrant, RpcAuthGrant, RpcBookmark, RpcBookmarkCommand, RpcDevice,
     RpcFailure, RpcHotAlbum, RpcLibraryAlbum, RpcLibraryTrack, RpcListenAppendResult,
     RpcListenEvent, RpcMatchDecision, RpcMatchItem, RpcMatchResult, RpcMatchScore,
-    RpcOverrideDecision, RpcPairingCode, RpcPlacement, RpcPlaylist, RpcPlugin, RpcRequest,
-    RpcResponse, RpcSearchTrack, RpcSession, RpcSessionCommand, RpcSourceAlbum,
-    RpcSourceAlbumSummary, RpcSourceFailure, RpcSourceSearchResult, RpcSystemStatus, RpcTransport,
-    SessionCommandOutcome, SessionCreateOutcome, SessionListOutcome, SessionStateOutcome,
-    SourceAlbumGetOutcome, SourceAlbumSearchOutcome, SourceSearchOutcome, SystemStatusOutcome,
-    CONTRACT_ID,
+    RpcOverrideDecision, RpcPairingCode, RpcPlacement, RpcPlaylist, RpcPlugin, RpcRealtimeRemoval,
+    RpcRealtimeState, RpcRealtimeTopic, RpcRequest, RpcResponse, RpcSearchTrack, RpcSession,
+    RpcSessionCommand, RpcSourceAlbum, RpcSourceAlbumSummary, RpcSourceFailure,
+    RpcSourceSearchResult, RpcSystemStatus, RpcTransport, SessionCommandOutcome,
+    SessionCreateOutcome, SessionListOutcome, SessionStateOutcome, SourceAlbumGetOutcome,
+    SourceAlbumSearchOutcome, SourceSearchOutcome, SystemStatusOutcome, CONTRACT_ID,
 };
 use crate::sessions::{Session, SessionCommand as DomainSessionCommand, SessionError, Transport};
 use crate::source_catalog::SearchOutcome;
@@ -175,7 +175,9 @@ pub fn dispatch(state: &AppState, request: RpcRequest, auth: Option<AuthContext>
             };
             match state.sessions.create(&auth, &request.name) {
                 Ok(session) => {
-                    RpcResponse::SessionCreate(SessionCreateOutcome::Ready(rpc_session(session)))
+                    let session = rpc_session(session);
+                    publish_session(state, &auth, &session);
+                    RpcResponse::SessionCreate(SessionCreateOutcome::Ready(session))
                 }
                 Err(SessionError::NotDevice) => {
                     RpcResponse::SessionCreate(SessionCreateOutcome::NotDevice)
@@ -218,9 +220,11 @@ pub fn dispatch(state: &AppState, request: RpcRequest, auth: Option<AuthContext>
             };
             let command = domain_command(request.command);
             match state.sessions.command(&auth, &request.session_id, command) {
-                Ok(session) => RpcResponse::SessionCommandRun(SessionCommandOutcome::Applied(
-                    rpc_session(session),
-                )),
+                Ok(session) => {
+                    let session = rpc_session(session);
+                    publish_session(state, &auth, &session);
+                    RpcResponse::SessionCommandRun(SessionCommandOutcome::Applied(session))
+                }
                 Err(SessionError::UnknownSession) => {
                     RpcResponse::SessionCommandRun(SessionCommandOutcome::UnknownSession)
                 }
@@ -321,7 +325,11 @@ pub fn dispatch(state: &AppState, request: RpcRequest, auth: Option<AuthContext>
                 .library
                 .add_album(&auth.account_id, input, auth.principal_id())
             {
-                Ok(album) => RpcResponse::LibraryAlbumAdd(AlbumAddOutcome::Ready(rpc_album(album))),
+                Ok(album) => {
+                    let album = rpc_album(album);
+                    publish_album(state, &auth, &album);
+                    RpcResponse::LibraryAlbumAdd(AlbumAddOutcome::Ready(album))
+                }
                 Err(LibraryError::InvalidAlbum) => {
                     RpcResponse::LibraryAlbumAdd(AlbumAddOutcome::Invalid(RpcFailure::permanent(
                         "library.invalidAlbum",
@@ -359,9 +367,11 @@ pub fn dispatch(state: &AppState, request: RpcRequest, auth: Option<AuthContext>
                         placement,
                         auth.principal_id(),
                     ) {
-                        Ok(Some(album)) => RpcResponse::LibraryAlbumCommandRun(
-                            AlbumCommandOutcome::Applied(rpc_album(album)),
-                        ),
+                        Ok(Some(album)) => {
+                            let album = rpc_album(album);
+                            publish_album(state, &auth, &album);
+                            RpcResponse::LibraryAlbumCommandRun(AlbumCommandOutcome::Applied(album))
+                        }
                         Ok(None) => {
                             RpcResponse::LibraryAlbumCommandRun(AlbumCommandOutcome::Unknown)
                         }
@@ -376,6 +386,13 @@ pub fn dispatch(state: &AppState, request: RpcRequest, auth: Option<AuthContext>
                         .remove_album(&auth.account_id, &request.album_id)
                     {
                         Ok(true) => {
+                            state.realtime.publish(
+                                &auth.account_id,
+                                RpcRealtimeTopic::Library,
+                                RpcRealtimeState::LibraryAlbumRemoved(RpcRealtimeRemoval {
+                                    id: request.album_id.clone(),
+                                }),
+                            );
                             RpcResponse::LibraryAlbumCommandRun(AlbumCommandOutcome::Removed)
                         }
                         Ok(false) => {
@@ -851,7 +868,25 @@ fn rpc_api_token_grant(grant: ApiTokenGrant) -> RpcApiTokenGrant {
     }
 }
 
-fn rpc_session(session: Session) -> RpcSession {
+/// Publish after the write succeeded, never before. A subscriber must not see state that
+/// the store rejected.
+fn publish_session(state: &AppState, auth: &AuthContext, session: &RpcSession) {
+    state.realtime.publish(
+        &auth.account_id,
+        RpcRealtimeTopic::Sessions,
+        RpcRealtimeState::SessionState(session.clone()),
+    );
+}
+
+fn publish_album(state: &AppState, auth: &AuthContext, album: &RpcLibraryAlbum) {
+    state.realtime.publish(
+        &auth.account_id,
+        RpcRealtimeTopic::Library,
+        RpcRealtimeState::LibraryAlbumState(album.clone()),
+    );
+}
+
+pub(crate) fn rpc_session(session: Session) -> RpcSession {
     let current_track_id = session.current_track_id().map(str::to_string);
     let stream_path = session.stream_path();
     RpcSession {
