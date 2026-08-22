@@ -1,7 +1,28 @@
 import { describe, expect, test } from "vitest"
-import { RpcPlacement } from "../../../../contracts/generated/pyxis"
+import {
+  type ListenTrackEventInput,
+  RpcPlacement,
+  type RpcSession,
+  RpcTransport,
+} from "../../../../contracts/generated/pyxis"
 import { SCHEMA_ROW_ID, type WorkerAlbum, type WorkerEngine } from "./contract"
 import { createMemoryEngine, openWorkerDatabase } from "./database"
+
+function session(overrides: Partial<RpcSession> = {}): RpcSession {
+  return {
+    id: "session-1",
+    name: "Browser",
+    hostDeviceId: "device-1",
+    queue: [],
+    transport: RpcTransport.Stopped,
+    positionMs: 0,
+    volume: 100,
+    reachable: true,
+    revision: 1,
+    updatedAt: "now",
+    ...overrides,
+  }
+}
 
 function album(id: string, revision = 1, title = "Heroes"): WorkerAlbum {
   return {
@@ -71,6 +92,23 @@ describe("schema versions", () => {
     const albums = await upgraded.albums()
     expect(albums).toHaveLength(1)
     expect(albums[0]?.title).toBe("Low (migrated)")
+  })
+
+  test("the deployed schema v2 store migrates to the current version without data loss", async () => {
+    const engine = createMemoryEngine()
+    const before = await openWorkerDatabase({
+      engine,
+      version: 2,
+      migrations: { 2: async () => {} },
+    })
+    await before.putAlbum(album("album-1"))
+    await before.writeSettings({ bearerToken: "token" })
+
+    const upgraded = await openWorkerDatabase({ engine })
+
+    expect(upgraded.report).toMatchObject({ reason: "migrated", fromVersion: 2, version: 6 })
+    expect(await upgraded.albums()).toHaveLength(1)
+    expect((await upgraded.settings()).bearerToken).toBe("token")
   })
 
   test("a missing migration resets rather than half-upgrading", async () => {
@@ -156,6 +194,8 @@ describe("storage that cannot even be repaired", () => {
       },
       settings: createMemoryEngine().settings,
       albums: createMemoryEngine().albums,
+      sessions: createMemoryEngine().sessions,
+      commandReceipts: createMemoryEngine().commandReceipts,
       outbox: createMemoryEngine().outbox,
       close: async () => undefined,
     }
@@ -171,6 +211,244 @@ describe("storage that cannot even be repaired", () => {
     // Usable, and honest that nothing will be kept.
     await opened.putAlbum(album("album-1"))
     expect(await opened.albums()).toHaveLength(1)
+  })
+})
+
+describe("local writes", () => {
+  test("changes a hosted session locally before queueing its command", async () => {
+    const database = await openWorkerDatabase({ engine: createMemoryEngine() })
+    const original = session()
+    await database.putSession(original)
+
+    const changed = await database.queueSessionCommand(original, {
+      _tag: "queue.add",
+      payload: { trackIds: ["track-1"] },
+    })
+
+    expect(changed).toMatchObject({
+      queue: ["track-1"],
+      currentTrackId: "track-1",
+      revision: 2,
+    })
+    expect(await database.outbox()).toMatchObject([
+      {
+        kind: "session.command",
+        sessionId: "session-1",
+        command: { _tag: "queue.add" },
+      },
+    ])
+  })
+
+  test("deduplicates a session command ID and rejects conflicting reuse", async () => {
+    const database = await openWorkerDatabase({ engine: createMemoryEngine() })
+    const original = session()
+    await database.putSession(original)
+    const command = { _tag: "queue.add" as const, payload: { trackIds: ["track-1"] } }
+
+    const first = await database.queueSessionCommand(original, command, "01COMMAND")
+    const replay = await database.queueSessionCommand(original, command, "01COMMAND")
+
+    expect(replay).toEqual(first)
+    const [queued] = await database.outbox()
+    expect(queued).toBeDefined()
+    if (queued !== undefined) await database.dequeue(queued.id)
+    const afterDrain = await database.queueSessionCommand(original, command, "01COMMAND")
+    expect(afterDrain).toEqual(first)
+    expect(await database.outbox()).toEqual([])
+    await expect(
+      database.queueSessionCommand(
+        original,
+        { _tag: "queue.add", payload: { trackIds: ["track-2"] } },
+        "01COMMAND",
+      ),
+    ).rejects.toThrow("different session command")
+
+    const other = session({ id: "session-2" })
+    await database.putSession(other)
+    await expect(database.queueSessionCommand(other, command, "01COMMAND")).resolves.toMatchObject({
+      id: "session-2",
+      queue: ["track-1"],
+    })
+  })
+
+  test("repairs a command receipt after interruption", async () => {
+    const engine = createMemoryEngine()
+    const database = await openWorkerDatabase({ engine })
+    const original = session()
+    const command = { _tag: "queue.add" as const, payload: { trackIds: ["track-1"] } }
+    await database.putSession(original)
+    await engine.outbox.upsert({
+      id: "01QUEUE",
+      createdAt: "now",
+      attempts: 0,
+      kind: "session.command",
+      sessionId: original.id,
+      commandId: "01COMMAND",
+      baseRevision: 1,
+      command,
+    })
+
+    const repaired = await database.queueSessionCommand(original, command, "01COMMAND")
+
+    expect(repaired).toMatchObject({ queue: ["track-1"], revision: 2 })
+    expect(await engine.commandReceipts.findById("session-1:01COMMAND")).toMatchObject({
+      fingerprint: expect.any(String),
+    })
+    expect(await database.outbox()).toHaveLength(1)
+  })
+
+  test("changes an album locally before queueing its server write", async () => {
+    const database = await openWorkerDatabase({ engine: createMemoryEngine() })
+    const original = album("album-1")
+    await database.putAlbum(original)
+
+    const changed = await database.queuePlacement(original, RpcPlacement.Collection)
+
+    expect(changed.placement).toBe(RpcPlacement.Collection)
+    expect(await database.outbox()).toMatchObject([
+      {
+        kind: "album.placement",
+        albumId: "album-1",
+        placement: RpcPlacement.Collection,
+        baseRevision: 1,
+        basePlacement: RpcPlacement.Discovery,
+        attempts: 0,
+      },
+    ])
+  })
+
+  test("a stale click snapshot still becomes the newest local intent", async () => {
+    const database = await openWorkerDatabase({ engine: createMemoryEngine() })
+    const clickedFrom = { ...album("album-1", 1), placement: RpcPlacement.Collection }
+    await database.putAlbum({ ...clickedFrom, revision: 2 })
+
+    const changed = await database.queuePlacement(clickedFrom, RpcPlacement.Archive)
+
+    expect(changed).toMatchObject({ placement: RpcPlacement.Archive, revision: 2 })
+    expect(await database.album("album-1")).toMatchObject({
+      placement: RpcPlacement.Archive,
+      revision: 2,
+    })
+    expect(await database.outbox()).toMatchObject([
+      { baseRevision: 1, basePlacement: RpcPlacement.Collection },
+    ])
+  })
+
+  test("keeps the outbox record if the local album write fails", async () => {
+    const engine = createMemoryEngine()
+    const database = await openWorkerDatabase({
+      engine: {
+        ...engine,
+        albums: {
+          findById: (id) => engine.albums.findById(id),
+          all: () => engine.albums.all(),
+          upsert: async () => {
+            throw new Error("quota exceeded")
+          },
+          delete: (id) => engine.albums.delete(id),
+        },
+      },
+    })
+
+    await expect(
+      database.queuePlacement(album("album-1"), RpcPlacement.Collection),
+    ).rejects.toThrow("quota exceeded")
+    expect(await database.outbox()).toMatchObject([
+      { albumId: "album-1", placement: RpcPlacement.Collection },
+    ])
+  })
+
+  test("accepts an identical listen replay but rejects conflicting ID reuse", async () => {
+    const database = await openWorkerDatabase({ engine: createMemoryEngine() })
+    const event: ListenTrackEventInput = {
+      id: "01LISTEN",
+      trackId: "track-1",
+      deviceId: "device-1",
+      listenedAt: "2026-06-01T00:00:00Z",
+      completed: true,
+      context: "queue",
+    }
+    await database.queueListen(event)
+
+    await database.queueListen(event)
+    await expect(database.queueListen({ ...event, trackId: "track-2" })).rejects.toThrow(
+      "different content",
+    )
+
+    expect(await database.outbox()).toMatchObject([
+      { event: { id: "01LISTEN", trackId: "track-1" } },
+    ])
+  })
+
+  test("keeps the public listen ID separate from local queue ordering", async () => {
+    const database = await openWorkerDatabase({ engine: createMemoryEngine() })
+    const event: ListenTrackEventInput = {
+      id: "01LISTEN",
+      trackId: "track-1",
+      deviceId: "device-1",
+      listenedAt: "2026-06-01T00:00:00Z",
+      completed: true,
+      context: "queue",
+    }
+
+    await database.queueListen(event)
+
+    const [queued] = await database.outbox()
+    expect(queued).toMatchObject({ kind: "listen.append", event })
+    expect(queued?.id).not.toBe(event.id)
+  })
+})
+
+describe("account changes", () => {
+  test("clears the previous account library before storing a new grant", async () => {
+    const database = await openWorkerDatabase({ engine: createMemoryEngine() })
+    await database.writeSettings({ accountId: "account-1" })
+    await database.putAlbum(album("album-1"))
+    await database.putSession(session())
+
+    await database.writeSettings({
+      accountId: "account-2",
+      accountName: "Second",
+      accountIsDefault: false,
+      accountCreatedAt: "now",
+      deviceId: "device-2",
+      deviceName: "Browser",
+      bearerToken: "token-2",
+    })
+
+    expect(await database.albums()).toEqual([])
+    expect(await database.sessions()).toEqual([])
+    expect(await database.settings()).toMatchObject({
+      accountId: "account-2",
+      deviceId: "device-2",
+    })
+  })
+
+  test("refuses a partial account change that would retain old credentials", async () => {
+    const database = await openWorkerDatabase({ engine: createMemoryEngine() })
+    await database.writeSettings({ accountId: "account-1", bearerToken: "token-1" })
+
+    await expect(database.writeSettings({ accountId: "account-2" })).rejects.toThrow(
+      "complete account grant",
+    )
+    expect(await database.settings()).toMatchObject({
+      accountId: "account-1",
+      bearerToken: "token-1",
+    })
+  })
+
+  test("refuses to replay one account's outbox with another account's token", async () => {
+    const database = await openWorkerDatabase({ engine: createMemoryEngine() })
+    await database.writeSettings({ accountId: "account-1" })
+    const original = album("album-1")
+    await database.putAlbum(original)
+    await database.queuePlacement(original, RpcPlacement.Collection)
+
+    await expect(database.writeSettings({ accountId: "account-2" })).rejects.toThrow(
+      "queued writes",
+    )
+    expect((await database.settings()).accountId).toBe("account-1")
+    expect(await database.outbox()).toHaveLength(1)
   })
 })
 

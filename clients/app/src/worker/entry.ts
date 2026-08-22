@@ -3,7 +3,6 @@
 /// The database lives here rather than on the page so that storage work, and later sync
 /// and downloads, cannot block rendering. The page talks to it through `client.ts`.
 
-import { ulid } from "ulid"
 import { createWorkerRpc } from "../rpc/client"
 import type { WorkerRequest, WorkerResponse } from "./client"
 import type { WorkerDatabase } from "./contract"
@@ -62,24 +61,26 @@ async function handle(request: WorkerRequest): Promise<unknown> {
       return store.putAlbum(request.payload.album)
     case "worker.album.remove":
       return store.removeAlbum(request.payload.id)
+    case "worker.sessions.read":
+      return store.sessions()
+    case "worker.session.read":
+      return store.session(request.payload.id)
+    case "worker.session.put":
+      return store.putSession(request.payload.session)
+    case "worker.session.remove":
+      return store.removeSession(request.payload.id)
     case "worker.queue.placement": {
       const { album, placement } = request.payload
-      // Apply locally first. The person's own action must be visible immediately, and the
-      // queued entry records what it was applied on top of so a later conflict is
-      // recognisable.
-      const updated = await store.putAlbum({ ...album, placement })
-      await store.enqueue({
-        id: ulid(),
-        createdAt: new Date().toISOString(),
-        attempts: 0,
-        kind: "album.placement",
-        albumId: album.id,
-        placement,
-        baseRevision: album.revision,
-        basePlacement: album.placement,
-      })
-      return updated
+      return store.queuePlacement(album, placement)
     }
+    case "worker.queue.listen":
+      return store.queueListen(request.payload.event)
+    case "worker.queue.session-command":
+      return store.queueSessionCommand(
+        request.payload.session,
+        request.payload.command,
+        request.payload.commandId,
+      )
     case "worker.sync": {
       const settings = await store.settings()
       if (settings.bearerToken === undefined) {

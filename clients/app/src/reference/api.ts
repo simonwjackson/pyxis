@@ -15,12 +15,14 @@ import type {
 } from "../../../../contracts/generated/pyxis"
 
 export interface RealtimeHandlers {
-  onEvent(event: RealtimeEvent): void
+  onEvent(event: RealtimeEvent): void | Promise<void>
   /// A console asked this device to change one of its sessions.
   onDirective(directive: RpcSessionDirective): void
+  /// Persist every cursor before the next page load.
+  onResumeToken(resumeToken: string): void | Promise<void>
   /// The server could not replay what was missed. Local state may be stale and has to be
   /// refetched rather than patched.
-  onResync(): void
+  onResync(): void | Promise<void>
 }
 
 export interface SearchResult {
@@ -42,12 +44,22 @@ export interface ReferenceClient {
   /// Reachable sessions only, unless `includeUnreachable` asks the durable question.
   listSessions(token: string, includeUnreachable?: boolean): Promise<readonly RpcSession[]>
   createSession(token: string, name: string): Promise<RpcSession>
-  command(token: string, sessionId: string, command: RpcSessionCommand): Promise<RpcSession>
+  command(
+    token: string,
+    sessionId: string,
+    command: RpcSessionCommand,
+    commandId?: string,
+  ): Promise<RpcSession>
   /// Ask the device hosting `sessionId` to run a command. Resolves once the core has
   /// routed it; the resulting state arrives as a realtime event.
-  sendCommand(token: string, sessionId: string, command: RpcSessionCommand): Promise<void>
+  sendCommand(
+    token: string,
+    sessionId: string,
+    command: RpcSessionCommand,
+    commandId?: string,
+  ): Promise<void>
   handoff(token: string, sessionId: string, targetSessionId: string): Promise<RpcSession>
-  connectRealtime(token: string, handlers: RealtimeHandlers): () => void
+  connectRealtime(token: string, handlers: RealtimeHandlers, resumeToken?: string): () => void
   appendListen(token: string, event: ListenTrackEventInput): Promise<void>
   loadStream(token: string, trackId: string): Promise<string>
 }
@@ -56,12 +68,14 @@ interface ReferenceClientConfig {
   readonly fetch?: typeof fetch
   readonly createObjectUrl?: (blob: Blob) => string
   readonly realtimeUrl?: string
+  readonly createWebSocket?: (url: string) => WebSocket
 }
 
 export function createReferenceClient(config: ReferenceClientConfig = {}): ReferenceClient {
   const request = config.fetch ?? globalThis.fetch
   const createObjectUrl = config.createObjectUrl ?? URL.createObjectURL
   const realtimeUrl = config.realtimeUrl ?? defaultRealtimeUrl()
+  const createWebSocket = config.createWebSocket ?? ((url: string) => new WebSocket(url))
 
   const rpc = async (payload: RpcRequest, bearer?: string): Promise<RpcResponse> => {
     const response = await request("/rpc", {
@@ -163,11 +177,11 @@ export function createReferenceClient(config: ReferenceClientConfig = {}): Refer
       return response.outcome.value
     },
 
-    async command(token, sessionId, command) {
+    async command(token, sessionId, command, commandId) {
       const response = await rpc(
         {
           _tag: "session.command.run",
-          payload: { sessionId, command },
+          payload: { sessionId, command, ...(commandId === undefined ? {} : { commandId }) },
         },
         token,
       )
@@ -178,9 +192,12 @@ export function createReferenceClient(config: ReferenceClientConfig = {}): Refer
       return response.outcome.value
     },
 
-    async sendCommand(token, sessionId, command) {
+    async sendCommand(token, sessionId, command, commandId) {
       const response = await rpc(
-        { _tag: "session.command.send", payload: { sessionId, command } },
+        {
+          _tag: "session.command.send",
+          payload: { sessionId, command, ...(commandId === undefined ? {} : { commandId }) },
+        },
         token,
       )
       if (response._tag !== "session.command.send") throw new Error("invalid console response")
@@ -201,17 +218,23 @@ export function createReferenceClient(config: ReferenceClientConfig = {}): Refer
       return response.outcome.value
     },
 
-    connectRealtime(token, handlers) {
+    connectRealtime(token, handlers, initialResumeToken) {
       let closed = false
       let socket: WebSocket | undefined
       let retry: ReturnType<typeof setTimeout> | undefined
-      // Kept across reconnects so a brief drop replays instead of losing state.
-      let resumeToken: string | undefined
+      // Kept across reconnects and page loads so a brief drop replays instead of losing state.
+      let resumeToken = initialResumeToken
+      let helloHadResume = false
+      let frames: Promise<void> = Promise.resolve()
+      let frameFailed = false
 
       const open = () => {
         if (closed) return
-        socket = new WebSocket(realtimeUrl)
+        frames = Promise.resolve()
+        frameFailed = false
+        socket = createWebSocket(realtimeUrl)
         socket.addEventListener("open", () => {
+          helloHadResume = resumeToken !== undefined
           socket?.send(
             JSON.stringify({
               _tag: "realtime.hello",
@@ -224,28 +247,44 @@ export function createReferenceClient(config: ReferenceClientConfig = {}): Refer
           )
         })
         socket.addEventListener("message", (message: MessageEvent<string>) => {
-          let parsed: unknown
-          try {
-            parsed = JSON.parse(message.data)
-          } catch {
-            // A truncated frame is not worth tearing the socket down for.
-            return
-          }
-          if (!isRecord(parsed) || typeof parsed._tag !== "string") return
-          const frame = parsed as RealtimeServerMessage
-          if (frame._tag === "realtime.welcome") {
-            resumeToken = frame.payload.resumeToken
-            // Either the replay was incomplete or this is a fresh epoch after a restart.
-            // Patching from here would leave the client permanently stale.
-            if (frame.payload.missedEventsDropped) handlers.onResync()
-            return
-          }
-          if (frame._tag === "realtime.event") {
-            resumeToken = frame.payload.resumeToken
-            handlers.onEvent(frame.payload)
-            return
-          }
-          if (frame._tag === "realtime.command") handlers.onDirective(frame.payload)
+          if (frameFailed) return
+          frames = frames
+            .then(async () => {
+              let parsed: unknown
+              try {
+                parsed = JSON.parse(message.data)
+              } catch {
+                throw new Error("realtime frame was not JSON")
+              }
+              if (!isRecord(parsed) || typeof parsed._tag !== "string") {
+                throw new Error("realtime frame was not an envelope")
+              }
+              const frame = parsed as RealtimeServerMessage
+              if (frame._tag === "realtime.welcome") {
+                const nextResumeToken = frame.payload.resumeToken
+                // Persist a cursor only after the state it covers is durable.
+                if (frame.payload.missedEventsDropped || !helloHadResume) {
+                  await handlers.onResync()
+                }
+                await handlers.onResumeToken(nextResumeToken)
+                resumeToken = nextResumeToken
+                return
+              }
+              if (frame._tag === "realtime.event") {
+                const nextResumeToken = frame.payload.resumeToken
+                await handlers.onEvent(frame.payload)
+                await handlers.onResumeToken(nextResumeToken)
+                resumeToken = nextResumeToken
+                return
+              }
+              if (frame._tag === "realtime.command") handlers.onDirective(frame.payload)
+            })
+            .catch(() => {
+              // Keep the last committed cursor. Reconnect from there rather than letting a
+              // later frame move past state this client did not store.
+              frameFailed = true
+              socket?.close()
+            })
         })
         socket.addEventListener("close", () => {
           if (closed) return

@@ -9,6 +9,8 @@ import type {
   ListenTrackEventInput,
   RpcLibraryAlbum,
   RpcPlacement,
+  RpcSession,
+  RpcSessionCommand,
 } from "../../../../contracts/generated/pyxis"
 
 export class RpcError extends Error {
@@ -30,6 +32,12 @@ export class RpcError extends Error {
 
 export interface WorkerRpc {
   listAlbums(): Promise<readonly RpcLibraryAlbum[]>
+  listSessions(): Promise<readonly RpcSession[]>
+  runSessionCommand(
+    sessionId: string,
+    command: RpcSessionCommand,
+    commandId: string,
+  ): Promise<RpcSession | undefined>
   setPlacement(albumId: string, placement: RpcPlacement): Promise<RpcLibraryAlbum | undefined>
   appendListen(
     events: readonly ListenTrackEventInput[],
@@ -40,14 +48,18 @@ export interface WorkerRpcConfig {
   readonly origin?: string
   readonly token: string
   readonly fetch?: typeof fetch
+  readonly timeoutMs?: number
 }
 
 export function createWorkerRpc(config: WorkerRpcConfig): WorkerRpc {
   const request = config.fetch ?? globalThis.fetch
   const origin = config.origin ?? ""
+  const timeoutMs = config.timeoutMs ?? 15_000
 
   const call = async (body: unknown): Promise<Record<string, unknown>> => {
     let response: Response
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), timeoutMs)
     try {
       response = await request(`${origin}/rpc`, {
         method: "POST",
@@ -56,9 +68,19 @@ export function createWorkerRpc(config: WorkerRpcConfig): WorkerRpc {
           authorization: `Bearer ${config.token}`,
         },
         body: JSON.stringify(body),
+        signal: controller.signal,
       })
     } catch (cause) {
-      throw new RpcError(cause instanceof Error ? cause.message : "network request failed", true)
+      throw new RpcError(
+        controller.signal.aborted
+          ? `network request timed out after ${timeoutMs}ms`
+          : cause instanceof Error
+            ? cause.message
+            : "network request failed",
+        true,
+      )
+    } finally {
+      clearTimeout(timeout)
     }
 
     // A proxy or captive portal answers with a status and a body that is not ours.
@@ -75,10 +97,10 @@ export function createWorkerRpc(config: WorkerRpcConfig): WorkerRpc {
     try {
       parsed = await response.json()
     } catch {
-      throw new RpcError("server response was not JSON", false)
+      throw new RpcError("server response was not JSON", true)
     }
     if (!isRecord(parsed) || typeof parsed._tag !== "string" || !isRecord(parsed.outcome)) {
-      throw new RpcError("server response was not an RPC envelope", false)
+      throw new RpcError("server response was not an RPC envelope", true)
     }
     if (parsed._tag === "rpc.failure") {
       const failure = isRecord(parsed.outcome.value) ? parsed.outcome.value : {}
@@ -98,11 +120,11 @@ export function createWorkerRpc(config: WorkerRpcConfig): WorkerRpc {
     tag: string,
   ): { status: string; value: unknown } => {
     if (envelope._tag !== tag) {
-      throw new RpcError(`server answered '${String(envelope._tag)}' for '${tag}'`, false)
+      throw new RpcError(`server answered '${String(envelope._tag)}' for '${tag}'`, true)
     }
     const outcome = envelope.outcome as Record<string, unknown>
     if (typeof outcome.status !== "string") {
-      throw new RpcError("outcome carried no status", false)
+      throw new RpcError("outcome carried no status", true)
     }
     return { status: outcome.status, value: outcome.value }
   }
@@ -113,9 +135,33 @@ export function createWorkerRpc(config: WorkerRpcConfig): WorkerRpc {
       const outcome = outcomeOf(envelope, "library.albums.list")
       if (outcome.status !== "ready") throw failure(outcome, "library album list")
       if (!Array.isArray(outcome.value)) {
-        throw new RpcError("album list was not an array", false)
+        throw new RpcError("album list was not an array", true)
       }
       return outcome.value.map(album)
+    },
+
+    async listSessions() {
+      const envelope = await call({
+        _tag: "session.list",
+        payload: { includeUnreachable: true },
+      })
+      const outcome = outcomeOf(envelope, "session.list")
+      if (outcome.status !== "ready") throw failure(outcome, "session list")
+      if (!Array.isArray(outcome.value)) {
+        throw new RpcError("session list was not an array", true)
+      }
+      return outcome.value.map(session)
+    },
+
+    async runSessionCommand(sessionId, command, commandId) {
+      const envelope = await call({
+        _tag: "session.command.run",
+        payload: { sessionId, commandId, command },
+      })
+      const outcome = outcomeOf(envelope, "session.command.run")
+      if (outcome.status === "unknown") return undefined
+      if (outcome.status !== "applied") throw failure(outcome, "session command")
+      return session(outcome.value)
     },
 
     async setPlacement(albumId, placement) {
@@ -137,10 +183,20 @@ export function createWorkerRpc(config: WorkerRpcConfig): WorkerRpc {
       })
       const outcome = outcomeOf(envelope, "listen.events.append")
       if (outcome.status !== "ready") throw failure(outcome, "listen append")
-      if (!isRecord(outcome.value)) throw new RpcError("listen result was not an object", false)
+      if (!isRecord(outcome.value)) throw new RpcError("listen result was not an object", true)
       const { accepted, duplicates } = outcome.value
-      if (typeof accepted !== "number" || typeof duplicates !== "number") {
-        throw new RpcError("listen result carried no counts", false)
+      if (
+        typeof accepted !== "number" ||
+        typeof duplicates !== "number" ||
+        !Number.isInteger(accepted) ||
+        !Number.isInteger(duplicates) ||
+        accepted < 0 ||
+        duplicates < 0 ||
+        accepted + duplicates !== events.length
+      ) {
+        // The server did not prove which events landed. Retrying idempotently is safer than
+        // deleting history based on an impossible acknowledgement.
+        throw new RpcError("listen result counts did not account for the submitted batch", true)
       }
       return { accepted, duplicates }
     },
@@ -169,9 +225,29 @@ function album(value: unknown): RpcLibraryAlbum {
     typeof value.placement !== "string" ||
     typeof value.placementUpdatedAt !== "string"
   ) {
-    throw new RpcError("album was missing its identity, placement, or revision", false)
+    throw new RpcError("album was missing its identity, placement, or revision", true)
   }
   return value as unknown as RpcLibraryAlbum
+}
+
+function session(value: unknown): RpcSession {
+  if (
+    !isRecord(value) ||
+    typeof value.id !== "string" ||
+    typeof value.name !== "string" ||
+    typeof value.hostDeviceId !== "string" ||
+    !Array.isArray(value.queue) ||
+    !value.queue.every((trackId) => typeof trackId === "string") ||
+    typeof value.transport !== "string" ||
+    typeof value.positionMs !== "number" ||
+    typeof value.volume !== "number" ||
+    typeof value.reachable !== "boolean" ||
+    typeof value.revision !== "number" ||
+    typeof value.updatedAt !== "string"
+  ) {
+    throw new RpcError("session was missing its identity, queue, or revision", true)
+  }
+  return value as unknown as RpcSession
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

@@ -7,7 +7,8 @@ import type {
   RpcSearchTrack,
   RpcSession,
 } from "../../../../contracts/generated/pyxis"
-import type { WorkerOpenReport } from "../worker/contract.ts"
+import type { WorkerOpenReport, WorkerSyncNotice } from "../worker/contract.ts"
+import type { SyncReport } from "../worker/sync.ts"
 
 export type ConsoleCommand = "play" | "pause" | "stop"
 
@@ -16,6 +17,8 @@ export interface LocalState {
   readonly report: WorkerOpenReport
   readonly deviceId?: string
   readonly albumCount: number
+  readonly lastSync?: SyncReport
+  readonly notices: readonly WorkerSyncNotice[]
 }
 
 export interface ReferenceContextValue {

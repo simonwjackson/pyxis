@@ -124,6 +124,12 @@ function server(initial: readonly RpcLibraryAlbum[]): Server {
       guard()
       return [...albums.values()]
     },
+    async listSessions() {
+      return []
+    },
+    async runSessionCommand() {
+      return undefined
+    },
     async setPlacement(albumId, placement) {
       guardWrite()
       const existing = albums.get(albumId)

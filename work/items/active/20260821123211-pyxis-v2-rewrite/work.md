@@ -30,16 +30,21 @@ U26 documents the whole public API, with a worked example that `tools/verify-api
 extracts from the document and runs, so a claim that stops matching the server fails there.
 
 U20 and U21 build the offline data plane: a ProseQL WASM store in a worker, and two-way
-sync with an offline write queue and explicit conflict outcomes. Both are unit-verified and
-the assets are served correctly over the tailnet.
+sync with an offline write queue and explicit conflict outcomes.
 
-**The one thing nobody has verified: the WASM engine has never run in a real browser.** The
-binary loads and initialises under Bun, and the worker chunk and `.wasm` are served with
-the right content types, but IndexedDB persistence has only been exercised against an
-in-memory engine. Open the client, check the Local store panel, and confirm it says
-`opened` after a reload rather than `created`. If it says `created` every time, or
-`Keeps data after close: false`, the browser path is broken and U22 should not be built on
-top of it.
+**U20's real browser path is verified.** On 2026-08-22 the deployed browser reported
+`opened`, `Keeps data after close: true`, schema version 2, and the same durable device id
+after reload. That test proved WASM plus IndexedDB, not only the in-memory engine.
+
+The same screen exposed that U21 was not connected to the reference client: it reported
+zero cached albums because the page never called worker sync. U21 is now connected across
+albums, listens, and device-hosted session commands. The fix also moved the worker schema
+to version 6, added durable command receipts and sync notices, and made server album
+removal win with an explicit conflict under D17.
+
+**The revised U21 browser path still needs one live check after deployment.** Reload the
+client twice. It must report schema version 6, `opened`, the same device id, and 370 cached
+albums. A first reload can report `migrated` while schema 2 moves to 6.
 
 U22 offline downloads and U23 service worker are not started.
 
@@ -64,13 +69,12 @@ The old system `pyxis.service` and `tsnet-proxy-pyxis.service` units are stopped
 remain declared by the current NixOS generation and can return after a reboot or system
 switch until the prepared `mountainous` removal is deployed.
 
-Next: your M3 console validation and the browser check above, then **U22** offline
-downloads and **U23** service worker. U18 Sonos and U19 Soulseek need hardware and an
-account.
+Next: your M3 console validation and the revised U21 browser check above, then **U22**
+offline downloads and **U23** service worker. U18 Sonos and U19 Soulseek need hardware and
+an account.
 
-One decision is deferred and should be made before U23: the `Sync domains` table does not
-say what happens when an album is removed on another device. Pull currently leaves the
-local copy in place rather than guessing.
+Album removal is no longer deferred. D17 records your decision: server removal wins,
+queued local placement intent is discarded, and the client reports the conflict.
 
 Execution order is the `Shipping Milestones` table in `plan.md`, not numeric U-ID order.
 Per-unit progress comes from `git log`, not from this file.

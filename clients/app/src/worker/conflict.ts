@@ -49,17 +49,25 @@ export type PlacementDecision =
       readonly conflict: true
       readonly discarded: RpcPlacement
     }
+  /// Another device removed the album. A placement cannot recreate it, so removal wins
+  /// and the caller is told which local intent was discarded.
+  | {
+      readonly action: "remove"
+      readonly conflict: true
+      readonly discarded: RpcPlacement
+    }
 
 /// Decide what to do with one queued placement write.
 ///
 /// `remote` is absent when the album is gone from the server. Nothing can be pushed onto a
-/// record that no longer exists, so the write is dropped as converged rather than
-/// recreating an album the person removed elsewhere.
+/// record that no longer exists, so server removal wins and is reported as a conflict.
 export function resolvePlacement(
   local: LocalPlacementWrite,
   remote: RemotePlacement | undefined,
 ): PlacementDecision {
-  if (remote === undefined) return { action: "converged", conflict: false }
+  if (remote === undefined) {
+    return { action: "remove", conflict: true, discarded: local.placement }
+  }
 
   // The server already holds what this write wanted. True both for a replay of a write
   // that landed, and for two devices that happened to agree.

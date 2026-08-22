@@ -3,10 +3,16 @@
 /// Requests are correlated by id so several can be in flight at once, matching how the RPC
 /// transport already behaves. A caller sees plain promises and never a message channel.
 
-import type { RpcPlacement } from "../../../../contracts/generated/pyxis"
+import type {
+  ListenTrackEventInput,
+  RpcPlacement,
+  RpcSession,
+  RpcSessionCommand,
+} from "../../../../contracts/generated/pyxis"
+import { createWorkerRpc, type WorkerRpc } from "../rpc/client"
 import type { WorkerAlbum, WorkerDatabase, WorkerOpenReport, WorkerSettings } from "./contract"
 import { createMemoryEngine, openWorkerDatabase } from "./database"
-import type { SyncReport } from "./sync"
+import { type SyncReport, sync as syncDatabase } from "./sync"
 
 export type WorkerRequest = { readonly id: string } & (
   | { readonly _tag: "worker.open" }
@@ -20,12 +26,31 @@ export type WorkerRequest = { readonly id: string } & (
   | { readonly _tag: "worker.albums.replace"; readonly payload: { albums: readonly WorkerAlbum[] } }
   | { readonly _tag: "worker.album.put"; readonly payload: { album: WorkerAlbum } }
   | { readonly _tag: "worker.album.remove"; readonly payload: { id: string } }
+  | { readonly _tag: "worker.sessions.read" }
+  | { readonly _tag: "worker.session.read"; readonly payload: { id: string } }
+  | { readonly _tag: "worker.session.put"; readonly payload: { session: RpcSession } }
+  | { readonly _tag: "worker.session.remove"; readonly payload: { id: string } }
   | { readonly _tag: "worker.sync"; readonly payload: { origin?: string } }
   | {
       readonly _tag: "worker.queue.placement"
       readonly payload: { album: WorkerAlbum; placement: RpcPlacement }
     }
+  | {
+      readonly _tag: "worker.queue.listen"
+      readonly payload: { event: ListenTrackEventInput }
+    }
+  | {
+      readonly _tag: "worker.queue.session-command"
+      readonly payload: { session: RpcSession; command: RpcSessionCommand; commandId?: string }
+    }
 )
+
+export class WorkerUnavailableError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = "WorkerUnavailableError"
+  }
+}
 
 export interface WorkerResponse {
   readonly id: string
@@ -47,12 +72,23 @@ export interface WorkerClient {
   replaceAlbums(albums: readonly WorkerAlbum[]): Promise<void>
   putAlbum(album: WorkerAlbum): Promise<WorkerAlbum>
   removeAlbum(id: string): Promise<boolean>
+  sessions(): Promise<readonly RpcSession[]>
+  session(id: string): Promise<RpcSession | undefined>
+  putSession(session: RpcSession): Promise<RpcSession>
+  removeSession(id: string): Promise<boolean>
   /// Reconcile with the server. Safe to call when offline: the report says so and the
   /// queue is left intact.
   sync(origin?: string): Promise<SyncReport>
   /// Record a placement change locally and queue it for the server. The album changes
   /// immediately so the person sees their own action, network or not.
   queuePlacement(album: WorkerAlbum, placement: RpcPlacement): Promise<WorkerAlbum>
+  queueSessionCommand(
+    session: RpcSession,
+    command: RpcSessionCommand,
+    commandId?: string,
+  ): Promise<RpcSession>
+  /// Record locally first. Sync owns network replay and idempotency.
+  queueListen(event: ListenTrackEventInput): Promise<void>
   terminate(): void
 }
 
@@ -87,7 +123,7 @@ export function createWorkerClient(channel: Channel): WorkerClient {
   let dead: string | undefined
   const abandon = (reason: string) => {
     dead = reason
-    for (const waiting of pending.values()) waiting.reject(new Error(reason))
+    for (const waiting of pending.values()) waiting.reject(new WorkerUnavailableError(reason))
     pending.clear()
   }
   channel.addEventListener("error", () => abandon("the local store worker failed"))
@@ -98,7 +134,7 @@ export function createWorkerClient(channel: Channel): WorkerClient {
   const send = <T>(request: Unaddressed<WorkerRequest>): Promise<T> => {
     // Once the worker is gone nothing can answer, so fail immediately rather than adding
     // a request to a queue that will never drain.
-    if (dead !== undefined) return Promise.reject(new Error(dead))
+    if (dead !== undefined) return Promise.reject(new WorkerUnavailableError(dead))
     nextId += 1
     const id = `${nextId}`
     return new Promise<T>((resolve, reject) => {
@@ -117,6 +153,10 @@ export function createWorkerClient(channel: Channel): WorkerClient {
     replaceAlbums: (albums) => send<void>({ _tag: "worker.albums.replace", payload: { albums } }),
     putAlbum: (album) => send<WorkerAlbum>({ _tag: "worker.album.put", payload: { album } }),
     removeAlbum: (id) => send<boolean>({ _tag: "worker.album.remove", payload: { id } }),
+    sessions: () => send<readonly RpcSession[]>({ _tag: "worker.sessions.read" }),
+    session: (id) => send<RpcSession | undefined>({ _tag: "worker.session.read", payload: { id } }),
+    putSession: (session) => send<RpcSession>({ _tag: "worker.session.put", payload: { session } }),
+    removeSession: (id) => send<boolean>({ _tag: "worker.session.remove", payload: { id } }),
     sync: (origin) =>
       send<SyncReport>({
         _tag: "worker.sync",
@@ -124,6 +164,16 @@ export function createWorkerClient(channel: Channel): WorkerClient {
       }),
     queuePlacement: (album, placement) =>
       send<WorkerAlbum>({ _tag: "worker.queue.placement", payload: { album, placement } }),
+    queueSessionCommand: (session, command, commandId) =>
+      send<RpcSession>({
+        _tag: "worker.queue.session-command",
+        payload: {
+          session,
+          command,
+          ...(commandId === undefined ? {} : { commandId }),
+        },
+      }),
+    queueListen: (event) => send<void>({ _tag: "worker.queue.listen", payload: { event } }),
     terminate: () => {
       abandon("the local store worker was stopped")
       channel.terminate?.()
@@ -137,6 +187,7 @@ export function createWorkerClient(channel: Channel): WorkerClient {
 /// caller can tell the difference rather than quietly believing its data is being kept.
 export function createDirectWorkerClient(
   open: () => Promise<WorkerDatabase> = () => openWorkerDatabase({ engine: createMemoryEngine() }),
+  rpcFor?: (settings: WorkerSettings, origin?: string) => WorkerRpc,
 ): WorkerClient {
   let opening: Promise<WorkerDatabase> | undefined
   const database = () =>
@@ -155,22 +206,91 @@ export function createDirectWorkerClient(
     replaceAlbums: async (albums) => (await database()).replaceAlbums(albums),
     putAlbum: async (album) => (await database()).putAlbum(album),
     removeAlbum: async (id) => (await database()).removeAlbum(id),
-    sync: async () => ({
-      pulled: 0,
-      pushed: 0,
-      converged: 0,
-      dropped: [],
-      deferred: 0,
-      conflicts: [],
-      // An in-process store holds no credentials and has no reason to reach a network.
-      offline: true,
-      authRequired: false,
-    }),
-    queuePlacement: async (album, placement) => {
+    sessions: async () => (await database()).sessions(),
+    session: async (id) => (await database()).session(id),
+    putSession: async (session) => (await database()).putSession(session),
+    removeSession: async (id) => (await database()).removeSession(id),
+    sync: async (origin) => {
       const store = await database()
-      return store.putAlbum({ ...album, placement })
+      const settings = await store.settings()
+      if (rpcFor === undefined) {
+        return {
+          pulled: 0,
+          pushed: 0,
+          converged: 0,
+          dropped: [],
+          deferred: (await store.outbox()).length,
+          conflicts: [],
+          // Test and non-browser fallback. The browser composition root supplies RPC.
+          offline: true,
+          authRequired: false,
+          pageFallbackRequired: true,
+        }
+      }
+      if (settings.bearerToken === undefined) {
+        return {
+          pulled: 0,
+          pushed: 0,
+          converged: 0,
+          dropped: [],
+          deferred: (await store.outbox()).length,
+          conflicts: [],
+          offline: false,
+          authRequired: true,
+        }
+      }
+      return syncDatabase(store, rpcFor(settings, origin))
     },
+    queuePlacement: async (album, placement) => (await database()).queuePlacement(album, placement),
+    queueSessionCommand: async (session, command, commandId) =>
+      (await database()).queueSessionCommand(session, command, commandId),
+    queueListen: async (event) => (await database()).queueListen(event),
     terminate: () => undefined,
+  }
+}
+
+export function createFailoverWorkerClient(
+  primary: WorkerClient,
+  fallback: () => WorkerClient,
+): WorkerClient {
+  let active = primary
+  const retry = async <T>(
+    operation: (client: WorkerClient) => Promise<T>,
+    startup = false,
+  ): Promise<T> => {
+    const attempted = active
+    try {
+      return await operation(attempted)
+    } catch (cause) {
+      if (attempted !== primary || !startup) throw cause
+      if (active === primary) {
+        primary.terminate()
+        active = fallback()
+      }
+      return operation(active)
+    }
+  }
+
+  return {
+    open: () => retry((client) => client.open(), true),
+    settings: () => retry((client) => client.settings()),
+    writeSettings: (patch) => retry((client) => client.writeSettings(patch)),
+    albums: () => retry((client) => client.albums()),
+    album: (id) => retry((client) => client.album(id)),
+    replaceAlbums: (albums) => retry((client) => client.replaceAlbums(albums)),
+    putAlbum: (album) => retry((client) => client.putAlbum(album)),
+    removeAlbum: (id) => retry((client) => client.removeAlbum(id)),
+    sessions: () => retry((client) => client.sessions()),
+    session: (id) => retry((client) => client.session(id)),
+    putSession: (session) => retry((client) => client.putSession(session)),
+    removeSession: (id) => retry((client) => client.removeSession(id)),
+    sync: (origin) => retry((client) => client.sync(origin)),
+    queuePlacement: (album, placement) =>
+      retry((client) => client.queuePlacement(album, placement)),
+    queueSessionCommand: (session, command, commandId) =>
+      retry((client) => client.queueSessionCommand(session, command, commandId)),
+    queueListen: (event) => retry((client) => client.queueListen(event)),
+    terminate: () => active.terminate(),
   }
 }
 
@@ -178,15 +298,27 @@ export function createDirectWorkerClient(
 ///
 /// Falls back to an in-process store where `Worker` does not exist, such as a test
 /// environment, rather than failing to start.
-export function spawnWorkerClient(): WorkerClient {
-  if (typeof Worker === "undefined") return createDirectWorkerClient()
+export function spawnWorkerClient(networkFallback = false): WorkerClient {
+  const fallback = () =>
+    createDirectWorkerClient(
+      undefined,
+      networkFallback
+        ? (settings, origin) =>
+            createWorkerRpc({
+              token: settings.bearerToken ?? "",
+              ...(origin === undefined ? {} : { origin }),
+            })
+        : undefined,
+    )
+  if (typeof Worker === "undefined") return fallback()
   try {
-    return createWorkerClient(
+    const primary = createWorkerClient(
       new Worker(new URL("./entry.ts", import.meta.url), { type: "module" }),
     )
+    return networkFallback ? createFailoverWorkerClient(primary, fallback) : primary
   } catch {
     // A blocked or unsupported worker must not take the page down with it. The fallback
     // keeps nothing, and says so in its open report.
-    return createDirectWorkerClient()
+    return fallback()
   }
 }

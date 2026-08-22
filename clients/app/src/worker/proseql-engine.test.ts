@@ -112,6 +112,40 @@ describe("the real ProseQL engine", () => {
     expect(await reopened.outbox()).toHaveLength(1)
   })
 
+  test("an account switch removes old optional settings instead of patching them through", async () => {
+    const database = await open(new Map())
+    await database.writeSettings({
+      accountId: "account-1",
+      bearerToken: "token-1",
+      resumeToken: "resume-1",
+      syncNotices: [
+        {
+          id: "notice-1",
+          kind: "dropped",
+          writeId: "write-1",
+          reason: "rejected",
+        },
+      ],
+    })
+
+    await database.writeSettings({
+      accountId: "account-2",
+      accountName: "Second",
+      accountIsDefault: false,
+      accountCreatedAt: "now",
+      bearerToken: "token-2",
+      deviceId: "device-2",
+      deviceName: "Browser",
+    })
+
+    expect(await database.settings()).toMatchObject({
+      accountId: "account-2",
+      bearerToken: "token-2",
+    })
+    expect((await database.settings()).resumeToken).toBeUndefined()
+    expect((await database.settings()).syncNotices).toBeUndefined()
+  })
+
   test("updates a row in place rather than duplicating it", async () => {
     const database = await open(new Map())
     await database.putAlbum(album("album-1", 1))

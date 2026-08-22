@@ -24,8 +24,36 @@ export function ReferenceOffline() {
           <dd>{local.deviceId ?? "not minted"}</dd>
           <dt>Albums cached</dt>
           <dd>{local.albumCount}</dd>
+          <dt>Writes deferred</dt>
+          <dd>{local.lastSync?.deferred ?? 0}</dd>
         </dl>
       )}
+      {local?.notices.length === 0
+        ? local.lastSync?.conflicts.map((conflict) => (
+            <p key={`${conflict.albumId}:${conflict.kept}:${conflict.discarded}`}>
+              Conflict {conflict.albumId}: kept {conflict.kept}, discarded {conflict.discarded}
+            </p>
+          ))
+        : local?.notices
+            .filter((notice) => notice.kind === "conflict")
+            .map((notice) => (
+              <p key={notice.id}>
+                Conflict {notice.albumId}: kept {notice.kept}, discarded {notice.discarded}
+              </p>
+            ))}
+      {local?.notices.length === 0
+        ? local.lastSync?.dropped.map((entry) => (
+            <p key={entry.id}>
+              Dropped {entry.id}: {entry.reason}
+            </p>
+          ))
+        : local?.notices
+            .filter((notice) => notice.kind === "dropped")
+            .map((notice) => (
+              <p key={notice.id}>
+                Dropped {notice.writeId}: {notice.reason}
+              </p>
+            ))}
     </section>
   )
 }

@@ -4,6 +4,12 @@
 /// build, is discarded and reported rather than half-read. A client that silently renders
 /// half a database is worse than one that refetches.
 
+import { monotonicFactory } from "ulid"
+import type {
+  ListenTrackEventInput,
+  RpcPlacement,
+  RpcSessionCommand,
+} from "../../../../contracts/generated/pyxis"
 import {
   SCHEMA_ROW_ID,
   SETTINGS_ROW_ID,
@@ -17,8 +23,12 @@ import {
   type WorkerOpenReason,
   type WorkerOpenReport,
   type WorkerOutboxEntry,
+  type WorkerSession,
   type WorkerSettings,
 } from "./contract"
+import { applySessionCommand } from "./session-local"
+
+const nextOutboxId = monotonicFactory()
 
 export interface OpenOptions {
   readonly engine: WorkerEngine
@@ -115,12 +125,20 @@ async function migrate(
 }
 
 async function isEmpty(engine: WorkerEngine): Promise<boolean> {
-  const [settings, albums, outbox] = await Promise.all([
+  const [settings, albums, sessions, commandReceipts, outbox] = await Promise.all([
     engine.settings.all(),
     engine.albums.all(),
+    engine.sessions.all(),
+    engine.commandReceipts.all(),
     engine.outbox.all(),
   ])
-  return settings.length === 0 && albums.length === 0 && outbox.length === 0
+  return (
+    settings.length === 0 &&
+    albums.length === 0 &&
+    sessions.length === 0 &&
+    commandReceipts.length === 0 &&
+    outbox.length === 0
+  )
 }
 
 async function discard(options: OpenOptions, cause: unknown): Promise<void> {
@@ -133,13 +151,22 @@ async function discard(options: OpenOptions, cause: unknown): Promise<void> {
 }
 
 async function clearCollections(engine: WorkerEngine): Promise<void> {
-  for (const collection of [engine.meta, engine.settings, engine.albums, engine.outbox]) {
+  for (const collection of [
+    engine.meta,
+    engine.settings,
+    engine.albums,
+    engine.sessions,
+    engine.commandReceipts,
+    engine.outbox,
+  ]) {
     const rows = await collection.all()
     for (const row of rows) await collection.delete(row.id)
   }
 }
 
 class LocalWorkerDatabase implements WorkerDatabase {
+  private settingsMutation: Promise<void> = Promise.resolve()
+
   constructor(
     private readonly engine: WorkerEngine,
     readonly report: WorkerOpenReport,
@@ -154,7 +181,62 @@ class LocalWorkerDatabase implements WorkerDatabase {
   }
 
   async writeSettings(patch: Omit<Partial<WorkerSettings>, "id">): Promise<WorkerSettings> {
+    const request = this.settingsMutation
+      .catch(() => undefined)
+      .then(() => this.writeSettingsNow(patch))
+    this.settingsMutation = request.then(
+      () => undefined,
+      () => undefined,
+    )
+    return request
+  }
+
+  private async writeSettingsNow(
+    patch: Omit<Partial<WorkerSettings>, "id">,
+  ): Promise<WorkerSettings> {
     const current = await this.settings()
+    const changesAccount =
+      current.accountId !== undefined &&
+      patch.accountId !== undefined &&
+      current.accountId !== patch.accountId
+    if (changesAccount) {
+      if ((await this.engine.outbox.all()).length > 0) {
+        throw new Error("cannot change account while queued writes still belong to it")
+      }
+      if (
+        patch.accountName === undefined ||
+        patch.accountIsDefault === undefined ||
+        patch.accountCreatedAt === undefined ||
+        patch.deviceId === undefined ||
+        patch.deviceName === undefined ||
+        patch.bearerToken === undefined
+      ) {
+        throw new Error("changing account requires a complete account grant")
+      }
+      for (const album of await this.engine.albums.all()) {
+        await this.engine.albums.delete(album.id)
+      }
+      for (const session of await this.engine.sessions.all()) {
+        await this.engine.sessions.delete(session.id)
+      }
+      for (const receipt of await this.engine.commandReceipts.all()) {
+        await this.engine.commandReceipts.delete(receipt.id)
+      }
+      // A realtime cursor is scoped to the old account and cannot cross the boundary.
+      const {
+        resumeToken: _resumeToken,
+        syncNotices: _syncNotices,
+        ...withoutAccountLocalState
+      } = current
+      // ProseQL upsert patches optional fields. Delete first so omitted account-local fields
+      // cannot survive the switch.
+      await this.engine.settings.delete(SETTINGS_ROW_ID)
+      return this.engine.settings.upsert({
+        ...withoutAccountLocalState,
+        ...patch,
+        id: SETTINGS_ROW_ID,
+      })
+    }
     return this.engine.settings.upsert({ ...current, ...patch, id: SETTINGS_ROW_ID })
   }
 
@@ -183,8 +265,141 @@ class LocalWorkerDatabase implements WorkerDatabase {
     return this.engine.albums.upsert(album)
   }
 
+  async replaceAlbum(album: WorkerAlbum): Promise<WorkerAlbum> {
+    return this.engine.albums.upsert(album)
+  }
+
   async removeAlbum(id: string): Promise<boolean> {
     return this.engine.albums.delete(id)
+  }
+
+  async sessions(): Promise<readonly WorkerSession[]> {
+    return this.engine.sessions.all()
+  }
+
+  async session(id: string): Promise<WorkerSession | undefined> {
+    return this.engine.sessions.findById(id)
+  }
+
+  async putSession(session: WorkerSession): Promise<WorkerSession> {
+    const existing = await this.engine.sessions.findById(session.id)
+    if (existing !== undefined && existing.revision > session.revision) return existing
+    return this.engine.sessions.upsert(session)
+  }
+
+  async replaceSession(session: WorkerSession): Promise<WorkerSession> {
+    return this.engine.sessions.upsert(session)
+  }
+
+  async removeSession(id: string): Promise<boolean> {
+    return this.engine.sessions.delete(id)
+  }
+
+  async queueSessionCommand(
+    session: WorkerSession,
+    command: RpcSessionCommand,
+    commandId?: string,
+  ): Promise<WorkerSession> {
+    const current = (await this.engine.sessions.findById(session.id)) ?? session
+    const id = nextOutboxId()
+    const idempotencyKey = commandId ?? id
+    const commandIdLength = [...idempotencyKey].length
+    if (commandIdLength === 0 || commandIdLength > 128) {
+      throw new Error("command ID must contain 1 to 128 characters")
+    }
+    const fingerprint = canonicalJson(command)
+    const receiptKey = `${session.id}:${idempotencyKey}`
+    const receipt = await this.engine.commandReceipts.findById(receiptKey)
+    if (receipt !== undefined) {
+      if (receipt.sessionId === session.id && receipt.fingerprint === fingerprint) return current
+      throw new Error(`command ID ${idempotencyKey} already belongs to a different session command`)
+    }
+    const existing = (await this.engine.outbox.all()).find(
+      (entry) =>
+        entry.kind === "session.command" &&
+        entry.sessionId === session.id &&
+        entry.commandId === idempotencyKey,
+    )
+    if (existing !== undefined) {
+      if (
+        existing.kind === "session.command" &&
+        existing.sessionId === session.id &&
+        canonicalJson(existing.command) === fingerprint
+      ) {
+        const repaired =
+          current.revision <= existing.baseRevision
+            ? applySessionCommand(current, command)
+            : current
+        const stored = await this.engine.sessions.upsert(repaired)
+        await this.engine.commandReceipts.upsert({
+          id: receiptKey,
+          sessionId: session.id,
+          fingerprint,
+        })
+        return stored
+      }
+      throw new Error(`command ID ${idempotencyKey} already belongs to a different session command`)
+    }
+    const updated = applySessionCommand(current, command)
+    await this.enqueue({
+      id,
+      createdAt: new Date().toISOString(),
+      attempts: 0,
+      kind: "session.command",
+      sessionId: session.id,
+      commandId: idempotencyKey,
+      baseRevision: current.revision,
+      command,
+    })
+    const stored = await this.engine.sessions.upsert(updated)
+    await this.engine.commandReceipts.upsert({
+      id: receiptKey,
+      sessionId: session.id,
+      fingerprint,
+    })
+    return stored
+  }
+
+  async queuePlacement(album: WorkerAlbum, placement: RpcPlacement): Promise<WorkerAlbum> {
+    // A later click can carry the snapshot that was visible before an earlier write
+    // finished syncing. Keep the newest stored metadata and revision, but the newest human
+    // intent always wins locally.
+    const current = await this.engine.albums.findById(album.id)
+    // Preserve the replay record first. If storage fails between these writes, a future
+    // sync can still recover the intent. The inverse order can lose it forever.
+    await this.enqueue({
+      id: nextOutboxId(),
+      createdAt: new Date().toISOString(),
+      attempts: 0,
+      kind: "album.placement",
+      albumId: album.id,
+      placement,
+      baseRevision: album.revision,
+      basePlacement: album.placement,
+    })
+    return this.engine.albums.upsert({ ...album, ...current, placement })
+  }
+
+  async queueListen(event: ListenTrackEventInput): Promise<void> {
+    const existing = (await this.engine.outbox.all()).find(
+      (entry) => entry.kind === "listen.append" && entry.event.id === event.id,
+    )
+    if (existing !== undefined) {
+      if (
+        existing.kind === "listen.append" &&
+        canonicalJson(existing.event) === canonicalJson(event)
+      ) {
+        return
+      }
+      throw new Error(`listen ID ${event.id} already belongs to different content`)
+    }
+    await this.enqueue({
+      id: nextOutboxId(),
+      createdAt: new Date().toISOString(),
+      attempts: 0,
+      kind: "listen.append",
+      event,
+    })
   }
 
   async outbox(): Promise<readonly WorkerOutboxEntry[]> {
@@ -217,6 +432,19 @@ class LocalWorkerDatabase implements WorkerDatabase {
   }
 }
 
+function canonicalJson(value: unknown): string {
+  const canonical = (input: unknown): unknown => {
+    if (Array.isArray(input)) return input.map(canonical)
+    if (typeof input !== "object" || input === null) return input
+    return Object.fromEntries(
+      Object.entries(input)
+        .sort(([left], [right]) => left.localeCompare(right))
+        .map(([key, entry]) => [key, canonical(entry)]),
+    )
+  }
+  return JSON.stringify(canonical(value))
+}
+
 function mintDeviceId(): string {
   const bytes = new Uint8Array(16)
   crypto.getRandomValues(bytes)
@@ -232,6 +460,8 @@ export function createMemoryEngine(): WorkerEngine {
     meta: new MemoryCollection(),
     settings: new MemoryCollection(),
     albums: new MemoryCollection(),
+    sessions: new MemoryCollection(),
+    commandReceipts: new MemoryCollection(),
     outbox: new MemoryCollection(),
     close: async () => undefined,
   }

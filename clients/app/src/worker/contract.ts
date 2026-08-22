@@ -11,12 +11,14 @@ import type {
   ListenTrackEventInput,
   RpcLibraryAlbum,
   RpcPlacement,
+  RpcSession,
+  RpcSessionCommand,
 } from "../../../../contracts/generated/pyxis"
 
 /// Bumped whenever the stored shape changes. An existing database at a lower version is
 /// migrated in order. A database at a higher version belongs to a newer build, which this
 /// one cannot understand, so it is reset rather than guessed at.
-export const WORKER_SCHEMA_VERSION = 2
+export const WORKER_SCHEMA_VERSION = 6
 
 export const WORKER_DATABASE_NAME = "pyxis-worker"
 
@@ -25,6 +27,12 @@ export const SCHEMA_ROW_ID = "schema"
 
 /// One row. A device has exactly one identity and one set of credentials.
 export const SETTINGS_ROW_ID = "device"
+
+export interface WorkerCommandReceipt {
+  readonly id: string
+  readonly sessionId: string
+  readonly fingerprint: string
+}
 
 export interface WorkerSchemaRow {
   readonly id: string
@@ -36,23 +44,45 @@ export interface WorkerSchemaRow {
 /// The bearer token lives here because a PWA has to survive a reload without asking the
 /// person to pair again. It is device-local storage on a device they already unlocked, and
 /// it is exactly as sensitive as the session it represents. It is never synced.
+export type WorkerSyncNotice =
+  | {
+      readonly id: string
+      readonly kind: "conflict"
+      readonly albumId: string
+      readonly kept: RpcPlacement | "removed"
+      readonly discarded: RpcPlacement
+    }
+  | {
+      readonly id: string
+      readonly kind: "dropped"
+      readonly writeId: string
+      readonly reason: string
+    }
+
 export interface WorkerSettings {
   readonly id: string
   readonly deviceId?: string
   readonly accountId?: string
+  readonly accountName?: string
+  readonly accountIsDefault?: boolean
+  readonly accountCreatedAt?: string
+  readonly deviceName?: string
   readonly bearerToken?: string
   /// Opaque realtime cursor. Persisted so a reload resumes instead of refetching.
   readonly resumeToken?: string
+  /// Durable user-visible outcomes. Bounded to the newest 100 notices.
+  readonly syncNotices?: readonly WorkerSyncNotice[]
 }
 
 export type WorkerAlbum = RpcLibraryAlbum & { readonly id: string }
+export type WorkerSession = RpcSession & { readonly id: string }
 
 /// A write made locally that the server has not accepted yet.
 ///
 /// Queued writes are the only data on a device that exists nowhere else, so they are the
 /// one thing sync may never drop silently.
 export type WorkerOutboxEntry = {
-  /// ULID. Sorts in creation order, and doubles as the idempotency key for listen events.
+  /// Monotonic local ULID. Sorts in creation order and never trusts a public ID to do so.
   readonly id: string
   readonly createdAt: string
   readonly attempts: number
@@ -70,6 +100,14 @@ export type WorkerOutboxEntry = {
   | {
       readonly kind: "listen.append"
       readonly event: ListenTrackEventInput
+    }
+  | {
+      readonly kind: "session.command"
+      readonly sessionId: string
+      /// Idempotency key sent to the core. Separate from the monotonic local queue key.
+      readonly commandId: string
+      readonly baseRevision: number
+      readonly command: RpcSessionCommand
     }
 )
 
@@ -123,7 +161,25 @@ export interface WorkerDatabase {
   replaceAlbums(albums: readonly WorkerAlbum[]): Promise<void>
   /// Insert or update one album, keeping the higher revision.
   putAlbum(album: WorkerAlbum): Promise<WorkerAlbum>
+  /// Store a server verdict even when it rolls back optimistic local state.
+  replaceAlbum(album: WorkerAlbum): Promise<WorkerAlbum>
   removeAlbum(id: string): Promise<boolean>
+  sessions(): Promise<readonly WorkerSession[]>
+  session(id: string): Promise<WorkerSession | undefined>
+  putSession(session: WorkerSession): Promise<WorkerSession>
+  /// Store a server verdict even when it rolls back an optimistic local revision.
+  replaceSession(session: WorkerSession): Promise<WorkerSession>
+  removeSession(id: string): Promise<boolean>
+  /// Apply a session command immediately and preserve it for idempotent replay.
+  queueSessionCommand(
+    session: WorkerSession,
+    command: RpcSessionCommand,
+    commandId?: string,
+  ): Promise<WorkerSession>
+  /// Apply a placement immediately and preserve the write for the next sync.
+  queuePlacement(album: WorkerAlbum, placement: RpcPlacement): Promise<WorkerAlbum>
+  /// Preserve one completed listen for idempotent replay.
+  queueListen(event: ListenTrackEventInput): Promise<void>
   /// Queued writes in creation order.
   outbox(): Promise<readonly WorkerOutboxEntry[]>
   enqueue(entry: WorkerOutboxEntry): Promise<WorkerOutboxEntry>
@@ -149,6 +205,8 @@ export interface WorkerEngine {
   readonly meta: WorkerCollection<WorkerSchemaRow>
   readonly settings: WorkerCollection<WorkerSettings>
   readonly albums: WorkerCollection<WorkerAlbum>
+  readonly sessions: WorkerCollection<WorkerSession>
+  readonly commandReceipts: WorkerCollection<WorkerCommandReceipt>
   readonly outbox: WorkerCollection<WorkerOutboxEntry>
   close(): Promise<void>
 }
@@ -164,4 +222,14 @@ export const WORKER_MIGRATIONS: WorkerMigrations = {
   /// step exists to say that explicitly. A missing entry would reset the database and
   /// throw away exactly the queued writes the outbox is for.
   2: async () => undefined,
+  /// Version 3 persists the full account grant so a reload reuses its device token instead
+  /// of claiming a new device. The new settings fields are optional, so old rows need no
+  /// rewrite.
+  3: async () => undefined,
+  /// Version 4 adds device-hosted session snapshots and their offline command outbox.
+  4: async () => undefined,
+  /// Version 5 persists conflict and rejected-write notices across reloads.
+  5: async () => undefined,
+  /// Version 6 keeps directive IDs after their outbox entries drain.
+  6: async () => undefined,
 }

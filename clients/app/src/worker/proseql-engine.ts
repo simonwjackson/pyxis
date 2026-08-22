@@ -14,9 +14,11 @@ import {
   WORKER_DATABASE_NAME,
   type WorkerAlbum,
   type WorkerCollection,
+  type WorkerCommandReceipt,
   type WorkerEngine,
   type WorkerOutboxEntry,
   type WorkerSchemaRow,
+  type WorkerSession,
   type WorkerSettings,
 } from "./contract"
 
@@ -33,8 +35,13 @@ const SettingsSchema = Schema.Struct({
   id: Schema.String,
   deviceId: Schema.optional(Schema.String),
   accountId: Schema.optional(Schema.String),
+  accountName: Schema.optional(Schema.String),
+  accountIsDefault: Schema.optional(Schema.Boolean),
+  accountCreatedAt: Schema.optional(Schema.String),
+  deviceName: Schema.optional(Schema.String),
   bearerToken: Schema.optional(Schema.String),
   resumeToken: Schema.optional(Schema.String),
+  syncNotices: Schema.optional(Schema.Unknown),
 })
 
 /// The album body is stored opaquely. Its shape is owned by the server contract, and
@@ -47,6 +54,18 @@ const AlbumSchema = Schema.Struct({
 
 /// Queued writes are stored opaquely too. Their shape is a union owned by the worker
 /// contract, and the engine only needs to find them in order.
+const SessionSchema = Schema.Struct({
+  id: Schema.String,
+  revision: Schema.Number,
+  body: Schema.Unknown,
+})
+
+const CommandReceiptSchema = Schema.Struct({
+  id: Schema.String,
+  sessionId: Schema.String,
+  fingerprint: Schema.String,
+})
+
 const OutboxSchema = Schema.Struct({
   id: Schema.String,
   kind: Schema.String,
@@ -57,6 +76,12 @@ const config = {
   meta: { schema: MetaSchema, file: "./pyxis/meta.json", relationships: {} },
   settings: { schema: SettingsSchema, file: "./pyxis/settings.json", relationships: {} },
   albums: { schema: AlbumSchema, file: "./pyxis/albums.json", relationships: {} },
+  sessions: { schema: SessionSchema, file: "./pyxis/sessions.json", relationships: {} },
+  commandReceipts: {
+    schema: CommandReceiptSchema,
+    file: "./pyxis/command-receipts.json",
+    relationships: {},
+  },
   outbox: { schema: OutboxSchema, file: "./pyxis/outbox.json", relationships: {} },
 } as const
 
@@ -103,7 +128,7 @@ export async function createProseqlEngine(
 
   const database = await createServiceWorkerEngineDatabase(
     config,
-    { meta: [], settings: [], albums: [], outbox: [] },
+    { meta: [], settings: [], albums: [], sessions: [], commandReceipts: [], outbox: [] },
     { storageHost, writeDebounce: 0 } as never,
   )
 
@@ -116,6 +141,11 @@ export async function createProseqlEngine(
       id: album.id,
       revision: album.revision,
     })),
+    sessions: wrapped<WorkerSession>(raw.sessions, (session) => ({
+      id: session.id,
+      revision: session.revision,
+    })),
+    commandReceipts: adapt<WorkerCommandReceipt>(raw.commandReceipts),
     outbox: wrapped<WorkerOutboxEntry>(raw.outbox, (entry) => ({
       id: entry.id,
       kind: entry.kind,
@@ -128,7 +158,14 @@ export async function createProseqlEngine(
   return {
     engine,
     clear: async () => {
-      for (const collection of [raw.meta, raw.settings, raw.albums, raw.outbox]) {
+      for (const collection of [
+        raw.meta,
+        raw.settings,
+        raw.albums,
+        raw.sessions,
+        raw.commandReceipts,
+        raw.outbox,
+      ]) {
         for (const row of plain<{ id: string }[]>(await collection.query())) {
           await optional(() => collection.delete(row.id))
         }
@@ -174,6 +211,8 @@ interface RawEngine {
   readonly meta: RawCollection
   readonly settings: RawCollection
   readonly albums: RawCollection
+  readonly sessions: RawCollection
+  readonly commandReceipts: RawCollection
   readonly outbox: RawCollection
   close?(): Promise<void>
 }

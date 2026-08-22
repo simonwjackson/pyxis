@@ -129,6 +129,7 @@ Settled. Do not re-open without the user asking.
 | D14 | The Rust contract module is the protocol source of truth, with typeshare and schemars codegen | One definition produces TypeScript types and a JSON Schema. The schema is the runtime trust boundary, mirroring the reference projects |
 | D15 | The core owns a local media store and local-file playback | Soulseek downloads are local files, so local playback is a core capability rather than a plugin concern |
 | D16 | The client worker data plane is in scope; the UI above it is not | Offline correctness is a distributed-systems problem, not a design problem. The design model consumes a documented worker API |
+| D17 | Server album removal wins over queued offline placement intent, with an explicit conflict report | A placement cannot recreate a removed album. Keeping a stale copy wedges convergence; dropping the local change silently hides data loss |
 
 ---
 
@@ -918,14 +919,20 @@ of any share configuration. Upgrades appear without any client-visible action.
 **Dependencies:** U20, U9
 
 **Files:**
-- Create: `clients/app/src/worker/sync.ts`, `clients/app/src/worker/listen-sync.ts`, `clients/app/src/worker/conflict.ts`, `clients/app/src/rpc/client.ts`
+- Create: `clients/app/src/worker/sync.ts`, `clients/app/src/worker/listen-sync.ts`, `clients/app/src/worker/conflict.ts`, `clients/app/src/worker/session-local.ts`, `clients/app/src/rpc/client.ts`
+- Modify: `clients/app/src/reference/App.tsx`, `services/pyxis/src/rpc/contract.rs`, `services/pyxis/src/sessions/mod.rs`
 
 **Approach:**
 - Per-domain revision gates drive pulls. Writes queue locally and replay on reconnect.
 - Merge rules follow the `Sync domains` table exactly.
 - The service worker cannot depend on the page's validator bundle, so it re-validates the
   shapes it consumes by hand, exactly as ossicle does at the same boundary.
-- Listen events batch on reconnect and are idempotent by ULID.
+- Listen events batch on reconnect and are idempotent by public event id.
+- Device-hosted session commands queue locally and replay with a separate monotonic outbox id
+  plus a public `commandId`. Core receipts bind each command id to its content, so a lost
+  response cannot duplicate `queue.add`.
+- Realtime cursors persist only after the worker has stored the state they cover.
+- Server album removal follows D17. Conflict and rejected-write notices persist locally.
 
 **Test scenarios:**
 - Happy path: an offline placement change replays on reconnect.
@@ -933,7 +940,9 @@ of any share configuration. Upgrades appear without any client-visible action.
 - Edge case: replaying the same queued write twice produces one result.
 - Edge case: a conflicting two-device edit resolves to the documented outcome and is reported.
 - Edge case: a partially failed batch retries only the failed remainder.
-- Error path: a malformed server response is rejected at the trust boundary.
+- Edge case: removing an album elsewhere discards queued placement intent and reports it.
+- Edge case: replaying one session `commandId` with different content is rejected.
+- Error path: a malformed or uncertain server response stays retryable at the trust boundary.
 - Integration: a full offline session of queue edits and listens reconciles correctly.
 
 **Verification:** Property test proves offline replay is idempotent.

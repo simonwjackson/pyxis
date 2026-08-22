@@ -1,20 +1,42 @@
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { afterEach, describe, expect, test, vi } from "vitest"
 import {
+  type RealtimeEvent,
+  type RpcLibraryAlbum,
   RpcPlacement,
+  RpcRealtimeTopic,
   type RpcSession,
   type RpcSessionDirective,
+  RpcTransport,
 } from "../../../../contracts/generated/pyxis"
-import { createDirectWorkerClient } from "../worker/client.ts"
+import { RpcError, type WorkerRpc } from "../rpc/client.ts"
+import { createDirectWorkerClient, type WorkerClient } from "../worker/client.ts"
+import { createMemoryEngine, openWorkerDatabase } from "../worker/database.ts"
+import { sync as runWorkerSync } from "../worker/sync.ts"
 import { ReferenceApp } from "./App.tsx"
 import type { ReferenceClient } from "./api.ts"
 import { ReferenceConsole } from "./Console.tsx"
 import { ReferenceLibrary } from "./Library.tsx"
 import { ReferenceOffline } from "./Offline.tsx"
+import { ReferencePlugins } from "./Plugins.tsx"
 import { ReferenceAudio } from "./ReferenceAudio.tsx"
 import { ReferenceRemote } from "./Remote.tsx"
 import { ReferenceSessions } from "./Sessions.tsx"
 import { ReferenceUpdate } from "./Update.tsx"
+
+function album(overrides: Partial<RpcLibraryAlbum> = {}): RpcLibraryAlbum {
+  return {
+    id: "album-1",
+    title: "Heroes",
+    artist: "David Bowie",
+    placement: RpcPlacement.Discovery,
+    placementUpdatedAt: "now",
+    addedAt: "now",
+    revision: 1,
+    tracks: [],
+    ...overrides,
+  }
+}
 
 function session(overrides: Partial<RpcSession> = {}): RpcSession {
   return {
@@ -43,6 +65,16 @@ Object.defineProperty(HTMLMediaElement.prototype, "pause", {
   configurable: true,
   value: () => {},
 })
+
+function persistent(worker: WorkerClient): WorkerClient {
+  return {
+    ...worker,
+    open: async () => {
+      const { ephemeral: _, ...report } = await worker.open()
+      return report
+    },
+  }
+}
 
 function client(plugins: Awaited<ReturnType<ReferenceClient["listPlugins"]>>): ReferenceClient {
   return {
@@ -130,8 +162,14 @@ describe("local store", () => {
       })
     }
 
+    const offline: ReferenceClient = {
+      ...client([]),
+      claimDevice: async () => {
+        throw new Error("offline")
+      },
+    }
     render(
-      <ReferenceApp client={client([])} worker={store}>
+      <ReferenceApp client={offline} worker={store}>
         <ReferenceOffline />
       </ReferenceApp>,
     )
@@ -142,7 +180,162 @@ describe("local store", () => {
     expect(screen.getByText("false")).toBeTruthy()
   })
 
-  test("a network failure at boot still leaves the local store usable", async () => {
+  test("an ephemeral no-worker fallback still reads the online library", async () => {
+    const configured: ReferenceClient = {
+      ...client([]),
+      listAlbums: async () => [album()],
+    }
+
+    render(
+      <ReferenceApp client={configured} worker={createDirectWorkerClient()}>
+        <ReferenceLibrary />
+      </ReferenceApp>,
+    )
+
+    await waitFor(() => expect(screen.getByText(/Heroes/)).toBeTruthy())
+  })
+
+  test("online boot gives credentials to the worker and reads its synced library", async () => {
+    const base = createDirectWorkerClient()
+    const sync = vi.fn(async () => {
+      const settings = await base.settings()
+      expect(settings).toMatchObject({
+        accountId: "default",
+        bearerToken: "token",
+        deviceId: "device-1",
+      })
+      await base.replaceAlbums([album()])
+      return {
+        pulled: 1,
+        pushed: 0,
+        converged: 0,
+        dropped: [],
+        deferred: 0,
+        conflicts: [],
+        offline: false,
+        authRequired: false,
+      }
+    })
+    const store = { ...base, sync }
+    const configured: ReferenceClient = {
+      ...client([]),
+      // Library data belongs to the worker. The page must not bypass it.
+      listAlbums: async () => {
+        throw new Error("page bypassed the worker")
+      },
+    }
+
+    render(
+      <ReferenceApp client={configured} worker={store}>
+        <ReferenceLibrary />
+        <ReferenceOffline />
+      </ReferenceApp>,
+    )
+
+    await waitFor(() => expect(screen.getByText(/Heroes/)).toBeTruthy())
+    expect(screen.getByText("1")).toBeTruthy()
+    expect(sync).toHaveBeenCalledTimes(1)
+  })
+
+  test("shows conflicts and rejected writes from the last sync", async () => {
+    const base = createDirectWorkerClient()
+    const store = {
+      ...base,
+      sync: async () => ({
+        pulled: 1,
+        pushed: 0,
+        converged: 1,
+        dropped: [{ id: "01DROP", reason: "album no longer exists" }],
+        deferred: 0,
+        conflicts: [
+          {
+            albumId: "album-1",
+            kept: RpcPlacement.Archive,
+            discarded: RpcPlacement.Collection,
+          },
+        ],
+        offline: false,
+        authRequired: false,
+      }),
+    }
+
+    render(
+      <ReferenceApp client={client([])} worker={store}>
+        <ReferenceOffline />
+      </ReferenceApp>,
+    )
+
+    await waitFor(() => expect(screen.getByText(/album-1.*archive.*collection/)).toBeTruthy())
+    expect(screen.getByText(/01DROP.*album no longer exists/)).toBeTruthy()
+  })
+
+  test("reload reuses the persisted account grant instead of claiming another device", async () => {
+    const base = createDirectWorkerClient()
+    await base.writeSettings({
+      accountId: "default",
+      accountName: "default",
+      accountIsDefault: true,
+      accountCreatedAt: "now",
+      deviceId: "device-1",
+      deviceName: "reference browser",
+      bearerToken: "token",
+    })
+    const sync = vi.fn(base.sync)
+    const store = { ...base, sync }
+    const claimDevice = vi.fn(async () => {
+      throw new Error("claim must not run on reload")
+    })
+    const configured: ReferenceClient = { ...client([]), claimDevice }
+
+    render(
+      <ReferenceApp client={configured} worker={store}>
+        <ReferenceSessions />
+      </ReferenceApp>,
+    )
+
+    await waitFor(() => expect(screen.getByText(/Account: default/)).toBeTruthy())
+    expect(claimDevice).not.toHaveBeenCalled()
+    expect(sync).toHaveBeenCalledTimes(1)
+  })
+
+  test("an online event retries account boot after an offline first load", async () => {
+    let claims = 0
+    const claimDevice = vi.fn(async () => {
+      claims += 1
+      if (claims === 1) throw new Error("offline")
+      return client([]).claimDevice("reference browser")
+    })
+    const configured: ReferenceClient = { ...client([]), claimDevice }
+
+    render(
+      <ReferenceApp client={configured} worker={createDirectWorkerClient()}>
+        <ReferenceSessions />
+      </ReferenceApp>,
+    )
+    await waitFor(() => expect(claimDevice).toHaveBeenCalledTimes(1))
+
+    window.dispatchEvent(new Event("online"))
+
+    await waitFor(() => expect(screen.getByText(/Account: default/)).toBeTruthy())
+    expect(claimDevice).toHaveBeenCalledTimes(2)
+  })
+
+  test("an online event retries worker sync", async () => {
+    const base = createDirectWorkerClient()
+    const sync = vi.fn(base.sync)
+    const store = { ...base, sync }
+
+    render(<ReferenceApp client={client([])} worker={store} />)
+    await waitFor(() => expect(sync).toHaveBeenCalledTimes(1))
+
+    window.dispatchEvent(new Event("online"))
+
+    await waitFor(() => expect(sync).toHaveBeenCalledTimes(2))
+  })
+
+  test("a network failure at boot renders the library already in the local store", async () => {
+    const store = createDirectWorkerClient()
+    await store.putAlbum(album())
     const offline: ReferenceClient = {
       ...client([]),
       claimDevice: async () => {
@@ -151,12 +344,14 @@ describe("local store", () => {
     }
 
     render(
-      <ReferenceApp client={offline} worker={createDirectWorkerClient()}>
+      <ReferenceApp client={offline} worker={store}>
+        <ReferenceLibrary />
         <ReferenceOffline />
       </ReferenceApp>,
     )
 
-    await waitFor(() => expect(screen.getByText("created")).toBeTruthy())
+    await waitFor(() => expect(screen.getByText(/Heroes/)).toBeTruthy())
+    expect(screen.getByText("1")).toBeTruthy()
   })
 })
 
@@ -205,30 +400,19 @@ describe("console mode", () => {
 
   test("resuming after a pause does not reload the track", async () => {
     const loads: string[] = []
-    let transport: RpcSession["transport"] = "stopped"
+    const database = await openWorkerDatabase({ engine: createMemoryEngine() })
+    await database.putSession(
+      session({
+        id: "mine",
+        hostDeviceId: "device-1",
+        queue: ["track-1"],
+        cursor: 0,
+        currentTrackId: "track-1",
+      }),
+    )
+    const store = persistent(createDirectWorkerClient(async () => database))
     const configured: ReferenceClient = {
       ...client([]),
-      listSessions: async () => [
-        session({
-          id: "mine",
-          hostDeviceId: "device-1",
-          queue: ["track-1"],
-          cursor: 0,
-          currentTrackId: "track-1",
-        }),
-      ],
-      command: async (_token, _sessionId, command) => {
-        if (command._tag === "transport.play") transport = "playing"
-        if (command._tag === "transport.pause") transport = "paused"
-        return session({
-          id: "mine",
-          hostDeviceId: "device-1",
-          queue: ["track-1"],
-          cursor: 0,
-          currentTrackId: "track-1",
-          transport,
-        })
-      },
       loadStream: async (_token, trackId) => {
         loads.push(trackId)
         return `blob:${trackId}`
@@ -236,7 +420,7 @@ describe("console mode", () => {
     }
 
     render(
-      <ReferenceApp client={configured}>
+      <ReferenceApp client={configured} worker={store}>
         <ReferenceConsole />
       </ReferenceApp>,
     )
@@ -245,59 +429,43 @@ describe("console mode", () => {
     fireEvent.click(screen.getByRole("button", { name: "Play" }))
     await waitFor(() => expect(loads).toEqual(["track-1"]))
     fireEvent.click(screen.getByRole("button", { name: "Pause" }))
-    await waitFor(() => expect(transport).toBe("paused"))
+    await waitFor(async () =>
+      expect((await database.session("mine"))?.transport).toBe(RpcTransport.Paused),
+    )
     fireEvent.click(screen.getByRole("button", { name: "Play" }))
-    await waitFor(() => expect(transport).toBe("playing"))
+    await waitFor(async () =>
+      expect((await database.session("mine"))?.transport).toBe(RpcTransport.Playing),
+    )
 
     expect(loads).toEqual(["track-1"])
   })
 
-  test("reports the paused position and resumes there after a reload", async () => {
-    const commands: { tag: string; positionMs?: number }[] = []
-    let transport: RpcSession["transport"] = "playing"
-    let positionMs = 0
+  test("records the paused position in the offline session outbox", async () => {
+    const database = await openWorkerDatabase({ engine: createMemoryEngine() })
+    await database.putSession(
+      session({
+        id: "mine",
+        hostDeviceId: "device-1",
+        queue: ["track-1"],
+        cursor: 0,
+        currentTrackId: "track-1",
+        transport: RpcTransport.Playing,
+        positionMs: 45_000,
+      }),
+    )
+    const store = persistent(createDirectWorkerClient(async () => database))
     const configured: ReferenceClient = {
       ...client([]),
-      listSessions: async () => [
-        session({
-          id: "mine",
-          hostDeviceId: "device-1",
-          queue: ["track-1"],
-          cursor: 0,
-          currentTrackId: "track-1",
-          transport: "playing",
-          positionMs: 45_000,
-        }),
-      ],
-      command: async (_token, _sessionId, command) => {
-        commands.push({
-          tag: command._tag,
-          ...(command._tag === "position.report" ? { positionMs: command.payload.positionMs } : {}),
-        })
-        if (command._tag === "transport.pause") transport = "paused"
-        if (command._tag === "position.report") positionMs = command.payload.positionMs
-        return session({
-          id: "mine",
-          hostDeviceId: "device-1",
-          queue: ["track-1"],
-          cursor: 0,
-          currentTrackId: "track-1",
-          transport,
-          positionMs,
-          revision: commands.length + 1,
-        })
-      },
       loadStream: async () => "blob:track-1",
     }
 
     render(
-      <ReferenceApp client={configured}>
+      <ReferenceApp client={configured} worker={store}>
         <ReferenceConsole />
         <ReferenceAudio />
       </ReferenceApp>,
     )
 
-    // The session is already playing, so the host loads and seeks to where it was.
     const audio = await waitFor(() => {
       const element = document.querySelector("audio")
       if (element === null) throw new Error("audio element not mounted")
@@ -308,72 +476,162 @@ describe("console mode", () => {
     audio.currentTime = 61
     fireEvent.click(screen.getByRole("button", { name: "Pause" }))
 
-    await waitFor(() =>
-      expect(commands).toEqual([
-        { tag: "transport.pause" },
-        { tag: "position.report", positionMs: 61_000 },
-      ]),
-    )
+    await waitFor(async () => expect(await database.outbox()).toHaveLength(2))
+    expect(await database.outbox()).toMatchObject([
+      { kind: "session.command", command: { _tag: "transport.pause" } },
+      {
+        kind: "session.command",
+        command: { _tag: "position.report", payload: { positionMs: 61_000 } },
+      },
+    ])
+    expect(await database.session("mine")).toMatchObject({
+      transport: RpcTransport.Paused,
+      positionMs: 61_000,
+    })
   })
 
-  test("queues a whole library album in one command", async () => {
-    const queued: string[][] = []
+  test("queues a whole library album in one offline command", async () => {
+    const database = await openWorkerDatabase({ engine: createMemoryEngine() })
+    const store = persistent(createDirectWorkerClient(async () => database))
+    await store.putAlbum(
+      album({
+        tracks: [
+          { id: "track-1", title: "Beauty", artist: "David Bowie", trackNumber: 1, revision: 1 },
+          { id: "track-2", title: "Heroes", artist: "David Bowie", trackNumber: 2, revision: 1 },
+        ],
+      }),
+    )
     const configured: ReferenceClient = {
       ...client([]),
-      listAlbums: async () => [
-        {
-          id: "album-1",
-          title: "Heroes",
-          artist: "David Bowie",
-          placement: RpcPlacement.Discovery,
-          placementUpdatedAt: "now",
-          addedAt: "now",
-          revision: 1,
-          tracks: [
-            { id: "track-1", title: "Beauty", artist: "David Bowie", trackNumber: 1, revision: 1 },
-            { id: "track-2", title: "Heroes", artist: "David Bowie", trackNumber: 2, revision: 1 },
-          ],
-        },
-      ],
       createSession: async () => session({ id: "mine", hostDeviceId: "device-1" }),
-      command: async (_token, _sessionId, command) => {
-        if (command._tag === "queue.add") queued.push(command.payload.trackIds)
-        return session({ id: "mine", hostDeviceId: "device-1" })
-      },
     }
 
     render(
-      <ReferenceApp client={configured}>
+      <ReferenceApp client={configured} worker={store}>
         <ReferenceLibrary />
       </ReferenceApp>,
     )
     await waitFor(() => expect(screen.getByRole("button", { name: "Queue album" })).toBeTruthy())
     fireEvent.click(screen.getByRole("button", { name: "Queue album" }))
 
-    await waitFor(() => expect(queued).toEqual([["track-1", "track-2"]]))
+    await waitFor(async () =>
+      expect((await database.session("mine"))?.queue).toEqual(["track-1", "track-2"]),
+    )
+    expect(await database.outbox()).toMatchObject([
+      {
+        kind: "session.command",
+        command: { _tag: "queue.add", payload: { trackIds: ["track-1", "track-2"] } },
+      },
+    ])
   })
 
-  test("refetches instead of patching when the server dropped missed events", async () => {
-    let resync: (() => void) | undefined
-    let albumCalls = 0
+  test("a stale realtime album cannot overwrite queued local intent", async () => {
+    let deliver: ((event: RealtimeEvent) => void | Promise<void>) | undefined
+    const database = await openWorkerDatabase({ engine: createMemoryEngine() })
+    await database.putAlbum(album())
+    const store = persistent(createDirectWorkerClient(async () => database))
+    const configured: ReferenceClient = {
+      ...client([]),
+      connectRealtime: (_token, handlers) => {
+        deliver = handlers.onEvent
+        return () => {}
+      },
+    }
+
+    render(
+      <ReferenceApp client={configured} worker={store}>
+        <ReferenceLibrary />
+      </ReferenceApp>,
+    )
+    await waitFor(() => expect(screen.getByText(/discovery — revision 1/)).toBeTruthy())
+    fireEvent.click(screen.getByRole("button", { name: "collection" }))
+    await waitFor(async () => expect(await database.outbox()).toHaveLength(1))
+
+    await act(async () => {
+      await deliver?.({
+        topic: RpcRealtimeTopic.Library,
+        resumeToken: "resume-1",
+        state: { _tag: "library.album.state", payload: album() },
+      })
+    })
+
+    expect(screen.getByText(/collection — revision 1/)).toBeTruthy()
+    expect((await database.album("album-1"))?.placement).toBe(RpcPlacement.Collection)
+  })
+
+  test("a realtime removal resolves queued placement intent as a conflict", async () => {
+    let deliver: ((event: RealtimeEvent) => void | Promise<void>) | undefined
+    let removed = false
+    const database = await openWorkerDatabase({ engine: createMemoryEngine() })
+    const remote = album()
+    const rpc: WorkerRpc = {
+      listAlbums: async () => (removed ? [] : [remote]),
+      listSessions: async () => [],
+      runSessionCommand: async () => undefined,
+      setPlacement: async () => {
+        throw new RpcError("offline", true)
+      },
+      appendListen: async () => ({ accepted: 0, duplicates: 0 }),
+    }
+    const base = createDirectWorkerClient(async () => database)
+    const store = persistent({ ...base, sync: async () => runWorkerSync(database, rpc) })
+    const configured: ReferenceClient = {
+      ...client([]),
+      connectRealtime: (_token, handlers) => {
+        deliver = handlers.onEvent
+        return () => {}
+      },
+    }
+
+    render(
+      <ReferenceApp client={configured} worker={store}>
+        <ReferenceLibrary />
+        <ReferenceOffline />
+      </ReferenceApp>,
+    )
+    await waitFor(() => expect(screen.getByText(/discovery — revision 1/)).toBeTruthy())
+    fireEvent.click(screen.getByRole("button", { name: "collection" }))
+    await waitFor(async () => expect(await database.outbox()).toHaveLength(1))
+
+    removed = true
+    await act(async () => {
+      await deliver?.({
+        topic: RpcRealtimeTopic.Library,
+        resumeToken: "resume-2",
+        state: { _tag: "library.album.removed", payload: { id: "album-1" } },
+      })
+    })
+
+    await waitFor(() => expect(screen.queryByText(/Heroes/)).toBeNull())
+    expect(await database.outbox()).toEqual([])
+    expect(screen.getByText(/album-1.*removed.*collection/)).toBeTruthy()
+  })
+
+  test("refetches through the worker when the server dropped missed events", async () => {
+    let resync: (() => void | Promise<void>) | undefined
+    let syncCalls = 0
+    const base = createDirectWorkerClient()
+    const store = {
+      ...base,
+      sync: async () => {
+        syncCalls += 1
+        if (syncCalls > 1) await base.putAlbum(album())
+        return {
+          pulled: syncCalls > 1 ? 1 : 0,
+          pushed: 0,
+          converged: 0,
+          dropped: [],
+          deferred: 0,
+          conflicts: [],
+          offline: false,
+          authRequired: false,
+        }
+      },
+    }
     const configured: ReferenceClient = {
       ...client([]),
       listAlbums: async () => {
-        albumCalls += 1
-        return albumCalls === 1
-          ? []
-          : [
-              {
-                id: "album-1",
-                title: "Heroes",
-                artist: "David Bowie",
-                placement: RpcPlacement.Discovery,
-                placementUpdatedAt: "now",
-                addedAt: "now",
-                revision: 1,
-                tracks: [],
-              },
-            ]
+        throw new Error("page bypassed the worker")
       },
       connectRealtime: (_token, handlers) => {
         resync = handlers.onResync
@@ -382,38 +640,80 @@ describe("console mode", () => {
     }
 
     render(
-      <ReferenceApp client={configured}>
+      <ReferenceApp client={configured} worker={store}>
         <ReferenceLibrary />
       </ReferenceApp>,
     )
     await waitFor(() => expect(resync).toBeTypeOf("function"))
 
     await act(async () => {
-      resync?.()
-      await Promise.resolve()
+      await resync?.()
     })
 
     await waitFor(() => expect(screen.getByText(/Heroes/)).toBeTruthy())
   })
 
-  test("applies a directive from a console exactly once", async () => {
-    const applied: string[] = []
-    let deliver: ((directive: RpcSessionDirective) => void) | undefined
+  test("realtime resync keeps a queued hosted-session command", async () => {
+    let resync: (() => void | Promise<void>) | undefined
+    const database = await openWorkerDatabase({ engine: createMemoryEngine() })
+    const original = session({ id: "mine", hostDeviceId: "device-1" })
+    await database.putSession(original)
+    await database.queueSessionCommand(original, {
+      _tag: "queue.add",
+      payload: { trackIds: ["track-1"] },
+    })
+    const store = persistent(createDirectWorkerClient(async () => database))
+    const listSessions = vi.fn(async () => {
+      throw new Error("page bypassed the worker")
+    })
     const configured: ReferenceClient = {
       ...client([]),
-      listSessions: async () => [session({ id: "mine", hostDeviceId: "device-1" })],
+      listSessions,
       connectRealtime: (_token, handlers) => {
-        deliver = handlers.onDirective
+        resync = handlers.onResync
         return () => {}
-      },
-      command: async (_token, sessionId, command) => {
-        applied.push(`${sessionId}:${command._tag}`)
-        return session({ id: sessionId, hostDeviceId: "device-1", transport: "paused" })
       },
     }
 
     render(
-      <ReferenceApp client={configured}>
+      <ReferenceApp client={configured} worker={store}>
+        <ReferenceSessions />
+      </ReferenceApp>,
+    )
+    await waitFor(() => expect(screen.getAllByText("track-1").length).toBe(2))
+
+    await act(async () => {
+      await resync?.()
+    })
+
+    await waitFor(() => expect(screen.getAllByText("track-1").length).toBe(2))
+    expect(listSessions).not.toHaveBeenCalled()
+  })
+
+  test("applies a directive from a console exactly once", async () => {
+    let deliver: ((directive: RpcSessionDirective) => void) | undefined
+    const database = await openWorkerDatabase({ engine: createMemoryEngine() })
+    await database.putSession(
+      session({
+        id: "mine",
+        hostDeviceId: "device-1",
+        queue: ["track-1"],
+        cursor: 0,
+        currentTrackId: "track-1",
+        transport: RpcTransport.Playing,
+      }),
+    )
+    const store = persistent(createDirectWorkerClient(async () => database))
+    const configured: ReferenceClient = {
+      ...client([]),
+      connectRealtime: (_token, handlers) => {
+        deliver = handlers.onDirective
+        return () => {}
+      },
+    }
+
+    render(
+      <ReferenceApp client={configured} worker={store}>
         <ReferenceSessions />
       </ReferenceApp>,
     )
@@ -425,14 +725,64 @@ describe("console mode", () => {
       issuedBy: "device-2",
       directiveId: "directive-1",
     }
-    await act(async () => {
+    act(() => {
       deliver?.(directive)
-      // A reconnect can redeliver the same directive.
       deliver?.(directive)
-      await Promise.resolve()
     })
 
-    await waitFor(() => expect(applied).toEqual(["mine:transport.pause"]))
+    await waitFor(async () => expect(await database.outbox()).toHaveLength(1))
+    expect(await database.outbox()).toMatchObject([
+      {
+        kind: "session.command",
+        commandId: "directive-1",
+        command: { _tag: "transport.pause" },
+      },
+    ])
+  })
+
+  test("retries a directive whose first local write failed", async () => {
+    let deliver: ((directive: RpcSessionDirective) => void) | undefined
+    const base = persistent(createDirectWorkerClient())
+    await base.putSession(
+      session({
+        id: "mine",
+        hostDeviceId: "device-1",
+        queue: ["track-1"],
+        cursor: 0,
+        currentTrackId: "track-1",
+        transport: RpcTransport.Playing,
+      }),
+    )
+    let attempts = 0
+    const store = {
+      ...base,
+      queueSessionCommand: async (...args: Parameters<WorkerClient["queueSessionCommand"]>) => {
+        attempts += 1
+        if (attempts === 1) throw new Error("quota exceeded")
+        return base.queueSessionCommand(...args)
+      },
+    }
+    const configured: ReferenceClient = {
+      ...client([]),
+      connectRealtime: (_token, handlers) => {
+        deliver = handlers.onDirective
+        return () => {}
+      },
+    }
+    render(<ReferenceApp client={configured} worker={store} />)
+    await waitFor(() => expect(deliver).toBeTypeOf("function"))
+    const directive: RpcSessionDirective = {
+      sessionId: "mine",
+      command: { _tag: "transport.pause", payload: {} },
+      issuedBy: "device-2",
+      directiveId: "directive-1",
+    }
+
+    act(() => deliver?.(directive))
+    await waitFor(() => expect(attempts).toBe(1))
+    act(() => deliver?.(directive))
+
+    await waitFor(() => expect(attempts).toBe(2))
   })
 })
 
@@ -467,259 +817,311 @@ describe("reference client", () => {
     await waitFor(() => expect(screen.getByText(/YouTube Music \(ytmusic\)/)).toBeTruthy())
   })
 
-  test("lists library albums and applies placement changes", async () => {
-    let placement: RpcPlacement = RpcPlacement.Discovery
+  test("keeps an offline placement visible and queued in the local worker", async () => {
+    const database = await openWorkerDatabase({ engine: createMemoryEngine() })
+    await database.putAlbum(album())
+    const store = persistent(createDirectWorkerClient(async () => database))
     const configured: ReferenceClient = {
       ...client([]),
-      listAlbums: async () => [
-        {
-          id: "album-1",
-          title: "Heroes",
-          artist: "David Bowie",
-          placement: RpcPlacement.Discovery,
-          placementUpdatedAt: "now",
-          addedAt: "now",
-          revision: 1,
-          tracks: [],
-        },
-      ],
-      setAlbumPlacement: async (_token, _albumId, next) => {
-        placement = next
-        return {
-          id: "album-1",
-          title: "Heroes",
-          artist: "David Bowie",
-          placement: next,
-          placementUpdatedAt: "later",
-          addedAt: "now",
-          revision: 2,
-          tracks: [],
-        }
+      setAlbumPlacement: async () => {
+        throw new Error("page bypassed the worker")
       },
     }
 
     render(
-      <ReferenceApp client={configured}>
+      <ReferenceApp client={configured} worker={store}>
         <ReferenceLibrary />
       </ReferenceApp>,
     )
-    await waitFor(() => expect(screen.getByText(/Heroes/)).toBeTruthy())
+    await waitFor(() => expect(screen.getByText(/discovery — revision 1/)).toBeTruthy())
     fireEvent.click(screen.getByRole("button", { name: "collection" }))
 
-    await waitFor(() => expect(placement).toBe(RpcPlacement.Collection))
-    expect(screen.getByText(/collection — revision 2/)).toBeTruthy()
-  })
-
-  test("ignores an older placement response that completes last", async () => {
-    let resolveFirst:
-      | ((album: Awaited<ReturnType<ReferenceClient["setAlbumPlacement"]>>) => void)
-      | undefined
-    let resolveSecond:
-      | ((album: Awaited<ReturnType<ReferenceClient["setAlbumPlacement"]>>) => void)
-      | undefined
-    let call = 0
-    const configured: ReferenceClient = {
-      ...client([]),
-      listAlbums: async () => [
-        {
-          id: "album-1",
-          title: "Heroes",
-          artist: "David Bowie",
-          placement: RpcPlacement.Discovery,
-          placementUpdatedAt: "now",
-          addedAt: "now",
-          revision: 1,
-          tracks: [],
-        },
-      ],
-      setAlbumPlacement: async () =>
-        new Promise((resolve) => {
-          call += 1
-          if (call === 1) resolveFirst = resolve
-          else resolveSecond = resolve
-        }),
-    }
-
-    render(
-      <ReferenceApp client={configured}>
-        <ReferenceLibrary />
-      </ReferenceApp>,
-    )
-    await waitFor(() => expect(screen.getByText(/Heroes/)).toBeTruthy())
-    fireEvent.click(screen.getByRole("button", { name: "collection" }))
-    fireEvent.click(screen.getByRole("button", { name: "archive" }))
-
-    expect(screen.getByText(/archive — revision 1/)).toBeTruthy()
-    await waitFor(() => expect(resolveFirst).toBeTypeOf("function"))
-    await act(async () => {
-      resolveFirst?.({
-        id: "album-1",
-        title: "Heroes",
-        artist: "David Bowie",
+    await waitFor(() => expect(screen.getByText(/collection — revision 1/)).toBeTruthy())
+    expect(await database.outbox()).toMatchObject([
+      {
+        kind: "album.placement",
+        albumId: "album-1",
         placement: RpcPlacement.Collection,
-        placementUpdatedAt: "second",
-        addedAt: "now",
-        revision: 2,
-        tracks: [],
-      })
-      await Promise.resolve()
-    })
-    expect(screen.getByText(/archive — revision 1/)).toBeTruthy()
-    await waitFor(() => expect(resolveSecond).toBeTypeOf("function"))
-    await act(async () => {
-      resolveSecond?.({
-        id: "album-1",
-        title: "Heroes",
-        artist: "David Bowie",
-        placement: RpcPlacement.Archive,
-        placementUpdatedAt: "third",
-        addedAt: "now",
-        revision: 3,
-        tracks: [],
-      })
-      await Promise.resolve()
-    })
-
-    expect(screen.getByText(/archive — revision 3/)).toBeTruthy()
+        basePlacement: RpcPlacement.Discovery,
+      },
+    ])
   })
 
-  test("rolls back an optimistic placement when mutation and refresh both fail", async () => {
-    let listCalls = 0
-    const configured: ReferenceClient = {
-      ...client([]),
-      listAlbums: async () => {
-        listCalls += 1
-        if (listCalls > 1) throw new Error("offline")
-        return [
-          {
-            id: "album-1",
-            title: "Heroes",
-            artist: "David Bowie",
-            placement: RpcPlacement.Discovery,
-            placementUpdatedAt: "now",
-            addedAt: "now",
-            revision: 1,
-            tracks: [],
-          },
-        ]
-      },
-      setAlbumPlacement: async () => {
-        throw new Error("offline")
-      },
-    }
+  test("queues rapid offline placements in the order they were made", async () => {
+    const database = await openWorkerDatabase({ engine: createMemoryEngine() })
+    await database.putAlbum(album())
+    const store = persistent(createDirectWorkerClient(async () => database))
 
     render(
-      <ReferenceApp client={configured}>
-        <ReferenceLibrary />
-      </ReferenceApp>,
-    )
-    await waitFor(() => expect(screen.getByText(/discovery — revision 1/)).toBeTruthy())
-    fireEvent.click(screen.getByRole("button", { name: "collection" }))
-    expect(screen.getByText(/collection — revision 1/)).toBeTruthy()
-
-    await waitFor(() => expect(screen.getByText(/discovery — revision 1/)).toBeTruthy())
-  })
-
-  test("rolls back two failed queued placements to the last confirmed album", async () => {
-    let listCalls = 0
-    const configured: ReferenceClient = {
-      ...client([]),
-      listAlbums: async () => {
-        listCalls += 1
-        if (listCalls > 1) throw new Error("offline")
-        return [
-          {
-            id: "album-1",
-            title: "Heroes",
-            artist: "David Bowie",
-            placement: RpcPlacement.Discovery,
-            placementUpdatedAt: "now",
-            addedAt: "now",
-            revision: 1,
-            tracks: [],
-          },
-        ]
-      },
-      setAlbumPlacement: async () => {
-        throw new Error("offline")
-      },
-    }
-
-    render(
-      <ReferenceApp client={configured}>
+      <ReferenceApp client={client([])} worker={store}>
         <ReferenceLibrary />
       </ReferenceApp>,
     )
     await waitFor(() => expect(screen.getByText(/discovery — revision 1/)).toBeTruthy())
     fireEvent.click(screen.getByRole("button", { name: "collection" }))
     fireEvent.click(screen.getByRole("button", { name: "archive" }))
-    expect(screen.getByText(/archive — revision 1/)).toBeTruthy()
 
-    await waitFor(() => expect(screen.getByText(/discovery — revision 1/)).toBeTruthy())
+    await waitFor(() => expect(screen.getByText(/archive — revision 1/)).toBeTruthy())
+    await waitFor(async () => expect(await database.outbox()).toHaveLength(2))
+    const queued = await database.outbox()
+    expect(queued).toMatchObject([
+      {
+        kind: "album.placement",
+        placement: RpcPlacement.Collection,
+        basePlacement: RpcPlacement.Discovery,
+      },
+      {
+        kind: "album.placement",
+        placement: RpcPlacement.Archive,
+        basePlacement: RpcPlacement.Collection,
+      },
+    ])
   })
 
-  test("keeps a stale refresh as confirmed truth for a later rollback", async () => {
-    let listCalls = 0
-    let resolveRefresh:
-      | ((albums: Awaited<ReturnType<ReferenceClient["listAlbums"]>>) => void)
-      | undefined
-    const configured: ReferenceClient = {
-      ...client([]),
-      listAlbums: async () => {
-        listCalls += 1
-        if (listCalls === 1) {
-          return [
-            {
-              id: "album-1",
-              title: "Heroes",
-              artist: "David Bowie",
-              placement: RpcPlacement.Discovery,
-              placementUpdatedAt: "now",
-              addedAt: "now",
-              revision: 1,
-              tracks: [],
-            },
-          ]
-        }
-        if (listCalls === 2) {
-          return new Promise((resolve) => {
-            resolveRefresh = resolve
+  test("persists a second rapid placement while the first sync is still blocked", async () => {
+    const database = await openWorkerDatabase({ engine: createMemoryEngine() })
+    await database.putAlbum(album())
+    const base = createDirectWorkerClient(async () => database)
+    let releaseSync: (() => void) | undefined
+    let syncCalls = 0
+    const store = {
+      ...base,
+      sync: async () => {
+        syncCalls += 1
+        if (syncCalls === 2) {
+          await new Promise<void>((resolve) => {
+            releaseSync = resolve
           })
         }
-        throw new Error("offline")
-      },
-      setAlbumPlacement: async () => {
-        throw new Error("response lost")
+        return {
+          pulled: 0,
+          pushed: 0,
+          converged: 0,
+          dropped: [],
+          deferred: (await database.outbox()).length,
+          conflicts: [],
+          offline: syncCalls > 1,
+          authRequired: false,
+        }
       },
     }
 
     render(
-      <ReferenceApp client={configured}>
+      <ReferenceApp client={client([])} worker={store}>
         <ReferenceLibrary />
       </ReferenceApp>,
     )
     await waitFor(() => expect(screen.getByText(/discovery — revision 1/)).toBeTruthy())
     fireEvent.click(screen.getByRole("button", { name: "collection" }))
-    await waitFor(() => expect(resolveRefresh).toBeTypeOf("function"))
+    await waitFor(() => expect(releaseSync).toBeTypeOf("function"))
     fireEvent.click(screen.getByRole("button", { name: "archive" }))
-    expect(screen.getByText(/archive — revision 1/)).toBeTruthy()
-    await act(async () => {
-      resolveRefresh?.([
-        {
-          id: "album-1",
-          title: "Heroes",
-          artist: "David Bowie",
-          placement: RpcPlacement.Collection,
-          placementUpdatedAt: "confirmed",
-          addedAt: "now",
+
+    await waitFor(async () => expect(await database.outbox()).toHaveLength(2))
+    releaseSync?.()
+  })
+
+  test("keeps the second rapid placement visible when the network drops after the first", async () => {
+    const database = await openWorkerDatabase({ engine: createMemoryEngine() })
+    await database.putAlbum(album())
+    const base = createDirectWorkerClient(async () => database)
+    let remote = album()
+    let writes = 0
+    const rpc: WorkerRpc = {
+      listAlbums: async () => [remote],
+      listSessions: async () => [],
+      runSessionCommand: async () => undefined,
+      setPlacement: async (_albumId, placement) => {
+        writes += 1
+        if (writes > 1) throw new RpcError("offline", true)
+        remote = {
+          ...remote,
+          placement,
+          placementUpdatedAt: "later",
           revision: 2,
-          tracks: [],
-        },
-      ])
-      await Promise.resolve()
+        }
+        return remote
+      },
+      appendListen: async () => ({ accepted: 0, duplicates: 0 }),
+    }
+    const store = { ...base, sync: async () => runWorkerSync(database, rpc) }
+
+    render(
+      <ReferenceApp client={client([])} worker={store}>
+        <ReferenceLibrary />
+      </ReferenceApp>,
+    )
+    await waitFor(() => expect(screen.getByText(/discovery — revision 1/)).toBeTruthy())
+    fireEvent.click(screen.getByRole("button", { name: "collection" }))
+    fireEvent.click(screen.getByRole("button", { name: "archive" }))
+
+    await waitFor(() => expect(screen.getByText(/archive — revision 2/)).toBeTruthy())
+    expect(await database.album("album-1")).toMatchObject({
+      placement: RpcPlacement.Archive,
+      revision: 2,
+    })
+    expect(await database.outbox()).toMatchObject([
+      { placement: RpcPlacement.Archive, basePlacement: RpcPlacement.Collection },
+    ])
+  })
+
+  test("a pause racing audio-ended keeps the listen and does not queue stale ended state", async () => {
+    const database = await openWorkerDatabase({ engine: createMemoryEngine() })
+    await database.putSession(
+      session({
+        id: "mine",
+        hostDeviceId: "device-1",
+        queue: ["track-1"],
+        cursor: 0,
+        currentTrackId: "track-1",
+        transport: RpcTransport.Playing,
+      }),
+    )
+    const base = persistent(createDirectWorkerClient(async () => database))
+    let releaseListen: (() => void) | undefined
+    const store = {
+      ...base,
+      queueListen: async (...args: Parameters<WorkerClient["queueListen"]>) => {
+        await new Promise<void>((resolve) => {
+          releaseListen = resolve
+        })
+        return base.queueListen(...args)
+      },
+    }
+    const configured: ReferenceClient = {
+      ...client([]),
+      loadStream: async () => "blob:track-1",
+    }
+    render(
+      <ReferenceApp client={configured} worker={store}>
+        <ReferencePlugins />
+        <ReferenceConsole />
+        <ReferenceAudio />
+      </ReferenceApp>,
+    )
+    const audio = await waitFor(() => {
+      const element = document.querySelector("audio")
+      if (element === null) throw new Error("audio element not mounted")
+      return element
     })
 
-    await waitFor(() => expect(screen.getByText(/collection — revision 2/)).toBeTruthy())
+    fireEvent.ended(audio)
+    await waitFor(() => expect(releaseListen).toBeTypeOf("function"))
+    fireEvent.click(screen.getByRole("button", { name: "Pause" }))
+    await waitFor(async () =>
+      expect((await database.session("mine"))?.transport).toBe(RpcTransport.Paused),
+    )
+    releaseListen?.()
+
+    await waitFor(() => expect(screen.getByRole("alert").textContent).toContain("cannot end"))
+    expect(await database.outbox()).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ command: { _tag: "transport.pause", payload: {} } }),
+        expect.objectContaining({ kind: "listen.append" }),
+      ]),
+    )
+    expect(await database.outbox()).not.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ command: { _tag: "transport.trackEnded", payload: {} } }),
+      ]),
+    )
+  })
+
+  test("queues a completed listen locally before any network call", async () => {
+    const database = await openWorkerDatabase({ engine: createMemoryEngine() })
+    const store = createDirectWorkerClient(async () => database)
+    const configured: ReferenceClient = {
+      ...client([]),
+      listSessions: async () => [
+        session({
+          id: "mine",
+          hostDeviceId: "device-1",
+          queue: ["track-1"],
+          cursor: 0,
+          currentTrackId: "track-1",
+          transport: "playing",
+        }),
+      ],
+      appendListen: async () => {
+        throw new Error("page bypassed the worker")
+      },
+      command: async () => {
+        throw new Error("offline")
+      },
+      loadStream: async () => "blob:track-1",
+    }
+
+    render(
+      <ReferenceApp client={configured} worker={store}>
+        <ReferencePlugins />
+        <ReferenceAudio />
+      </ReferenceApp>,
+    )
+    const audio = await waitFor(() => {
+      const element = document.querySelector("audio")
+      if (element === null) throw new Error("audio element not mounted")
+      return element
+    })
+    Object.defineProperty(audio, "duration", { configurable: true, value: 12 })
+    fireEvent.ended(audio)
+
+    await waitFor(async () => expect(await database.outbox()).toHaveLength(2))
+    expect(await database.outbox()).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: "listen.append",
+          event: expect.objectContaining({
+            trackId: "track-1",
+            deviceId: "device-1",
+            playedMs: 12_000,
+          }),
+        }),
+        expect.objectContaining({
+          kind: "session.command",
+          command: { _tag: "transport.trackEnded", payload: {} },
+        }),
+      ]),
+    )
+  })
+
+  test("two rapid first queue writes create one hosted session", async () => {
+    let createCalls = 0
+    let finishCreate: ((session: RpcSession) => void) | undefined
+    const database = await openWorkerDatabase({ engine: createMemoryEngine() })
+    const store = persistent(createDirectWorkerClient(async () => database))
+    const configured: ReferenceClient = {
+      ...client([]),
+      search: async () => ({
+        noSources: false,
+        failures: [],
+        tracks: [
+          { id: "track-1", title: "One", artist: "Artist", sourcePluginId: "source" },
+          { id: "track-2", title: "Two", artist: "Artist", sourcePluginId: "source" },
+        ],
+      }),
+      createSession: async () => {
+        createCalls += 1
+        return new Promise((resolve) => {
+          finishCreate = resolve
+        })
+      },
+    }
+    render(
+      <ReferenceApp client={configured} worker={store}>
+        <ReferenceLibrary />
+      </ReferenceApp>,
+    )
+    fireEvent.change(await screen.findByLabelText("Query"), { target: { value: "Artist" } })
+    fireEvent.click(screen.getByRole("button", { name: "Search" }))
+    const buttons = await screen.findAllByRole("button", { name: "Add to queue" })
+
+    fireEvent.click(buttons[0] as HTMLElement)
+    fireEvent.click(buttons[1] as HTMLElement)
+    await waitFor(() => expect(createCalls).toBe(1))
+    finishCreate?.(session({ id: "mine", hostDeviceId: "device-1" }))
+
+    await waitFor(async () =>
+      expect((await database.session("mine"))?.queue).toEqual(["track-1", "track-2"]),
+    )
   })
 
   test("searches, queues, and loads audio through the reference binding", async () => {

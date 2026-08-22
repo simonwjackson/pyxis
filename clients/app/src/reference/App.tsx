@@ -1,6 +1,6 @@
 import type { ReactNode } from "react"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { ulid } from "ulid"
+import { monotonicFactory } from "ulid"
 import type {
   RpcAuthGrant,
   RpcLibraryAlbum,
@@ -12,6 +12,7 @@ import type {
 } from "../../../../contracts/generated/pyxis"
 import type { WorkerClient } from "../worker/client.ts"
 import { spawnWorkerClient } from "../worker/client.ts"
+import type { WorkerSettings } from "../worker/contract.ts"
 import { createReferenceClient, type ReferenceClient } from "./api.ts"
 import { ReferenceConsole } from "./Console.tsx"
 import { ReferenceLibrary } from "./Library.tsx"
@@ -23,6 +24,8 @@ import { ReferenceRemote } from "./Remote.tsx"
 import { ReferenceSessions } from "./Sessions.tsx"
 import { ReferenceUpdate } from "./Update.tsx"
 import { createUpdateWatcher, type UpdateWatcher } from "./updates.ts"
+
+const nextClientEventId = monotonicFactory()
 
 const CONSOLE_COMMANDS: Record<ConsoleCommand, RpcSessionCommand> = {
   play: { _tag: "transport.play", payload: {} },
@@ -50,12 +53,15 @@ export function ReferenceApp({
   reload,
   children,
 }: ReferenceAppProps) {
-  const started = useRef(false)
+  // One worker owns the device data plane for the life of this app root. The composition
+  // root injects the browser worker before StrictMode so React cannot start it twice.
+  const [store] = useState<WorkerClient>(() => worker ?? spawnWorkerClient())
   const audioElement = useRef<HTMLAudioElement | null>(null)
   const placementQueues = useRef(new Map<string, Promise<void>>())
-  const placementSequences = useRef(new Map<string, number>())
+  const sessionWriteQueue = useRef<Promise<void>>(Promise.resolve())
+  const syncQueue = useRef<Promise<void>>(Promise.resolve())
+  const connectionQueue = useRef<Promise<void>>(Promise.resolve())
   const albumsRef = useRef<readonly RpcLibraryAlbum[]>([])
-  const confirmedAlbumsRef = useRef<readonly RpcLibraryAlbum[]>([])
   const [status, setStatus] = useState<"booting" | "ready" | "busy" | "error">("booting")
   const [grant, setGrant] = useState<RpcAuthGrant>()
   const [plugins, setPlugins] = useState<readonly RpcPlugin[]>([])
@@ -71,10 +77,68 @@ export function ReferenceApp({
   const [audioUrl, setAudioUrl] = useState<string>()
   const [error, setError] = useState<string>()
   const sessionRef = useRef<RpcSession>()
+  const sessionOpening = useRef<Promise<RpcSession>>()
+  const resumeTokenRef = useRef<string>()
   const appliedDirectives = useRef<string[]>([])
+  const inFlightDirectives = useRef(new Set<string>())
+
+  const applyWorkerAlbums = useCallback(async (): Promise<readonly RpcLibraryAlbum[]> => {
+    const next = await store.albums()
+    albumsRef.current = next
+    setAlbums(next)
+    setLocal((current) =>
+      current === undefined ? current : { ...current, albumCount: next.length },
+    )
+    return next
+  }, [store])
+
+  const applyWorkerSessions = useCallback(async (): Promise<readonly RpcSession[]> => {
+    const [settings, next] = await Promise.all([store.settings(), store.sessions()])
+    const hosted = next.find((candidate) => candidate.hostDeviceId === settings.deviceId)
+    sessionRef.current = hosted
+    setSession(hosted)
+    setRemoteSessions(
+      next.filter(
+        (candidate) => candidate.hostDeviceId !== settings.deviceId && candidate.reachable,
+      ),
+    )
+    return next
+  }, [store])
+
+  const reconcileWorker = useCallback(async () => {
+    const request = syncQueue.current
+      .catch(() => undefined)
+      .then(async () => {
+        const report = await store.sync()
+        const [, , settings] = await Promise.all([
+          applyWorkerAlbums(),
+          applyWorkerSessions(),
+          store.settings(),
+        ])
+        setLocal((current) =>
+          current === undefined
+            ? current
+            : {
+                ...current,
+                lastSync: report,
+                notices: settings.syncNotices ?? current.notices,
+              },
+        )
+        if (report.authRequired) setError("This device must be paired again.")
+        else if (report.failure !== undefined) setError(report.failure)
+        return report
+      })
+    syncQueue.current = request.then(
+      () => undefined,
+      () => undefined,
+    )
+    return request
+  }, [applyWorkerAlbums, applyWorkerSessions, store])
+
   /// Which track the currently loaded audio URL belongs to. Reloading the same track
   /// would swap the element's src and silently reset it to the beginning.
   const loadedTrack = useRef<string>()
+  const loadGeneration = useRef(0)
   /// In-flight load, so a double click or a StrictMode double-invoke cannot download the
   /// same track twice and swap the element's src out from under playback.
   const loading = useRef<{ trackId: string; promise: Promise<void> }>()
@@ -82,39 +146,93 @@ export function ReferenceApp({
   /// manual seek later.
   const pendingSeekMs = useRef<number>()
 
-  useEffect(() => {
-    if (started.current) return
-    started.current = true
-    void (async () => {
-      try {
-        const nextGrant = await client.claimDevice("reference browser")
-        const [nextPlugins, nextAlbums, sessions] = await Promise.all([
-          client.listPlugins(nextGrant.bearerToken),
-          client.listAlbums(nextGrant.bearerToken),
-          // Whether this device already owns a session is a durable question. Its own
-          // realtime socket does not exist yet, so it is not reachable at this moment.
-          client.listSessions(nextGrant.bearerToken, true),
-        ])
-        setGrant(nextGrant)
-        setPlugins(nextPlugins)
-        albumsRef.current = nextAlbums
-        confirmedAlbumsRef.current = nextAlbums
-        setAlbums(nextAlbums)
-        const hosted = sessions.find((candidate) => candidate.hostDeviceId === nextGrant.device.id)
-        sessionRef.current = hosted
-        setSession(hosted)
-        setRemoteSessions(
-          sessions.filter(
-            (candidate) => candidate.hostDeviceId !== nextGrant.device.id && candidate.reachable,
-          ),
-        )
-        setStatus("ready")
-      } catch (cause) {
-        setError(message(cause))
-        setStatus("error")
-      }
-    })()
-  }, [client])
+  const persistHostCommand = useCallback(
+    async (
+      target: RpcSession,
+      command: RpcSessionCommand,
+      commandId?: string,
+    ): Promise<RpcSession> => {
+      const persisted = sessionWriteQueue.current
+        .catch(() => undefined)
+        .then(async () => {
+          const current = (await store.session(target.id)) ?? target
+          return store.queueSessionCommand(current, command, commandId)
+        })
+      sessionWriteQueue.current = persisted.then(
+        () => undefined,
+        () => undefined,
+      )
+      const optimistic = await persisted
+      sessionRef.current = optimistic
+      setSession((current) =>
+        current !== undefined && current.revision > optimistic.revision ? current : optimistic,
+      )
+      return optimistic
+    },
+    [store],
+  )
+
+  const connectAccount = useCallback(async () => {
+    const request = connectionQueue.current
+      .catch(() => undefined)
+      .then(async () => {
+        try {
+          setError(undefined)
+          const settings = await store.settings()
+          let nextGrant = grantFromSettings(settings)
+          if (nextGrant === undefined) {
+            nextGrant = await client.claimDevice("reference browser")
+            await store.writeSettings({
+              accountId: nextGrant.account.id,
+              accountName: nextGrant.account.name,
+              accountIsDefault: nextGrant.account.isDefault,
+              accountCreatedAt: nextGrant.account.createdAt,
+              bearerToken: nextGrant.bearerToken,
+              deviceId: nextGrant.device.id,
+              deviceName: nextGrant.device.name,
+            })
+          }
+
+          const syncReport = await reconcileWorker()
+          if (syncReport.authRequired) throw new Error("This device must be paired again.")
+          const needsPageFallback =
+            (await store.open()).ephemeral === true && syncReport.pageFallbackRequired === true
+          const [nextPlugins, fallbackAlbums, fallbackSessions] = await Promise.all([
+            client.listPlugins(nextGrant.bearerToken),
+            needsPageFallback
+              ? client.listAlbums(nextGrant.bearerToken)
+              : Promise.resolve(undefined),
+            needsPageFallback
+              ? client.listSessions(nextGrant.bearerToken, true)
+              : Promise.resolve(undefined),
+          ])
+          if (fallbackAlbums !== undefined) {
+            // A browser without workers cannot run the worker's RPC client. Keep the online
+            // product usable, while the open report still says that nothing persists.
+            await store.replaceAlbums(fallbackAlbums)
+            await applyWorkerAlbums()
+          }
+          if (fallbackSessions !== undefined) {
+            for (const session of fallbackSessions) await store.putSession(session)
+            await applyWorkerSessions()
+          }
+          // Realtime makes the device reachable. Publish the grant only after the hosted
+          // session is in memory, so a console can never dispatch into an empty boot gap.
+          setGrant(nextGrant)
+          setPlugins(nextPlugins)
+          setStatus("ready")
+        } catch (cause) {
+          setError(message(cause))
+          setStatus("error")
+          throw cause
+        }
+      })
+    connectionQueue.current = request.then(
+      () => undefined,
+      () => undefined,
+    )
+    return request
+  }, [applyWorkerAlbums, applyWorkerSessions, client, reconcileWorker, store])
 
   useEffect(() => {
     sessionRef.current = session
@@ -132,30 +250,34 @@ export function ReferenceApp({
     else window.location.reload()
   }, [reload])
 
-  // The local store is opened separately from the network boot, because its whole point is
-  // to be usable when that boot fails.
+  // Read the durable copy before touching the network. The same connection function is
+  // retried by the browser's online event, including when the first claim happened offline.
   useEffect(() => {
-    const store = worker ?? spawnWorkerClient()
     let live = true
     void (async () => {
       try {
         const report = await store.open()
         const [settings, albums] = await Promise.all([store.settings(), store.albums()])
         if (!live) return
+        albumsRef.current = albums
+        resumeTokenRef.current = settings.resumeToken
+        setAlbums(albums)
         setLocal({
           report,
           ...(settings.deviceId === undefined ? {} : { deviceId: settings.deviceId }),
           albumCount: albums.length,
+          notices: settings.syncNotices ?? [],
         })
-      } catch (cause) {
-        if (live) setError(message(cause))
+        await connectAccount()
+      } catch {
+        // connectAccount reports the actionable error. Cached data stays usable.
       }
     })()
     return () => {
       live = false
       if (worker === undefined) store.terminate()
     }
-  }, [worker])
+  }, [connectAccount, store, worker])
 
   // The realtime socket is also what makes this device reachable, so a console can drive
   // it. Without a live socket the core correctly reports this session as uncontrollable.
@@ -163,96 +285,87 @@ export function ReferenceApp({
     if (grant === undefined) return
     const token = grant.bearerToken
     const deviceId = grant.device.id
-    return client.connectRealtime(token, {
-      onEvent: (event) => {
-        const state = event.state
-        if (state._tag === "session.state") {
-          const updated = state.payload
-          // An older frame must never overwrite newer state. Pause writes twice, and the
-          // socket has no ordering with respect to the RPC responses.
-          if (updated.hostDeviceId === deviceId) {
-            setSession((current) =>
-              current !== undefined && current.revision >= updated.revision ? current : updated,
-            )
+    return client.connectRealtime(
+      token,
+      {
+        onEvent: async (event) => {
+          const state = event.state
+          if (state._tag === "session.state") {
+            const updated = state.payload
+            if (updated.hostDeviceId === deviceId) {
+              const report = await reconcileWorker()
+              if (report.sessionPullFailed) throw new Error("session state did not sync")
+              return
+            }
+            await store.putSession(updated)
+            setRemoteSessions((current) => {
+              const existing = current.find((candidate) => candidate.id === updated.id)
+              if (existing !== undefined && existing.revision >= updated.revision) return current
+              const others = current.filter((candidate) => candidate.id !== updated.id)
+              return updated.reachable ? [...others, updated] : others
+            })
             return
           }
-          setRemoteSessions((current) => {
-            const existing = current.find((candidate) => candidate.id === updated.id)
-            if (existing !== undefined && existing.revision >= updated.revision) return current
-            const others = current.filter((candidate) => candidate.id !== updated.id)
-            return updated.reachable ? [...others, updated] : others
-          })
-          return
-        }
-        if (state._tag === "library.album.state") {
-          const updated = state.payload
-          // A local write in flight is newer intent than anything the socket can carry,
-          // and an older revision must never overwrite a newer one: the two channels have
-          // no ordering with respect to each other.
-          if (placementQueues.current.has(updated.id)) return
-          setAlbums((current) => {
-            const existing = current.find((album) => album.id === updated.id)
-            if (existing !== undefined && existing.revision > updated.revision) return current
-            const next =
-              existing === undefined
-                ? [...current, updated]
-                : current.map((album) => (album.id === updated.id ? updated : album))
-            albumsRef.current = next
-            confirmedAlbumsRef.current = next
-            return next
-          })
-          return
-        }
-        const removedId = state.payload.id
-        setAlbums((current) => {
-          const next = current.filter((album) => album.id !== removedId)
-          albumsRef.current = next
-          confirmedAlbumsRef.current = next
-          return next
-        })
-      },
-      onResync: () => {
-        // The server said the replay was incomplete. Refetch rather than patch.
-        void (async () => {
-          try {
-            const [freshAlbums, freshSessions] = await Promise.all([
-              client.listAlbums(token),
-              client.listSessions(token, true),
-            ])
-            albumsRef.current = freshAlbums
-            confirmedAlbumsRef.current = freshAlbums
-            setAlbums(freshAlbums)
-            setSession(freshSessions.find((candidate) => candidate.hostDeviceId === deviceId))
-            setRemoteSessions(
-              freshSessions.filter(
-                (candidate) => candidate.hostDeviceId !== deviceId && candidate.reachable,
-              ),
-            )
-          } catch (cause) {
-            setError(message(cause))
+          // Pull album state through the worker even while a local placement is queued. Its
+          // merge rules preserve that intent, and the cursor is stored only after this ends.
+          const report = await reconcileWorker()
+          if (report.albumPullFailed) throw new Error("album state did not sync")
+        },
+        onResync: async () => {
+          // The server said the replay was incomplete. Refetch through the worker, which is
+          // the only layer that knows which local session and album writes are still queued.
+          const report = await reconcileWorker()
+          if (report.albumPullFailed || report.sessionPullFailed) {
+            throw new Error("realtime resync did not complete")
           }
-        })()
-      },
-      onDirective: (directive) => {
-        // A reconnect can redeliver a directive. Applying `queue.add` twice would add the
-        // same track twice, so identity decides, not arrival.
-        if (appliedDirectives.current.includes(directive.directiveId)) return
-        appliedDirectives.current = [
-          ...appliedDirectives.current.slice(-511),
-          directive.directiveId,
-        ]
-        // Audio loading follows session state, so a console-driven play needs no special
-        // case here: applying the command is enough.
-        void (async () => {
-          try {
-            setSession(await client.command(token, directive.sessionId, directive.command))
-          } catch (cause) {
-            setError(message(cause))
+        },
+        onResumeToken: async (resumeToken) => {
+          await store.writeSettings({ resumeToken })
+          resumeTokenRef.current = resumeToken
+        },
+        onDirective: (directive) => {
+          // A reconnect can redeliver a directive. Persist it under the directive ID before
+          // marking it applied, so a failed local write remains retryable and a page reload
+          // cannot apply `queue.add` twice.
+          const directiveKey = `${directive.sessionId}:${directive.directiveId}`
+          if (
+            appliedDirectives.current.includes(directiveKey) ||
+            inFlightDirectives.current.has(directiveKey)
+          ) {
+            return
           }
-        })()
+          const current =
+            sessionRef.current?.id === directive.sessionId ? sessionRef.current : undefined
+          if (current === undefined) {
+            setError("directed session is not in the local store")
+            return
+          }
+          inFlightDirectives.current.add(directiveKey)
+          const persisted = persistHostCommand(current, directive.command, directive.directiveId)
+          void (async () => {
+            try {
+              await persisted
+              appliedDirectives.current = [...appliedDirectives.current.slice(-511), directiveKey]
+              await reconcileWorker()
+            } catch (cause) {
+              setError(message(cause))
+            } finally {
+              inFlightDirectives.current.delete(directiveKey)
+            }
+          })()
+        },
       },
-    })
-  }, [client, grant])
+      resumeTokenRef.current,
+    )
+  }, [client, grant, persistHostCommand, reconcileWorker, store])
+
+  useEffect(() => {
+    const onOnline = () => {
+      void connectAccount().catch(() => undefined)
+    }
+    window.addEventListener("online", onOnline)
+    return () => window.removeEventListener("online", onOnline)
+  }, [connectAccount])
 
   useEffect(
     () => () => {
@@ -302,11 +415,28 @@ export function ReferenceApp({
   }, [grant])
 
   const ensureSession = useCallback(async (): Promise<RpcSession> => {
-    if (session !== undefined) return session
-    const created = await client.createSession(currentToken(), "Reference browser")
-    setSession(created)
-    return created
-  }, [client, currentToken, session])
+    const current = sessionRef.current ?? session
+    if (current !== undefined) return current
+    sessionOpening.current ??= (async () => {
+      const created = await client.createSession(currentToken(), "Reference browser")
+      await store.putSession(created)
+      sessionRef.current = created
+      setSession(created)
+      return created
+    })().finally(() => {
+      sessionOpening.current = undefined
+    })
+    return sessionOpening.current
+  }, [client, currentToken, session, store])
+
+  const runHostCommand = useCallback(
+    async (target: RpcSession, command: RpcSessionCommand): Promise<RpcSession> => {
+      const optimistic = await persistHostCommand(target, command)
+      await reconcileWorker()
+      return (await store.session(target.id)) ?? optimistic
+    },
+    [persistHostCommand, reconcileWorker, store],
+  )
 
   const search = useCallback(async () => {
     if (query.trim().length === 0) return
@@ -323,14 +453,14 @@ export function ReferenceApp({
       await run(async () => {
         const target = await ensureSession()
         setSession(
-          await client.command(currentToken(), target.id, {
+          await runHostCommand(target, {
             _tag: "queue.add",
             payload: { trackIds: [trackId] },
           }),
         )
       })
     },
-    [client, currentToken, ensureSession, run],
+    [ensureSession, run, runHostCommand],
   )
 
   const enqueueAlbum = useCallback(
@@ -342,65 +472,42 @@ export function ReferenceApp({
         const target = await ensureSession()
         // One command, so the album lands in the queue in order and as one revision.
         setSession(
-          await client.command(currentToken(), target.id, {
+          await runHostCommand(target, {
             _tag: "queue.add",
             payload: { trackIds: album.tracks.map((track) => track.id) },
           }),
         )
       })
     },
-    [client, currentToken, ensureSession, run],
+    [ensureSession, run, runHostCommand],
   )
 
   const setAlbumPlacement = useCallback(
     async (albumId: string, placement: RpcPlacement) => {
-      const sequence = (placementSequences.current.get(albumId) ?? 0) + 1
-      placementSequences.current.set(albumId, sequence)
-      const optimistic = albumsRef.current.map((album) =>
-        album.id === albumId ? { ...album, placement } : album,
+      const album = albumsRef.current.find((candidate) => candidate.id === albumId)
+      if (album === undefined) return
+      const optimistic = albumsRef.current.map((candidate) =>
+        candidate.id === albumId ? { ...candidate, placement } : candidate,
       )
       albumsRef.current = optimistic
       setAlbums(optimistic)
 
       await run(async () => {
         const previous = placementQueues.current.get(albumId) ?? Promise.resolve()
-        const request = previous
+        // Serialize durable local writes for this album, but never make a later click wait
+        // for an earlier network request. A closed tab must not lose intent that was
+        // already visible on screen.
+        const persisted = previous
           .catch(() => undefined)
-          .then(() => client.setAlbumPlacement(currentToken(), albumId, placement))
-        const queued = request.then(
+          .then(() => store.queuePlacement(album, placement))
+        const queued = persisted.then(
           () => undefined,
           () => undefined,
         )
         placementQueues.current.set(albumId, queued)
         try {
-          const updated = await request
-          confirmedAlbumsRef.current = confirmedAlbumsRef.current.map((album) =>
-            album.id === albumId && updated.revision >= album.revision ? updated : album,
-          )
-          if (placementSequences.current.get(albumId) === sequence) {
-            albumsRef.current = confirmedAlbumsRef.current
-            setAlbums(confirmedAlbumsRef.current)
-          }
-        } catch (cause) {
-          if (placementSequences.current.get(albumId) === sequence) {
-            try {
-              const refreshed = await client.listAlbums(currentToken())
-              confirmedAlbumsRef.current = mergeConfirmedAlbums(
-                confirmedAlbumsRef.current,
-                refreshed,
-              )
-              if (placementSequences.current.get(albumId) === sequence) {
-                albumsRef.current = confirmedAlbumsRef.current
-                setAlbums(confirmedAlbumsRef.current)
-              }
-            } catch {
-              if (placementSequences.current.get(albumId) === sequence) {
-                albumsRef.current = confirmedAlbumsRef.current
-                setAlbums(confirmedAlbumsRef.current)
-              }
-            }
-          }
-          throw cause
+          await persisted
+          await reconcileWorker()
         } finally {
           if (placementQueues.current.get(albumId) === queued) {
             placementQueues.current.delete(albumId)
@@ -408,7 +515,7 @@ export function ReferenceApp({
         }
       })
     },
-    [client, currentToken, run],
+    [reconcileWorker, run, store],
   )
 
   /// Load audio only when the track actually changed. Resuming reuses the loaded element,
@@ -421,8 +528,14 @@ export function ReferenceApp({
         await inFlight.promise
         return
       }
+      const generation = loadGeneration.current + 1
+      loadGeneration.current = generation
       const promise = (async () => {
         const nextAudioUrl = await client.loadStream(currentToken(), trackId)
+        if (loadGeneration.current !== generation) {
+          if (typeof URL.revokeObjectURL === "function") URL.revokeObjectURL(nextAudioUrl)
+          return
+        }
         loadedTrack.current = trackId
         pendingSeekMs.current = sessionRef.current?.positionMs ?? 0
         setAudioUrl(nextAudioUrl)
@@ -440,17 +553,17 @@ export function ReferenceApp({
   /// Tell the core where this host actually is. Only the host knows, and without it a
   /// console or a handoff would resume every track from zero.
   const reportPosition = useCallback(
-    async (sessionId: string) => {
+    async (target: RpcSession) => {
       const positionMs = Math.round((audioElement.current?.currentTime ?? 0) * 1000)
       if (positionMs <= 0) return
       setSession(
-        await client.command(currentToken(), sessionId, {
+        await runHostCommand(target, {
           _tag: "position.report",
           payload: { positionMs },
         }),
       )
     },
-    [client, currentToken],
+    [runHostCommand],
   )
 
   const play = useCallback(async () => {
@@ -459,83 +572,99 @@ export function ReferenceApp({
       if (target.currentTrackId === undefined) throw new Error("queue is empty")
       await loadAudioFor(target.currentTrackId)
       setSession(
-        await client.command(currentToken(), target.id, {
+        await runHostCommand(target, {
           _tag: "transport.play",
           payload: {},
         }),
       )
     })
-  }, [client, currentToken, ensureSession, loadAudioFor, run])
+  }, [ensureSession, loadAudioFor, run, runHostCommand])
 
   const pause = useCallback(async () => {
     if (session === undefined) return
     await run(async () => {
-      setSession(
-        await client.command(currentToken(), session.id, {
-          _tag: "transport.pause",
-          payload: {},
-        }),
-      )
-      await reportPosition(session.id)
+      const paused = await runHostCommand(session, {
+        _tag: "transport.pause",
+        payload: {},
+      })
+      setSession(paused)
+      await reportPosition(paused)
     })
-  }, [client, currentToken, reportPosition, run, session])
+  }, [reportPosition, run, runHostCommand, session])
 
   const stop = useCallback(async () => {
     if (session === undefined) return
     await run(async () => {
       setSession(
-        await client.command(currentToken(), session.id, {
+        await runHostCommand(session, {
           _tag: "transport.stop",
           payload: {},
         }),
       )
+      loadGeneration.current += 1
       loadedTrack.current = undefined
       pendingSeekMs.current = undefined
       setAudioUrl(undefined)
     })
-  }, [client, currentToken, run, session])
+  }, [run, runHostCommand, session])
 
   const clearQueue = useCallback(async () => {
     if (session === undefined) return
     await run(async () => {
       setSession(
-        await client.command(currentToken(), session.id, {
+        await runHostCommand(session, {
           _tag: "queue.clear",
           payload: {},
         }),
       )
+      loadGeneration.current += 1
       loadedTrack.current = undefined
       pendingSeekMs.current = undefined
       setAudioUrl(undefined)
     })
-  }, [client, currentToken, run, session])
+  }, [run, runHostCommand, session])
 
   const reportEnded = useCallback(async () => {
     if (session === undefined || grant === undefined || session.currentTrackId === undefined) return
-    const track = tracks.find((candidate) => candidate.id === session.currentTrackId)
-    const playedMs = Math.min(Math.round((audioElement.current?.duration ?? 0) * 1000), 0xffffffff)
-    await client.appendListen(currentToken(), {
-      id: ulid(),
-      trackId: session.currentTrackId,
-      deviceId: grant.device.id,
-      ...(track?.sourcePluginId === undefined ? {} : { sourcePluginId: track.sourcePluginId }),
-      listenedAt: new Date().toISOString(),
-      ...(playedMs === 0 ? {} : { playedMs }),
-      completed: true,
-      context: "queue",
-      contextId: session.id,
-    })
-    const updated = await client.command(currentToken(), session.id, {
-      _tag: "transport.trackEnded",
-      payload: {},
-    })
-    setSession(updated)
-  }, [client, currentToken, grant, session, tracks])
+    try {
+      const track = tracks.find((candidate) => candidate.id === session.currentTrackId)
+      const playedMs = Math.min(
+        Math.round((audioElement.current?.duration ?? 0) * 1000),
+        0xffffffff,
+      )
+      await store.queueListen({
+        id: nextClientEventId(),
+        trackId: session.currentTrackId,
+        deviceId: grant.device.id,
+        ...(track?.sourcePluginId === undefined ? {} : { sourcePluginId: track.sourcePluginId }),
+        listenedAt: new Date().toISOString(),
+        ...(playedMs === 0 ? {} : { playedMs }),
+        completed: true,
+        context: "queue",
+        contextId: session.id,
+      })
+      await persistHostCommand(session, {
+        _tag: "transport.trackEnded",
+        payload: {},
+      })
+      await reconcileWorker()
+    } catch (cause) {
+      // A simultaneous pause or stop can make the ended report stale. The listen remains
+      // durable, and the audio callback never leaks an unhandled promise rejection.
+      setError(message(cause))
+      setStatus("error")
+    }
+  }, [grant, persistHostCommand, reconcileWorker, session, store, tracks])
 
   const driveRemote = useCallback(
     async (sessionId: string, command: ConsoleCommand) => {
       await run(async () => {
-        await client.sendCommand(currentToken(), sessionId, CONSOLE_COMMANDS[command])
+        await client.sendCommand(
+          currentToken(),
+          sessionId,
+          CONSOLE_COMMANDS[command],
+          nextClientEventId(),
+        )
       })
     },
     [client, currentToken, run],
@@ -648,15 +777,28 @@ export function ReferenceApp({
   )
 }
 
-function mergeConfirmedAlbums(
-  current: readonly RpcLibraryAlbum[],
-  incoming: readonly RpcLibraryAlbum[],
-): readonly RpcLibraryAlbum[] {
-  const currentById = new Map(current.map((album) => [album.id, album]))
-  return incoming.map((album) => {
-    const existing = currentById.get(album.id)
-    return existing !== undefined && existing.revision > album.revision ? existing : album
-  })
+function grantFromSettings(settings: WorkerSettings): RpcAuthGrant | undefined {
+  if (
+    settings.accountId === undefined ||
+    settings.accountName === undefined ||
+    settings.accountIsDefault === undefined ||
+    settings.accountCreatedAt === undefined ||
+    settings.deviceId === undefined ||
+    settings.deviceName === undefined ||
+    settings.bearerToken === undefined
+  ) {
+    return undefined
+  }
+  return {
+    account: {
+      id: settings.accountId,
+      name: settings.accountName,
+      isDefault: settings.accountIsDefault,
+      createdAt: settings.accountCreatedAt,
+    },
+    device: { id: settings.deviceId, name: settings.deviceName },
+    bearerToken: settings.bearerToken,
+  }
 }
 
 function message(cause: unknown): string {

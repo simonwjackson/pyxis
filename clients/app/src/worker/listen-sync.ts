@@ -21,6 +21,7 @@ export interface ListenSubmission {
   readonly rejected: readonly { readonly id: string; readonly reason: string }[]
   /// Events that could not be sent yet. Still queued.
   readonly deferred: readonly string[]
+  readonly authRequired: boolean
 }
 
 interface Pending {
@@ -36,6 +37,7 @@ export async function submitListens(
   const rejected: { id: string; reason: string }[] = []
   const deferred: string[] = []
   let duplicates = 0
+  let authRequired = false
 
   for (let index = 0; index < pending.length; index += LISTEN_BATCH_SIZE) {
     const batch = pending.slice(index, index + LISTEN_BATCH_SIZE)
@@ -43,6 +45,7 @@ export async function submitListens(
     accepted.push(...result.accepted)
     rejected.push(...result.rejected)
     duplicates += result.duplicates
+    authRequired ||= result.authRequired
     if (result.deferred.length > 0) {
       // The network went away. Everything from here stays queued, in order.
       deferred.push(...result.deferred)
@@ -51,12 +54,12 @@ export async function submitListens(
     }
   }
 
-  return { accepted, duplicates, rejected, deferred }
+  return { accepted, duplicates, rejected, deferred, authRequired }
 }
 
 async function send(rpc: WorkerRpc, batch: readonly Pending[]): Promise<ListenSubmission> {
   if (batch.length === 0) {
-    return { accepted: [], duplicates: 0, rejected: [], deferred: [] }
+    return { accepted: [], duplicates: 0, rejected: [], deferred: [], authRequired: false }
   }
   try {
     const result = await rpc.appendListen(batch.map((entry) => entry.event))
@@ -65,6 +68,7 @@ async function send(rpc: WorkerRpc, batch: readonly Pending[]): Promise<ListenSu
       duplicates: result.duplicates,
       rejected: [],
       deferred: [],
+      authRequired: false,
     }
   } catch (cause) {
     const error = cause instanceof RpcError ? cause : new RpcError(String(cause), false)
@@ -72,7 +76,13 @@ async function send(rpc: WorkerRpc, batch: readonly Pending[]): Promise<ListenSu
     // hundred doomed requests and then delete a person's entire listening history because
     // a token expired.
     if (error.retryable || error.auth) {
-      return { accepted: [], duplicates: 0, rejected: [], deferred: batch.map((e) => e.id) }
+      return {
+        accepted: [],
+        duplicates: 0,
+        rejected: [],
+        deferred: batch.map((e) => e.id),
+        authRequired: error.auth,
+      }
     }
     if (batch.length === 1) {
       const only = batch[0]
@@ -82,6 +92,7 @@ async function send(rpc: WorkerRpc, batch: readonly Pending[]): Promise<ListenSu
         duplicates: 0,
         rejected: only === undefined ? [] : [{ id: only.id, reason: error.message }],
         deferred: [],
+        authRequired: false,
       }
     }
     // Bisect to find the event the server will not take, so the rest still lands.
@@ -93,6 +104,7 @@ async function send(rpc: WorkerRpc, batch: readonly Pending[]): Promise<ListenSu
       duplicates: left.duplicates + right.duplicates,
       rejected: [...left.rejected, ...right.rejected],
       deferred: [...left.deferred, ...right.deferred],
+      authRequired: left.authRequired || right.authRequired,
     }
   }
 }
