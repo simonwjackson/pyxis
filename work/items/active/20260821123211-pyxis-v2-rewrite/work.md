@@ -42,12 +42,11 @@ albums, listens, and device-hosted session commands. The fix also moved the work
 to version 6, added durable command receipts and sync notices, and made server album
 removal win with an explicit conflict under D17.
 
-**The revised U21 build is deployed and needs one live browser check.** The core reopened
-the deployed store with the new command-receipt collection, HTTPS health is 200, the server
-library still contains 370 albums, and the worker JavaScript plus WASM return 200 with the
-right content types. Reload the client twice. It must report schema version 6, `opened`,
-the same device id, and 370 cached albums. A first reload can report `migrated` while schema
-2 moves to 6.
+**U21 is deployed and product-validated.** On 2026-08-22 the browser reopened schema 6
+with IndexedDB persistence enabled, device id `01M0NXTMN8DKE1F28VJFQZJT0S`, all 370 albums
+cached, and zero deferred writes. The core also reopened the deployed store with the new
+command-receipt collection. HTTPS health, the worker JavaScript, and WASM content types
+remain verified.
 
 U22 offline downloads and U23 service worker are not started.
 
@@ -72,9 +71,8 @@ The old system `pyxis.service` and `tsnet-proxy-pyxis.service` units are stopped
 remain declared by the current NixOS generation and can return after a reboot or system
 switch until the prepared `mountainous` removal is deployed.
 
-Next: your M3 console validation and the revised U21 browser check above, then **U22**
-offline downloads and **U23** service worker. U18 Sonos and U19 Soulseek need hardware and
-an account.
+Next: your M3 console validation, then **U22** offline downloads and **U23** service
+worker. U18 Sonos and U19 Soulseek need hardware and an account.
 
 Album removal is no longer deferred. D17 records your decision: server removal wins,
 queued local placement intent is discarded, and the client reports the conflict.
