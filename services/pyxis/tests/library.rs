@@ -80,9 +80,7 @@ fn yaml_store_round_trips_titles_ending_in_a_colon() {
         let library = Library::open(store.clone());
         let mut input = album();
         input.tracks[0].title = "Note to Self:".into();
-        let added = library
-            .add_album(&account, input, "device-a")
-            .expect("add");
+        let added = library.add_album(&account, input, "device-a").expect("add");
         store.close().expect("close");
         added.id
     };
