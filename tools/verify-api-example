@@ -1,0 +1,30 @@
+#!/usr/bin/env bash
+# Run the worked example in docs/api/README.md exactly as published.
+#
+# The example is extracted from the document rather than kept beside it, so documentation
+# that stops matching the server fails here instead of misleading somebody building a
+# client.
+set -euo pipefail
+
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+doc="$root/docs/api/README.md"
+origin="${PYXIS_ORIGIN:-http://127.0.0.1:4488}"
+
+extracted="$(mktemp -t pyxis-api-example-XXXXXX.ts)"
+trap 'rm -f "$extracted"' EXIT
+
+awk '
+  /^<!-- verify-api-example -->$/ { armed = 1; next }
+  armed && /^```ts$/ { inside = 1; armed = 0; next }
+  inside && /^```$/ { exit }
+  inside { print }
+' "$doc" >"$extracted"
+
+if [ ! -s "$extracted" ]; then
+  echo "verify-api-example: no example block found in $doc" >&2
+  echo "expected an <!-- verify-api-example --> marker followed by a \`\`\`ts block" >&2
+  exit 1
+fi
+
+echo "verify-api-example: running $(wc -l <"$extracted") lines from docs/api/README.md against $origin"
+PYXIS_ORIGIN="$origin" bun run "$extracted"

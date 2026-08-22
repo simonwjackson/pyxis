@@ -27,7 +27,7 @@ lint:
     cargo clippy --all-targets --all-features -- -D warnings
 
 lint-shell:
-    shellcheck tools/dev tools/test-pandora-fixtures
+    shellcheck tools/dev tools/test-pandora-fixtures tools/verify-api-example
 
 test-rust:
     cargo test --all
