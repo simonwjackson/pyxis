@@ -1,4 +1,4 @@
-import { describe, expect, test } from "vitest"
+import { describe, expect, test, vi } from "vitest"
 import {
   type ListenTrackEventInput,
   type RpcLibraryAlbum,
@@ -225,6 +225,45 @@ describe("offline writes", () => {
       queue: ["track-1"],
       revision: 2,
     })
+    await expect(
+      store.previewSessionCommand("session-1", command, "01COMMAND"),
+    ).resolves.toMatchObject({ replayed: true })
+  })
+
+  test("a local receipt repair failure defers without sending or dropping the command", async () => {
+    const command: RpcSessionCommand = {
+      _tag: "queue.add",
+      payload: { trackIds: ["track-1"] },
+    }
+    const store = await database([sessionWrite("01COMMAND", command)], [], [hostedSession()])
+    const runSessionCommand = vi.fn()
+    const rpc: WorkerRpc = {
+      listAlbums: async () => [],
+      listSessions: async () => [hostedSession()],
+      runSessionCommand,
+      setPlacement: async () => undefined,
+      appendListen: async () => ({ accepted: 0, duplicates: 0 }),
+    }
+    const failing = new Proxy(store, {
+      get(target, property, receiver) {
+        if (property === "queueSessionCommand") {
+          return async () => {
+            throw new Error("IndexedDB unavailable")
+          }
+        }
+        const value = Reflect.get(target, property, receiver)
+        return typeof value === "function" ? value.bind(target) : value
+      },
+    }) as WorkerDatabase
+
+    const report = await sync(failing, rpc)
+
+    expect(report.deferred).toBe(1)
+    expect(report.dropped).toEqual([])
+    expect(runSessionCommand).not.toHaveBeenCalled()
+    expect(await store.outbox()).toMatchObject([
+      { id: "01COMMAND", attempts: 1, lastError: "IndexedDB unavailable" },
+    ])
   })
 
   test("a permanently rejected session command restores server state", async () => {

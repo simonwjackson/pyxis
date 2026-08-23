@@ -303,6 +303,21 @@ async function pushSessionCommand(
     return { outcome: "dropped", reason: "session no longer exists" }
   }
 
+  // A crash can leave the outbox entry after the optimistic session write but before its
+  // local receipt. Repair that receipt before network success removes the only remaining
+  // evidence, or a later directive redelivery could repeat renderer effects. Storage
+  // uncertainty can never make a precious command disposable.
+  try {
+    const local = (await database.session(entry.sessionId)) ?? remote
+    await database.queueSessionCommand(local, entry.command, entry.commandId)
+  } catch (cause) {
+    await database.recordAttempt(
+      entry.id,
+      cause instanceof Error ? cause.message : "local receipt repair failed",
+    )
+    return { outcome: "deferred", reason: "local receipt repair failed" }
+  }
+
   try {
     const updated = await rpc.runSessionCommand(entry.sessionId, entry.command, entry.commandId)
     if (updated === undefined) {

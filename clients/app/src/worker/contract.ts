@@ -18,7 +18,7 @@ import type {
 /// Bumped whenever the stored shape changes. An existing database at a lower version is
 /// migrated in order. A database at a higher version belongs to a newer build, which this
 /// one cannot understand, so it is reset rather than guessed at.
-export const WORKER_SCHEMA_VERSION = 6
+export const WORKER_SCHEMA_VERSION = 7
 
 export const WORKER_DATABASE_NAME = "pyxis-worker"
 
@@ -27,6 +27,9 @@ export const SCHEMA_ROW_ID = "schema"
 
 /// One row. A device has exactly one identity and one set of credentials.
 export const SETTINGS_ROW_ID = "device"
+
+export const SESSION_CHANGED_DURING_CONFIRMATION =
+  "session changed while command was being confirmed"
 
 export interface WorkerCommandReceipt {
   readonly id: string
@@ -77,6 +80,13 @@ export interface WorkerSettings {
 export type WorkerAlbum = RpcLibraryAlbum & { readonly id: string }
 export type WorkerSession = RpcSession & { readonly id: string }
 
+export interface WorkerSessionCommandPreview {
+  readonly session: WorkerSession
+  /// True when this command ID was already durably accepted locally. A caller must not
+  /// repeat renderer side effects for it.
+  readonly replayed: boolean
+}
+
 /// A write made locally that the server has not accepted yet.
 ///
 /// Queued writes are the only data on a device that exists nowhere else, so they are the
@@ -107,6 +117,10 @@ export type WorkerOutboxEntry = {
       /// Idempotency key sent to the core. Separate from the monotonic local queue key.
       readonly commandId: string
       readonly baseRevision: number
+      /// Exact optimistic result written after this outbox entry. Lets recovery distinguish
+      /// an applied command from an unrelated later revision when receipt creation was
+      /// interrupted.
+      readonly resultFingerprint?: string
       readonly command: RpcSessionCommand
     }
 )
@@ -170,11 +184,19 @@ export interface WorkerDatabase {
   /// Store a server verdict even when it rolls back an optimistic local revision.
   replaceSession(session: WorkerSession): Promise<WorkerSession>
   removeSession(id: string): Promise<boolean>
+  /// Validate against the latest local session and detect an idempotent replay before a
+  /// host performs renderer side effects.
+  previewSessionCommand(
+    sessionId: string,
+    command: RpcSessionCommand,
+    commandId: string,
+  ): Promise<WorkerSessionCommandPreview>
   /// Apply a session command immediately and preserve it for idempotent replay.
   queueSessionCommand(
     session: WorkerSession,
     command: RpcSessionCommand,
     commandId?: string,
+    expectedRevision?: number,
   ): Promise<WorkerSession>
   /// Apply a placement immediately and preserve the write for the next sync.
   queuePlacement(album: WorkerAlbum, placement: RpcPlacement): Promise<WorkerAlbum>
@@ -232,4 +254,7 @@ export const WORKER_MIGRATIONS: WorkerMigrations = {
   5: async () => undefined,
   /// Version 6 keeps directive IDs after their outbox entries drain.
   6: async () => undefined,
+  /// Version 7 fingerprints optimistic session results. Existing outbox rows remain valid;
+  /// their missing fingerprint is conservatively re-confirmed rather than guessed applied.
+  7: async () => undefined,
 }

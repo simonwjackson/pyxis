@@ -10,7 +10,13 @@ import type {
   RpcSessionCommand,
 } from "../../../../contracts/generated/pyxis"
 import { createWorkerRpc, type WorkerRpc } from "../rpc/client"
-import type { WorkerAlbum, WorkerDatabase, WorkerOpenReport, WorkerSettings } from "./contract"
+import type {
+  WorkerAlbum,
+  WorkerDatabase,
+  WorkerOpenReport,
+  WorkerSessionCommandPreview,
+  WorkerSettings,
+} from "./contract"
 import { createMemoryEngine, openWorkerDatabase } from "./database"
 import { type SyncReport, sync as syncDatabase } from "./sync"
 
@@ -30,6 +36,10 @@ export type WorkerRequest = { readonly id: string } & (
   | { readonly _tag: "worker.session.read"; readonly payload: { id: string } }
   | { readonly _tag: "worker.session.put"; readonly payload: { session: RpcSession } }
   | { readonly _tag: "worker.session.remove"; readonly payload: { id: string } }
+  | {
+      readonly _tag: "worker.session-command.preview"
+      readonly payload: { sessionId: string; command: RpcSessionCommand; commandId: string }
+    }
   | { readonly _tag: "worker.sync"; readonly payload: { origin?: string } }
   | {
       readonly _tag: "worker.queue.placement"
@@ -41,7 +51,12 @@ export type WorkerRequest = { readonly id: string } & (
     }
   | {
       readonly _tag: "worker.queue.session-command"
-      readonly payload: { session: RpcSession; command: RpcSessionCommand; commandId?: string }
+      readonly payload: {
+        session: RpcSession
+        command: RpcSessionCommand
+        commandId?: string
+        expectedRevision?: number
+      }
     }
 )
 
@@ -76,6 +91,11 @@ export interface WorkerClient {
   session(id: string): Promise<RpcSession | undefined>
   putSession(session: RpcSession): Promise<RpcSession>
   removeSession(id: string): Promise<boolean>
+  previewSessionCommand(
+    sessionId: string,
+    command: RpcSessionCommand,
+    commandId: string,
+  ): Promise<WorkerSessionCommandPreview>
   /// Reconcile with the server. Safe to call when offline: the report says so and the
   /// queue is left intact.
   sync(origin?: string): Promise<SyncReport>
@@ -86,6 +106,7 @@ export interface WorkerClient {
     session: RpcSession,
     command: RpcSessionCommand,
     commandId?: string,
+    expectedRevision?: number,
   ): Promise<RpcSession>
   /// Record locally first. Sync owns network replay and idempotency.
   queueListen(event: ListenTrackEventInput): Promise<void>
@@ -157,6 +178,11 @@ export function createWorkerClient(channel: Channel): WorkerClient {
     session: (id) => send<RpcSession | undefined>({ _tag: "worker.session.read", payload: { id } }),
     putSession: (session) => send<RpcSession>({ _tag: "worker.session.put", payload: { session } }),
     removeSession: (id) => send<boolean>({ _tag: "worker.session.remove", payload: { id } }),
+    previewSessionCommand: (sessionId, command, commandId) =>
+      send<WorkerSessionCommandPreview>({
+        _tag: "worker.session-command.preview",
+        payload: { sessionId, command, commandId },
+      }),
     sync: (origin) =>
       send<SyncReport>({
         _tag: "worker.sync",
@@ -164,13 +190,14 @@ export function createWorkerClient(channel: Channel): WorkerClient {
       }),
     queuePlacement: (album, placement) =>
       send<WorkerAlbum>({ _tag: "worker.queue.placement", payload: { album, placement } }),
-    queueSessionCommand: (session, command, commandId) =>
+    queueSessionCommand: (session, command, commandId, expectedRevision) =>
       send<RpcSession>({
         _tag: "worker.queue.session-command",
         payload: {
           session,
           command,
           ...(commandId === undefined ? {} : { commandId }),
+          ...(expectedRevision === undefined ? {} : { expectedRevision }),
         },
       }),
     queueListen: (event) => send<void>({ _tag: "worker.queue.listen", payload: { event } }),
@@ -210,6 +237,8 @@ export function createDirectWorkerClient(
     session: async (id) => (await database()).session(id),
     putSession: async (session) => (await database()).putSession(session),
     removeSession: async (id) => (await database()).removeSession(id),
+    previewSessionCommand: async (sessionId, command, commandId) =>
+      (await database()).previewSessionCommand(sessionId, command, commandId),
     sync: async (origin) => {
       const store = await database()
       const settings = await store.settings()
@@ -242,8 +271,8 @@ export function createDirectWorkerClient(
       return syncDatabase(store, rpcFor(settings, origin))
     },
     queuePlacement: async (album, placement) => (await database()).queuePlacement(album, placement),
-    queueSessionCommand: async (session, command, commandId) =>
-      (await database()).queueSessionCommand(session, command, commandId),
+    queueSessionCommand: async (session, command, commandId, expectedRevision) =>
+      (await database()).queueSessionCommand(session, command, commandId, expectedRevision),
     queueListen: async (event) => (await database()).queueListen(event),
     terminate: () => undefined,
   }
@@ -284,11 +313,13 @@ export function createFailoverWorkerClient(
     session: (id) => retry((client) => client.session(id)),
     putSession: (session) => retry((client) => client.putSession(session)),
     removeSession: (id) => retry((client) => client.removeSession(id)),
+    previewSessionCommand: (sessionId, command, commandId) =>
+      retry((client) => client.previewSessionCommand(sessionId, command, commandId)),
     sync: (origin) => retry((client) => client.sync(origin)),
     queuePlacement: (album, placement) =>
       retry((client) => client.queuePlacement(album, placement)),
-    queueSessionCommand: (session, command, commandId) =>
-      retry((client) => client.queueSessionCommand(session, command, commandId)),
+    queueSessionCommand: (session, command, commandId, expectedRevision) =>
+      retry((client) => client.queueSessionCommand(session, command, commandId, expectedRevision)),
     queueListen: (event) => retry((client) => client.queueListen(event)),
     terminate: () => active.terminate(),
   }

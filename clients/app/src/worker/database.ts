@@ -12,6 +12,7 @@ import type {
 } from "../../../../contracts/generated/pyxis"
 import {
   SCHEMA_ROW_ID,
+  SESSION_CHANGED_DURING_CONFIRMATION,
   SETTINGS_ROW_ID,
   WORKER_MIGRATIONS,
   WORKER_SCHEMA_VERSION,
@@ -24,6 +25,7 @@ import {
   type WorkerOpenReport,
   type WorkerOutboxEntry,
   type WorkerSession,
+  type WorkerSessionCommandPreview,
   type WorkerSettings,
 } from "./contract"
 import { applySessionCommand } from "./session-local"
@@ -295,12 +297,70 @@ class LocalWorkerDatabase implements WorkerDatabase {
     return this.engine.sessions.delete(id)
   }
 
+  async previewSessionCommand(
+    sessionId: string,
+    command: RpcSessionCommand,
+    commandId: string,
+  ): Promise<WorkerSessionCommandPreview> {
+    const current = await this.engine.sessions.findById(sessionId)
+    if (current === undefined) throw new Error("session is not in the local store")
+    const commandIdLength = [...commandId].length
+    if (commandIdLength === 0 || commandIdLength > 128) {
+      throw new Error("command ID must contain 1 to 128 characters")
+    }
+    const fingerprint = canonicalJson(command)
+    const receiptKey = `${sessionId}:${commandId}`
+    const receipt = await this.engine.commandReceipts.findById(receiptKey)
+    if (receipt !== undefined) {
+      if (receipt.sessionId === sessionId && receipt.fingerprint === fingerprint) {
+        return { session: current, replayed: true }
+      }
+      throw new Error(`command ID ${commandId} already belongs to a different session command`)
+    }
+    const outbox = await this.engine.outbox.all()
+    const existing = outbox.find(
+      (entry) =>
+        entry.kind === "session.command" &&
+        entry.sessionId === sessionId &&
+        entry.commandId === commandId,
+    )
+    if (existing !== undefined) {
+      if (
+        existing.kind !== "session.command" ||
+        existing.sessionId !== sessionId ||
+        canonicalJson(existing.command) !== fingerprint
+      ) {
+        throw new Error(`command ID ${commandId} already belongs to a different session command`)
+      }
+      const resultIsStored =
+        existing.resultFingerprint !== undefined &&
+        existing.resultFingerprint === canonicalJson(current)
+      const supersededLocally = outbox.some(
+        (entry) =>
+          entry.kind === "session.command" &&
+          entry.sessionId === sessionId &&
+          entry.id > existing.id,
+      )
+      if (resultIsStored || supersededLocally) {
+        return { session: current, replayed: true }
+      }
+    }
+    // Validation is deliberately before renderer effects. A stale cursor or transport
+    // command must fail without first stopping or starting real audio.
+    applySessionCommand(current, command)
+    return { session: current, replayed: false }
+  }
+
   async queueSessionCommand(
     session: WorkerSession,
     command: RpcSessionCommand,
     commandId?: string,
+    expectedRevision?: number,
   ): Promise<WorkerSession> {
     const current = (await this.engine.sessions.findById(session.id)) ?? session
+    if (expectedRevision !== undefined && current.revision !== expectedRevision) {
+      throw new Error(SESSION_CHANGED_DURING_CONFIRMATION)
+    }
     const id = nextOutboxId()
     const idempotencyKey = commandId ?? id
     const commandIdLength = [...idempotencyKey].length
@@ -314,7 +374,8 @@ class LocalWorkerDatabase implements WorkerDatabase {
       if (receipt.sessionId === session.id && receipt.fingerprint === fingerprint) return current
       throw new Error(`command ID ${idempotencyKey} already belongs to a different session command`)
     }
-    const existing = (await this.engine.outbox.all()).find(
+    const outbox = await this.engine.outbox.all()
+    const existing = outbox.find(
       (entry) =>
         entry.kind === "session.command" &&
         entry.sessionId === session.id &&
@@ -326,10 +387,21 @@ class LocalWorkerDatabase implements WorkerDatabase {
         existing.sessionId === session.id &&
         canonicalJson(existing.command) === fingerprint
       ) {
+        const resultIsStored =
+          existing.resultFingerprint !== undefined &&
+          existing.resultFingerprint === canonicalJson(current)
+        const supersededLocally = outbox.some(
+          (entry) =>
+            entry.kind === "session.command" &&
+            entry.sessionId === session.id &&
+            entry.id > existing.id,
+        )
+        const legacyResultProbablyStored =
+          existing.resultFingerprint === undefined && current.revision > existing.baseRevision
         const repaired =
-          current.revision <= existing.baseRevision
-            ? applySessionCommand(current, command)
-            : current
+          resultIsStored || supersededLocally || legacyResultProbablyStored
+            ? current
+            : applySessionCommand(current, command)
         const stored = await this.engine.sessions.upsert(repaired)
         await this.engine.commandReceipts.upsert({
           id: receiptKey,
@@ -349,6 +421,7 @@ class LocalWorkerDatabase implements WorkerDatabase {
       sessionId: session.id,
       commandId: idempotencyKey,
       baseRevision: current.revision,
+      resultFingerprint: canonicalJson(updated),
       command,
     })
     const stored = await this.engine.sessions.upsert(updated)

@@ -106,7 +106,7 @@ describe("schema versions", () => {
 
     const upgraded = await openWorkerDatabase({ engine })
 
-    expect(upgraded.report).toMatchObject({ reason: "migrated", fromVersion: 2, version: 6 })
+    expect(upgraded.report).toMatchObject({ reason: "migrated", fromVersion: 2, version: 7 })
     expect(await upgraded.albums()).toHaveLength(1)
     expect((await upgraded.settings()).bearerToken).toBe("token")
   })
@@ -269,6 +269,71 @@ describe("local writes", () => {
       id: "session-2",
       queue: ["track-1"],
     })
+  })
+
+  test("previews validation and durable replays before renderer effects", async () => {
+    const database = await openWorkerDatabase({ engine: createMemoryEngine() })
+    const original = session({ queue: ["track-1"], cursor: 0, currentTrackId: "track-1" })
+    const play = { _tag: "transport.play" as const, payload: {} }
+    await database.putSession(original)
+
+    await expect(database.previewSessionCommand(original.id, play, "PLAY")).resolves.toEqual({
+      session: original,
+      replayed: false,
+    })
+    const playing = await database.queueSessionCommand(original, play, "PLAY", original.revision)
+    await database.queueSessionCommand(playing, { _tag: "transport.pause", payload: {} }, "PAUSE")
+
+    await expect(database.previewSessionCommand(original.id, play, "PLAY")).resolves.toMatchObject({
+      session: { transport: RpcTransport.Paused },
+      replayed: true,
+    })
+    await expect(
+      database.previewSessionCommand(
+        original.id,
+        { _tag: "cursor.jump", payload: { index: 5 } },
+        "STALE",
+      ),
+    ).rejects.toThrow("outside the queue")
+  })
+
+  test("rejects a command when the session changed after its preview", async () => {
+    const database = await openWorkerDatabase({ engine: createMemoryEngine() })
+    const original = session()
+    await database.putSession(original)
+    await database.putSession({ ...original, revision: 2, updatedAt: "later" })
+
+    await expect(
+      database.queueSessionCommand(
+        original,
+        { _tag: "queue.add", payload: { trackIds: ["track-1"] } },
+        "COMMAND",
+        1,
+      ),
+    ).rejects.toThrow("session changed while command was being confirmed")
+    expect(await database.outbox()).toEqual([])
+  })
+
+  test("does not mistake an unrelated later revision for an interrupted command result", async () => {
+    const engine = createMemoryEngine()
+    const database = await openWorkerDatabase({ engine })
+    const original = session({ queue: ["track-1"], cursor: 0, currentTrackId: "track-1" })
+    const command = { _tag: "transport.play" as const, payload: {} }
+    await database.putSession({ ...original, revision: 2, updatedAt: "remote" })
+    await engine.outbox.upsert({
+      id: "01QUEUE",
+      createdAt: "now",
+      attempts: 0,
+      kind: "session.command",
+      sessionId: original.id,
+      commandId: "01COMMAND",
+      baseRevision: 1,
+      command,
+    })
+
+    await expect(
+      database.previewSessionCommand(original.id, command, "01COMMAND"),
+    ).resolves.toMatchObject({ replayed: false, session: { revision: 2 } })
   })
 
   test("repairs a command receipt after interruption", async () => {

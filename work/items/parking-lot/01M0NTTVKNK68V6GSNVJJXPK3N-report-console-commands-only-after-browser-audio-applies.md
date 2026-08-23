@@ -3,7 +3,7 @@ id: 01M0NTTVKNK68V6GSNVJJXPK3N
 slug: report-console-commands-only-after-browser-audio-applies
 title: Report console commands only after browser audio applies
 origin: parked
-status: To Do
+status: Done
 priority: high
 labels:
   - sessions
@@ -25,9 +25,17 @@ The reference host updates durable session state before the browser confirms tha
 
 ## Acceptance Criteria
 
-- [ ] A directed transport command changes core state only after the audio element confirms the action.
-- [ ] Autoplay and media failures return an explicit host failure without leaving the session in Playing.
-- [ ] Tests cover console Play when autoplay is refused and Pause during a stream load.
+- [x] A directed transport command changes core state only after the audio element confirms the action.
+- [x] Autoplay and media failures return an explicit host failure without leaving the session in Playing.
+- [x] Tests cover console Play when autoplay is refused and Pause during a stream load.
+
+## Outcome
+
+The reference host now previews and deduplicates a command before renderer effects, confirms
+media operations before queueing public state, rolls the renderer back if durable storage
+fails, and reports Paused after asynchronous stream or media-element failure. Worker schema
+7 fingerprints optimistic command results so crash recovery does not guess from revision
+alone.
 
 ## Related
 

@@ -143,13 +143,18 @@ Rules for a conforming host:
 
 1. **Directives bypass topic filtering.** They are addressed to your device, not published
    to a topic you chose. You receive them even with no subscriptions.
-2. **Apply, then report.** Do what the command says to your audio, then call
-   `session.command.run` with it. Send the directive's `directiveId` as `commandId`. That
-   call makes the change durable and fans the new state out to every console.
-3. **Deduplicate on `directiveId`.** A reconnect can redeliver one, and applying
-   `queue.add` twice adds the same track twice. Keep a local applied-ID set because the
-   audio action happens before the report. The core also deduplicates the report.
-4. Exactly one socket per device receives a given directive, so a second open tab does not
+2. **Validate, apply, then report.** Validate against the latest local session before
+   touching audio. Confirm the renderer operation, then call `session.command.run` with the
+   directive's `directiveId` as `commandId`. For Play, `HTMLMediaElement.play()` must resolve
+   before reporting Playing. That durable call fans the new state out to every console.
+3. **Deduplicate before renderer effects.** A reconnect can redeliver one. Check the local
+   receipt first, because repeating Play can restart audio after a newer Pause and repeating
+   `queue.add` adds the same track twice. The core also deduplicates the report.
+4. **Failures preserve prior truth.** If autoplay, loading, decoding, or durable local
+   storage fails, do not report the requested transition. Restore the previous renderer
+   state and surface the failure. If audio fails after Playing was reported, immediately
+   report Pause so consoles do not show silent playback.
+5. Exactly one socket per device receives a given directive, so a second open tab does not
    double-apply. Do not rely on receiving it on every socket.
 
 ## Failures

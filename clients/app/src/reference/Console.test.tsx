@@ -54,7 +54,10 @@ function session(overrides: Partial<RpcSession> = {}): RpcSession {
   } as RpcSession
 }
 
-afterEach(cleanup)
+afterEach(() => {
+  cleanup()
+  vi.restoreAllMocks()
+})
 
 // jsdom has no media stack. Give the element just enough behaviour to assert against.
 Object.defineProperty(HTMLMediaElement.prototype, "play", {
@@ -398,6 +401,42 @@ describe("console mode", () => {
     )
   })
 
+  test("does not treat the boot gap before grant publication as an audio failure", async () => {
+    let releasePlugins: (() => void) | undefined
+    const listPlugins = vi.fn(
+      () =>
+        new Promise<Awaited<ReturnType<ReferenceClient["listPlugins"]>>>((resolve) => {
+          releasePlugins = () => resolve([])
+        }),
+    )
+    const loadStream = vi.fn(async () => "blob:track-1")
+    const database = await openWorkerDatabase({ engine: createMemoryEngine() })
+    await database.putSession(
+      session({
+        id: "mine",
+        hostDeviceId: "device-1",
+        queue: ["track-1"],
+        cursor: 0,
+        currentTrackId: "track-1",
+        transport: RpcTransport.Playing,
+      }),
+    )
+    const store = persistent(createDirectWorkerClient(async () => database))
+    render(
+      <ReferenceApp client={{ ...client([]), listPlugins, loadStream }} worker={store}>
+        <ReferenceAudio />
+      </ReferenceApp>,
+    )
+
+    await waitFor(() => expect(listPlugins).toHaveBeenCalledTimes(1))
+    expect(loadStream).not.toHaveBeenCalled()
+
+    act(() => releasePlugins?.())
+
+    await waitFor(() => expect(loadStream).toHaveBeenCalledTimes(1))
+    expect((await database.session("mine"))?.transport).toBe(RpcTransport.Playing)
+  })
+
   test("resuming after a pause does not reload the track", async () => {
     const loads: string[] = []
     const database = await openWorkerDatabase({ engine: createMemoryEngine() })
@@ -422,12 +461,16 @@ describe("console mode", () => {
     render(
       <ReferenceApp client={configured} worker={store}>
         <ReferenceConsole />
+        <ReferenceAudio />
       </ReferenceApp>,
     )
     await waitFor(() => expect(screen.getByRole("button", { name: "Play" })).toBeTruthy())
 
     fireEvent.click(screen.getByRole("button", { name: "Play" }))
     await waitFor(() => expect(loads).toEqual(["track-1"]))
+    await waitFor(async () =>
+      expect((await database.session("mine"))?.transport).toBe(RpcTransport.Playing),
+    )
     fireEvent.click(screen.getByRole("button", { name: "Pause" }))
     await waitFor(async () =>
       expect((await database.session("mine"))?.transport).toBe(RpcTransport.Paused),
@@ -783,6 +826,674 @@ describe("console mode", () => {
     act(() => deliver?.(directive))
 
     await waitFor(() => expect(attempts).toBe(2))
+  })
+
+  test("does not repeat renderer effects for a durable directive receipt", async () => {
+    let deliver: ((directive: RpcSessionDirective) => void) | undefined
+    const play = vi.spyOn(HTMLMediaElement.prototype, "play")
+    const database = await openWorkerDatabase({ engine: createMemoryEngine() })
+    const stopped = session({
+      id: "mine",
+      hostDeviceId: "device-1",
+      queue: ["track-1"],
+      cursor: 0,
+      currentTrackId: "track-1",
+      transport: RpcTransport.Stopped,
+    })
+    await database.putSession(stopped)
+    const playing = await database.queueSessionCommand(
+      stopped,
+      { _tag: "transport.play", payload: {} },
+      "play-1",
+    )
+    await database.queueSessionCommand(
+      playing,
+      { _tag: "transport.pause", payload: {} },
+      "pause-later",
+    )
+    const store = persistent(createDirectWorkerClient(async () => database))
+    const configured: ReferenceClient = {
+      ...client([]),
+      connectRealtime: (_token, handlers) => {
+        deliver = handlers.onDirective
+        return () => {}
+      },
+    }
+    render(
+      <ReferenceApp client={configured} worker={store}>
+        <ReferenceAudio />
+      </ReferenceApp>,
+    )
+    await waitFor(() => expect(deliver).toBeTypeOf("function"))
+
+    act(() =>
+      deliver?.({
+        sessionId: "mine",
+        command: { _tag: "transport.play", payload: {} },
+        issuedBy: "device-2",
+        directiveId: "play-1",
+      }),
+    )
+
+    await waitFor(async () =>
+      expect((await database.session("mine"))?.transport).toBe(RpcTransport.Paused),
+    )
+    expect(play).not.toHaveBeenCalled()
+  })
+
+  test("a redundant Play cannot suppress a later same-device Pause", async () => {
+    let deliverDirective: ((directive: RpcSessionDirective) => void) | undefined
+    let deliverEvent: ((event: RealtimeEvent) => void | Promise<void>) | undefined
+    const pause = vi.spyOn(HTMLMediaElement.prototype, "pause")
+    const database = await openWorkerDatabase({ engine: createMemoryEngine() })
+    await database.putSession(
+      session({
+        id: "mine",
+        hostDeviceId: "device-1",
+        queue: ["track-1"],
+        cursor: 0,
+        currentTrackId: "track-1",
+        transport: RpcTransport.Playing,
+      }),
+    )
+    const store = persistent(createDirectWorkerClient(async () => database))
+    const configured: ReferenceClient = {
+      ...client([]),
+      loadStream: async () => "blob:track-1",
+      connectRealtime: (_token, handlers) => {
+        deliverDirective = handlers.onDirective
+        deliverEvent = handlers.onEvent
+        return () => {}
+      },
+    }
+    render(
+      <ReferenceApp client={configured} worker={store}>
+        <ReferenceAudio />
+      </ReferenceApp>,
+    )
+    await waitFor(() => expect(deliverDirective).toBeTypeOf("function"))
+    await waitFor(() => expect(document.querySelector("audio")).not.toBeNull())
+
+    act(() =>
+      deliverDirective?.({
+        sessionId: "mine",
+        command: { _tag: "transport.play", payload: {} },
+        issuedBy: "device-2",
+        directiveId: "play-again",
+      }),
+    )
+    await waitFor(async () => expect((await database.session("mine"))?.revision).toBe(2))
+    const playing = await database.session("mine")
+    expect(playing).toBeDefined()
+    if (playing === undefined) return
+    const paused = {
+      ...playing,
+      transport: RpcTransport.Paused,
+      revision: playing.revision + 1,
+      updatedAt: "later",
+    }
+    await database.putSession(paused)
+    pause.mockClear()
+
+    await act(async () => {
+      await deliverEvent?.({
+        topic: RpcRealtimeTopic.Sessions,
+        resumeToken: "resume-pause",
+        state: { _tag: "session.state", payload: paused },
+      })
+    })
+
+    await waitFor(() => expect(pause).toHaveBeenCalled())
+  })
+
+  test("does not report a directed Play when the browser refuses autoplay", async () => {
+    let deliver: ((directive: RpcSessionDirective) => void) | undefined
+    const play = vi
+      .spyOn(HTMLMediaElement.prototype, "play")
+      .mockRejectedValueOnce(new Error("autoplay refused"))
+    const database = await openWorkerDatabase({ engine: createMemoryEngine() })
+    await database.putSession(
+      session({
+        id: "mine",
+        hostDeviceId: "device-1",
+        queue: ["track-1"],
+        cursor: 0,
+        currentTrackId: "track-1",
+        transport: RpcTransport.Stopped,
+      }),
+    )
+    const store = persistent(createDirectWorkerClient(async () => database))
+    const configured: ReferenceClient = {
+      ...client([]),
+      loadStream: async () => "blob:track-1",
+      connectRealtime: (_token, handlers) => {
+        deliver = handlers.onDirective
+        return () => {}
+      },
+    }
+    render(
+      <ReferenceApp client={configured} worker={store}>
+        <ReferencePlugins />
+        <ReferenceAudio />
+      </ReferenceApp>,
+    )
+    await waitFor(() => expect(deliver).toBeTypeOf("function"))
+
+    act(() =>
+      deliver?.({
+        sessionId: "mine",
+        command: { _tag: "transport.play", payload: {} },
+        issuedBy: "device-2",
+        directiveId: "play-1",
+      }),
+    )
+
+    await waitFor(() => expect(play).toHaveBeenCalledTimes(1))
+    await waitFor(() => expect(screen.getByRole("alert").textContent).toContain("autoplay refused"))
+    expect((await database.session("mine"))?.transport).toBe(RpcTransport.Stopped)
+    expect(await database.outbox()).toEqual([])
+  })
+
+  test("rejects a stale cursor directive before stopping real audio", async () => {
+    let deliver: ((directive: RpcSessionDirective) => void) | undefined
+    const pause = vi.spyOn(HTMLMediaElement.prototype, "pause")
+    const database = await openWorkerDatabase({ engine: createMemoryEngine() })
+    await database.putSession(
+      session({
+        id: "mine",
+        hostDeviceId: "device-1",
+        queue: ["track-1"],
+        cursor: 0,
+        currentTrackId: "track-1",
+        transport: RpcTransport.Playing,
+      }),
+    )
+    const store = persistent(createDirectWorkerClient(async () => database))
+    const configured: ReferenceClient = {
+      ...client([]),
+      loadStream: async () => "blob:track-1",
+      connectRealtime: (_token, handlers) => {
+        deliver = handlers.onDirective
+        return () => {}
+      },
+    }
+    render(
+      <ReferenceApp client={configured} worker={store}>
+        <ReferencePlugins />
+        <ReferenceAudio />
+      </ReferenceApp>,
+    )
+    await waitFor(() => expect(document.querySelector("audio")).not.toBeNull())
+    await waitFor(() => expect(deliver).toBeTypeOf("function"))
+    pause.mockClear()
+
+    act(() =>
+      deliver?.({
+        sessionId: "mine",
+        command: { _tag: "cursor.jump", payload: { index: 4 } },
+        issuedBy: "device-2",
+        directiveId: "jump-1",
+      }),
+    )
+
+    await waitFor(() =>
+      expect(screen.getByRole("alert").textContent).toContain("outside the queue"),
+    )
+    expect(pause).not.toHaveBeenCalled()
+    expect(document.querySelector("audio")).not.toBeNull()
+    expect((await database.session("mine"))?.transport).toBe(RpcTransport.Playing)
+    expect(await database.outbox()).toEqual([])
+  })
+
+  test("rolls the renderer back when a confirmed Play cannot enter durable storage", async () => {
+    let deliver: ((directive: RpcSessionDirective) => void) | undefined
+    let deliverEvent: ((event: RealtimeEvent) => void | Promise<void>) | undefined
+    const play = vi.spyOn(HTMLMediaElement.prototype, "play")
+    const pause = vi.spyOn(HTMLMediaElement.prototype, "pause")
+    const database = await openWorkerDatabase({ engine: createMemoryEngine() })
+    await database.putSession(
+      session({
+        id: "mine",
+        hostDeviceId: "device-1",
+        queue: ["track-1"],
+        cursor: 0,
+        currentTrackId: "track-1",
+        transport: RpcTransport.Stopped,
+      }),
+    )
+    const base = persistent(createDirectWorkerClient(async () => database))
+    const store = {
+      ...base,
+      queueSessionCommand: async () => {
+        throw new Error("quota exceeded")
+      },
+    }
+    const configured: ReferenceClient = {
+      ...client([]),
+      loadStream: async () => "blob:track-1",
+      connectRealtime: (_token, handlers) => {
+        deliver = handlers.onDirective
+        deliverEvent = handlers.onEvent
+        return () => {}
+      },
+    }
+    render(
+      <ReferenceApp client={configured} worker={store}>
+        <ReferencePlugins />
+        <ReferenceAudio />
+      </ReferenceApp>,
+    )
+    await waitFor(() => expect(deliver).toBeTypeOf("function"))
+
+    act(() =>
+      deliver?.({
+        sessionId: "mine",
+        command: { _tag: "transport.play", payload: {} },
+        issuedBy: "device-2",
+        directiveId: "play-1",
+      }),
+    )
+
+    await waitFor(() => expect(play).toHaveBeenCalledTimes(1))
+    await waitFor(() => expect(screen.getByRole("alert").textContent).toContain("quota exceeded"))
+    expect(pause).toHaveBeenCalled()
+    expect((await database.session("mine"))?.transport).toBe(RpcTransport.Stopped)
+    expect(await database.outbox()).toEqual([])
+
+    const playing = session({
+      id: "mine",
+      hostDeviceId: "device-1",
+      queue: ["track-1"],
+      cursor: 0,
+      currentTrackId: "track-1",
+      transport: RpcTransport.Playing,
+      revision: 2,
+      updatedAt: "later",
+    })
+    await database.putSession(playing)
+    await act(async () => {
+      await deliverEvent?.({
+        topic: RpcRealtimeTopic.Sessions,
+        resumeToken: "resume-playing",
+        state: { _tag: "session.state", payload: playing },
+      })
+    })
+
+    await waitFor(() => expect(play).toHaveBeenCalledTimes(2))
+  })
+
+  test("corrects a persisted Playing session when autoplay fails on reload", async () => {
+    const play = vi
+      .spyOn(HTMLMediaElement.prototype, "play")
+      .mockRejectedValueOnce(new Error("autoplay refused"))
+    const database = await openWorkerDatabase({ engine: createMemoryEngine() })
+    await database.putSession(
+      session({
+        id: "mine",
+        hostDeviceId: "device-1",
+        queue: ["track-1"],
+        cursor: 0,
+        currentTrackId: "track-1",
+        transport: RpcTransport.Playing,
+      }),
+    )
+    const store = persistent(createDirectWorkerClient(async () => database))
+    const configured: ReferenceClient = {
+      ...client([]),
+      loadStream: async () => "blob:track-1",
+    }
+    render(
+      <ReferenceApp client={configured} worker={store}>
+        <ReferencePlugins />
+        <ReferenceAudio />
+      </ReferenceApp>,
+    )
+
+    await waitFor(() => expect(play).toHaveBeenCalledTimes(1))
+    await waitFor(async () =>
+      expect((await database.session("mine"))?.transport).toBe(RpcTransport.Paused),
+    )
+    expect(await database.outbox()).toMatchObject([
+      { kind: "session.command", command: { _tag: "transport.pause" } },
+    ])
+    expect(screen.getByRole("alert").textContent).toContain("autoplay refused")
+  })
+
+  test("latches a media error between Play confirmation and durable state", async () => {
+    let deliver: ((directive: RpcSessionDirective) => void) | undefined
+    let releaseWrite: (() => void) | undefined
+    let writes = 0
+    const database = await openWorkerDatabase({ engine: createMemoryEngine() })
+    await database.putSession(
+      session({
+        id: "mine",
+        hostDeviceId: "device-1",
+        queue: ["track-1"],
+        cursor: 0,
+        currentTrackId: "track-1",
+        transport: RpcTransport.Stopped,
+      }),
+    )
+    const base = persistent(createDirectWorkerClient(async () => database))
+    const store = {
+      ...base,
+      queueSessionCommand: async (...args: Parameters<WorkerClient["queueSessionCommand"]>) => {
+        writes += 1
+        if (writes === 1) {
+          await new Promise<void>((resolve) => {
+            releaseWrite = resolve
+          })
+        }
+        return base.queueSessionCommand(...args)
+      },
+    }
+    const configured: ReferenceClient = {
+      ...client([]),
+      loadStream: async () => "blob:track-1",
+      connectRealtime: (_token, handlers) => {
+        deliver = handlers.onDirective
+        return () => {}
+      },
+    }
+    render(
+      <ReferenceApp client={configured} worker={store}>
+        <ReferencePlugins />
+        <ReferenceAudio />
+      </ReferenceApp>,
+    )
+    await waitFor(() => expect(deliver).toBeTypeOf("function"))
+
+    act(() =>
+      deliver?.({
+        sessionId: "mine",
+        command: { _tag: "transport.play", payload: {} },
+        issuedBy: "device-2",
+        directiveId: "play-1",
+      }),
+    )
+    const audio = await waitFor(() => {
+      const element = document.querySelector("audio")
+      if (element === null) throw new Error("audio element not mounted")
+      return element
+    })
+    await waitFor(() => expect(releaseWrite).toBeTypeOf("function"))
+
+    fireEvent.error(audio)
+    await act(async () => {
+      releaseWrite?.()
+      await Promise.resolve()
+    })
+
+    await waitFor(async () =>
+      expect((await database.session("mine"))?.transport).toBe(RpcTransport.Paused),
+    )
+    expect(await database.outbox()).toMatchObject([
+      { command: { _tag: "transport.play" } },
+      { command: { _tag: "transport.pause" } },
+    ])
+    expect(screen.getByRole("alert").textContent).toContain("could not decode or load audio")
+  })
+
+  test("reports Paused when loaded audio later raises a media error", async () => {
+    const database = await openWorkerDatabase({ engine: createMemoryEngine() })
+    await database.putSession(
+      session({
+        id: "mine",
+        hostDeviceId: "device-1",
+        queue: ["track-1"],
+        cursor: 0,
+        currentTrackId: "track-1",
+        transport: RpcTransport.Playing,
+      }),
+    )
+    const store = persistent(createDirectWorkerClient(async () => database))
+    const configured: ReferenceClient = {
+      ...client([]),
+      loadStream: async () => "blob:track-1",
+    }
+    render(
+      <ReferenceApp client={configured} worker={store}>
+        <ReferencePlugins />
+        <ReferenceAudio />
+      </ReferenceApp>,
+    )
+    const audio = await waitFor(() => {
+      const element = document.querySelector("audio")
+      if (element === null) throw new Error("audio element not mounted")
+      return element
+    })
+
+    fireEvent.error(audio)
+
+    await waitFor(async () =>
+      expect((await database.session("mine"))?.transport).toBe(RpcTransport.Paused),
+    )
+    expect(await database.outbox()).toMatchObject([
+      { kind: "session.command", command: { _tag: "transport.pause" } },
+    ])
+    expect(screen.getByRole("alert").textContent).toContain("could not decode or load audio")
+  })
+
+  test("corrects Playing when the stream request itself fails", async () => {
+    const database = await openWorkerDatabase({ engine: createMemoryEngine() })
+    await database.putSession(
+      session({
+        id: "mine",
+        hostDeviceId: "device-1",
+        queue: ["track-1"],
+        cursor: 0,
+        currentTrackId: "track-1",
+        transport: RpcTransport.Playing,
+      }),
+    )
+    const store = persistent(createDirectWorkerClient(async () => database))
+    const configured: ReferenceClient = {
+      ...client([]),
+      loadStream: async () => {
+        throw new Error("stream unavailable")
+      },
+    }
+    render(
+      <ReferenceApp client={configured} worker={store}>
+        <ReferencePlugins />
+        <ReferenceAudio />
+      </ReferenceApp>,
+    )
+
+    await waitFor(async () =>
+      expect((await database.session("mine"))?.transport).toBe(RpcTransport.Paused),
+    )
+    expect(await database.outbox()).toMatchObject([
+      { kind: "session.command", command: { _tag: "transport.pause" } },
+    ])
+    expect(screen.getByRole("alert").textContent).toContain("stream unavailable")
+  })
+
+  test("rolls volume back when its durable command write fails", async () => {
+    let deliver: ((directive: RpcSessionDirective) => void) | undefined
+    const database = await openWorkerDatabase({ engine: createMemoryEngine() })
+    await database.putSession(
+      session({
+        id: "mine",
+        hostDeviceId: "device-1",
+        queue: ["track-1"],
+        cursor: 0,
+        currentTrackId: "track-1",
+        transport: RpcTransport.Playing,
+        volume: 100,
+      }),
+    )
+    const base = persistent(createDirectWorkerClient(async () => database))
+    const store = {
+      ...base,
+      queueSessionCommand: async () => {
+        throw new Error("quota exceeded")
+      },
+    }
+    const configured: ReferenceClient = {
+      ...client([]),
+      loadStream: async () => "blob:track-1",
+      connectRealtime: (_token, handlers) => {
+        deliver = handlers.onDirective
+        return () => {}
+      },
+    }
+    render(
+      <ReferenceApp client={configured} worker={store}>
+        <ReferencePlugins />
+        <ReferenceAudio />
+      </ReferenceApp>,
+    )
+    const audio = await waitFor(() => {
+      const element = document.querySelector("audio")
+      if (element === null) throw new Error("audio element not mounted")
+      return element
+    })
+    await waitFor(() => expect(deliver).toBeTypeOf("function"))
+
+    act(() =>
+      deliver?.({
+        sessionId: "mine",
+        command: { _tag: "volume.set", payload: { volume: 25 } },
+        issuedBy: "device-2",
+        directiveId: "volume-1",
+      }),
+    )
+
+    await waitFor(() => expect(screen.getByRole("alert").textContent).toContain("quota exceeded"))
+    expect(audio.volume).toBe(1)
+    expect((await database.session("mine"))?.volume).toBe(100)
+  })
+
+  test("serializes a cursor change behind a directed Play that is loading", async () => {
+    let deliver: ((directive: RpcSessionDirective) => void) | undefined
+    let releaseStream: (() => void) | undefined
+    const loadStream = vi.fn(
+      () =>
+        new Promise<string>((resolve) => {
+          releaseStream = () => resolve("blob:track-1")
+        }),
+    )
+    const database = await openWorkerDatabase({ engine: createMemoryEngine() })
+    await database.putSession(
+      session({
+        id: "mine",
+        hostDeviceId: "device-1",
+        queue: ["track-1", "track-2"],
+        cursor: 0,
+        currentTrackId: "track-1",
+        transport: RpcTransport.Stopped,
+      }),
+    )
+    const store = persistent(createDirectWorkerClient(async () => database))
+    const configured: ReferenceClient = {
+      ...client([]),
+      loadStream,
+      connectRealtime: (_token, handlers) => {
+        deliver = handlers.onDirective
+        return () => {}
+      },
+    }
+    render(
+      <ReferenceApp client={configured} worker={store}>
+        <ReferenceAudio />
+      </ReferenceApp>,
+    )
+    await waitFor(() => expect(deliver).toBeTypeOf("function"))
+
+    act(() =>
+      deliver?.({
+        sessionId: "mine",
+        command: { _tag: "transport.play", payload: {} },
+        issuedBy: "device-2",
+        directiveId: "play-1",
+      }),
+    )
+    await waitFor(() => expect(loadStream).toHaveBeenCalledTimes(1))
+    act(() =>
+      deliver?.({
+        sessionId: "mine",
+        command: { _tag: "cursor.jump", payload: { index: 1 } },
+        issuedBy: "device-2",
+        directiveId: "jump-1",
+      }),
+    )
+
+    await act(async () => {
+      releaseStream?.()
+      await Promise.resolve()
+    })
+
+    await waitFor(async () =>
+      expect(await database.session("mine")).toMatchObject({
+        currentTrackId: "track-2",
+        transport: RpcTransport.Stopped,
+      }),
+    )
+    expect(await database.outbox()).toMatchObject([
+      { commandId: "play-1", command: { _tag: "transport.play" } },
+      { commandId: "jump-1", command: { _tag: "cursor.jump" } },
+    ])
+  })
+
+  test("a directed Pause cancels a stream that is still loading", async () => {
+    let deliver: ((directive: RpcSessionDirective) => void) | undefined
+    let releaseStream: (() => void) | undefined
+    const loadStream = vi.fn(
+      () =>
+        new Promise<string>((resolve) => {
+          releaseStream = () => resolve("blob:track-1")
+        }),
+    )
+    const database = await openWorkerDatabase({ engine: createMemoryEngine() })
+    await database.putSession(
+      session({
+        id: "mine",
+        hostDeviceId: "device-1",
+        queue: ["track-1"],
+        cursor: 0,
+        currentTrackId: "track-1",
+        transport: RpcTransport.Playing,
+      }),
+    )
+    const store = persistent(createDirectWorkerClient(async () => database))
+    const configured: ReferenceClient = {
+      ...client([]),
+      loadStream,
+      connectRealtime: (_token, handlers) => {
+        deliver = handlers.onDirective
+        return () => {}
+      },
+    }
+    render(
+      <ReferenceApp client={configured} worker={store}>
+        <ReferenceAudio />
+      </ReferenceApp>,
+    )
+    await waitFor(() => expect(loadStream).toHaveBeenCalledTimes(1))
+    await waitFor(() => expect(deliver).toBeTypeOf("function"))
+
+    act(() =>
+      deliver?.({
+        sessionId: "mine",
+        command: { _tag: "transport.pause", payload: {} },
+        issuedBy: "device-2",
+        directiveId: "pause-1",
+      }),
+    )
+
+    await waitFor(async () =>
+      expect((await database.session("mine"))?.transport).toBe(RpcTransport.Paused),
+    )
+    expect(await database.outbox()).toMatchObject([
+      { kind: "session.command", commandId: "pause-1", command: { _tag: "transport.pause" } },
+    ])
+
+    await act(async () => {
+      releaseStream?.()
+      await Promise.resolve()
+    })
+    await waitFor(() => expect(screen.getByText("No audio loaded.")).toBeTruthy())
   })
 })
 

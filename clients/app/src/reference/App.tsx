@@ -10,9 +10,10 @@ import type {
   RpcSession,
   RpcSessionCommand,
 } from "../../../../contracts/generated/pyxis"
+import { RpcTransport } from "../../../../contracts/generated/pyxis"
 import type { WorkerClient } from "../worker/client.ts"
 import { spawnWorkerClient } from "../worker/client.ts"
-import type { WorkerSettings } from "../worker/contract.ts"
+import { SESSION_CHANGED_DURING_CONFIRMATION, type WorkerSettings } from "../worker/contract.ts"
 import { createReferenceClient, type ReferenceClient } from "./api.ts"
 import { ReferenceConsole } from "./Console.tsx"
 import { ReferenceLibrary } from "./Library.tsx"
@@ -57,6 +58,15 @@ export function ReferenceApp({
   // root injects the browser worker before StrictMode so React cannot start it twice.
   const [store] = useState<WorkerClient>(() => worker ?? spawnWorkerClient())
   const audioElement = useRef<HTMLAudioElement | null>(null)
+  const loadedAudioUrl = useRef<string>()
+  const confirmedPlayingTrack = useRef<string>()
+  const loadAudioForRef = useRef<(trackId: string) => Promise<void>>(async () => {
+    throw new Error("audio loader is not ready")
+  })
+  const rendererFailureRef = useRef<(cause: unknown) => Promise<void>>(async () => undefined)
+  const rendererFailureVersion = useRef(0)
+  const playTransitionInFlight = useRef(false)
+  const rendererFailureInFlight = useRef(false)
   const placementQueues = useRef(new Map<string, Promise<void>>())
   const sessionWriteQueue = useRef<Promise<void>>(Promise.resolve())
   const syncQueue = useRef<Promise<void>>(Promise.resolve())
@@ -146,6 +156,123 @@ export function ReferenceApp({
   /// manual seek later.
   const pendingSeekMs = useRef<number>()
 
+  const cancelAudioLoad = useCallback(() => {
+    loadGeneration.current += 1
+    loading.current = undefined
+    pendingSeekMs.current = undefined
+  }, [])
+
+  const waitForLoadedAudio = useCallback(async (trackId: string): Promise<HTMLAudioElement> => {
+    for (let attempt = 0; attempt < 100; attempt += 1) {
+      const expectedUrl = loadedAudioUrl.current
+      const audio = audioElement.current
+      if (
+        loadedTrack.current === trackId &&
+        expectedUrl !== undefined &&
+        audio?.getAttribute("src") === expectedUrl
+      ) {
+        return audio
+      }
+      await new Promise<void>((resolve) => setTimeout(resolve, 0))
+    }
+    throw new Error("audio element did not load the requested track")
+  }, [])
+
+  const stopRenderer = useCallback(
+    (clearSource: boolean) => {
+      cancelAudioLoad()
+      confirmedPlayingTrack.current = undefined
+      const audio = audioElement.current
+      audio?.pause()
+      if (audio !== null) audio.currentTime = 0
+      if (clearSource) {
+        loadedTrack.current = undefined
+        loadedAudioUrl.current = undefined
+        setAudioUrl(undefined)
+      }
+    },
+    [cancelAudioLoad],
+  )
+
+  const restoreRenderer = useCallback(
+    async (target: RpcSession): Promise<void> => {
+      confirmedPlayingTrack.current = undefined
+      const trackId = target.currentTrackId
+      if (trackId === undefined) {
+        if (audioElement.current !== null) audioElement.current.volume = target.volume / 100
+        stopRenderer(true)
+        return
+      }
+      await loadAudioForRef.current(trackId)
+      const audio = await waitForLoadedAudio(trackId)
+      audio.volume = target.volume / 100
+      audio.currentTime = target.positionMs / 1000
+      if (target.transport === RpcTransport.Playing) await audio.play()
+      else audio.pause()
+    },
+    [stopRenderer, waitForLoadedAudio],
+  )
+
+  /// Apply renderer-facing effects before recording the session transition. The session is
+  /// public playback truth, so it must never claim that audio changed when the browser
+  /// rejected or had not yet completed the corresponding media operation.
+  const confirmAudioCommand = useCallback(
+    async (target: RpcSession, command: RpcSessionCommand): Promise<void> => {
+      switch (command._tag) {
+        case "transport.play": {
+          const trackId = target.currentTrackId
+          if (trackId === undefined) throw new Error("queue is empty")
+          // Mark only a real state transition. A redundant Play does not trigger the
+          // transport effect, so leaving this marker behind could suppress a later Pause.
+          const changesTransport = target.transport !== RpcTransport.Playing
+          confirmedPlayingTrack.current = changesTransport ? trackId : undefined
+          try {
+            await loadAudioForRef.current(trackId)
+            if (loadedTrack.current !== trackId) throw new Error("audio load was cancelled")
+            const audio = await waitForLoadedAudio(trackId)
+            const resumeFrom = pendingSeekMs.current ?? target.positionMs
+            pendingSeekMs.current = undefined
+            if (resumeFrom > 0) audio.currentTime = resumeFrom / 1000
+            await audio.play()
+            return
+          } catch (cause) {
+            if (changesTransport && confirmedPlayingTrack.current === trackId) {
+              confirmedPlayingTrack.current = undefined
+            }
+            audioElement.current?.pause()
+            throw cause
+          }
+        }
+        case "transport.pause":
+          // A stream request may still be in flight after a reload. Cancel it before
+          // reporting Paused so its late response cannot start playback again.
+          cancelAudioLoad()
+          confirmedPlayingTrack.current = undefined
+          audioElement.current?.pause()
+          return
+        case "transport.stop":
+        case "queue.clear":
+        case "cursor.jump":
+          stopRenderer(true)
+          return
+        case "queue.remove":
+          if (target.cursor === command.payload.index) stopRenderer(true)
+          return
+        case "volume.set":
+          if (audioElement.current !== null) {
+            audioElement.current.volume = command.payload.volume / 100
+          }
+          return
+        case "queue.add":
+        case "queue.shuffle":
+        case "transport.trackEnded":
+        case "position.report":
+          return
+      }
+    },
+    [cancelAudioLoad, stopRenderer, waitForLoadedAudio],
+  )
+
   const persistHostCommand = useCallback(
     async (
       target: RpcSession,
@@ -170,6 +297,84 @@ export function ReferenceApp({
       return optimistic
     },
     [store],
+  )
+
+  const persistConfirmedHostCommand = useCallback(
+    async (
+      target: RpcSession,
+      command: RpcSessionCommand,
+      commandId?: string,
+    ): Promise<RpcSession> => {
+      // Confirmation and persistence are one ordered session operation. Otherwise a queue
+      // edit can change the current track while Play is loading, producing audio for A and
+      // a public Playing snapshot for B.
+      const idempotencyKey = commandId ?? nextClientEventId()
+      const persisted = sessionWriteQueue.current
+        .catch(() => undefined)
+        .then(async () => {
+          for (let attempt = 0; attempt < 3; attempt += 1) {
+            const preview = await store.previewSessionCommand(target.id, command, idempotencyKey)
+            if (preview.replayed) {
+              // The receipt proves renderer effects were handled by the original delivery.
+              // Repeating Play here could restart audio after a newer Pause.
+              return store.queueSessionCommand(preview.session, command, idempotencyKey)
+            }
+            const confirmsPlay = command._tag === "transport.play"
+            const failureVersion = rendererFailureVersion.current
+            if (confirmsPlay) playTransitionInFlight.current = true
+            try {
+              await confirmAudioCommand(preview.session, command)
+              if (confirmsPlay && rendererFailureVersion.current !== failureVersion) {
+                throw new Error("audio failed while Play was being confirmed")
+              }
+              const updated = await store.queueSessionCommand(
+                preview.session,
+                command,
+                idempotencyKey,
+                preview.session.revision,
+              )
+              if (confirmsPlay && rendererFailureVersion.current !== failureVersion) {
+                confirmedPlayingTrack.current = undefined
+                audioElement.current?.pause()
+                return await store.queueSessionCommand(
+                  updated,
+                  { _tag: "transport.pause", payload: {} },
+                  nextClientEventId(),
+                  updated.revision,
+                )
+              }
+              return updated
+            } catch (cause) {
+              const latest = (await store.session(target.id)) ?? preview.session
+              try {
+                await restoreRenderer(latest)
+              } catch (restoreCause) {
+                throw new Error(
+                  `${message(cause)}; renderer rollback failed: ${message(restoreCause)}`,
+                )
+              }
+              if (message(cause) === SESSION_CHANGED_DURING_CONFIRMATION && attempt < 2) {
+                continue
+              }
+              throw cause
+            } finally {
+              if (confirmsPlay) playTransitionInFlight.current = false
+            }
+          }
+          throw new Error(SESSION_CHANGED_DURING_CONFIRMATION)
+        })
+      sessionWriteQueue.current = persisted.then(
+        () => undefined,
+        () => undefined,
+      )
+      const optimistic = await persisted
+      sessionRef.current = optimistic
+      setSession((current) =>
+        current !== undefined && current.revision > optimistic.revision ? current : optimistic,
+      )
+      return optimistic
+    },
+    [confirmAudioCommand, restoreRenderer, store],
   )
 
   const connectAccount = useCallback(async () => {
@@ -341,10 +546,9 @@ export function ReferenceApp({
             return
           }
           inFlightDirectives.current.add(directiveKey)
-          const persisted = persistHostCommand(current, directive.command, directive.directiveId)
           void (async () => {
             try {
-              await persisted
+              await persistConfirmedHostCommand(current, directive.command, directive.directiveId)
               appliedDirectives.current = [...appliedDirectives.current.slice(-511), directiveKey]
               await reconcileWorker()
             } catch (cause) {
@@ -357,7 +561,7 @@ export function ReferenceApp({
       },
       resumeTokenRef.current,
     )
-  }, [client, grant, persistHostCommand, reconcileWorker, store])
+  }, [client, grant, persistConfirmedHostCommand, reconcileWorker, store])
 
   useEffect(() => {
     const onOnline = () => {
@@ -376,24 +580,37 @@ export function ReferenceApp({
     [audioUrl],
   )
 
+  const sessionVolume = session?.volume
+  useEffect(() => {
+    const audio = audioElement.current
+    if (audio !== null && sessionVolume !== undefined) audio.volume = sessionVolume / 100
+  }, [sessionVolume])
+
   useEffect(() => {
     const audio = audioElement.current
     if (audio === null) return
     if (session?.transport === "playing" && audioUrl !== undefined) {
+      // A command-confirmation path already started this exact track before publishing the
+      // session transition. Do not ask the media element a second time after truth changed.
+      if (confirmedPlayingTrack.current === session.currentTrackId) {
+        confirmedPlayingTrack.current = undefined
+        return
+      }
       // Freshly loaded audio starts at zero even when the session is mid-track, which is
       // what a reload or a handoff looks like. Consumed once: a later manual rewind is the
       // listener's decision, not something to undo.
       const resumeFrom = pendingSeekMs.current
       pendingSeekMs.current = undefined
       if (resumeFrom !== undefined && resumeFrom > 0) audio.currentTime = resumeFrom / 1000
-      void audio.play().catch(() => {
-        setError("Browser blocked autoplay. Use the native audio control once.")
-      })
+      void audio.play().catch((cause: unknown) => rendererFailureRef.current(cause))
     } else {
+      // A Play command can be between loading the source and durably publishing Playing.
+      // Its explicit confirmation path owns the element during that short interval.
+      if (confirmedPlayingTrack.current === session?.currentTrackId) return
       audio.pause()
       if (session?.transport === "stopped") audio.currentTime = 0
     }
-  }, [audioUrl, session?.transport])
+  }, [audioUrl, session?.currentTrackId, session?.transport])
 
   const run = useCallback(async <T,>(operation: () => Promise<T>): Promise<T | undefined> => {
     setStatus("busy")
@@ -436,6 +653,46 @@ export function ReferenceApp({
       return (await store.session(target.id)) ?? optimistic
     },
     [persistHostCommand, reconcileWorker, store],
+  )
+
+  const reportRendererFailure = useCallback(
+    async (cause: unknown): Promise<void> => {
+      rendererFailureVersion.current += 1
+      const failure = `Audio renderer failed: ${message(cause)}`
+      setError(failure)
+      setStatus("error")
+      // The command confirmation path observes the failure version before publishing Play.
+      if (playTransitionInFlight.current || rendererFailureInFlight.current) return
+      const cached = sessionRef.current
+      if (cached === undefined) return
+      const current = (await store.session(cached.id)) ?? cached
+      if (current.transport !== RpcTransport.Playing) return
+      rendererFailureInFlight.current = true
+      confirmedPlayingTrack.current = undefined
+      audioElement.current?.pause()
+      try {
+        const paused = await runHostCommand(current, {
+          _tag: "transport.pause",
+          payload: {},
+        })
+        setSession(paused)
+      } catch (reportCause) {
+        setError(`${failure}; could not report Paused: ${message(reportCause)}`)
+      } finally {
+        rendererFailureInFlight.current = false
+      }
+    },
+    [runHostCommand, store],
+  )
+  rendererFailureRef.current = reportRendererFailure
+
+  const runConfirmedHostCommand = useCallback(
+    async (target: RpcSession, command: RpcSessionCommand): Promise<RpcSession> => {
+      const optimistic = await persistConfirmedHostCommand(target, command)
+      await reconcileWorker()
+      return (await store.session(target.id)) ?? optimistic
+    },
+    [persistConfirmedHostCommand, reconcileWorker, store],
   )
 
   const search = useCallback(async () => {
@@ -537,6 +794,7 @@ export function ReferenceApp({
           return
         }
         loadedTrack.current = trackId
+        loadedAudioUrl.current = nextAudioUrl
         pendingSeekMs.current = sessionRef.current?.positionMs ?? 0
         setAudioUrl(nextAudioUrl)
       })()
@@ -549,6 +807,7 @@ export function ReferenceApp({
     },
     [audioUrl, client, currentToken],
   )
+  loadAudioForRef.current = loadAudioFor
 
   /// Tell the core where this host actually is. Only the host knows, and without it a
   /// console or a handoff would resume every track from zero.
@@ -569,60 +828,36 @@ export function ReferenceApp({
   const play = useCallback(async () => {
     await run(async () => {
       const target = await ensureSession()
-      if (target.currentTrackId === undefined) throw new Error("queue is empty")
-      await loadAudioFor(target.currentTrackId)
-      setSession(
-        await runHostCommand(target, {
-          _tag: "transport.play",
-          payload: {},
-        }),
-      )
+      const command: RpcSessionCommand = { _tag: "transport.play", payload: {} }
+      setSession(await runConfirmedHostCommand(target, command))
     })
-  }, [ensureSession, loadAudioFor, run, runHostCommand])
+  }, [ensureSession, run, runConfirmedHostCommand])
 
   const pause = useCallback(async () => {
     if (session === undefined) return
     await run(async () => {
-      const paused = await runHostCommand(session, {
-        _tag: "transport.pause",
-        payload: {},
-      })
+      const command: RpcSessionCommand = { _tag: "transport.pause", payload: {} }
+      const paused = await runConfirmedHostCommand(session, command)
       setSession(paused)
       await reportPosition(paused)
     })
-  }, [reportPosition, run, runHostCommand, session])
+  }, [reportPosition, run, runConfirmedHostCommand, session])
 
   const stop = useCallback(async () => {
     if (session === undefined) return
     await run(async () => {
-      setSession(
-        await runHostCommand(session, {
-          _tag: "transport.stop",
-          payload: {},
-        }),
-      )
-      loadGeneration.current += 1
-      loadedTrack.current = undefined
-      pendingSeekMs.current = undefined
-      setAudioUrl(undefined)
+      const command: RpcSessionCommand = { _tag: "transport.stop", payload: {} }
+      setSession(await runConfirmedHostCommand(session, command))
     })
-  }, [run, runHostCommand, session])
+  }, [run, runConfirmedHostCommand, session])
 
   const clearQueue = useCallback(async () => {
     if (session === undefined) return
     await run(async () => {
-      setSession(
-        await runHostCommand(session, {
-          _tag: "queue.clear",
-          payload: {},
-        }),
-      )
-      loadGeneration.current += 1
-      loadedTrack.current = undefined
-      pendingSeekMs.current = undefined
-      setAudioUrl(undefined)
+      const command: RpcSessionCommand = { _tag: "queue.clear", payload: {} }
+      setSession(await runConfirmedHostCommand(session, command))
     })
-  }, [run, runHostCommand, session])
+  }, [run, runConfirmedHostCommand, session])
 
   const reportEnded = useCallback(async () => {
     if (session === undefined || grant === undefined || session.currentTrackId === undefined) return
@@ -686,13 +921,24 @@ export function ReferenceApp({
   // device, and a reload can find it already playing.
   useEffect(() => {
     const trackId = session?.currentTrackId
-    if (session?.transport !== "playing" || trackId === undefined) return
+    if (grant === undefined || session?.transport !== "playing" || trackId === undefined) return
     if (loadedTrack.current === trackId && audioUrl !== undefined) return
-    void loadAudioFor(trackId).catch((cause: unknown) => setError(message(cause)))
-  }, [audioUrl, loadAudioFor, session?.currentTrackId, session?.transport])
+    void loadAudioFor(trackId).catch((cause: unknown) => rendererFailureRef.current(cause))
+  }, [audioUrl, grant, loadAudioFor, session?.currentTrackId, session?.transport])
 
   const attachAudio = useCallback((element: HTMLAudioElement | null) => {
+    if (audioElement.current !== null && audioElement.current !== element) {
+      audioElement.current.onerror = null
+    }
     audioElement.current = element
+    if (element !== null) {
+      const volume = sessionRef.current?.volume
+      if (volume !== undefined) element.volume = volume / 100
+      element.onerror = () => {
+        const detail = element.error?.message ?? "the media element could not decode or load audio"
+        void rendererFailureRef.current(new Error(detail))
+      }
+    }
   }, [])
 
   const context = useMemo(

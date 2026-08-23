@@ -77,7 +77,7 @@ describe("worker client", () => {
     const opening = client.open()
     worker.reply({
       id: worker.sent[0]?.id ?? "",
-      outcome: { status: "ready", value: { reason: "opened", version: 6 } },
+      outcome: { status: "ready", value: { reason: "opened", version: 7 } },
     })
     await opening
 
@@ -226,6 +226,22 @@ describe("worker client", () => {
     })
   })
 
+  test("previews a hosted command before renderer effects", async () => {
+    const worker = new FakeWorker()
+    const client = createWorkerClient(worker)
+
+    void client.previewSessionCommand("session-1", { _tag: "transport.play", payload: {} }, "PLAY")
+
+    expect(worker.sent[0]).toMatchObject({
+      _tag: "worker.session-command.preview",
+      payload: {
+        sessionId: "session-1",
+        commandId: "PLAY",
+        command: { _tag: "transport.play" },
+      },
+    })
+  })
+
   test("sends a hosted session command to the worker queue", async () => {
     const worker = new FakeWorker()
     const client = createWorkerClient(worker)
@@ -244,12 +260,16 @@ describe("worker client", () => {
         updatedAt: "now",
       },
       { _tag: "queue.add", payload: { trackIds: ["track-1"] } },
+      "COMMAND",
+      1,
     )
 
     expect(worker.sent[0]).toMatchObject({
       _tag: "worker.queue.session-command",
       payload: {
         session: { id: "session-1" },
+        commandId: "COMMAND",
+        expectedRevision: 1,
         command: { _tag: "queue.add" },
       },
     })

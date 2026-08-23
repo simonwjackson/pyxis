@@ -681,14 +681,18 @@ a manual split cannot be undone by the automatic matcher.
 
 **Approach:**
 - `session.list` shows reachable sessions on the account.
-- A console command is addressed to a session id, routed to the host over WebSocket,
-  applied by the host, then fanned out.
+- A console command is addressed to a session id and routed to the host over WebSocket.
+  The host validates it against current local state, confirms renderer effects, then records
+  it through `session.command.run`; only that durable report is fanned out.
 - Handoff moves queue and cursor to a target device explicitly.
 - Commands to an unreachable session return a typed outcome rather than queueing silently.
 
 **Test scenarios:**
-- Happy path: a console pause stops audio on the host device.
+- Happy path: a console pause stops audio on the host device before Paused is published.
 - Happy path: handoff moves queue and cursor and leaves the source session empty.
+- Edge case: refused autoplay leaves the prior session state and no Play write.
+- Edge case: a media failure after Play is corrected to Paused.
+- Edge case: Pause cancels a stream request that is still loading.
 - Edge case: two consoles driving one session both observe the same resulting state.
 - Edge case: an offline host's session is absent from `session.list`.
 - Error path: commanding an unreachable session returns a typed unreachable outcome.

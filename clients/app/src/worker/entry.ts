@@ -69,6 +69,12 @@ async function handle(request: WorkerRequest): Promise<unknown> {
       return store.putSession(request.payload.session)
     case "worker.session.remove":
       return store.removeSession(request.payload.id)
+    case "worker.session-command.preview":
+      return store.previewSessionCommand(
+        request.payload.sessionId,
+        request.payload.command,
+        request.payload.commandId,
+      )
     case "worker.queue.placement": {
       const { album, placement } = request.payload
       return store.queuePlacement(album, placement)
@@ -80,6 +86,7 @@ async function handle(request: WorkerRequest): Promise<unknown> {
         request.payload.session,
         request.payload.command,
         request.payload.commandId,
+        request.payload.expectedRevision,
       )
     case "worker.sync": {
       const settings = await store.settings()
