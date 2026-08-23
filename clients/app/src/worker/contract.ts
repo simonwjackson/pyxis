@@ -18,7 +18,7 @@ import type {
 /// Bumped whenever the stored shape changes. An existing database at a lower version is
 /// migrated in order. A database at a higher version belongs to a newer build, which this
 /// one cannot understand, so it is reset rather than guessed at.
-export const WORKER_SCHEMA_VERSION = 7
+export const WORKER_SCHEMA_VERSION = 8
 
 export const WORKER_DATABASE_NAME = "pyxis-worker"
 
@@ -75,6 +75,11 @@ export interface WorkerSettings {
   readonly resumeToken?: string
   /// Durable user-visible outcomes. Bounded to the newest 100 notices.
   readonly syncNotices?: readonly WorkerSyncNotice[]
+  /// Cross-tab sequence reserved before candidate re-resolution. Higher generations win
+  /// publication when downloads overlap.
+  readonly offlineResolutionGeneration?: number
+  /// Monotonic account-switch fence shared with the service worker's stream credentials.
+  readonly streamEpoch?: number
 }
 
 export type WorkerAlbum = RpcLibraryAlbum & { readonly id: string }
@@ -85,6 +90,52 @@ export interface WorkerSessionCommandPreview {
   /// True when this command ID was already durably accepted locally. A caller must not
   /// repeat renderer side effects for it.
   readonly replayed: boolean
+}
+
+export interface OfflinePin {
+  readonly id: string
+  readonly albumId: string
+  readonly pinnedAt: number
+  /// Durable cross-tab identity. Unpin then repin creates a new generation.
+  readonly generation: number
+  /// False is a durable tombstone so an unpin then repin cannot reuse an old generation.
+  readonly pinned?: boolean
+  readonly lastError?: string
+}
+
+/// One complete, byte-verified cached track. A row is published only after Cache Storage
+/// contains the whole candidate response and its stream mapping.
+export interface OfflineMedia {
+  readonly id: string
+  readonly trackId: string
+  /// A shared track can be retained by several pinned albums.
+  readonly albumIds: readonly string[]
+  readonly candidateId: string
+  readonly candidateUrl: string
+  /// Cache containing candidateUrl. Missing means the legacy media cache.
+  readonly cacheName?: string
+  readonly bytes: number
+  readonly contentType: string
+  readonly cachedAt: number
+  readonly resolutionGeneration?: number
+  readonly openedAt?: number
+}
+
+export type OfflineAlbumState = "not-pinned" | "downloading" | "ready" | "failed"
+
+export interface OfflineAlbumStatus {
+  readonly albumId: string
+  readonly state: OfflineAlbumState
+  readonly totalTracks: number
+  readonly readyTracks: number
+  readonly bytes: number
+  readonly error?: string
+}
+
+export interface OfflineOverview {
+  readonly available: boolean
+  readonly albums: readonly OfflineAlbumStatus[]
+  readonly totalBytes: number
 }
 
 /// A write made locally that the server has not accepted yet.
@@ -184,6 +235,15 @@ export interface WorkerDatabase {
   /// Store a server verdict even when it rolls back an optimistic local revision.
   replaceSession(session: WorkerSession): Promise<WorkerSession>
   removeSession(id: string): Promise<boolean>
+  offlinePins(): Promise<readonly OfflinePin[]>
+  offlinePin(id: string): Promise<OfflinePin | undefined>
+  putOfflinePin(pin: OfflinePin): Promise<OfflinePin>
+  removeOfflinePin(id: string): Promise<boolean>
+  offlineMedia(): Promise<readonly OfflineMedia[]>
+  offlineMedium(trackId: string): Promise<OfflineMedia | undefined>
+  putOfflineMedium(media: OfflineMedia): Promise<OfflineMedia>
+  removeOfflineMedium(trackId: string): Promise<boolean>
+  touchOfflineMedium(trackId: string, openedAt?: number): Promise<OfflineMedia | undefined>
   /// Validate against the latest local session and detect an idempotent replay before a
   /// host performs renderer side effects.
   previewSessionCommand(
@@ -228,6 +288,8 @@ export interface WorkerEngine {
   readonly settings: WorkerCollection<WorkerSettings>
   readonly albums: WorkerCollection<WorkerAlbum>
   readonly sessions: WorkerCollection<WorkerSession>
+  readonly offlinePins: WorkerCollection<OfflinePin>
+  readonly offlineMedia: WorkerCollection<OfflineMedia>
   readonly commandReceipts: WorkerCollection<WorkerCommandReceipt>
   readonly outbox: WorkerCollection<WorkerOutboxEntry>
   close(): Promise<void>
@@ -257,4 +319,6 @@ export const WORKER_MIGRATIONS: WorkerMigrations = {
   /// Version 7 fingerprints optimistic session results. Existing outbox rows remain valid;
   /// their missing fingerprint is conservatively re-confirmed rather than guessed applied.
   7: async () => undefined,
+  /// Version 8 adds pinned-album intent and complete offline-media records.
+  8: async () => undefined,
 }

@@ -1,0 +1,60 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+dist=${1:-clients/app/dist}
+python3 - "$dist" <<'PY'
+import json
+import pathlib
+import re
+import sys
+
+root = pathlib.Path(sys.argv[1])
+required = [
+    root / "index.html",
+    root / "service-worker.js",
+    root / "manifest.webmanifest",
+    root / "asset-manifest.json",
+]
+for path in required:
+    if not path.is_file() or path.stat().st_size == 0:
+        raise SystemExit(f"missing PWA artifact: {path}")
+
+asset_manifest = json.loads((root / "asset-manifest.json").read_text())
+assets = asset_manifest.get("assets")
+if not isinstance(assets, list) or not assets:
+    raise SystemExit("asset-manifest.json carries no assets")
+if "/service-worker.js" in assets:
+    raise SystemExit("the service worker must not precache itself")
+for asset in assets:
+    if not isinstance(asset, str) or not asset.startswith("/"):
+        raise SystemExit(f"invalid asset path: {asset!r}")
+    path = root / ("index.html" if asset == "/" else asset.removeprefix("/"))
+    if not path.is_file():
+        raise SystemExit(f"asset manifest points at a missing file: {asset}")
+
+shell = (root / "index.html").read_text()
+if 'rel="manifest" href="/manifest.webmanifest"' not in shell:
+    raise SystemExit("index.html does not link the web manifest")
+if re.search(r"/assets/index-[A-Za-z0-9_-]+\.js", shell) is None:
+    raise SystemExit("index.html names no hashed application bundle")
+
+manifest = json.loads((root / "manifest.webmanifest").read_text())
+for field in ["name", "short_name", "start_url", "display", "icons"]:
+    if field not in manifest:
+        raise SystemExit(f"web manifest is missing {field}")
+
+worker = (root / "service-worker.js").read_text()
+if "__PYXIS_ASSET_MANIFEST__" in worker:
+    raise SystemExit("service worker asset manifest was not embedded")
+for marker in [
+    "pyxis-shell-",
+    "pyxis-offline-map-v1",
+    "pyxis-offline-media-v1",
+    "pyxis-offline-staging-v1",
+    "pyxis-stream-auth-v1",
+]:
+    if marker not in worker:
+        raise SystemExit(f"service worker is missing {marker}")
+
+print(f"PWA build is complete: {len(assets)} shell assets")
+PY

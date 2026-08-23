@@ -90,6 +90,17 @@ describe("the real ProseQL engine", () => {
     const { deviceId } = await first.settings()
     await first.writeSettings({ bearerToken: "token" })
     await first.putAlbum(album("album-1", 1, "Low"))
+    await first.putOfflinePin({ id: "album-1", albumId: "album-1", pinnedAt: 1, generation: 1 })
+    await first.putOfflineMedium({
+      id: "track-1",
+      trackId: "track-1",
+      albumIds: ["album-1"],
+      candidateId: "candidate-1",
+      candidateUrl: "https://pyxis.test/__pyxis/offline/default/candidate-1",
+      bytes: 100,
+      contentType: "audio/webm",
+      cachedAt: 1,
+    })
     await first.enqueue({
       id: "01A",
       createdAt: "2026-06-01",
@@ -109,6 +120,10 @@ describe("the real ProseQL engine", () => {
     expect((await reopened.settings()).deviceId).toBe(deviceId)
     expect((await reopened.settings()).bearerToken).toBe("token")
     expect((await reopened.albums()).map((entry) => entry.title)).toEqual(["Low"])
+    expect(await reopened.offlinePins()).toHaveLength(1)
+    expect(await reopened.offlineMedia()).toMatchObject([
+      { trackId: "track-1", albumIds: ["album-1"], candidateId: "candidate-1" },
+    ])
     expect(await reopened.outbox()).toHaveLength(1)
   })
 

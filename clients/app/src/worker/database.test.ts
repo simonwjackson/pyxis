@@ -106,7 +106,7 @@ describe("schema versions", () => {
 
     const upgraded = await openWorkerDatabase({ engine })
 
-    expect(upgraded.report).toMatchObject({ reason: "migrated", fromVersion: 2, version: 7 })
+    expect(upgraded.report).toMatchObject({ reason: "migrated", fromVersion: 2, version: 8 })
     expect(await upgraded.albums()).toHaveLength(1)
     expect((await upgraded.settings()).bearerToken).toBe("token")
   })
@@ -195,6 +195,8 @@ describe("storage that cannot even be repaired", () => {
       settings: createMemoryEngine().settings,
       albums: createMemoryEngine().albums,
       sessions: createMemoryEngine().sessions,
+      offlinePins: createMemoryEngine().offlinePins,
+      offlineMedia: createMemoryEngine().offlineMedia,
       commandReceipts: createMemoryEngine().commandReceipts,
       outbox: createMemoryEngine().outbox,
       close: async () => undefined,
@@ -470,6 +472,17 @@ describe("account changes", () => {
     await database.writeSettings({ accountId: "account-1" })
     await database.putAlbum(album("album-1"))
     await database.putSession(session())
+    await database.putOfflinePin({ id: "album-1", albumId: "album-1", pinnedAt: 1, generation: 1 })
+    await database.putOfflineMedium({
+      id: "track-1",
+      trackId: "track-1",
+      albumIds: ["album-1"],
+      candidateId: "candidate-1",
+      candidateUrl: "https://pyxis.test/__pyxis/offline/default/candidate-1",
+      bytes: 100,
+      contentType: "audio/webm",
+      cachedAt: 1,
+    })
 
     await database.writeSettings({
       accountId: "account-2",
@@ -483,6 +496,8 @@ describe("account changes", () => {
 
     expect(await database.albums()).toEqual([])
     expect(await database.sessions()).toEqual([])
+    expect(await database.offlinePins()).toEqual([])
+    expect(await database.offlineMedia()).toEqual([])
     expect(await database.settings()).toMatchObject({
       accountId: "account-2",
       deviceId: "device-2",
@@ -526,6 +541,55 @@ describe("albums", () => {
 
     expect(rejected.title).toBe("current")
     expect((await database.album("album-1"))?.title).toBe("current")
+  })
+
+  test("removing an album releases its offline retention without losing shared bytes", async () => {
+    const database = await openWorkerDatabase({ engine: createMemoryEngine() })
+    await database.putAlbum(album("album-1"))
+    await database.putOfflinePin({ id: "album-1", albumId: "album-1", pinnedAt: 1, generation: 1 })
+    await database.putOfflineMedium({
+      id: "track-1",
+      trackId: "track-1",
+      albumIds: ["album-1", "album-2"],
+      candidateId: "candidate-1",
+      candidateUrl: "https://pyxis.test/__pyxis/offline/default/candidate-1",
+      bytes: 100,
+      contentType: "audio/webm",
+      cachedAt: 1,
+    })
+
+    await database.removeAlbum("album-1")
+
+    expect(await database.offlinePin("album-1")).toMatchObject({
+      pinned: false,
+      generation: 2,
+    })
+    expect(await database.offlineMedium("track-1")).toMatchObject({ albumIds: ["album-2"] })
+  })
+
+  test("an album track-list change releases stale offline membership", async () => {
+    const database = await openWorkerDatabase({ engine: createMemoryEngine() })
+    await database.putAlbum({
+      ...album("album-1"),
+      tracks: [{ id: "old-track", title: "Old", artist: "Artist", trackNumber: 1, revision: 1 }],
+    })
+    await database.putOfflineMedium({
+      id: "old-track",
+      trackId: "old-track",
+      albumIds: ["album-1"],
+      candidateId: "candidate-old",
+      candidateUrl: "https://pyxis.test/offline/old",
+      bytes: 100,
+      contentType: "audio/webm",
+      cachedAt: 1,
+    })
+
+    await database.putAlbum({
+      ...album("album-1", 2),
+      tracks: [{ id: "new-track", title: "New", artist: "Artist", trackNumber: 1, revision: 1 }],
+    })
+
+    expect(await database.offlineMedium("old-track")).toMatchObject({ albumIds: [] })
   })
 
   test("replacing the library removes what the server no longer has", async () => {

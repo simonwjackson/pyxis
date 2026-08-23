@@ -11,6 +11,8 @@ import type {
   RpcSessionCommand,
 } from "../../../../contracts/generated/pyxis"
 import {
+  type OfflineMedia,
+  type OfflinePin,
   SCHEMA_ROW_ID,
   SESSION_CHANGED_DURING_CONFIRMATION,
   SETTINGS_ROW_ID,
@@ -127,17 +129,22 @@ async function migrate(
 }
 
 async function isEmpty(engine: WorkerEngine): Promise<boolean> {
-  const [settings, albums, sessions, commandReceipts, outbox] = await Promise.all([
-    engine.settings.all(),
-    engine.albums.all(),
-    engine.sessions.all(),
-    engine.commandReceipts.all(),
-    engine.outbox.all(),
-  ])
+  const [settings, albums, sessions, offlinePins, offlineMedia, commandReceipts, outbox] =
+    await Promise.all([
+      engine.settings.all(),
+      engine.albums.all(),
+      engine.sessions.all(),
+      engine.offlinePins.all(),
+      engine.offlineMedia.all(),
+      engine.commandReceipts.all(),
+      engine.outbox.all(),
+    ])
   return (
     settings.length === 0 &&
     albums.length === 0 &&
     sessions.length === 0 &&
+    offlinePins.length === 0 &&
+    offlineMedia.length === 0 &&
     commandReceipts.length === 0 &&
     outbox.length === 0
   )
@@ -158,6 +165,8 @@ async function clearCollections(engine: WorkerEngine): Promise<void> {
     engine.settings,
     engine.albums,
     engine.sessions,
+    engine.offlinePins,
+    engine.offlineMedia,
     engine.commandReceipts,
     engine.outbox,
   ]) {
@@ -221,6 +230,12 @@ class LocalWorkerDatabase implements WorkerDatabase {
       for (const session of await this.engine.sessions.all()) {
         await this.engine.sessions.delete(session.id)
       }
+      for (const pin of await this.engine.offlinePins.all()) {
+        await this.engine.offlinePins.delete(pin.id)
+      }
+      for (const media of await this.engine.offlineMedia.all()) {
+        await this.engine.offlineMedia.delete(media.id)
+      }
       for (const receipt of await this.engine.commandReceipts.all()) {
         await this.engine.commandReceipts.delete(receipt.id)
       }
@@ -254,9 +269,20 @@ class LocalWorkerDatabase implements WorkerDatabase {
     const incoming = new Map(albums.map((album) => [album.id, album]))
     const existing = await this.engine.albums.all()
     for (const album of existing) {
-      if (!incoming.has(album.id)) await this.engine.albums.delete(album.id)
+      if (!incoming.has(album.id)) await this.removeAlbum(album.id)
     }
-    for (const album of albums) await this.engine.albums.upsert(album)
+    for (const album of albums) await this.replaceAlbum(album)
+  }
+
+  private async reconcileOfflineAlbumTracks(album: WorkerAlbum): Promise<void> {
+    const trackIds = new Set(album.tracks.map((track) => track.id))
+    for (const media of await this.engine.offlineMedia.all()) {
+      if (!media.albumIds.includes(album.id) || trackIds.has(media.trackId)) continue
+      await this.engine.offlineMedia.upsert({
+        ...media,
+        albumIds: media.albumIds.filter((albumId) => albumId !== album.id),
+      })
+    }
   }
 
   async putAlbum(album: WorkerAlbum): Promise<WorkerAlbum> {
@@ -264,15 +290,36 @@ class LocalWorkerDatabase implements WorkerDatabase {
     // Local and remote writes arrive on independent channels with no ordering between
     // them, so the revision decides rather than arrival.
     if (existing !== undefined && existing.revision > album.revision) return existing
-    return this.engine.albums.upsert(album)
+    const stored = await this.engine.albums.upsert(album)
+    await this.reconcileOfflineAlbumTracks(stored)
+    return stored
   }
 
   async replaceAlbum(album: WorkerAlbum): Promise<WorkerAlbum> {
-    return this.engine.albums.upsert(album)
+    const stored = await this.engine.albums.upsert(album)
+    await this.reconcileOfflineAlbumTracks(stored)
+    return stored
   }
 
   async removeAlbum(id: string): Promise<boolean> {
-    return this.engine.albums.delete(id)
+    const removed = await this.engine.albums.delete(id)
+    const pin = await this.engine.offlinePins.findById(id)
+    if (pin !== undefined) {
+      const { lastError: _lastError, ...withoutError } = pin
+      await this.engine.offlinePins.upsert({
+        ...withoutError,
+        generation: pin.generation + 1,
+        pinned: false,
+      })
+    }
+    for (const media of await this.engine.offlineMedia.all()) {
+      if (!media.albumIds.includes(id)) continue
+      await this.engine.offlineMedia.upsert({
+        ...media,
+        albumIds: media.albumIds.filter((albumId) => albumId !== id),
+      })
+    }
+    return removed
   }
 
   async sessions(): Promise<readonly WorkerSession[]> {
@@ -295,6 +342,47 @@ class LocalWorkerDatabase implements WorkerDatabase {
 
   async removeSession(id: string): Promise<boolean> {
     return this.engine.sessions.delete(id)
+  }
+
+  async offlinePins(): Promise<readonly OfflinePin[]> {
+    return this.engine.offlinePins.all()
+  }
+
+  async offlinePin(id: string): Promise<OfflinePin | undefined> {
+    return this.engine.offlinePins.findById(id)
+  }
+
+  async putOfflinePin(pin: OfflinePin): Promise<OfflinePin> {
+    return this.engine.offlinePins.upsert(pin)
+  }
+
+  async removeOfflinePin(id: string): Promise<boolean> {
+    return this.engine.offlinePins.delete(id)
+  }
+
+  async offlineMedia(): Promise<readonly OfflineMedia[]> {
+    return this.engine.offlineMedia.all()
+  }
+
+  async offlineMedium(trackId: string): Promise<OfflineMedia | undefined> {
+    return this.engine.offlineMedia.findById(trackId)
+  }
+
+  async putOfflineMedium(media: OfflineMedia): Promise<OfflineMedia> {
+    return this.engine.offlineMedia.upsert(media)
+  }
+
+  async removeOfflineMedium(trackId: string): Promise<boolean> {
+    return this.engine.offlineMedia.delete(trackId)
+  }
+
+  async touchOfflineMedium(
+    trackId: string,
+    openedAt = Date.now(),
+  ): Promise<OfflineMedia | undefined> {
+    const current = await this.engine.offlineMedia.findById(trackId)
+    if (current === undefined) return undefined
+    return this.engine.offlineMedia.upsert({ ...current, openedAt })
   }
 
   async previewSessionCommand(
@@ -534,6 +622,8 @@ export function createMemoryEngine(): WorkerEngine {
     settings: new MemoryCollection(),
     albums: new MemoryCollection(),
     sessions: new MemoryCollection(),
+    offlinePins: new MemoryCollection(),
+    offlineMedia: new MemoryCollection(),
     commandReceipts: new MemoryCollection(),
     outbox: new MemoryCollection(),
     close: async () => undefined,

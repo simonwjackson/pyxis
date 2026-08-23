@@ -13,7 +13,11 @@ import type {
 import { RpcTransport } from "../../../../contracts/generated/pyxis"
 import type { WorkerClient } from "../worker/client.ts"
 import { spawnWorkerClient } from "../worker/client.ts"
-import { SESSION_CHANGED_DURING_CONFIRMATION, type WorkerSettings } from "../worker/contract.ts"
+import {
+  type OfflineOverview,
+  SESSION_CHANGED_DURING_CONFIRMATION,
+  type WorkerSettings,
+} from "../worker/contract.ts"
 import { createReferenceClient, type ReferenceClient } from "./api.ts"
 import { ReferenceConsole } from "./Console.tsx"
 import { ReferenceLibrary } from "./Library.tsx"
@@ -83,14 +87,17 @@ export function ReferenceApp({
   const [session, setSession] = useState<RpcSession>()
   const [remoteSessions, setRemoteSessions] = useState<readonly RpcSession[]>([])
   const [local, setLocal] = useState<LocalState>()
+  const [offline, setOffline] = useState<OfflineOverview>()
   const [updateAvailable, setUpdateAvailable] = useState(false)
   const [audioUrl, setAudioUrl] = useState<string>()
   const [error, setError] = useState<string>()
   const sessionRef = useRef<RpcSession>()
   const sessionOpening = useRef<Promise<RpcSession>>()
   const resumeTokenRef = useRef<string>()
+  const streamEpochRef = useRef(0)
   const appliedDirectives = useRef<string[]>([])
   const inFlightDirectives = useRef(new Set<string>())
+  const offlinePollGeneration = useRef(0)
 
   const applyWorkerAlbums = useCallback(async (): Promise<readonly RpcLibraryAlbum[]> => {
     const next = await store.albums()
@@ -114,6 +121,30 @@ export function ReferenceApp({
     )
     return next
   }, [store])
+
+  const watchOffline = useCallback(
+    (initial: OfflineOverview) => {
+      offlinePollGeneration.current += 1
+      const generation = offlinePollGeneration.current
+      setOffline(initial)
+      if (!initial.albums.some((album) => album.state === "downloading")) return
+      const poll = async () => {
+        await new Promise<void>((resolve) => setTimeout(resolve, 1000))
+        if (offlinePollGeneration.current !== generation) return
+        try {
+          const next = await store.offlineOverview()
+          if (offlinePollGeneration.current !== generation) return
+          setOffline(next)
+          if (next.albums.some((album) => album.state === "downloading")) void poll()
+        } catch {
+          // Offline status is best-effort UI reporting. The durable pin and manager keep
+          // running even if this page closes or one poll loses its worker response.
+        }
+      }
+      void poll()
+    },
+    [store],
+  )
 
   const reconcileWorker = useCallback(async () => {
     const request = syncQueue.current
@@ -384,10 +415,11 @@ export function ReferenceApp({
         try {
           setError(undefined)
           const settings = await store.settings()
+          streamEpochRef.current = settings.streamEpoch ?? 0
           let nextGrant = grantFromSettings(settings)
           if (nextGrant === undefined) {
             nextGrant = await client.claimDevice("reference browser")
-            await store.writeSettings({
+            const written = await store.writeSettings({
               accountId: nextGrant.account.id,
               accountName: nextGrant.account.name,
               accountIsDefault: nextGrant.account.isDefault,
@@ -396,8 +428,13 @@ export function ReferenceApp({
               deviceId: nextGrant.device.id,
               deviceName: nextGrant.device.name,
             })
+            streamEpochRef.current = written.streamEpoch ?? streamEpochRef.current
           }
 
+          // Cached sessions were loaded before this connection attempt. Publish the durable
+          // grant before any network request so a cold offline boot can play pinned audio
+          // immediately without waiting for an RPC timeout.
+          setGrant(nextGrant)
           const syncReport = await reconcileWorker()
           if (syncReport.authRequired) throw new Error("This device must be paired again.")
           const needsPageFallback =
@@ -421,11 +458,14 @@ export function ReferenceApp({
             for (const session of fallbackSessions) await store.putSession(session)
             await applyWorkerSessions()
           }
-          // Realtime makes the device reachable. Publish the grant only after the hosted
-          // session is in memory, so a console can never dispatch into an empty boot gap.
-          setGrant(nextGrant)
           setPlugins(nextPlugins)
           setStatus("ready")
+          // Resume durable pins after the page is usable. Large albums must not delay the
+          // realtime socket that makes this host reachable.
+          void store
+            .resumeOffline()
+            .then(watchOffline)
+            .catch((cause: unknown) => setError(message(cause)))
         } catch (cause) {
           setError(message(cause))
           setStatus("error")
@@ -437,7 +477,7 @@ export function ReferenceApp({
       () => undefined,
     )
     return request
-  }, [applyWorkerAlbums, applyWorkerSessions, client, reconcileWorker, store])
+  }, [applyWorkerAlbums, applyWorkerSessions, client, reconcileWorker, store, watchOffline])
 
   useEffect(() => {
     sessionRef.current = session
@@ -462,17 +502,29 @@ export function ReferenceApp({
     void (async () => {
       try {
         const report = await store.open()
-        const [settings, albums] = await Promise.all([store.settings(), store.albums()])
+        // Bind this page to one account before any account-scoped read. Otherwise a
+        // simultaneous switch in another tab can mix settings from one account with albums
+        // or cache metadata from another.
+        const settings = await store.settings()
+        const [albums, offlineOverview] = await Promise.all([
+          store.albums(),
+          store
+            .offlineOverview()
+            .catch((): OfflineOverview => ({ available: false, albums: [], totalBytes: 0 })),
+        ])
         if (!live) return
         albumsRef.current = albums
         resumeTokenRef.current = settings.resumeToken
+        streamEpochRef.current = settings.streamEpoch ?? 0
         setAlbums(albums)
+        setOffline(offlineOverview)
         setLocal({
           report,
           ...(settings.deviceId === undefined ? {} : { deviceId: settings.deviceId }),
           albumCount: albums.length,
           notices: settings.syncNotices ?? [],
         })
+        await applyWorkerSessions()
         await connectAccount()
       } catch {
         // connectAccount reports the actionable error. Cached data stays usable.
@@ -482,7 +534,7 @@ export function ReferenceApp({
       live = false
       if (worker === undefined) store.terminate()
     }
-  }, [connectAccount, store, worker])
+  }, [applyWorkerSessions, connectAccount, store, worker])
 
   // The realtime socket is also what makes this device reachable, so a console can drive
   // it. Without a live socket the core correctly reports this session as uncontrollable.
@@ -775,6 +827,20 @@ export function ReferenceApp({
     [reconcileWorker, run, store],
   )
 
+  const pinAlbum = useCallback(
+    async (albumId: string) => {
+      await run(async () => watchOffline(await store.pinAlbum(albumId)))
+    },
+    [run, store, watchOffline],
+  )
+
+  const unpinAlbum = useCallback(
+    async (albumId: string) => {
+      await run(async () => watchOffline(await store.unpinAlbum(albumId)))
+    },
+    [run, store, watchOffline],
+  )
+
   /// Load audio only when the track actually changed. Resuming reuses the loaded element,
   /// which is what preserves the playback position.
   const loadAudioFor = useCallback(
@@ -788,7 +854,17 @@ export function ReferenceApp({
       const generation = loadGeneration.current + 1
       loadGeneration.current = generation
       const promise = (async () => {
-        const nextAudioUrl = await client.loadStream(currentToken(), trackId)
+        const nextAudioUrl = await client.loadStream(
+          currentToken(),
+          trackId,
+          grant === undefined
+            ? undefined
+            : {
+                accountId: grant.account.id,
+                deviceId: grant.device.id,
+                streamEpoch: streamEpochRef.current,
+              },
+        )
         if (loadGeneration.current !== generation) {
           if (typeof URL.revokeObjectURL === "function") URL.revokeObjectURL(nextAudioUrl)
           return
@@ -797,6 +873,7 @@ export function ReferenceApp({
         loadedAudioUrl.current = nextAudioUrl
         pendingSeekMs.current = sessionRef.current?.positionMs ?? 0
         setAudioUrl(nextAudioUrl)
+        await store.touchOfflineTrack(trackId).catch(() => undefined)
       })()
       loading.current = { trackId, promise }
       try {
@@ -805,7 +882,7 @@ export function ReferenceApp({
         if (loading.current?.promise === promise) loading.current = undefined
       }
     },
-    [audioUrl, client, currentToken],
+    [audioUrl, client, currentToken, grant, store],
   )
   loadAudioForRef.current = loadAudioFor
 
@@ -954,6 +1031,7 @@ export function ReferenceApp({
       ...(session === undefined ? {} : { session }),
       remoteSessions,
       ...(local === undefined ? {} : { local }),
+      ...(offline === undefined ? {} : { offline }),
       updateAvailable,
       applyUpdate,
       ...(audioUrl === undefined ? {} : { audioUrl }),
@@ -963,6 +1041,8 @@ export function ReferenceApp({
       enqueue,
       enqueueAlbum,
       setAlbumPlacement,
+      pinAlbum,
+      unpinAlbum,
       play,
       pause,
       stop,
@@ -984,6 +1064,7 @@ export function ReferenceApp({
       session,
       remoteSessions,
       local,
+      offline,
       updateAvailable,
       applyUpdate,
       audioUrl,
@@ -992,6 +1073,8 @@ export function ReferenceApp({
       enqueue,
       enqueueAlbum,
       setAlbumPlacement,
+      pinAlbum,
+      unpinAlbum,
       play,
       pause,
       stop,

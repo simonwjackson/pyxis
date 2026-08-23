@@ -962,13 +962,19 @@ of any share configuration. Upgrades appear without any client-visible action.
 **Dependencies:** U21, U14
 
 **Files:**
-- Create: `clients/app/src/worker/downloads.ts`, `clients/app/src/worker/offline-policy.ts`, `clients/app/src/worker/range.ts`
+- Create: `clients/app/src/worker/downloads.ts`, `clients/app/src/worker/offline-cache.ts`, `clients/app/src/worker/offline-policy.ts`, `clients/app/src/worker/range.ts`
+- Modify: `clients/app/src/worker/contract.ts`, `services/pyxis/src/stream/mod.rs`
 
 **Approach:**
 - Port ossicle's offline policy: free-space floor, pressure fraction, LRU eviction, and a
   retained set that is never evicted.
-- Audio lands in Cache Storage keyed by resolved candidate, so a fidelity upgrade
-  invalidates the stale cached copy rather than serving it forever.
+- Audio lands in bounded chunks in Cache Storage, keyed by the resolved candidate identity
+  returned by the core. A fidelity upgrade publishes a new candidate mapping without
+  interrupting an active lease on the old bytes.
+- Durable pin generations, album revisions, account/device fences, ProseQL refresh under
+  Web Locks, and candidate publication generations close cross-tab races.
+- Cache/DB publication is recoverable in either crash order. Orphaned staging and old
+  candidates receive a grace period before cleanup.
 - Policy decisions stay pure and separately testable; the worker only executes them.
 
 **Test scenarios:**
@@ -991,10 +997,15 @@ of any share configuration. Upgrades appear without any client-visible action.
 **Dependencies:** U22
 
 **Files:**
-- Create: `clients/app/src/pwa/service-worker.ts`, `clients/app/src/pwa/register.ts`, `clients/app/vite.config.ts`, `clients/app/public/manifest.webmanifest`, `clients/app/src/worker/README.md`
+- Create: `clients/app/src/pwa/service-worker.ts`, `clients/app/src/pwa/register.ts`, `clients/app/src/pwa/offline-response.ts`, `clients/app/src/pwa/shell.ts`, `clients/app/public/manifest.webmanifest`, `clients/app/src/worker/README.md`, `clients/app/src/rpc/validation.ts`
+- Modify: `clients/app/vite.config.ts`, `clients/app/src/reference/api.ts`
 
 **Approach:**
-- No-store shell with immutable hashed assets, following comics.
+- No-store shell with an embedded build-specific immutable asset manifest. An old restarted
+  worker can never adopt a newer deployment's cache identity.
+- Offline media requests are candidate-leased and streamed chunk-by-chunk with byte-range
+  backpressure. Service-worker stream credentials use a durable monotonic account-switch
+  fence and exact transaction rollback.
 - `clients/app/src/worker/README.md` documents the worker API for the design model. This
   is the formal handoff artifact for D16 and should be written as if for a stranger.
 - The RPC client validates responses against the generated JSON Schema at the page boundary.

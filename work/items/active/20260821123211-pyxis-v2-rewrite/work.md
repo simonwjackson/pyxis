@@ -48,7 +48,17 @@ cached, and zero deferred writes. The M3 renderer correction later moved the wor
 schema 7, adding exact optimistic-result fingerprints for interrupted command recovery.
 The core, worker JavaScript, and WASM content types remain verified.
 
-U22 offline downloads and U23 service worker are not started.
+**U22 and U23 are implemented and review-complete.** Pinned albums use candidate-keyed,
+chunked Cache Storage with range streaming, cross-tab pin/account fences, LRU pressure,
+playing-track retention, fidelity replacement, and crash reconciliation. The installable
+PWA shell carries a build-bound asset manifest, network-first navigation fallback, durable
+stream authorization, candidate leases, and generated-schema RPC validation. Worker schema
+8 adds pins, media records, pin generations, publication generations, and stream epochs.
+
+Automated verification covers cold offline application logic, complete and interrupted
+downloads, quota pressure, shared tracks, fidelity races, account switches, service-worker
+restart, chunk ranges, shell updates, malformed RPC responses, and the packaged PWA artifact.
+Deployment and the real browser offline test remain.
 
 ---
 
@@ -76,8 +86,9 @@ The old system `pyxis.service` and `tsnet-proxy-pyxis.service` units are stopped
 remain declared by the current NixOS generation and can return after a reboot or system
 switch until the prepared `mountainous` removal is deployed.
 
-Next: your M3 console validation, then **U22** offline downloads and **U23** service
-worker. U18 Sonos and U19 Soulseek need hardware and an account.
+Next: deploy and perform the combined real-browser gate for M3 and M5: schema 8 migration,
+PWA installation, a pinned album, cold offline boot/playback, and second-device console
+control. U18 Sonos and U19 Soulseek still need hardware and an account.
 
 Album removal is no longer deferred. D17 records your decision: server removal wins,
 queued local placement intent is discarded, and the client reports the conflict.

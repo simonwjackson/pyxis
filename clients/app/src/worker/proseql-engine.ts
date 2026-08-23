@@ -11,6 +11,8 @@ import {
 } from "@proseql/browser/worker"
 import { Schema } from "effect"
 import {
+  type OfflineMedia,
+  type OfflinePin,
   WORKER_DATABASE_NAME,
   type WorkerAlbum,
   type WorkerCollection,
@@ -23,7 +25,9 @@ import {
 } from "./contract"
 
 const CHANNEL_NAME = "pyxis-worker"
-const ORIGIN_ID = "pyxis-worker-v1"
+// Every tab needs a distinct writer identity. The shared channel then invalidates each
+// engine's cached collections when another worker commits.
+const ORIGIN_ID = `pyxis-worker-${crypto.randomUUID()}`
 const KEY_PREFIX = "pyxis-v1:"
 
 const MetaSchema = Schema.Struct({
@@ -42,6 +46,8 @@ const SettingsSchema = Schema.Struct({
   bearerToken: Schema.optional(Schema.String),
   resumeToken: Schema.optional(Schema.String),
   syncNotices: Schema.optional(Schema.Unknown),
+  offlineResolutionGeneration: Schema.optional(Schema.Number),
+  streamEpoch: Schema.optional(Schema.Number),
 })
 
 /// The album body is stored opaquely. Its shape is owned by the server contract, and
@@ -57,6 +63,18 @@ const AlbumSchema = Schema.Struct({
 const SessionSchema = Schema.Struct({
   id: Schema.String,
   revision: Schema.Number,
+  body: Schema.Unknown,
+})
+
+const OfflinePinSchema = Schema.Struct({
+  id: Schema.String,
+  albumId: Schema.String,
+  body: Schema.Unknown,
+})
+
+const OfflineMediaSchema = Schema.Struct({
+  id: Schema.String,
+  trackId: Schema.String,
   body: Schema.Unknown,
 })
 
@@ -77,6 +95,16 @@ const config = {
   settings: { schema: SettingsSchema, file: "./pyxis/settings.json", relationships: {} },
   albums: { schema: AlbumSchema, file: "./pyxis/albums.json", relationships: {} },
   sessions: { schema: SessionSchema, file: "./pyxis/sessions.json", relationships: {} },
+  offlinePins: {
+    schema: OfflinePinSchema,
+    file: "./pyxis/offline-pins.json",
+    relationships: {},
+  },
+  offlineMedia: {
+    schema: OfflineMediaSchema,
+    file: "./pyxis/offline-media.json",
+    relationships: {},
+  },
   commandReceipts: {
     schema: CommandReceiptSchema,
     file: "./pyxis/command-receipts.json",
@@ -128,7 +156,16 @@ export async function createProseqlEngine(
 
   const database = await createServiceWorkerEngineDatabase(
     config,
-    { meta: [], settings: [], albums: [], sessions: [], commandReceipts: [], outbox: [] },
+    {
+      meta: [],
+      settings: [],
+      albums: [],
+      sessions: [],
+      offlinePins: [],
+      offlineMedia: [],
+      commandReceipts: [],
+      outbox: [],
+    },
     { storageHost, writeDebounce: 0 } as never,
   )
 
@@ -144,6 +181,14 @@ export async function createProseqlEngine(
     sessions: wrapped<WorkerSession>(raw.sessions, (session) => ({
       id: session.id,
       revision: session.revision,
+    })),
+    offlinePins: wrapped<OfflinePin>(raw.offlinePins, (pin) => ({
+      id: pin.id,
+      albumId: pin.albumId,
+    })),
+    offlineMedia: wrapped<OfflineMedia>(raw.offlineMedia, (media) => ({
+      id: media.id,
+      trackId: media.trackId,
     })),
     commandReceipts: adapt<WorkerCommandReceipt>(raw.commandReceipts),
     outbox: wrapped<WorkerOutboxEntry>(raw.outbox, (entry) => ({
@@ -163,6 +208,8 @@ export async function createProseqlEngine(
         raw.settings,
         raw.albums,
         raw.sessions,
+        raw.offlinePins,
+        raw.offlineMedia,
         raw.commandReceipts,
         raw.outbox,
       ]) {
@@ -212,6 +259,8 @@ interface RawEngine {
   readonly settings: RawCollection
   readonly albums: RawCollection
   readonly sessions: RawCollection
+  readonly offlinePins: RawCollection
+  readonly offlineMedia: RawCollection
   readonly commandReceipts: RawCollection
   readonly outbox: RawCollection
   close?(): Promise<void>

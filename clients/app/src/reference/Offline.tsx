@@ -5,7 +5,7 @@ import { useReference } from "./Reference.context.tsx"
 /// Reloading the page must not change the device id or the open reason from `opened`. That
 /// is the whole claim of the local store, and it is only observable here.
 export function ReferenceOffline() {
-  const { local } = useReference()
+  const { local, offline } = useReference()
 
   return (
     <section>
@@ -26,6 +26,12 @@ export function ReferenceOffline() {
           <dd>{local.albumCount}</dd>
           <dt>Writes deferred</dt>
           <dd>{local.lastSync?.deferred ?? 0}</dd>
+          <dt>Offline downloads available</dt>
+          <dd>{String(offline?.available === true)}</dd>
+          <dt>Albums pinned</dt>
+          <dd>{offline?.albums.length ?? 0}</dd>
+          <dt>Offline bytes</dt>
+          <dd>{offline?.totalBytes ?? 0}</dd>
         </dl>
       )}
       {local?.notices.length === 0

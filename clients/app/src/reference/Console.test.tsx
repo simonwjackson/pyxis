@@ -180,7 +180,27 @@ describe("local store", () => {
     await waitFor(() => expect(screen.getByText("created")).toBeTruthy())
     expect(screen.getByText("3")).toBeTruthy()
     // An in-process store must not claim to keep anything.
-    expect(screen.getByText("false")).toBeTruthy()
+    expect(screen.getAllByText("false").length).toBeGreaterThan(0)
+  })
+
+  test("keeps booting when Cache Storage inspection fails", async () => {
+    const base = persistent(createDirectWorkerClient())
+    const store = {
+      ...base,
+      offlineOverview: async () => {
+        throw new Error("Cache Storage unavailable")
+      },
+    }
+
+    render(
+      <ReferenceApp client={client([])} worker={store}>
+        <ReferencePlugins />
+        <ReferenceOffline />
+      </ReferenceApp>,
+    )
+
+    await waitFor(() => expect(screen.getByText("Status: ready")).toBeTruthy())
+    expect(screen.getAllByText("false").length).toBeGreaterThan(0)
   })
 
   test("an ephemeral no-worker fallback still reads the online library", async () => {
@@ -401,7 +421,7 @@ describe("console mode", () => {
     )
   })
 
-  test("does not treat the boot gap before grant publication as an audio failure", async () => {
+  test("publishes the durable grant before optional online metadata returns", async () => {
     let releasePlugins: (() => void) | undefined
     const listPlugins = vi.fn(
       () =>
@@ -429,12 +449,63 @@ describe("console mode", () => {
     )
 
     await waitFor(() => expect(listPlugins).toHaveBeenCalledTimes(1))
-    expect(loadStream).not.toHaveBeenCalled()
+    await waitFor(() => expect(loadStream).toHaveBeenCalledTimes(1))
 
     act(() => releasePlugins?.())
-
-    await waitFor(() => expect(loadStream).toHaveBeenCalledTimes(1))
     expect((await database.session("mine"))?.transport).toBe(RpcTransport.Playing)
+  })
+
+  test("a cold offline boot can play cached audio with the durable grant", async () => {
+    const loadStream = vi.fn(async () => "blob:offline-track")
+    const database = await openWorkerDatabase({ engine: createMemoryEngine() })
+    await database.writeSettings({
+      accountId: "default",
+      accountName: "default",
+      accountIsDefault: true,
+      accountCreatedAt: "now",
+      bearerToken: "cached-token",
+      deviceId: "device-1",
+      deviceName: "reference browser",
+    })
+    await database.putSession(
+      session({
+        id: "mine",
+        hostDeviceId: "device-1",
+        queue: ["track-1"],
+        cursor: 0,
+        currentTrackId: "track-1",
+        transport: RpcTransport.Stopped,
+      }),
+    )
+    const store = persistent(createDirectWorkerClient(async () => database))
+    const offlineClient: ReferenceClient = {
+      ...client([]),
+      listPlugins: async () => {
+        throw new Error("network unavailable")
+      },
+      loadStream,
+    }
+    render(
+      <ReferenceApp client={offlineClient} worker={store}>
+        <ReferencePlugins />
+        <ReferenceConsole />
+        <ReferenceAudio />
+      </ReferenceApp>,
+    )
+    const play = await screen.findByRole("button", { name: "Play" })
+
+    fireEvent.click(play)
+
+    await waitFor(() =>
+      expect(loadStream).toHaveBeenCalledWith("cached-token", "track-1", {
+        accountId: "default",
+        deviceId: "device-1",
+        streamEpoch: 0,
+      }),
+    )
+    await waitFor(async () =>
+      expect((await database.session("mine"))?.transport).toBe(RpcTransport.Playing),
+    )
   })
 
   test("resuming after a pause does not reload the track", async () => {
@@ -1526,6 +1597,56 @@ describe("reference client", () => {
     )
 
     await waitFor(() => expect(screen.getByText(/YouTube Music \(ytmusic\)/)).toBeTruthy())
+  })
+
+  test("pins an album through the worker download boundary", async () => {
+    const database = await openWorkerDatabase({ engine: createMemoryEngine() })
+    await database.putAlbum(
+      album({
+        tracks: [
+          {
+            id: "track-1",
+            title: "Heroes",
+            artist: "David Bowie",
+            trackNumber: 1,
+            revision: 1,
+          },
+        ],
+      }),
+    )
+    const base = persistent(createDirectWorkerClient(async () => database))
+    const initial = { available: true, albums: [], totalBytes: 0 } as const
+    const ready = {
+      available: true,
+      totalBytes: 100,
+      albums: [
+        {
+          albumId: "album-1",
+          state: "ready" as const,
+          totalTracks: 1,
+          readyTracks: 1,
+          bytes: 100,
+        },
+      ],
+    }
+    const pinAlbum = vi.fn(async () => ready)
+    const store = {
+      ...base,
+      offlineOverview: async () => initial,
+      resumeOffline: async () => initial,
+      pinAlbum,
+    }
+
+    render(
+      <ReferenceApp client={client([])} worker={store}>
+        <ReferenceLibrary />
+      </ReferenceApp>,
+    )
+    const pin = await screen.findByRole("button", { name: "Pin offline" })
+    fireEvent.click(pin)
+
+    await waitFor(() => expect(pinAlbum).toHaveBeenCalledWith("album-1"))
+    await waitFor(() => expect(screen.getByText(/offline ready \(1\/1\)/u)).toBeTruthy())
   })
 
   test("keeps an offline placement visible and queued in the local worker", async () => {

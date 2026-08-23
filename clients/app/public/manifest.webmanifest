@@ -1,0 +1,20 @@
+{
+  "id": "/",
+  "name": "Pyxis",
+  "short_name": "Pyxis",
+  "description": "A device-hosted, offline-capable music library.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#ffffff",
+  "categories": ["music", "entertainment"],
+  "icons": [
+    {
+      "src": "/icons/pyxis.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

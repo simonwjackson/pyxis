@@ -1,4 +1,4 @@
-import { describe, expect, test } from "vitest"
+import { describe, expect, test, vi } from "vitest"
 import { RpcPlacement, RpcTransport } from "../../../../contracts/generated/pyxis"
 import type { WorkerRpc } from "../rpc/client"
 import {
@@ -77,7 +77,7 @@ describe("worker client", () => {
     const opening = client.open()
     worker.reply({
       id: worker.sent[0]?.id ?? "",
-      outcome: { status: "ready", value: { reason: "opened", version: 7 } },
+      outcome: { status: "ready", value: { reason: "opened", version: 8 } },
     })
     await opening
 
@@ -96,6 +96,7 @@ describe("worker client", () => {
     })
 
     const pending = client.writeSettings({ accountId: "account-2" })
+    await vi.waitFor(() => expect(worker.sent).toHaveLength(1))
     worker.reply({
       id: worker.sent[0]?.id ?? "",
       outcome: { status: "failed", message: "cannot change account while queued writes exist" },
@@ -223,6 +224,40 @@ describe("worker client", () => {
     expect(worker.sent[0]).toMatchObject({
       _tag: "worker.album.read",
       payload: { id: "album-1" },
+    })
+  })
+
+  test("binds later worker requests to the account this page opened with", async () => {
+    const worker = new FakeWorker()
+    const client = createWorkerClient(worker)
+
+    const reading = client.settings()
+    worker.reply({
+      id: worker.sent[0]?.id ?? "",
+      outcome: {
+        status: "ready",
+        value: { id: "device", accountId: "default", deviceId: "device-1" },
+      },
+    })
+    await reading
+    void client.pinAlbum("album-1")
+
+    expect(worker.sent[1]).toMatchObject({
+      _tag: "worker.offline.pin",
+      accountId: "default",
+      payload: { albumId: "album-1" },
+    })
+  })
+
+  test("sends an album pin to the worker-owned download manager", async () => {
+    const worker = new FakeWorker()
+    const client = createWorkerClient(worker)
+
+    void client.pinAlbum("album-1")
+
+    expect(worker.sent[0]).toMatchObject({
+      _tag: "worker.offline.pin",
+      payload: { albumId: "album-1" },
     })
   })
 

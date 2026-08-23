@@ -217,6 +217,10 @@ async fn full_file_is_cached_and_served_with_audio_metadata() {
     assert_eq!(response.status(), StatusCode::OK);
     assert_eq!(response.headers()[header::CONTENT_TYPE], "audio/webm");
     assert_eq!(response.headers()[header::ACCEPT_RANGES], "bytes");
+    assert!(response
+        .headers()
+        .get("x-pyxis-candidate-id")
+        .is_some_and(|value| !value.is_empty()));
     assert_eq!(body(response).await, AUDIO);
     assert_eq!(upstream.requests.load(Ordering::SeqCst), 1);
 
@@ -260,6 +264,7 @@ async fn range_request_returns_206_with_exact_bounds() {
     assert_eq!(response.status(), StatusCode::PARTIAL_CONTENT);
     assert_eq!(response.headers()[header::CONTENT_RANGE], "bytes 2-5/22");
     assert_eq!(response.headers()[header::CONTENT_LENGTH], "4");
+    assert!(response.headers().contains_key("x-pyxis-candidate-id"));
     assert_eq!(body(response).await, b"2345");
 }
 

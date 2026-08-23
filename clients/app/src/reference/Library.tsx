@@ -12,7 +12,10 @@ export function ReferenceLibrary() {
     enqueue,
     enqueueAlbum,
     albums,
+    offline,
     setAlbumPlacement,
+    pinAlbum,
+    unpinAlbum,
   } = useReference()
 
   return (
@@ -50,34 +53,48 @@ export function ReferenceLibrary() {
 
       <h2>Library albums ({albums.length})</h2>
       <ol>
-        {albums.map((album) => (
-          <li key={album.id}>
-            <strong>{album.title}</strong> — {album.artist} — {album.placement} — revision{" "}
-            {album.revision} — {album.tracks.length} tracks{" "}
-            <button
-              type="button"
-              disabled={album.tracks.length === 0}
-              onClick={() => void enqueueAlbum(album.id)}
-            >
-              Queue album
-            </button>{" "}
-            {album.tracks.map((track) => (
-              <button key={track.id} type="button" onClick={() => void enqueue(track.id)}>
-                {track.trackNumber ?? "?"}
-              </button>
-            ))}{" "}
-            {Object.values(RpcPlacement).map((placement) => (
+        {albums.map((album) => {
+          const cached = offline?.albums.find((candidate) => candidate.albumId === album.id)
+          const pinned = cached !== undefined
+          return (
+            <li key={album.id}>
+              <strong>{album.title}</strong> — {album.artist} — {album.placement} — revision{" "}
+              {album.revision} — {album.tracks.length} tracks — offline{" "}
+              {cached?.state ?? "not-pinned"}
+              {cached === undefined ? "" : ` (${cached.readyTracks}/${cached.totalTracks})`}{" "}
               <button
-                key={placement}
                 type="button"
-                disabled={album.placement === placement}
-                onClick={() => void setAlbumPlacement(album.id, placement)}
+                disabled={album.tracks.length === 0}
+                onClick={() => void enqueueAlbum(album.id)}
               >
-                {placement}
-              </button>
-            ))}
-          </li>
-        ))}
+                Queue album
+              </button>{" "}
+              <button
+                type="button"
+                disabled={offline?.available !== true}
+                onClick={() => void (pinned ? unpinAlbum(album.id) : pinAlbum(album.id))}
+              >
+                {pinned ? "Unpin offline" : "Pin offline"}
+              </button>{" "}
+              {album.tracks.map((track) => (
+                <button key={track.id} type="button" onClick={() => void enqueue(track.id)}>
+                  {track.trackNumber ?? "?"}
+                </button>
+              ))}{" "}
+              {Object.values(RpcPlacement).map((placement) => (
+                <button
+                  key={placement}
+                  type="button"
+                  disabled={album.placement === placement}
+                  onClick={() => void setAlbumPlacement(album.id, placement)}
+                >
+                  {placement}
+                </button>
+              ))}
+              {cached?.error === undefined ? null : <pre>{cached.error}</pre>}
+            </li>
+          )
+        })}
       </ol>
     </section>
   )

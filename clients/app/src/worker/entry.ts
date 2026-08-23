@@ -7,6 +7,11 @@ import { createWorkerRpc } from "../rpc/client"
 import type { WorkerRequest, WorkerResponse } from "./client"
 import type { WorkerDatabase } from "./contract"
 import { openWorkerDatabase } from "./database"
+import {
+  browserCacheStorage,
+  browserOfflineExclusive,
+  createOfflineDownloadManager,
+} from "./downloads"
 import { createProseqlEngine } from "./proseql-engine"
 import { type SyncReport, sync } from "./sync"
 
@@ -42,54 +47,170 @@ async function database(): Promise<WorkerDatabase> {
   return opening
 }
 
+async function refreshDatabase(): Promise<WorkerDatabase> {
+  const current = opening
+  opening = undefined
+  if (current !== undefined) await (await current).close().catch(() => undefined)
+  return database()
+}
+
+const rawOfflineExclusive = browserOfflineExclusive(globalThis.navigator.locks)
+const refreshingExclusive = <T>(operation: () => Promise<T>): Promise<T> =>
+  rawOfflineExclusive(async () => {
+    await refreshDatabase()
+    return operation()
+  })
+const offline = createOfflineDownloadManager(database, {
+  fetch: globalThis.fetch.bind(globalThis),
+  caches: browserCacheStorage(globalThis.caches),
+  estimate: async () => globalThis.navigator.storage.estimate(),
+  origin: globalThis.location.origin,
+  available: globalThis.navigator.locks !== undefined,
+  exclusive: refreshingExclusive,
+})
+
+function accountFencedDatabase(
+  initial: WorkerDatabase,
+  expectedAccountId: string | undefined,
+): WorkerDatabase {
+  return new Proxy(initial, {
+    get(target, property, receiver) {
+      const initialValue = Reflect.get(target, property, receiver)
+      if (typeof initialValue !== "function") return initialValue
+      return (...args: unknown[]) =>
+        offline.exclusive(async () => {
+          const current = await database()
+          if ((await current.settings()).accountId !== expectedAccountId) {
+            throw new Error("account changed while sync was in flight")
+          }
+          const value = Reflect.get(current, property)
+          return value.apply(current, args)
+        })
+    },
+  })
+}
+
+async function readCurrentAccount<T>(
+  expectedAccountId: string | undefined,
+  operation: (store: WorkerDatabase) => Promise<T>,
+): Promise<T> {
+  return offline.exclusive(async () => {
+    const current = await database()
+    if (
+      expectedAccountId !== undefined &&
+      (await current.settings()).accountId !== expectedAccountId
+    ) {
+      throw new Error("this page belongs to a different account; reload it")
+    }
+    return operation(current)
+  })
+}
+
+async function mutateCurrentAccount<T>(
+  expectedAccountId: string | undefined,
+  operation: (store: WorkerDatabase) => Promise<T>,
+): Promise<T> {
+  return readCurrentAccount(expectedAccountId, operation)
+}
+
 async function handle(request: WorkerRequest): Promise<unknown> {
   const store = await database()
   switch (request._tag) {
     case "worker.open":
       return store.report
     case "worker.settings.read":
-      return store.settings()
+      return readCurrentAccount(request.accountId, (current) => current.settings())
     case "worker.settings.write":
-      return store.writeSettings(request.payload)
+      return offline.exclusive(async () => {
+        const current = await database()
+        const before = await current.settings()
+        if (request.accountId !== undefined && before.accountId !== request.accountId) {
+          throw new Error("account changed while settings were in flight")
+        }
+        const written = await current.writeSettings(request.payload)
+        if (
+          before.accountId !== undefined &&
+          written.accountId !== undefined &&
+          before.accountId !== written.accountId
+        ) {
+          await offline.clearWithinExclusive().catch((cause: unknown) => {
+            // The new account/device identity already makes old cache mappings unreachable.
+            // Reconciliation removes orphaned bytes later; cleanup failure must not make a
+            // committed grant look rejected to the page.
+            console.warn("pyxis worker: old offline cache cleanup failed", cause)
+          })
+        }
+        return written
+      })
     case "worker.albums.read":
-      return store.albums()
+      return readCurrentAccount(request.accountId, (current) => current.albums())
     case "worker.album.read":
-      return store.album(request.payload.id)
+      return readCurrentAccount(request.accountId, (current) => current.album(request.payload.id))
     case "worker.albums.replace":
-      return store.replaceAlbums(request.payload.albums)
+      return mutateCurrentAccount(request.accountId, (current) =>
+        current.replaceAlbums(request.payload.albums),
+      )
     case "worker.album.put":
-      return store.putAlbum(request.payload.album)
+      return mutateCurrentAccount(request.accountId, (current) =>
+        current.putAlbum(request.payload.album),
+      )
     case "worker.album.remove":
-      return store.removeAlbum(request.payload.id)
+      return mutateCurrentAccount(request.accountId, (current) =>
+        current.removeAlbum(request.payload.id),
+      )
     case "worker.sessions.read":
-      return store.sessions()
+      return readCurrentAccount(request.accountId, (current) => current.sessions())
     case "worker.session.read":
-      return store.session(request.payload.id)
+      return readCurrentAccount(request.accountId, (current) => current.session(request.payload.id))
     case "worker.session.put":
-      return store.putSession(request.payload.session)
+      return mutateCurrentAccount(request.accountId, (current) =>
+        current.putSession(request.payload.session),
+      )
     case "worker.session.remove":
-      return store.removeSession(request.payload.id)
+      return mutateCurrentAccount(request.accountId, (current) =>
+        current.removeSession(request.payload.id),
+      )
+    case "worker.offline.overview":
+      return offline.overview(request.accountId)
+    case "worker.offline.pin":
+      return offline.pinAlbum(request.payload.albumId, request.accountId)
+    case "worker.offline.unpin":
+      return offline.unpinAlbum(request.payload.albumId, request.accountId)
+    case "worker.offline.resume":
+      return offline.resume(request.accountId)
+    case "worker.offline.touch":
+      return mutateCurrentAccount(request.accountId, () => offline.touch(request.payload.trackId))
+    case "worker.offline.clear":
+      return offline.clear(request.accountId)
     case "worker.session-command.preview":
-      return store.previewSessionCommand(
-        request.payload.sessionId,
-        request.payload.command,
-        request.payload.commandId,
+      return readCurrentAccount(request.accountId, (current) =>
+        current.previewSessionCommand(
+          request.payload.sessionId,
+          request.payload.command,
+          request.payload.commandId,
+        ),
       )
     case "worker.queue.placement": {
       const { album, placement } = request.payload
-      return store.queuePlacement(album, placement)
+      return mutateCurrentAccount(request.accountId, (current) =>
+        current.queuePlacement(album, placement),
+      )
     }
     case "worker.queue.listen":
-      return store.queueListen(request.payload.event)
+      return mutateCurrentAccount(request.accountId, (current) =>
+        current.queueListen(request.payload.event),
+      )
     case "worker.queue.session-command":
-      return store.queueSessionCommand(
-        request.payload.session,
-        request.payload.command,
-        request.payload.commandId,
-        request.payload.expectedRevision,
+      return mutateCurrentAccount(request.accountId, (current) =>
+        current.queueSessionCommand(
+          request.payload.session,
+          request.payload.command,
+          request.payload.commandId,
+          request.payload.expectedRevision,
+        ),
       )
     case "worker.sync": {
-      const settings = await store.settings()
+      const settings = await readCurrentAccount(request.accountId, (current) => current.settings())
       if (settings.bearerToken === undefined) {
         // Nothing to reconcile with until this device has an account. That is a
         // credentials problem, not a network one, and saying so is the difference between
@@ -99,44 +220,65 @@ async function handle(request: WorkerRequest): Promise<unknown> {
           pushed: 0,
           converged: 0,
           dropped: [],
-          deferred: (await store.outbox()).length,
+          deferred: await readCurrentAccount(
+            request.accountId,
+            async (current) => (await current.outbox()).length,
+          ),
           conflicts: [],
           offline: false,
           authRequired: true,
         }
         return report
       }
-      return sync(
-        store,
+      const report = await sync(
+        accountFencedDatabase(await database(), settings.accountId),
         createWorkerRpc({
           token: settings.bearerToken,
           ...(request.payload.origin === undefined ? {} : { origin: request.payload.origin }),
         }),
       )
+      await offline.resume(request.accountId).catch((cause: unknown) => {
+        // Cache Storage is optional at runtime. Sync success must remain usable when the
+        // browser blocks or corrupts only the offline-media subsystem.
+        console.warn("pyxis worker: offline resume failed", cause)
+      })
+      return report
     }
   }
 }
 
-scope.addEventListener("message", (event) => {
-  const request = event.data
-  void (async () => {
-    try {
-      // `undefined` survives a structured clone as a property value, so a missing album
-      // stays missing instead of arriving as null and disagreeing with the declared type.
-      const response: WorkerResponse = {
-        id: request.id,
-        outcome: { status: "ready", value: await handle(request) },
-      }
-      scope.postMessage(response)
-    } catch (cause) {
-      const response: WorkerResponse = {
-        id: request.id,
-        outcome: {
-          status: "failed",
-          message: cause instanceof Error ? cause.message : "worker operation failed",
-        },
-      }
-      scope.postMessage(response)
+let requestChain: Promise<void> = Promise.resolve()
+let syncChain: Promise<void> = Promise.resolve()
+
+async function respond(request: WorkerRequest): Promise<void> {
+  try {
+    // `undefined` survives a structured clone as a property value, so a missing album
+    // stays missing instead of arriving as null and disagreeing with the declared type.
+    const response: WorkerResponse = {
+      id: request.id,
+      outcome: { status: "ready", value: await handle(request) },
     }
-  })()
+    scope.postMessage(response)
+  } catch (cause) {
+    const response: WorkerResponse = {
+      id: request.id,
+      outcome: {
+        status: "failed",
+        message: cause instanceof Error ? cause.message : "worker operation failed",
+      },
+    }
+    scope.postMessage(response)
+  }
+}
+
+scope.addEventListener("message", (event) => {
+  if (event.data._tag === "worker.sync") {
+    // Network sync can spend seconds outside the database. Keep one sync at a time, but do
+    // not make precious local writes wait behind it; each sync database access is already
+    // refreshed and serialized under the cross-tab lock.
+    syncChain = syncChain.then(() => respond(event.data))
+    return
+  }
+  // Local requests are short and may refresh the stateful ProseQL owner under the lock.
+  requestChain = requestChain.then(() => respond(event.data))
 })

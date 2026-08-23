@@ -58,6 +58,23 @@ https://pyxis.hummingbird-lake.ts.net
 Also verify that plain HTTP redirects to that exact HTTPS origin. Do not rename the origin.
 Installed PWA state and offline downloads are origin-scoped.
 
+## Install and verify the PWA
+
+Open the HTTPS origin once while online, then reload so the new service worker controls the
+page. Use the browser's install action if a standalone app is wanted. In the reference
+client, `Offline downloads available` must be `true` before pinning.
+
+Choose **Pin offline** on an album and wait for its state to become `ready`. The Local store
+panel reports the pinned count and byte total. The download is complete only after every
+track has a verified candidate manifest and all bounded chunks are in Cache Storage.
+
+For the product gate, close the page, disable networking, and open the installed app again.
+The shell, library, session, and pinned album must load. Play and seek within the pinned
+album. Re-enable networking afterward and confirm deferred writes reconcile.
+
+Cache Storage, IndexedDB, service workers, and stream credentials are all scoped to the
+exact HTTPS origin. Clearing site data removes the device grant and offline media.
+
 ## State
 
 | Data | Default path |

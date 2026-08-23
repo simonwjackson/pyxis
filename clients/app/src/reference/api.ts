@@ -13,6 +13,7 @@ import type {
   RpcSessionCommand,
   RpcSessionDirective,
 } from "../../../../contracts/generated/pyxis"
+import { assertRpcRequest, assertRpcResponse } from "../rpc/validation"
 
 export interface RealtimeHandlers {
   onEvent(event: RealtimeEvent): void | Promise<void>
@@ -61,12 +62,27 @@ export interface ReferenceClient {
   handoff(token: string, sessionId: string, targetSessionId: string): Promise<RpcSession>
   connectRealtime(token: string, handlers: RealtimeHandlers, resumeToken?: string): () => void
   appendListen(token: string, event: ListenTrackEventInput): Promise<void>
-  loadStream(token: string, trackId: string): Promise<string>
+  loadStream(
+    token: string,
+    trackId: string,
+    identity?: {
+      readonly accountId: string
+      readonly deviceId: string
+      readonly streamEpoch: number
+    },
+  ): Promise<string>
 }
 
 interface ReferenceClientConfig {
   readonly fetch?: typeof fetch
   readonly createObjectUrl?: (blob: Blob) => string
+  readonly authorizeDirectStream?: (credentials: {
+    readonly token: string
+    readonly accountId: string
+    readonly deviceId: string
+    readonly streamEpoch: number
+    readonly trackId: string
+  }) => Promise<{ readonly candidateUrl?: string; readonly cacheName?: string } | undefined>
   readonly realtimeUrl?: string
   readonly createWebSocket?: (url: string) => WebSocket
 }
@@ -74,10 +90,12 @@ interface ReferenceClientConfig {
 export function createReferenceClient(config: ReferenceClientConfig = {}): ReferenceClient {
   const request = config.fetch ?? globalThis.fetch
   const createObjectUrl = config.createObjectUrl ?? URL.createObjectURL
+  const authorizeDirectStream = config.authorizeDirectStream ?? authorizeServiceWorkerStream
   const realtimeUrl = config.realtimeUrl ?? defaultRealtimeUrl()
   const createWebSocket = config.createWebSocket ?? ((url: string) => new WebSocket(url))
 
   const rpc = async (payload: RpcRequest, bearer?: string): Promise<RpcResponse> => {
+    assertRpcRequest(payload)
     const response = await request("/rpc", {
       method: "POST",
       headers: {
@@ -87,9 +105,7 @@ export function createReferenceClient(config: ReferenceClientConfig = {}): Refer
       body: JSON.stringify(payload),
     })
     const value: unknown = await response.json()
-    if (!isRecord(value) || typeof value._tag !== "string" || !isRecord(value.outcome)) {
-      throw new Error("RPC returned an invalid response envelope")
-    }
+    assertRpcResponse(value)
     if (value._tag === "rpc.failure") {
       const failure = isRecord(value.outcome.value) ? value.outcome.value.message : undefined
       throw new Error(typeof failure === "string" ? failure : "RPC request was rejected")
@@ -97,7 +113,7 @@ export function createReferenceClient(config: ReferenceClientConfig = {}): Refer
     if (value._tag !== payload._tag) {
       throw new Error(`RPC response tag '${value._tag}' did not match '${payload._tag}'`)
     }
-    return value as RpcResponse
+    return value
   }
 
   return {
@@ -310,9 +326,31 @@ export function createReferenceClient(config: ReferenceClientConfig = {}): Refer
       }
     },
 
-    async loadStream(token, trackId) {
+    async loadStream(token, trackId, identity) {
+      const direct =
+        identity === undefined
+          ? undefined
+          : await authorizeDirectStream({ token, trackId, ...identity }).catch(() => undefined)
+      if (identity !== undefined && direct !== undefined) {
+        const query = new URLSearchParams({
+          pyxisAccount: identity.accountId,
+          pyxisDevice: identity.deviceId,
+          pyxisEpoch: String(identity.streamEpoch),
+          ...(direct.candidateUrl === undefined ? {} : { pyxisCandidate: direct.candidateUrl }),
+          ...(direct.cacheName === undefined ? {} : { pyxisCache: direct.cacheName }),
+        })
+        return `/stream/${encodeURIComponent(trackId)}?${query}`
+      }
       const response = await request(`/stream/${encodeURIComponent(trackId)}`, {
-        headers: { authorization: `Bearer ${token}` },
+        headers: {
+          authorization: `Bearer ${token}`,
+          ...(identity === undefined
+            ? {}
+            : {
+                "x-pyxis-account-id": identity.accountId,
+                "x-pyxis-device-id": identity.deviceId,
+              }),
+        },
       })
       if (!response.ok) {
         throw new Error(`stream request failed with HTTP ${response.status}`)
@@ -320,6 +358,40 @@ export function createReferenceClient(config: ReferenceClientConfig = {}): Refer
       return createObjectUrl(await response.blob())
     },
   }
+}
+
+async function authorizeServiceWorkerStream(credentials: {
+  readonly token: string
+  readonly accountId: string
+  readonly deviceId: string
+  readonly streamEpoch: number
+  readonly trackId: string
+}): Promise<{ readonly candidateUrl?: string; readonly cacheName?: string } | undefined> {
+  const controller = globalThis.navigator?.serviceWorker?.controller
+  if (controller === null || controller === undefined || typeof MessageChannel === "undefined") {
+    return undefined
+  }
+  const channel = new MessageChannel()
+  return new Promise<{ readonly candidateUrl?: string; readonly cacheName?: string } | undefined>(
+    (resolve) => {
+      const timeout = setTimeout(() => resolve(undefined), 1000)
+      channel.port1.onmessage = (event: MessageEvent<unknown>) => {
+        clearTimeout(timeout)
+        const value = event.data
+        resolve(
+          isRecord(value) && value.authorized === true
+            ? {
+                ...(typeof value.candidateUrl === "string"
+                  ? { candidateUrl: value.candidateUrl }
+                  : {}),
+                ...(typeof value.cacheName === "string" ? { cacheName: value.cacheName } : {}),
+              }
+            : undefined,
+        )
+      }
+      controller.postMessage({ _tag: "pyxis.stream.authorize", ...credentials }, [channel.port2])
+    },
+  )
 }
 
 function defaultRealtimeUrl(): string {

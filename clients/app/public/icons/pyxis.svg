@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <title>Pyxis</title>
+  <rect width="512" height="512" rx="96" fill="#111"/>
+  <circle cx="256" cy="256" r="154" fill="none" stroke="#fff" stroke-width="28"/>
+  <circle cx="256" cy="256" r="42" fill="#fff"/>
+  <path d="M256 102v112M410 256H298M256 410V298M102 256h112" stroke="#fff" stroke-width="24" stroke-linecap="round"/>
+</svg>

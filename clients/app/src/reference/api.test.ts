@@ -30,6 +30,53 @@ class FakeSocket {
   }
 }
 
+describe("reference stream client", () => {
+  test("uses a service-worker-authorized direct URL for streaming playback", async () => {
+    const request = vi.fn()
+    const authorizeDirectStream = vi.fn(async () => ({
+      candidateUrl: "https://pyxis.test/__pyxis/offline/default/device-1/candidate-1",
+      cacheName: "pyxis-offline-staging-v1",
+    }))
+    const client = createReferenceClient({
+      fetch: request as unknown as typeof fetch,
+      authorizeDirectStream,
+    })
+
+    await expect(
+      client.loadStream("token", "track-1", {
+        accountId: "default",
+        deviceId: "device-1",
+        streamEpoch: 0,
+      }),
+    ).resolves.toContain("/stream/track-1?pyxisAccount=default&pyxisDevice=device-1&pyxisEpoch=0")
+    expect(authorizeDirectStream).toHaveBeenCalledWith({
+      token: "token",
+      accountId: "default",
+      deviceId: "device-1",
+      streamEpoch: 0,
+      trackId: "track-1",
+    })
+    expect(request).not.toHaveBeenCalled()
+  })
+
+  test("falls back to a fetched object URL before a service worker controls the page", async () => {
+    const request = vi.fn(async () => new Response("audio"))
+    const client = createReferenceClient({
+      fetch: request as unknown as typeof fetch,
+      createObjectUrl: () => "blob:fallback",
+      authorizeDirectStream: async () => undefined,
+    })
+
+    await expect(
+      client.loadStream("token", "track-1", {
+        accountId: "default",
+        deviceId: "device-1",
+        streamEpoch: 0,
+      }),
+    ).resolves.toBe("blob:fallback")
+  })
+})
+
 describe("reference realtime client", () => {
   test("persists an event cursor only after its state handler finishes", async () => {
     const socket = new FakeSocket()

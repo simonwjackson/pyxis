@@ -66,6 +66,12 @@ async fn the_shell_is_never_stored_while_hashed_assets_are_kept_for_a_year() {
     let web = dir.path().join("web");
     std::fs::create_dir_all(web.join("assets")).expect("web dir");
     std::fs::write(web.join("index.html"), "<h1>shell</h1>").expect("index");
+    std::fs::write(
+        web.join("service-worker.js"),
+        "self.addEventListener('fetch', () => {})",
+    )
+    .expect("service worker");
+    std::fs::write(web.join("manifest.webmanifest"), "{\"name\":\"Pyxis\"}").expect("manifest");
     std::fs::write(web.join("assets/index-abc123.js"), "bundle").expect("asset");
 
     // Reproduce the condition that makes this hard: every file in the Nix store carries
@@ -147,6 +153,29 @@ async fn the_shell_is_never_stored_while_hashed_assets_are_kept_for_a_year() {
         .expect("response");
     assert!(shell.headers().get("last-modified").is_none());
     assert!(shell.headers().get("etag").is_none());
+
+    // Mutable PWA entry points follow the shell's rule. An old service worker can keep
+    // controlling every navigation even when every hashed asset is fresh.
+    for path in ["/service-worker.js", "/manifest.webmanifest"] {
+        let response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .uri(path)
+                    .body(Body::empty())
+                    .expect("request"),
+            )
+            .await
+            .expect("entry point response");
+        assert_eq!(
+            response
+                .headers()
+                .get("cache-control")
+                .map(|value| value.to_str().unwrap()),
+            Some("no-store"),
+            "{path} must not be stored"
+        );
+    }
 
     let asset = app
         .clone()

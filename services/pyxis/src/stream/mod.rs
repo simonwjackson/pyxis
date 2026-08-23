@@ -124,6 +124,7 @@ pub async fn stream(
         }
     };
 
+    let candidate_id = candidate.id.clone();
     let (path, format) = match candidate.location {
         ResolvedLocation::Local { absolute_path, .. } => (absolute_path, candidate.format),
         ResolvedLocation::Plugin {
@@ -203,7 +204,13 @@ pub async fn stream(
         }
     };
 
-    serve_file(&path, format.as_deref(), headers.get(header::RANGE)).await
+    serve_file(
+        &path,
+        format.as_deref(),
+        &candidate_id,
+        headers.get(header::RANGE),
+    )
+    .await
 }
 
 async fn resolve_plugin_stream(
@@ -349,7 +356,12 @@ async fn fetch_via_plugin(
     result
 }
 
-async fn serve_file(path: &Path, format: Option<&str>, range: Option<&HeaderValue>) -> Response {
+async fn serve_file(
+    path: &Path,
+    format: Option<&str>,
+    candidate_id: &str,
+    range: Option<&HeaderValue>,
+) -> Response {
     let metadata = match tokio::fs::metadata(path).await {
         Ok(metadata) => metadata,
         Err(error) => {
@@ -408,7 +420,10 @@ async fn serve_file(path: &Path, format: Option<&str>, range: Option<&HeaderValu
         .status(status)
         .header(header::CONTENT_TYPE, mime_for(format))
         .header(header::CONTENT_LENGTH, response_length)
-        .header(header::ACCEPT_RANGES, "bytes");
+        .header(header::ACCEPT_RANGES, "bytes")
+        // Offline clients key immutable bytes by the actual resolved candidate rather than
+        // the track ID. A later fidelity upgrade therefore selects a new cache object.
+        .header("x-pyxis-candidate-id", candidate_id);
     if status == StatusCode::PARTIAL_CONTENT {
         response = response.header(
             header::CONTENT_RANGE,

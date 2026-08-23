@@ -7,7 +7,7 @@ import type {
   RpcSearchTrack,
   RpcSession,
 } from "../../../../contracts/generated/pyxis"
-import type { WorkerOpenReport, WorkerSyncNotice } from "../worker/contract.ts"
+import type { OfflineOverview, WorkerOpenReport, WorkerSyncNotice } from "../worker/contract.ts"
 import type { SyncReport } from "../worker/sync.ts"
 
 export type ConsoleCommand = "play" | "pause" | "stop"
@@ -34,6 +34,7 @@ export interface ReferenceContextValue {
   /// Other devices on this account that can be driven right now.
   readonly remoteSessions: readonly RpcSession[]
   readonly local?: LocalState
+  readonly offline?: OfflineOverview
   /// The server is serving a newer build than this page is running.
   readonly updateAvailable: boolean
   readonly audioUrl?: string
@@ -44,6 +45,8 @@ export interface ReferenceContextValue {
   /// Queue every track of a library album, in album order.
   enqueueAlbum(albumId: string): Promise<void>
   setAlbumPlacement(albumId: string, placement: RpcPlacement): Promise<void>
+  pinAlbum(albumId: string): Promise<void>
+  unpinAlbum(albumId: string): Promise<void>
   play(): Promise<void>
   pause(): Promise<void>
   stop(): Promise<void>

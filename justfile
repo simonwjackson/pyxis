@@ -27,7 +27,7 @@ lint:
     cargo clippy --all-targets --all-features -- -D warnings
 
 lint-shell:
-    shellcheck tools/dev tools/link-proseql tools/test-pandora-fixtures tools/verify-api-example
+    shellcheck tools/dev tools/link-proseql tools/test-pandora-fixtures tools/verify-api-example tools/verify-pwa-build
 
 test-rust:
     cargo test --all
@@ -51,6 +51,7 @@ test-pandora-fixtures:
 
 build-client: link-proseql
     bun run --cwd clients/app build
+    tools/verify-pwa-build
 
 # Start core, the YouTube Music plugin, and the unstyled reference client.
 dev:
