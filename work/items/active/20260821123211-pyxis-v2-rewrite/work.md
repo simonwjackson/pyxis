@@ -58,7 +58,12 @@ stream authorization, candidate leases, and generated-schema RPC validation. Wor
 Automated verification covers cold offline application logic, complete and interrupted
 downloads, quota pressure, shared tracks, fidelity races, account switches, service-worker
 restart, chunk ranges, shell updates, malformed RPC responses, and the packaged PWA artifact.
-Deployment and the real browser offline test remain.
+
+**M5 is deployed at `9254bd4` and awaits only real-browser acceptance.** HTTPS serves the
+manifest, build-bound asset manifest, icon, service worker, worker/WASM chunks, and hashed
+application bundle with correct content types. The live library still has 370 albums. A
+live one-byte stream probe returned candidate identity and a valid content range. The three
+user services remain active and health is 200.
 
 ---
 
@@ -86,9 +91,10 @@ The old system `pyxis.service` and `tsnet-proxy-pyxis.service` units are stopped
 remain declared by the current NixOS generation and can return after a reboot or system
 switch until the prepared `mountainous` removal is deployed.
 
-Next: deploy and perform the combined real-browser gate for M3 and M5: schema 8 migration,
-PWA installation, a pinned album, cold offline boot/playback, and second-device console
-control. U18 Sonos and U19 Soulseek still need hardware and an account.
+Next: perform the combined real-browser gate for M3 and M5: schema 8 migration, PWA
+installation, a pinned album, cold offline boot/playback, seeking, reconnect reconciliation,
+and second-device console control. U18 Sonos and U19 Soulseek still need hardware and an
+account.
 
 Album removal is no longer deferred. D17 records your decision: server removal wins,
 queued local placement intent is discarded, and the client reports the conflict.
