@@ -44,18 +44,23 @@ removal win with an explicit conflict under D17.
 
 **U21 is deployed and product-validated.** On 2026-08-22 the browser reopened schema 6
 with IndexedDB persistence enabled, device id `01M0NXTMN8DKE1F28VJFQZJT0S`, all 370 albums
-cached, and zero deferred writes. The core also reopened the deployed store with the new
-command-receipt collection. HTTPS health, the worker JavaScript, and WASM content types
-remain verified.
+cached, and zero deferred writes. The M3 renderer correction later moved the worker to
+schema 7, adding exact optimistic-result fingerprints for interrupted command recovery.
+The core, worker JavaScript, and WASM content types remain verified.
 
 U22 offline downloads and U23 service worker are not started.
 
 ---
 
-**M3 is implemented and deployed.** U5 realtime and U13 console control and handoff are built, reviewed, and live at
-`https://pyxis.hummingbird-lake.ts.net`. A WebSocket check confirmed the TLS edge upgrades
-correctly and that session state fans out. What remains is the milestone's actual question,
-which only you can answer: does console mode feel good.
+**M3 is implemented and deployed.** U5 realtime and U13 console control and handoff are
+built, reviewed, and live at `https://pyxis.hummingbird-lake.ts.net`. The last known
+correctness gap is fixed in `d4adeb9`: a host now validates and deduplicates a directive,
+confirms the browser audio operation, then records public session state. Refused autoplay,
+stream/decode failure, storage rollback, load cancellation, and crash recovery are covered
+by tests. The deployed worker now migrates from schema 6 to 7.
+
+What remains is hands-on acceptance from a second device: does console mode feel good. A
+reload on the host should first confirm schema 7 before that test.
 
 **Milestone M2 is complete and live on the tailnet.** The live 386-entry legacy manifest is
 fully accounted: 370 albums are in Discovery, 16 remain unresolved after manual review,
