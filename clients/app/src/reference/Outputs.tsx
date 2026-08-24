@@ -12,6 +12,7 @@ export function ReferenceOutputs() {
     createOutputSession,
     setOutputGroup,
     enqueueAlbumOnSession,
+    clearOutputQueue,
   } = useReference()
   const [selectedAlbums, setSelectedAlbums] = useState<Record<string, string>>({})
   const outputPlugins = plugins.filter((plugin) =>
@@ -110,6 +111,13 @@ export function ReferenceOutputs() {
                     onClick={() => void enqueueAlbumOnSession(session.id, albumId)}
                   >
                     Queue album here
+                  </button>{" "}
+                  <button
+                    type="button"
+                    disabled={session.queue.length === 0}
+                    onClick={() => void clearOutputQueue(session.id)}
+                  >
+                    Clear queue
                   </button>
                 </li>
               )

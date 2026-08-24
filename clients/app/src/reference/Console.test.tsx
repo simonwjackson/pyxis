@@ -1723,6 +1723,7 @@ describe("reference client", () => {
         id: "sonos-session",
         name: "Kitchen",
         hostDeviceId: "output:sonos:RINCON_KITCHEN",
+        queue: ["existing-track"],
         output: { pluginId: "sonos", targetId: "RINCON_KITCHEN" },
       }),
     )
@@ -1793,6 +1794,15 @@ describe("reference client", () => {
         "token",
         "sonos-session",
         { _tag: "queue.add", payload: { trackIds: ["track-1"] } },
+        expect.any(String),
+      ),
+    )
+    fireEvent.click(screen.getByRole("button", { name: "Clear queue" }))
+    await waitFor(() =>
+      expect(sendCommand).toHaveBeenCalledWith(
+        "token",
+        "sonos-session",
+        { _tag: "queue.clear", payload: {} },
         expect.any(String),
       ),
     )

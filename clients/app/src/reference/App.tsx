@@ -826,6 +826,21 @@ export function ReferenceApp({
     [client, currentToken, reconcileWorker, run],
   )
 
+  const clearOutputQueue = useCallback(
+    async (sessionId: string) => {
+      await run(async () => {
+        await client.sendCommand(
+          currentToken(),
+          sessionId,
+          { _tag: "queue.clear", payload: {} },
+          nextClientEventId(),
+        )
+        await reconcileWorker()
+      })
+    },
+    [client, currentToken, reconcileWorker, run],
+  )
+
   const discoverOutput = useCallback(
     async (pluginId: string) => {
       await run(async () => {
@@ -1121,6 +1136,7 @@ export function ReferenceApp({
       enqueue,
       enqueueAlbum,
       enqueueAlbumOnSession,
+      clearOutputQueue,
       discoverOutput,
       createOutputSession,
       setOutputGroup,
@@ -1158,6 +1174,7 @@ export function ReferenceApp({
       enqueue,
       enqueueAlbum,
       enqueueAlbumOnSession,
+      clearOutputQueue,
       discoverOutput,
       createOutputSession,
       setOutputGroup,

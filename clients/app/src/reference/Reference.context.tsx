@@ -47,6 +47,7 @@ export interface ReferenceContextValue {
   /// Queue every track of a library album, in album order.
   enqueueAlbum(albumId: string): Promise<void>
   enqueueAlbumOnSession(sessionId: string, albumId: string): Promise<void>
+  clearOutputQueue(sessionId: string): Promise<void>
   discoverOutput(pluginId: string): Promise<void>
   createOutputSession(pluginId: string, targetId: string, name: string): Promise<void>
   setOutputGroup(
