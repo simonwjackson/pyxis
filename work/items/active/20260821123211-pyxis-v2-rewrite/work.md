@@ -23,8 +23,8 @@ requirements and decisions were captured directly into `plan.md` sections
 
 ## Current position
 
-**M7's documentation and the first half of M5 are done. M3 still awaits your hands-on
-validation from a second device.**
+**M7 and M5 are complete. M3 still awaits your hands-on validation from a second
+device.**
 
 U26 documents the whole public API, with a worked example that `tools/verify-api-example`
 extracts from the document and runs, so a claim that stops matching the server fails there.
@@ -48,22 +48,29 @@ cached, and zero deferred writes. The M3 renderer correction later moved the wor
 schema 7, adding exact optimistic-result fingerprints for interrupted command recovery.
 The core, worker JavaScript, and WASM content types remain verified.
 
-**U22 and U23 are implemented and review-complete.** Pinned albums use candidate-keyed,
-chunked Cache Storage with range streaming, cross-tab pin/account fences, LRU pressure,
-playing-track retention, fidelity replacement, and crash reconciliation. The installable
-PWA shell carries a build-bound asset manifest, network-first navigation fallback, durable
-stream authorization, candidate leases, and generated-schema RPC validation. Worker schema
-8 adds pins, media records, pin generations, publication generations, and stream epochs.
+**M5 is complete and product-validated.** U22 pins albums in candidate-keyed, chunked Cache
+Storage with range streaming, cross-tab pin/account fences, LRU pressure, playing-track
+retention, fidelity replacement, and crash reconciliation. U23 supplies the installable PWA,
+build-bound shell manifest, durable stream authorization, candidate leases, documented worker
+API, and generated-schema RPC validation. Worker schema 8 owns pins, media records, pin and
+publication generations, and stream epochs.
 
-Automated verification covers cold offline application logic, complete and interrupted
-downloads, quota pressure, shared tracks, fidelity races, account switches, service-worker
-restart, chunk ranges, shell updates, malformed RPC responses, and the packaged PWA artifact.
+Automated verification covers complete and interrupted downloads, quota pressure, shared
+tracks, fidelity races, account switches, service-worker restart, chunk ranges, shell updates,
+malformed RPC responses, cold offline application logic, and the packaged PWA artifact. The
+full client suite now has 189 passing tests; contract, production/PWA, Nix package, and flake
+gates pass.
 
-**M5 is deployed at `9254bd4` and awaits only real-browser acceptance.** HTTPS serves the
-manifest, build-bound asset manifest, icon, service worker, worker/WASM chunks, and hashed
-application bundle with correct content types. The live library still has 370 albums. A
-live one-byte stream probe returned candidate identity and a valid content range. The three
-user services remain active and health is 200.
+Real-browser acceptance used durable device `01M0NXTMN8DKE1F28VJFQZJT0S`. Schema 8 reopened
+with 370 cached albums and zero queued writes. The installed app retained the same store. A
+10-track A Static Lullaby album reached `ready (10/10)` with 39,294,452 cached bytes. Online
+renderer-confirmed playback worked before the app was closed. A first airplane-mode launch
+exposed an unbounded navigation wait, fixed in `6b91d92`; repeated reloads then exposed a
+transient false zero-album render while Cache Storage reconciliation ran, fixed in `0419f3e`.
+After both fixes, the user confirmed a true cold airplane-mode launch, audible pinned playback,
+30-second seeking, and transport completion. Reconnection drained all three deferred session
+writes to zero. HTTPS health, the 370-album server library, service-worker timeout, candidate
+identity, and byte ranges remain live; all three user services are active.
 
 ---
 
@@ -72,10 +79,10 @@ built, reviewed, and live at `https://pyxis.hummingbird-lake.ts.net`. The last k
 correctness gap is fixed in `d4adeb9`: a host now validates and deduplicates a directive,
 confirms the browser audio operation, then records public session state. Refused autoplay,
 stream/decode failure, storage rollback, load cancellation, and crash recovery are covered
-by tests. The deployed worker now migrates from schema 6 to 7.
+by tests. The deployed worker is now schema 8 after M5.
 
-What remains is hands-on acceptance from a second device: does console mode feel good. A
-reload on the host should first confirm schema 7 before that test.
+What remains is hands-on acceptance from a second physical device: attach, queue, transport,
+realtime updates, disconnect behavior, handoff, and whether console mode feels good.
 
 **Milestone M2 is complete and live on the tailnet.** The live 386-entry legacy manifest is
 fully accounted: 370 albums are in Discovery, 16 remain unresolved after manual review,
@@ -91,10 +98,8 @@ The old system `pyxis.service` and `tsnet-proxy-pyxis.service` units are stopped
 remain declared by the current NixOS generation and can return after a reboot or system
 switch until the prepared `mountainous` removal is deployed.
 
-Next: perform the combined real-browser gate for M3 and M5: schema 8 migration, PWA
-installation, a pinned album, cold offline boot/playback, seeking, reconnect reconciliation,
-and second-device console control. U18 Sonos and U19 Soulseek still need hardware and an
-account.
+Next: complete M3's second-device console and handoff acceptance. U18 Sonos and U19
+Soulseek still need hardware and an account.
 
 Album removal is no longer deferred. D17 records your decision: server removal wins,
 queued local placement intent is discarded, and the client reports the conflict.
