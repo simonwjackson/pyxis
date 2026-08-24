@@ -146,6 +146,12 @@ fn main() -> anyhow::Result<()> {
                 _ => output_transport,
             };
         }
+        if call.operation == "stream.profile" && capability == PluginCapability::Output {
+            value.insert(
+                "preferredFormats".into(),
+                PluginValue::Array(vec![PluginValue::String("mp3".into())]),
+            );
+        }
         if call.operation == "transport.state" && capability == PluginCapability::Output {
             value.insert(
                 "state".into(),

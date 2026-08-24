@@ -2,7 +2,7 @@ import { afterEach, describe, expect, test } from "bun:test"
 import { chmod, mkdtemp, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import { createYtDlp, YtDlpError } from "./ytdlp"
+import { createYtDlp, formatSelector, YtDlpError } from "./ytdlp"
 
 const roots: string[] = []
 
@@ -28,6 +28,13 @@ fi
 `
 
 describe("yt-dlp adapter", () => {
+  test("builds a safe provider selector from output preferences", () => {
+    expect(formatSelector(["m4a", "mp3", "not-a-real-format"])).toBe(
+      "bestaudio[ext=m4a]/bestaudio[ext=mp3]",
+    )
+    expect(formatSelector(["not-a-real-format"])).toBe("bestaudio/best[acodec!=none]")
+  })
+
   test("search maps valid lines into canonical tracks and skips unavailable entries", async () => {
     const binary = await executable(`${header}
 cat <<'JSON'

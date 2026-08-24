@@ -100,6 +100,12 @@ pub struct OutputTransportState {
     pub stream_url: Option<String>,
 }
 
+#[derive(Clone, Debug, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct OutputStreamProfile {
+    preferred_formats: Vec<String>,
+}
+
 #[derive(Clone)]
 pub struct OutputCatalog {
     plugins: PluginHost,
@@ -439,8 +445,28 @@ impl OutputCatalog {
                     )));
                 }
             };
-        let resolved_format = self.resolve_candidate_format(auth, &candidate)?;
-        let stream_url = self.stream_url(&auth.account_id, track_id, &candidate.id)?;
+        let profile: OutputStreamProfile = serde_json::from_value(self.call(
+            auth,
+            &output.plugin_id,
+            "stream.profile",
+            json!({ "targetId": output.target_id }),
+        )?)
+        .map_err(|error| OutputError::InvalidOutput(error.to_string()))?;
+        let resolved_format =
+            self.resolve_candidate_format(auth, &candidate, &profile.preferred_formats)?;
+        if !format_is_preferred(resolved_format.as_deref(), &profile.preferred_formats) {
+            return Err(OutputError::InvalidOutput(format!(
+                "track '{track_id}' has no format accepted by output '{}'",
+                output.plugin_id
+            )));
+        }
+        let stream_url = self.stream_url(
+            &auth.account_id,
+            track_id,
+            &candidate.id,
+            &profile.preferred_formats,
+            resolved_format.as_deref(),
+        )?;
         let mut metadata = serde_json::Map::from_iter([
             ("title".to_string(), Value::String(track.title)),
             ("artist".to_string(), Value::String(track.artist)),
@@ -504,6 +530,7 @@ impl OutputCatalog {
         &self,
         auth: &AuthContext,
         candidate: &crate::media::ResolvedCandidate,
+        preferred_formats: &[String],
     ) -> Result<Option<String>, OutputError> {
         let crate::media::ResolvedLocation::Plugin {
             plugin_id,
@@ -520,7 +547,7 @@ impl OutputCatalog {
             plugin_id,
             "source",
             "stream.resolve",
-            json!({ "trackId": external_id }),
+            json!({ "trackId": external_id, "preferredFormats": preferred_formats }),
             auth.account_id.as_str(),
             config,
         )?;
@@ -536,6 +563,8 @@ impl OutputCatalog {
         account_id: &crate::db::store::AccountId,
         track_id: &str,
         candidate_id: &str,
+        preferred_formats: &[String],
+        selected_format: Option<&str>,
     ) -> Result<String, OutputError> {
         let mut url = self
             .lan_base_url
@@ -549,7 +578,13 @@ impl OutputCatalog {
             segments.push("stream");
             segments.push(track_id);
         }
-        let token = self.stream_tokens.mint(account_id, track_id, candidate_id);
+        let token = self.stream_tokens.mint(
+            account_id,
+            track_id,
+            candidate_id,
+            preferred_formats,
+            selected_format,
+        );
         url.query_pairs_mut().append_pair("outputToken", &token);
         Ok(url.to_string())
     }
@@ -574,6 +609,19 @@ impl OutputCatalog {
             config,
         )?)
     }
+}
+
+fn format_is_preferred(format: Option<&str>, preferred_formats: &[String]) -> bool {
+    if preferred_formats.is_empty() {
+        return true;
+    }
+    let Some(format) = format.map(str::to_ascii_lowercase) else {
+        return false;
+    };
+    preferred_formats.iter().any(|preferred| {
+        let preferred = preferred.to_ascii_lowercase();
+        format == preferred || format.starts_with(&format!("{preferred}/"))
+    })
 }
 
 fn output_transport(state: &OutputTransportState) -> Option<Transport> {

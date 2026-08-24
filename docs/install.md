@@ -95,7 +95,9 @@ IPv4 `seedHosts`, for example `{ "seedHosts": ["192.168.1.20"] }`. Optional
 `discoveryTimeoutMs` and `requestTimeoutMs` values bound network waits.
 
 Set `PYXIS_LAN_BASE_URL` to the LAN-reachable HTTP origin speakers use to fetch Pyxis media,
-for example `http://192.168.1.2:4489`. When set, the core binds a second listener at that origin
+for example `http://192.168.1.2:9000`. The selected TCP port must be allowed by the host firewall;
+a listener that is reachable only from the host lets SOAP commands succeed but leaves speakers
+unable to fetch audio. When set, the core binds a second listener at that origin
 which serves only `/stream/:trackId`; RPC, realtime, health, and web routes remain on loopback
 and the tailnet edge. Output Play creates a short-lived track-bound URL under the LAN origin;
 account bearer tokens are never sent to speakers. Fixture tests prove discovery,
@@ -106,7 +108,7 @@ Configure the LAN listener with a user-service override, then restart:
 
 ```ini
 [Service]
-Environment=PYXIS_LAN_BASE_URL=http://192.168.1.2:4489
+Environment=PYXIS_LAN_BASE_URL=http://192.168.1.2:9000
 ```
 
 ```sh

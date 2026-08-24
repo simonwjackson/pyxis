@@ -36,11 +36,13 @@ export function createYtMusicPlugin(
         },
         "stream.resolve": async (input) => {
           const request = validInput(() => streamResolveInput(input))
-          return providerCall(() => ytdlp.resolveStream(request.trackId))
+          return providerCall(() => ytdlp.resolveStream(request.trackId, request.preferredFormats))
         },
         "stream.fetch": async (input) => {
           const request = validInput(() => streamFetchInput(input))
-          await providerCall(() => ytdlp.fetchStream(request.trackId, request.targetPath))
+          await providerCall(() =>
+            ytdlp.fetchStream(request.trackId, request.targetPath, request.preferredFormats),
+          )
           return { kind: "local", targetPath: request.targetPath }
         },
       },

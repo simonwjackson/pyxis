@@ -18,8 +18,12 @@ export class YtDlpError extends Error {
 export interface YtDlp {
   check(): Promise<string>
   search(query: string, limit: number): Promise<readonly SourceTrack[]>
-  resolveStream(trackId: string): Promise<RemoteStream>
-  fetchStream(trackId: string, targetPath: string): Promise<void>
+  resolveStream(trackId: string, preferredFormats?: readonly string[]): Promise<RemoteStream>
+  fetchStream(
+    trackId: string,
+    targetPath: string,
+    preferredFormats?: readonly string[],
+  ): Promise<void>
 }
 
 export interface YtDlpConfig {
@@ -114,13 +118,13 @@ export function createYtDlp(config: YtDlpConfig = {}): YtDlp {
         })
     },
 
-    async resolveStream(trackId) {
+    async resolveStream(trackId, preferredFormats = []) {
       const output = await run([
         "--dump-single-json",
         "--no-playlist",
         "--no-warnings",
         "--format",
-        "bestaudio/best[acodec!=none]",
+        formatSelector(preferredFormats),
         `https://music.youtube.com/watch?v=${trackId}`,
       ])
       let value: unknown
@@ -157,14 +161,14 @@ export function createYtDlp(config: YtDlpConfig = {}): YtDlp {
       }
     },
 
-    async fetchStream(trackId, targetPath) {
+    async fetchStream(trackId, targetPath, preferredFormats = []) {
       await run([
         "--no-playlist",
         "--no-warnings",
         "--no-part",
         "--no-mtime",
         "--format",
-        "bestaudio/best[acodec!=none]",
+        formatSelector(preferredFormats),
         "--output",
         targetPath,
         `https://music.youtube.com/watch?v=${trackId}`,
@@ -206,6 +210,29 @@ async function selectBinary(
     }
   }
   return fallbackBinary
+}
+
+export function formatSelector(preferredFormats: readonly string[]): string {
+  const clauses = preferredFormats.flatMap((format) => {
+    switch (format.toLowerCase()) {
+      case "m4a":
+        return ["bestaudio[ext=m4a]"]
+      case "mp4":
+        return ["bestaudio[ext=mp4]"]
+      case "mp3":
+        return ["bestaudio[ext=mp3]"]
+      case "aac":
+        return ["bestaudio[acodec^=mp4a]"]
+      case "flac":
+        return ["bestaudio[ext=flac]"]
+      case "wav":
+        return ["bestaudio[ext=wav]"]
+      default:
+        return []
+    }
+  })
+  if (clauses.length > 0) return [...new Set(clauses)].join("/")
+  return "bestaudio/best[acodec!=none]"
 }
 
 function defaultMutableRoot(): string {

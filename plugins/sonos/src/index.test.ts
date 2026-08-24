@@ -51,11 +51,23 @@ describe("Sonos output plugin", () => {
     ).resolves.toEqual({ passed: true, checks: 4 })
   })
 
-  test("discovers rooms through the public output capability", async () => {
+  test("discovers rooms and declares a compatible stream profile", async () => {
     const runtime = createPluginRuntime(createSonosPlugin(environment()))
 
     const result = await runtime.handleLine(call("discover", {}))
+    const profile = await runtime.handleLine(call("stream.profile", {}, "profile"))
 
+    expect(profile).toMatchObject({
+      _tag: "response",
+      envelope: {
+        response: {
+          outcome: {
+            status: "ready",
+            value: { preferredFormats: ["m4a", "mp4", "mp3", "aac", "flac", "wav"] },
+          },
+        },
+      },
+    })
     expect(result).toMatchObject({
       _tag: "response",
       envelope: {

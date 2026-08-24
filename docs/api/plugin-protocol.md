@@ -98,8 +98,8 @@ only `search` is useful. One that implements all five is a full source.
 | `search` | `{ query, limit }` |
 | `album.search` | `{ query }` |
 | `album.get` | `{ externalId }` |
-| `stream.resolve` | `{ trackId }` |
-| `stream.fetch` | `{ trackId, targetPath }` |
+| `stream.resolve` | `{ trackId, preferredFormats? }` |
+| `stream.fetch` | `{ trackId, targetPath, preferredFormats? }` |
 
 Output shapes are decoded strictly. **An unknown field is rejected, and so is a missing
 required one.** Getting a field name wrong fails the whole call, so copy these exactly.
@@ -159,6 +159,10 @@ required one.** Getting a field name wrong fails the whole call, so copy these e
 There is no `sourcePluginId` on a search track. The core knows which plugin answered and
 fills that in itself.
 
+`preferredFormats`, when present, is an ordered list supplied by an output plugin. Resolve or
+fetch the first available compatible encoding without weakening the normal quality ranking for
+clients that omit it.
+
 `stream.fetch` exists for sources whose bytes the core cannot fetch directly. Write to the
 absolute `targetPath` the core supplied, echo it back unchanged, and write nowhere else.
 The core rejects any other path and rejects a call that wrote no bytes.
@@ -168,12 +172,13 @@ lossy bitrate. State it truthfully or your source will be ranked wrongly.
 
 ## Output operations
 
-The Sonos plugin establishes the v1 `output` operation set. Inputs are validated before any
-network or speaker effect.
+The Sonos plugin establishes the initial `output` operation set. Inputs are validated before
+any network or speaker effect.
 
 | Operation | Input |
 |---|---|
 | `discover` | `{}` |
+| `stream.profile` | `{ targetId }` |
 | `transport.play` | `{ targetId, streamUrl, metadata, positionMs? }` |
 | `transport.pause` | `{ targetId }` |
 | `transport.stop` | `{ targetId }` |
@@ -184,6 +189,10 @@ network or speaker effect.
 `discover` returns `{ groups, refreshedAt }`. Each group has `id`, `coordinatorId`,
 `coordinatorName`, and `rooms`; each room has `id`, `name`, optional `model`, `address`,
 `locationUrl`, and `coordinator`.
+
+`stream.profile` returns `{ preferredFormats }` in output preference order. The core carries
+that profile through source resolution, candidate-bound stream tickets, cache identity, and any
+plugin-directed fetch so the DIDL MIME type and served bytes stay compatible.
 
 `transport.play` takes an absolute LAN HTTP URL. `metadata.title` is required; `artist`,
 `album`, `artworkUrl`, and `mimeType` are optional. The plugin sends the URL and DIDL-Lite

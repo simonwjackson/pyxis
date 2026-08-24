@@ -19,11 +19,13 @@ export interface SearchOutput {
 
 export interface StreamResolveInput {
   readonly trackId: string
+  readonly preferredFormats: readonly string[]
 }
 
 export interface StreamFetchInput {
   readonly trackId: string
   readonly targetPath: string
+  readonly preferredFormats: readonly string[]
 }
 
 export interface RemoteStream {
@@ -51,7 +53,10 @@ export function streamResolveInput(value: unknown): StreamResolveInput {
   if (!isRecord(value) || typeof value.trackId !== "string" || value.trackId.length === 0) {
     throw new Error("stream.resolve input requires trackId")
   }
-  return { trackId: value.trackId }
+  return {
+    trackId: value.trackId,
+    preferredFormats: preferredFormats(value.preferredFormats),
+  }
 }
 
 export function streamFetchInput(value: unknown): StreamFetchInput {
@@ -64,7 +69,29 @@ export function streamFetchInput(value: unknown): StreamFetchInput {
   ) {
     throw new Error("stream.fetch input requires trackId and an absolute targetPath")
   }
-  return { trackId: value.trackId, targetPath: value.targetPath }
+  return {
+    trackId: value.trackId,
+    targetPath: value.targetPath,
+    preferredFormats: preferredFormats(value.preferredFormats),
+  }
+}
+
+function preferredFormats(value: unknown): readonly string[] {
+  if (value === undefined) return []
+  if (
+    !Array.isArray(value) ||
+    value.length > 16 ||
+    value.some(
+      (format) =>
+        typeof format !== "string" ||
+        format.length === 0 ||
+        format.length > 32 ||
+        !/^[a-z0-9.+/-]+$/iu.test(format),
+    )
+  ) {
+    throw new Error("preferredFormats must be an array of safe format names")
+  }
+  return [...new Set(value.map((format) => String(format).toLowerCase()))]
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

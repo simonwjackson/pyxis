@@ -48,6 +48,9 @@ export function createSonosPlugin(
     capabilities: {
       output: {
         discover: (_input, context) => providerCall(() => controller(context).topology()),
+        "stream.profile": () => ({
+          preferredFormats: ["m4a", "mp4", "mp3", "aac", "flac", "wav"],
+        }),
         "transport.play": (input, context) => {
           const request = playInput(input)
           return providerCall(() => controller(context).play(request))
