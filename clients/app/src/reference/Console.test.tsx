@@ -203,6 +203,33 @@ describe("local store", () => {
     expect(screen.getAllByText("false").length).toBeGreaterThan(0)
   })
 
+  test("gives online session startup the storage lock before cache inspection", async () => {
+    const base = persistent(createDirectWorkerClient())
+    let inspectionStarted = false
+    const waitingInspection = new Promise<Awaited<ReturnType<WorkerClient["offlineOverview"]>>>(
+      () => undefined,
+    )
+    const offlineOverview = vi.fn(() => {
+      inspectionStarted = true
+      return waitingInspection
+    })
+    const sessions = vi.fn(async () => {
+      if (inspectionStarted) await waitingInspection
+      return base.sessions()
+    })
+    const store = { ...base, offlineOverview, sessions }
+
+    render(
+      <ReferenceApp client={client([])} worker={store}>
+        <ReferencePlugins />
+      </ReferenceApp>,
+    )
+
+    await waitFor(() => expect(screen.getByText("Status: ready")).toBeTruthy())
+    expect(sessions).toHaveBeenCalled()
+    expect(offlineOverview).not.toHaveBeenCalled()
+  })
+
   test("renders the durable library while Cache Storage inspection is still pending", async () => {
     const base = persistent(createDirectWorkerClient())
     await base.putAlbum(album())

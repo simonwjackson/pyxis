@@ -525,18 +525,22 @@ export function ReferenceApp({
           albumCount: albums.length,
           notices: settings.syncNotices ?? [],
         })
-        // Cache reconciliation may scan many media chunks or wait behind another tab. It
-        // must not make a durable 370-album library look empty while the scan runs.
-        void store
-          .offlineOverview()
-          .catch((): OfflineOverview => ({ available: false, albums: [], totalBytes: 0 }))
-          .then((overview) => {
-            if (live) watchOffline(overview)
-          })
         await applyWorkerSessions(false)
-        await connectAccount()
+        try {
+          await connectAccount()
+        } catch {
+          // Online readiness owns the cross-tab database lock first. If the network is
+          // unavailable, inspect cached media afterward so cold offline playback remains
+          // visible without letting a large cache scan starve account/session startup.
+          void store
+            .offlineOverview()
+            .catch((): OfflineOverview => ({ available: false, albums: [], totalBytes: 0 }))
+            .then((overview) => {
+              if (live) watchOffline(overview)
+            })
+        }
       } catch {
-        // connectAccount reports the actionable error. Cached data stays usable.
+        // Opening the durable local copy failed. The worker reports its recovery state.
       }
     })()
     return () => {
