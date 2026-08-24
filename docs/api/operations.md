@@ -19,12 +19,15 @@ Read [README.md](README.md) first for the envelope rules, and
 | `account.list` | `account:read` | `ready`, `unavailable` |
 | `account.create` | `account:admin` | `ready`, `nameTaken`, `unavailable` |
 | `plugin.list` | `account:read` | `ready`, `unavailable` |
+| `output.targets.list` | `session:read` | `ready`, `unavailable` |
+| `output.session.create` | `session:control` | `ready`, `unknownTarget`, `unavailable` |
+| `output.group.set` | `session:control` | `ready`, `unavailable` |
 | `session.create` | `session:control` | `ready`, `notDevice`, `unavailable` |
 | `session.list` | `session:read` | `ready`, `unavailable` |
 | `session.state.get` | `session:read` | `ready`, `unknown`, `unavailable` |
 | `session.command.run` | `session:control` | `applied`, `unknownSession`, `notHost`, `notDevice`, `rejected`, `unavailable` |
 | `session.command.send` | `session:control` | `dispatched`, `unknownSession`, `unreachable`, `busy`, `hostOnly`, `unavailable` |
-| `session.handoff` | `session:control` | `ready`, `unknownSession`, `unknownTarget`, `sourceUnreachable`, `targetUnreachable`, `targetBusy`, `sameSession`, `unavailable` |
+| `session.handoff` | `session:control` | `ready`, `unknownSession`, `unknownTarget`, `sourceUnreachable`, `targetUnreachable`, `targetBusy`, `sameSession`, `outputUnsupported`, `unavailable` |
 | `source.search.run` | `source:read` | `ready`, `noSources`, `unavailable` |
 | `source.album.search` | `source:read` | `ready`, `unavailable` |
 | `source.album.get` | `source:read` | `ready`, `unavailable` |
@@ -100,10 +103,34 @@ listen events.** History is a record of what happened, not a view of what you cu
 Every album carries a monotonic `revision`. Use it to reject stale writes and stale
 realtime frames rather than trusting arrival order.
 
+## Outputs
+
+`output.targets.list` invokes one installed output plugin's discovery operation and returns
+its current groups and rooms. Discovery also refreshes output-session reachability; a room
+is controllable only while the plugin can currently find it.
+
+`output.group.set` applies a complete desired group and returns converged topology. The
+reference client exposes standalone and group-all controls so grouping is not a subprocess-only
+surface.
+
+`output.session.create` creates a core-hosted session bound to one discovered target. Its
+`hostDeviceId` is an opaque output host identity and `output` identifies the plugin/target.
+Existing `session.command.send` operations then control it. The core serializes commands per
+output session, previews and reserves each command, performs the speaker effect, and only then
+persists and publishes session truth. If persistence fails after a physical effect, it restores
+the previous speaker state before reporting failure.
+
+Output Play mints a process-local, track-bound, six-hour stream token and supplies an
+absolute URL rooted at `PYXIS_LAN_BASE_URL`. This lets a speaker fetch `/stream/:trackId`
+without receiving an account bearer. Tokens cannot cross tracks or survive a core restart.
+
 ## Sessions
 
-A session is device-hosted. The device that renders audio owns transport truth, and the
-server never guesses on its behalf.
+A session is device-hosted or core-hosted through an output plugin. A rendering device owns
+its transport truth; the core owns output-session truth only after the plugin confirms the
+speaker effect. Device handoff refuses output sessions with `outputUnsupported`; moving between
+browser and speaker hosts requires explicit output-session queue commands rather than silently
+skipping physical effects.
 
 `session.list` answers the console question by default: sessions you can send a command to
 right now. Pass `includeUnreachable: true` for the durable question of which sessions

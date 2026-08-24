@@ -135,6 +135,22 @@ export interface MatchingOverrideSetRequest {
 	decision: RpcOverrideDecision;
 }
 
+export interface OutputGroupSetRequest {
+	pluginId: string;
+	coordinatorId: string;
+	memberIds: string[];
+}
+
+export interface OutputSessionCreateRequest {
+	pluginId: string;
+	targetId: string;
+	name: string;
+}
+
+export interface OutputTargetsListRequest {
+	pluginId: string;
+}
+
 export enum RpcPlacement {
 	Discovery = "discovery",
 	Collection = "collection",
@@ -434,6 +450,34 @@ export interface RpcMediaCandidate {
 	fidelity: RpcFidelity;
 }
 
+export interface RpcOutputBinding {
+	pluginId: string;
+	targetId: string;
+}
+
+export interface RpcOutputRoom {
+	id: string;
+	name: string;
+	model?: string;
+	address: string;
+	locationUrl: string;
+	coordinator: boolean;
+}
+
+export interface RpcOutputGroup {
+	id: string;
+	coordinatorId: string;
+	coordinatorName: string;
+	rooms: RpcOutputRoom[];
+}
+
+export interface RpcOutputTopology {
+	pluginId: string;
+	groups: RpcOutputGroup[];
+	refreshedAt: number;
+	authoritative: boolean;
+}
+
 export interface RpcPairingCode {
 	code: string;
 	expiresAt: string;
@@ -490,6 +534,7 @@ export interface RpcSession {
 	positionMs: number;
 	durationMs?: number;
 	volume: number;
+	output?: RpcOutputBinding;
 	reachable: boolean;
 	revision: number;
 	updatedAt: string;
@@ -695,6 +740,19 @@ export type MatchingEvaluateOutcome =
 	| { status: "ready", value: RpcMatchResult }
 	| { status: "unavailable", value: RpcFailure };
 
+export type OutputGroupSetOutcome =
+	| { status: "ready", value: RpcOutputTopology }
+	| { status: "unavailable", value: RpcFailure };
+
+export type OutputSessionCreateOutcome =
+	| { status: "ready", value: RpcSession }
+	| { status: "unknownTarget", value?: undefined }
+	| { status: "unavailable", value: RpcFailure };
+
+export type OutputTargetsListOutcome =
+	| { status: "ready", value: RpcOutputTopology }
+	| { status: "unavailable", value: RpcFailure };
+
 export type PairingCreateOutcome =
 	| { status: "ready", value: RpcPairingCode }
 	| { status: "unavailable", value: RpcFailure };
@@ -754,6 +812,9 @@ export type RpcRequest =
 	| { _tag: "account.list", payload: EmptyRequest }
 	| { _tag: "account.create", payload: AccountCreateRequest }
 	| { _tag: "plugin.list", payload: EmptyRequest }
+	| { _tag: "output.targets.list", payload: OutputTargetsListRequest }
+	| { _tag: "output.session.create", payload: OutputSessionCreateRequest }
+	| { _tag: "output.group.set", payload: OutputGroupSetRequest }
 	| { _tag: "session.create", payload: SessionCreateRequest }
 	| { _tag: "session.list", payload: SessionListRequest }
 	| { _tag: "session.state.get", payload: SessionIdRequest }
@@ -789,6 +850,9 @@ export type RpcResponse =
 	| { _tag: "account.list", outcome: AccountListOutcome }
 	| { _tag: "account.create", outcome: AccountCreateOutcome }
 	| { _tag: "plugin.list", outcome: PluginListOutcome }
+	| { _tag: "output.targets.list", outcome: OutputTargetsListOutcome }
+	| { _tag: "output.session.create", outcome: OutputSessionCreateOutcome }
+	| { _tag: "output.group.set", outcome: OutputGroupSetOutcome }
 	| { _tag: "session.create", outcome: SessionCreateOutcome }
 	| { _tag: "session.list", outcome: SessionListOutcome }
 	| { _tag: "session.state.get", outcome: SessionStateOutcome }
@@ -868,6 +932,8 @@ export type SessionHandoffOutcome =
 	 */
 	| { status: "targetBusy", value?: undefined }
 	| { status: "sameSession", value?: undefined }
+	/** Output sessions require speaker effects and are not moved by device handoff. */
+	| { status: "outputUnsupported", value?: undefined }
 	| { status: "unavailable", value: RpcFailure };
 
 export type SessionListOutcome =

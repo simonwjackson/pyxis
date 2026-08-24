@@ -3,12 +3,14 @@
 pub mod cache;
 pub mod proxy;
 
+use std::collections::HashMap;
 use std::ops::RangeInclusive;
 use std::path::Path;
-use std::sync::Arc;
+use std::sync::{Arc, RwLock};
+use std::time::{Duration, Instant};
 
 use axum::body::Body;
-use axum::extract::{Path as AxumPath, State};
+use axum::extract::{Path as AxumPath, Query, State};
 use axum::http::{header, HeaderMap, HeaderValue, StatusCode};
 use axum::response::{IntoResponse, Response};
 use axum::Json;
@@ -16,6 +18,7 @@ use serde::Deserialize;
 use serde_json::json;
 use tokio::io::{AsyncReadExt, AsyncSeekExt};
 use tokio_util::io::ReaderStream;
+use ulid::Ulid;
 
 use crate::accounts::SCOPE_ACCOUNT_READ;
 use crate::api::AppState;
@@ -27,6 +30,45 @@ use crate::rpc::contract::RpcFailure;
 
 use cache::StreamCache;
 use proxy::{fetch_to_cache, ProxyError, RemoteStreamDescriptor, MAX_STREAM_BYTES};
+
+#[derive(Clone, Default)]
+pub struct OutputStreamTokens {
+    tokens: Arc<RwLock<HashMap<String, OutputStreamToken>>>,
+}
+
+#[derive(Clone)]
+struct OutputStreamToken {
+    account_id: AccountId,
+    track_id: String,
+    candidate_id: String,
+    expires_at: Instant,
+}
+
+impl OutputStreamTokens {
+    pub fn mint(&self, account_id: &AccountId, track_id: &str, candidate_id: &str) -> String {
+        let token = Ulid::new().to_string();
+        let mut tokens = self.tokens.write().expect("output stream tokens poisoned");
+        let now = Instant::now();
+        tokens.retain(|_, entry| entry.expires_at > now);
+        tokens.insert(
+            token.clone(),
+            OutputStreamToken {
+                account_id: account_id.clone(),
+                track_id: track_id.to_string(),
+                candidate_id: candidate_id.to_string(),
+                expires_at: now + Duration::from_secs(6 * 60 * 60),
+            },
+        );
+        token
+    }
+
+    fn authorize(&self, token: &str, track_id: &str) -> Option<(AccountId, String)> {
+        let tokens = self.tokens.read().expect("output stream tokens poisoned");
+        let entry = tokens.get(token)?;
+        (entry.expires_at > Instant::now() && entry.track_id == track_id)
+            .then(|| (entry.account_id.clone(), entry.candidate_id.clone()))
+    }
+}
 
 #[derive(Clone)]
 pub struct StreamService {
@@ -50,53 +92,79 @@ impl StreamService {
     }
 }
 
+#[derive(Default, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StreamQuery {
+    output_token: Option<String>,
+}
+
 pub async fn stream(
     State(state): State<Arc<AppState>>,
     AxumPath(track_id): AxumPath<String>,
+    Query(query): Query<StreamQuery>,
     headers: HeaderMap,
 ) -> Response {
-    let Some(bearer) = bearer_token(&headers).map(str::to_owned) else {
-        return failure(
-            StatusCode::UNAUTHORIZED,
-            RpcFailure::permanent("auth.required", "stream requires a bearer token"),
-        );
-    };
-    let accounts = state.accounts.clone();
-    let auth = match tokio::task::spawn_blocking(move || accounts.authenticate(&bearer)).await {
-        Ok(Ok(Some(auth))) if auth.allows(SCOPE_ACCOUNT_READ) => auth,
-        Ok(Ok(Some(_))) => {
-            return failure(
-                StatusCode::FORBIDDEN,
-                RpcFailure::permanent("auth.insufficientScope", "stream requires account:read"),
-            );
-        }
-        Ok(Ok(None)) => {
+    let (account_id, expected_candidate_id) = if let Some((account_id, candidate_id)) = query
+        .output_token
+        .as_deref()
+        .and_then(|token| state.output_stream_tokens.authorize(token, &track_id))
+    {
+        (account_id, Some(candidate_id))
+    } else {
+        let Some(bearer) = bearer_token(&headers).map(str::to_owned) else {
             return failure(
                 StatusCode::UNAUTHORIZED,
-                RpcFailure::permanent("auth.invalidToken", "bearer token is invalid or revoked"),
+                RpcFailure::permanent("auth.required", "stream requires a bearer token"),
             );
-        }
-        Ok(Err(error)) => {
-            return failure(
-                StatusCode::SERVICE_UNAVAILABLE,
-                RpcFailure::retryable("auth.unavailable", error.to_string()),
-            );
-        }
-        Err(error) => {
-            return failure(
-                StatusCode::SERVICE_UNAVAILABLE,
-                RpcFailure::retryable("auth.unavailable", error.to_string()),
-            );
-        }
+        };
+        let accounts = state.accounts.clone();
+        let auth = match tokio::task::spawn_blocking(move || accounts.authenticate(&bearer)).await {
+            Ok(Ok(Some(auth))) if auth.allows(SCOPE_ACCOUNT_READ) => auth,
+            Ok(Ok(Some(_))) => {
+                return failure(
+                    StatusCode::FORBIDDEN,
+                    RpcFailure::permanent("auth.insufficientScope", "stream requires account:read"),
+                );
+            }
+            Ok(Ok(None)) => {
+                return failure(
+                    StatusCode::UNAUTHORIZED,
+                    RpcFailure::permanent(
+                        "auth.invalidToken",
+                        "bearer token is invalid or revoked",
+                    ),
+                );
+            }
+            Ok(Err(error)) => {
+                return failure(
+                    StatusCode::SERVICE_UNAVAILABLE,
+                    RpcFailure::retryable("auth.unavailable", error.to_string()),
+                );
+            }
+            Err(error) => {
+                return failure(
+                    StatusCode::SERVICE_UNAVAILABLE,
+                    RpcFailure::retryable("auth.unavailable", error.to_string()),
+                );
+            }
+        };
+        (auth.account_id, None)
     };
 
     let media = state.media.clone();
     let plugins = state.plugins.clone();
     let live = plugins.live_ids();
-    let account_id = auth.account_id.clone();
+    let resolution_account_id = account_id.clone();
     let track_for_resolution = track_id.clone();
-    let resolved = tokio::task::spawn_blocking(move || {
-        media.resolve(&account_id, &track_for_resolution, &live)
+    let candidate_for_resolution = expected_candidate_id.clone();
+    let resolved = tokio::task::spawn_blocking(move || match candidate_for_resolution {
+        Some(candidate_id) => media.resolve_id(
+            &resolution_account_id,
+            &track_for_resolution,
+            &candidate_id,
+            &live,
+        ),
+        None => media.resolve(&resolution_account_id, &track_for_resolution, &live),
     })
     .await;
     let candidate = match resolved {
@@ -134,7 +202,7 @@ pub async fn stream(
             let mut descriptor = match resolve_plugin_stream(
                 plugins.clone(),
                 state.plugin_credentials.clone(),
-                auth.account_id.clone(),
+                account_id.clone(),
                 plugin_id.clone(),
                 external_id.clone(),
             )
@@ -158,7 +226,7 @@ pub async fn stream(
                 descriptor = match resolve_plugin_stream(
                     plugins.clone(),
                     state.plugin_credentials.clone(),
-                    auth.account_id.clone(),
+                    account_id.clone(),
                     plugin_id.clone(),
                     external_id.clone(),
                 )
@@ -184,7 +252,7 @@ pub async fn stream(
                         &candidate.id,
                         plugins,
                         state.plugin_credentials.clone(),
-                        auth.account_id.clone(),
+                        account_id.clone(),
                         plugin_id,
                         external_id,
                     )
@@ -418,7 +486,7 @@ async fn serve_file(
     let body = Body::from_stream(ReaderStream::new(file.take(response_length)));
     let mut response = Response::builder()
         .status(status)
-        .header(header::CONTENT_TYPE, mime_for(format))
+        .header(header::CONTENT_TYPE, media_mime_type(format))
         .header(header::CONTENT_LENGTH, response_length)
         .header(header::ACCEPT_RANGES, "bytes")
         // Offline clients key immutable bytes by the actual resolved candidate rather than
@@ -458,7 +526,7 @@ fn byte_range(value: &str, length: u64) -> Option<RangeInclusive<u64>> {
     (end >= start).then_some(start..=end)
 }
 
-fn mime_for(format: Option<&str>) -> &'static str {
+pub(crate) fn media_mime_type(format: Option<&str>) -> &'static str {
     let format = format.unwrap_or_default().to_ascii_lowercase();
     if format.contains("webm") {
         "audio/webm"
@@ -499,6 +567,34 @@ fn proxy_failure(error: ProxyError) -> Response {
             retryable: error.retryable(),
         },
     )
+}
+
+#[cfg(test)]
+mod output_token_tests {
+    use super::*;
+
+    #[test]
+    fn media_mime_mapping_is_shared_by_http_and_output_metadata() {
+        assert_eq!(media_mime_type(Some("aac")), "audio/mp4");
+        assert_eq!(media_mime_type(Some("webm/opus")), "audio/webm");
+        assert_eq!(media_mime_type(Some("flac")), "audio/flac");
+    }
+
+    #[test]
+    fn output_tokens_are_bound_to_account_track_candidate_and_process_lifetime() {
+        let tokens = OutputStreamTokens::default();
+        let account = AccountId::new("default");
+        let token = tokens.mint(&account, "track-1", "candidate-1");
+
+        assert_eq!(
+            tokens.authorize(&token, "track-1"),
+            Some((account, "candidate-1".into()))
+        );
+        assert!(tokens.authorize(&token, "track-2").is_none());
+        assert!(OutputStreamTokens::default()
+            .authorize(&token, "track-1")
+            .is_none());
+    }
 }
 
 fn failure(status: StatusCode, failure: RpcFailure) -> Response {

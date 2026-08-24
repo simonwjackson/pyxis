@@ -23,6 +23,7 @@ use crate::library::Library;
 use crate::listen::{ListenLog, Projections};
 use crate::matching::Matcher;
 use crate::media::Media;
+use crate::output_catalog::OutputCatalog;
 use crate::plugin_credentials::CredentialVault;
 use crate::plugins::host::PluginHost;
 use crate::rpc::realtime::{self, Realtime};
@@ -30,7 +31,7 @@ use crate::rpc::transport;
 use crate::sessions::Sessions;
 use crate::settings::Settings;
 use crate::source_catalog::SourceCatalog;
-use crate::stream::{self, StreamService};
+use crate::stream::{self, OutputStreamTokens, StreamService};
 
 #[derive(Clone)]
 pub struct AppState {
@@ -39,6 +40,8 @@ pub struct AppState {
     pub listen: ListenLog,
     pub matcher: Matcher,
     pub media: Media,
+    pub(crate) outputs: OutputCatalog,
+    pub(crate) output_stream_tokens: OutputStreamTokens,
     pub projections: Projections,
     pub(crate) plugin_credentials: CredentialVault,
     pub(crate) plugins: PluginHost,
@@ -56,7 +59,20 @@ impl AppState {
     }
 
     pub fn open_with_plugins(store: Store, plugins: PluginHost) -> anyhow::Result<Self> {
+        Self::open_with_plugins_and_lan_base(
+            store,
+            plugins,
+            std::env::var("PYXIS_LAN_BASE_URL").ok(),
+        )
+    }
+
+    pub fn open_with_plugins_and_lan_base(
+        store: Store,
+        plugins: PluginHost,
+        lan_base_url: Option<String>,
+    ) -> anyhow::Result<Self> {
         let stream = StreamService::open(store.state_dir())?;
+        let output_stream_tokens = OutputStreamTokens::default();
         let accounts = Accounts::open(store.clone())?;
         let library = Library::open(store.clone());
         let listen = ListenLog::open(store.clone());
@@ -67,12 +83,28 @@ impl AppState {
         let sessions = Sessions::open(store);
         let sources =
             SourceCatalog::new(plugins.clone(), media.clone(), plugin_credentials.clone());
+        let outputs = OutputCatalog::new(
+            plugins.clone(),
+            plugin_credentials.clone(),
+            library.clone(),
+            media.clone(),
+            output_stream_tokens.clone(),
+            lan_base_url,
+        );
+        let persisted_output_sessions = sessions
+            .all_output_sessions()
+            .context("read persisted output ownership")?;
+        outputs
+            .restore_target_owners(&persisted_output_sessions)
+            .context("restore persisted output ownership")?;
         Ok(AppState {
             accounts,
             library,
             listen,
             matcher,
             media,
+            outputs,
+            output_stream_tokens,
             plugin_credentials,
             projections,
             plugins,
@@ -86,6 +118,12 @@ impl AppState {
 
 pub fn router(state: AppState) -> Router {
     router_with_web(state, None)
+}
+
+pub fn stream_router(state: AppState) -> Router {
+    Router::new()
+        .route("/stream/:track_id", get(stream::stream))
+        .with_state(Arc::new(state))
 }
 
 pub fn router_with_web(state: AppState, web_root: Option<PathBuf>) -> Router {
@@ -120,13 +158,62 @@ pub async fn serve(settings: &Settings, state: AppState) -> anyhow::Result<()> {
         .await
         .with_context(|| format!("bind {}:{}", settings.host, settings.port))?;
     let address = listener.local_addr().context("read bound address")?;
-
     tracing::info!(%address, "pyxis listening");
 
-    axum::serve(listener, router_with_web(state, settings.web_root.clone()))
-        .with_graceful_shutdown(shutdown_signal())
+    let primary = axum::serve(
+        listener,
+        router_with_web(state.clone(), settings.web_root.clone()),
+    );
+    let output_monitor = spawn_output_monitor(state.clone());
+    let lan_url = std::env::var("PYXIS_LAN_BASE_URL")
+        .ok()
+        .and_then(|value| reqwest::Url::parse(&value).ok());
+    let Some(lan_url) = lan_url else {
+        let result = primary
+            .with_graceful_shutdown(shutdown_signal())
+            .await
+            .context("serve HTTP");
+        output_monitor.abort();
+        return result;
+    };
+    let host = lan_url.host_str().context("LAN URL has no host")?;
+    let port = lan_url
+        .port_or_known_default()
+        .context("LAN URL has no port")?;
+    let lan_listener = TcpListener::bind(format!("{host}:{port}"))
         .await
-        .context("serve HTTP")
+        .with_context(|| format!("bind LAN stream {host}:{port}"))?;
+    let lan_address = lan_listener
+        .local_addr()
+        .context("read LAN stream address")?;
+    tracing::info!(address = %lan_address, "pyxis LAN stream listening");
+    let lan = axum::serve(lan_listener, stream_router(state));
+
+    let result = tokio::select! {
+        result = primary => result.context("serve HTTP"),
+        result = lan => result.context("serve LAN stream"),
+        () = shutdown_signal() => Ok(()),
+    };
+    output_monitor.abort();
+    result
+}
+
+fn spawn_output_monitor(state: AppState) -> tokio::task::JoinHandle<()> {
+    tokio::spawn(async move {
+        let mut interval = tokio::time::interval(std::time::Duration::from_secs(2));
+        interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+        loop {
+            interval.tick().await;
+            let state = state.clone();
+            if let Err(error) = tokio::task::spawn_blocking(move || {
+                crate::rpc::dispatch::reconcile_all_output_sessions(&state);
+            })
+            .await
+            {
+                tracing::warn!(%error, "output monitor task failed");
+            }
+        }
+    })
 }
 
 /// Asset filenames carry a content hash, so a given URL's bytes never change and may be

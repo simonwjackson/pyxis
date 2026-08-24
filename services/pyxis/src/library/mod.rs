@@ -215,6 +215,25 @@ impl Library {
             .ok_or_else(|| LibraryError::Corrupt("new album could not be read back".into()))
     }
 
+    pub fn get_track(
+        &self,
+        account: &AccountId,
+        track_id: &str,
+    ) -> Result<Option<Track>, LibraryError> {
+        Ok(self
+            .store
+            .get::<TrackRecord>(schema::TRACKS, account, track_id)?
+            .map(|record| Track {
+                id: record.id,
+                title: record.title,
+                artist: record.artist,
+                duration_ms: record.duration_ms,
+                track_number: record.track_number,
+                artwork_url: record.artwork_url,
+                revision: record.revision,
+            }))
+    }
+
     pub fn get_album(
         &self,
         account: &AccountId,

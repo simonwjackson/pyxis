@@ -17,26 +17,30 @@ use crate::library::{
 };
 use crate::listen::{HotConfig, ListenError, TrackListenInput};
 use crate::matching::{Decision, MatchItem, OverrideDecision};
+use crate::output_catalog::{OutputError, OutputTopology};
 use crate::rpc::contract::{
     AccountCreateOutcome, AccountListOutcome, AlbumAddOutcome, AlbumCommandOutcome,
     AlbumListOutcome, ApiTokenCreateOutcome, BookmarkCommandOutcome, BookmarkListOutcome,
     CommandOutcome, DeviceClaimOutcome, DevicePairOutcome, EmptyRequest, HotAlbumsListOutcome,
-    ListenAppendOutcome, ListenHistoryOutcome, MatchingEvaluateOutcome, PairingCreateOutcome,
+    ListenAppendOutcome, ListenHistoryOutcome, MatchingEvaluateOutcome, OutputGroupSetOutcome,
+    OutputSessionCreateOutcome, OutputTargetsListOutcome, PairingCreateOutcome,
     PlaylistCreateOutcome, PlaylistListOutcome, PluginListOutcome, RealtimeServerMessage,
     RpcAccount, RpcAlbumCommand, RpcApiToken, RpcApiTokenGrant, RpcAuthGrant, RpcBookmark,
     RpcBookmarkCommand, RpcDevice, RpcFailure, RpcHotAlbum, RpcLibraryAlbum, RpcLibraryTrack,
     RpcListenAppendResult, RpcListenEvent, RpcMatchDecision, RpcMatchItem, RpcMatchResult,
-    RpcMatchScore, RpcOverrideDecision, RpcPairingCode, RpcPlacement, RpcPlaylist, RpcPlugin,
-    RpcRealtimeRemoval, RpcRealtimeState, RpcRealtimeTopic, RpcRequest, RpcResponse,
-    RpcSearchTrack, RpcSession, RpcSessionCommand, RpcSessionDirective, RpcSourceAlbum,
-    RpcSourceAlbumSummary, RpcSourceFailure, RpcSourceSearchResult, RpcSystemStatus, RpcTransport,
-    SessionCommandOutcome, SessionCommandSendOutcome, SessionCreateOutcome, SessionHandoffOutcome,
+    RpcMatchScore, RpcOutputBinding, RpcOutputGroup, RpcOutputRoom, RpcOutputTopology,
+    RpcOverrideDecision, RpcPairingCode, RpcPlacement, RpcPlaylist, RpcPlugin, RpcRealtimeRemoval,
+    RpcRealtimeState, RpcRealtimeTopic, RpcRequest, RpcResponse, RpcSearchTrack, RpcSession,
+    RpcSessionCommand, RpcSessionDirective, RpcSourceAlbum, RpcSourceAlbumSummary,
+    RpcSourceFailure, RpcSourceSearchResult, RpcSystemStatus, RpcTransport, SessionCommandOutcome,
+    SessionCommandRequest, SessionCommandSendOutcome, SessionCreateOutcome, SessionHandoffOutcome,
     SessionListOutcome, SessionStateOutcome, SourceAlbumGetOutcome, SourceAlbumSearchOutcome,
     SourceSearchOutcome, SystemStatusOutcome, CONTRACT_ID,
 };
 use crate::rpc::realtime::Delivery;
 use crate::sessions::{
-    console, Session, SessionCommand as DomainSessionCommand, SessionError, Transport,
+    console, OutputBinding, OutputConfirmation, PreparedOutputCommand, Session,
+    SessionCommand as DomainSessionCommand, SessionError, Transport,
 };
 use crate::source_catalog::SearchOutcome;
 
@@ -173,6 +177,239 @@ pub fn dispatch(state: &AppState, request: RpcRequest, auth: Option<AuthContext>
             }
             RpcResponse::PluginList(PluginListOutcome::Ready(plugins))
         }
+        RpcRequest::OutputTargetsList(request) => {
+            let Some(auth) = auth else {
+                return auth_required();
+            };
+            match state.outputs.discover(&auth, &request.plugin_id) {
+                Ok(topology) => {
+                    state.sessions.replace_output_reachability(
+                        &auth.account_id,
+                        &request.plugin_id,
+                        safe_output_target_ids(state, &request.plugin_id, &topology),
+                    );
+                    publish_output_plugin_sessions(state, &auth, &request.plugin_id);
+                    RpcResponse::OutputTargetsList(OutputTargetsListOutcome::Ready(
+                        rpc_output_topology(request.plugin_id, topology),
+                    ))
+                }
+                Err(error) => {
+                    state.sessions.replace_output_reachability(
+                        &auth.account_id,
+                        &request.plugin_id,
+                        Vec::new(),
+                    );
+                    publish_output_plugin_sessions(state, &auth, &request.plugin_id);
+                    RpcResponse::OutputTargetsList(OutputTargetsListOutcome::Unavailable(
+                        output_failure(error),
+                    ))
+                }
+            }
+        }
+        RpcRequest::OutputSessionCreate(request) => {
+            let Some(auth) = auth else {
+                return auth_required();
+            };
+            let plugin_id = request.plugin_id.clone();
+            state.outputs.serialize_plugin(&plugin_id, || {
+                match state.outputs.discover(&auth, &request.plugin_id) {
+                    Ok(topology) => {
+                        state.sessions.replace_output_reachability(
+                            &auth.account_id,
+                            &request.plugin_id,
+                            safe_output_target_ids(state, &request.plugin_id, &topology),
+                        );
+                        publish_output_plugin_sessions(state, &auth, &request.plugin_id);
+                        let Some(group) = topology.groups.iter().find(|group| {
+                            group.rooms.iter().any(|room| room.id == request.target_id)
+                        }) else {
+                            return RpcResponse::OutputSessionCreate(
+                                OutputSessionCreateOutcome::UnknownTarget,
+                            );
+                        };
+                        let output = OutputBinding {
+                            plugin_id: request.plugin_id,
+                            target_id: group.coordinator_id.clone(),
+                        };
+                        let room_ids = group
+                            .rooms
+                            .iter()
+                            .map(|room| room.id.as_str())
+                            .collect::<std::collections::HashSet<_>>();
+                        let existing_sessions = match state.sessions.all_output_sessions() {
+                            Ok(sessions) => sessions,
+                            Err(error) => {
+                                return RpcResponse::OutputSessionCreate(
+                                    OutputSessionCreateOutcome::Unavailable(session_failure(error)),
+                                );
+                            }
+                        };
+                        let mut occupant = None;
+                        for (account_id, session) in existing_sessions {
+                            if session.output.as_ref().is_some_and(|binding| {
+                                binding.plugin_id == output.plugin_id
+                                    && room_ids.contains(binding.target_id.as_str())
+                            }) {
+                                if account_id != auth.account_id {
+                                    return RpcResponse::OutputSessionCreate(
+                                        OutputSessionCreateOutcome::Unavailable(output_failure(
+                                            OutputError::TargetInUse(
+                                                account_id.as_str().to_string(),
+                                            ),
+                                        )),
+                                    );
+                                }
+                                occupant = Some(session);
+                            }
+                        }
+                        if let Some(existing) = occupant {
+                            return RpcResponse::OutputSessionCreate(
+                                OutputSessionCreateOutcome::Ready(rpc_session(existing)),
+                            );
+                        }
+                        let newly_claimed = match state
+                            .outputs
+                            .claim_target(&auth.account_id, &output)
+                        {
+                            Ok(newly_claimed) => newly_claimed,
+                            Err(error) => {
+                                return RpcResponse::OutputSessionCreate(
+                                    OutputSessionCreateOutcome::Unavailable(output_failure(error)),
+                                );
+                            }
+                        };
+                        match state
+                            .sessions
+                            .create_output(&auth, &request.name, output.clone())
+                        {
+                            Ok(session) => {
+                                let session = rpc_session(session);
+                                publish_session(state, &auth, &session);
+                                RpcResponse::OutputSessionCreate(OutputSessionCreateOutcome::Ready(
+                                    session,
+                                ))
+                            }
+                            Err(error) => {
+                                if newly_claimed {
+                                    state.outputs.release_target(&auth.account_id, &output);
+                                }
+                                RpcResponse::OutputSessionCreate(
+                                    OutputSessionCreateOutcome::Unavailable(session_failure(error)),
+                                )
+                            }
+                        }
+                    }
+                    Err(error) => {
+                        state.sessions.replace_output_reachability(
+                            &auth.account_id,
+                            &request.plugin_id,
+                            Vec::new(),
+                        );
+                        publish_output_plugin_sessions(state, &auth, &request.plugin_id);
+                        RpcResponse::OutputSessionCreate(OutputSessionCreateOutcome::Unavailable(
+                            output_failure(error),
+                        ))
+                    }
+                }
+            })
+        }
+        RpcRequest::OutputGroupSet(request) => {
+            let Some(auth) = auth else {
+                return auth_required();
+            };
+            let plugin_id = request.plugin_id.clone();
+            state.outputs.serialize_plugin(&plugin_id, || {
+                let current_topology = match state.outputs.discover(&auth, &request.plugin_id) {
+                    Ok(topology) => topology,
+                    Err(error) => {
+                        return RpcResponse::OutputGroupSet(OutputGroupSetOutcome::Unavailable(
+                            output_failure(error),
+                        ));
+                    }
+                };
+                let desired_rooms = request
+                    .member_ids
+                    .iter()
+                    .chain(std::iter::once(&request.coordinator_id))
+                    .collect::<std::collections::HashSet<_>>();
+                let affected_room_ids = current_topology
+                    .groups
+                    .iter()
+                    .filter(|group| {
+                        group
+                            .rooms
+                            .iter()
+                            .any(|room| desired_rooms.contains(&room.id))
+                    })
+                    .flat_map(|group| group.rooms.iter().map(|room| room.id.as_str()))
+                    .collect::<std::collections::HashSet<_>>();
+                let existing_sessions = match state.sessions.all_output_sessions() {
+                    Ok(sessions) => sessions,
+                    Err(error) => {
+                        return RpcResponse::OutputGroupSet(OutputGroupSetOutcome::Unavailable(
+                            session_failure(error),
+                        ));
+                    }
+                };
+                let conflicts = existing_sessions.into_iter().any(|(account_id, session)| {
+                    session.output.as_ref().is_some_and(|output| {
+                        if output.plugin_id != request.plugin_id
+                            || !affected_room_ids.contains(output.target_id.as_str())
+                        {
+                            return false;
+                        }
+                        let current_coordinator = current_topology
+                            .groups
+                            .iter()
+                            .find(|group| {
+                                group.rooms.iter().any(|room| room.id == output.target_id)
+                            })
+                            .map(|group| group.coordinator_id.as_str());
+                        account_id != auth.account_id
+                            || current_coordinator != Some(request.coordinator_id.as_str())
+                    })
+                });
+                if conflicts {
+                    return RpcResponse::OutputGroupSet(OutputGroupSetOutcome::Unavailable(
+                    RpcFailure::permanent(
+                        "output.groupBusy",
+                        "the requested regrouping would move a target owned by an output session",
+                    ),
+                ));
+                }
+                match state.outputs.set_group(
+                    &auth,
+                    &request.plugin_id,
+                    &request.coordinator_id,
+                    &request.member_ids,
+                ) {
+                    Ok(topology) => {
+                        state.sessions.replace_output_reachability(
+                            &auth.account_id,
+                            &request.plugin_id,
+                            safe_output_target_ids(state, &request.plugin_id, &topology),
+                        );
+                        publish_output_plugin_sessions(state, &auth, &request.plugin_id);
+                        RpcResponse::OutputGroupSet(OutputGroupSetOutcome::Ready(
+                            rpc_output_topology(request.plugin_id, topology),
+                        ))
+                    }
+                    Err(error) => {
+                        if output_error_marks_unreachable(&error) {
+                            state.sessions.replace_output_reachability(
+                                &auth.account_id,
+                                &request.plugin_id,
+                                Vec::new(),
+                            );
+                            publish_output_plugin_sessions(state, &auth, &request.plugin_id);
+                        }
+                        RpcResponse::OutputGroupSet(OutputGroupSetOutcome::Unavailable(
+                            output_failure(error),
+                        ))
+                    }
+                }
+            })
+        }
         RpcRequest::SessionCreate(request) => {
             let Some(auth) = auth else {
                 return auth_required();
@@ -195,6 +432,7 @@ pub fn dispatch(state: &AppState, request: RpcRequest, auth: Option<AuthContext>
             let Some(auth) = auth else {
                 return auth_required();
             };
+            refresh_output_sessions(state, &auth);
             match state.sessions.list(&auth, request.include_unreachable) {
                 Ok(sessions) => RpcResponse::SessionList(SessionListOutcome::Ready(
                     sessions.into_iter().map(rpc_session).collect(),
@@ -208,6 +446,7 @@ pub fn dispatch(state: &AppState, request: RpcRequest, auth: Option<AuthContext>
             let Some(auth) = auth else {
                 return auth_required();
             };
+            refresh_output_session(state, &auth, &request.session_id);
             match state.sessions.get(&auth, &request.session_id) {
                 Ok(Some(session)) => {
                     RpcResponse::SessionStateGet(SessionStateOutcome::Ready(rpc_session(session)))
@@ -289,6 +528,11 @@ pub fn dispatch(state: &AppState, request: RpcRequest, auth: Option<AuthContext>
             if !console::is_console_issuable(&request.command) {
                 return RpcResponse::SessionCommandSend(SessionCommandSendOutcome::HostOnly);
             }
+            if let Some(output_session) =
+                session.as_ref().filter(|session| session.output.is_some())
+            {
+                return dispatch_output_command(state, &auth, &request, output_session);
+            }
             match console::route(session.as_ref()) {
                 console::Route::UnknownSession => {
                     RpcResponse::SessionCommandSend(SessionCommandSendOutcome::UnknownSession)
@@ -350,6 +594,13 @@ pub fn dispatch(state: &AppState, request: RpcRequest, auth: Option<AuthContext>
             let Some(auth) = auth else {
                 return auth_required();
             };
+            let source = state.sessions.get(&auth, &request.session_id);
+            let target = state.sessions.get(&auth, &request.target_session_id);
+            if matches!(source, Ok(Some(ref session)) if session.output.is_some())
+                || matches!(target, Ok(Some(ref session)) if session.output.is_some())
+            {
+                return RpcResponse::SessionHandoff(SessionHandoffOutcome::OutputUnsupported);
+            }
             match state
                 .sessions
                 .handoff(&auth, &request.session_id, &request.target_session_id)
@@ -917,6 +1168,448 @@ pub fn dispatch(state: &AppState, request: RpcRequest, auth: Option<AuthContext>
     }
 }
 
+fn dispatch_output_command(
+    state: &AppState,
+    auth: &AuthContext,
+    request: &SessionCommandRequest,
+    session: &Session,
+) -> RpcResponse {
+    let output = session.output.as_ref().expect("output session has binding");
+    state.outputs.serialize_plugin(&output.plugin_id, || {
+        if let Err(error) = state.outputs.claim_target(&auth.account_id, output) {
+            return RpcResponse::SessionCommandSend(SessionCommandSendOutcome::Unavailable(
+                output_failure(error),
+            ));
+        }
+        let topology = match state.outputs.discover(auth, &output.plugin_id) {
+            Ok(topology) => topology,
+            Err(error) => {
+                state.sessions.replace_output_reachability(
+                    &auth.account_id,
+                    &output.plugin_id,
+                    Vec::new(),
+                );
+                publish_output_session(state, auth, &session.id);
+                return RpcResponse::SessionCommandSend(SessionCommandSendOutcome::Unavailable(
+                    output_failure(error),
+                ));
+            }
+        };
+        let reachable = safe_output_target_ids(state, &output.plugin_id, &topology);
+        state.sessions.replace_output_reachability(
+            &auth.account_id,
+            &output.plugin_id,
+            reachable.clone(),
+        );
+        if !reachable.iter().any(|target| target == &output.target_id) {
+            publish_output_session(state, auth, &session.id);
+            return RpcResponse::SessionCommandSend(SessionCommandSendOutcome::Unreachable);
+        }
+        state.outputs.serialize_target(output, || {
+            dispatch_output_command_locked(state, auth, request)
+        })
+    })
+}
+
+fn dispatch_output_command_locked(
+    state: &AppState,
+    auth: &AuthContext,
+    request: &SessionCommandRequest,
+) -> RpcResponse {
+    let command_id = request
+        .command_id
+        .clone()
+        .unwrap_or_else(|| ulid::Ulid::new().to_string());
+    let fingerprint = serde_json::to_string(&request.command).expect("session command serializes");
+    let command = domain_command(request.command.clone());
+    let prepared = match state.sessions.prepare_output_command(
+        auth,
+        &request.session_id,
+        &command,
+        &command_id,
+        &fingerprint,
+    ) {
+        Ok(prepared) => prepared,
+        Err(SessionError::UnknownSession) => {
+            return RpcResponse::SessionCommandSend(SessionCommandSendOutcome::UnknownSession)
+        }
+        Err(error) => {
+            return RpcResponse::SessionCommandSend(SessionCommandSendOutcome::Unavailable(
+                output_session_failure(error),
+            ))
+        }
+    };
+    let PreparedOutputCommand::Ready {
+        current,
+        next,
+        output,
+    } = prepared
+    else {
+        return RpcResponse::SessionCommandSend(SessionCommandSendOutcome::Dispatched);
+    };
+    if !current.reachable {
+        return RpcResponse::SessionCommandSend(SessionCommandSendOutcome::Unreachable);
+    }
+    let effect = match state.outputs.apply_effect(
+        auth,
+        &request.session_id,
+        &output,
+        &current,
+        &next,
+        &command,
+    ) {
+        Ok(effect) => effect,
+        Err(error) => {
+            if output_error_marks_unreachable(&error) {
+                state
+                    .sessions
+                    .set_output_reachable(&auth.account_id, &output, false);
+                publish_output_session(state, auth, &request.session_id);
+            }
+            return RpcResponse::SessionCommandSend(SessionCommandSendOutcome::Unavailable(
+                output_failure(error),
+            ));
+        }
+    };
+    match state.sessions.commit_output_command(
+        auth,
+        &request.session_id,
+        &command,
+        &command_id,
+        &fingerprint,
+        OutputConfirmation {
+            position_ms: effect.commit_position_ms,
+            duration_ms: effect.commit_duration_ms,
+        },
+    ) {
+        Ok(session) => {
+            state
+                .sessions
+                .set_output_reachable(&auth.account_id, &output, true);
+            let session = rpc_session(session);
+            publish_session(state, auth, &session);
+            RpcResponse::SessionCommandSend(SessionCommandSendOutcome::Dispatched)
+        }
+        Err(error) => {
+            let failure = output_session_failure(error);
+            if effect.physical {
+                let mut rollback_session = (*current).clone();
+                if let Some(transport) = effect.rollback_transport {
+                    rollback_session.transport = transport;
+                }
+                if let Some(position_ms) = effect.rollback_position_ms {
+                    rollback_session.position_ms = position_ms;
+                }
+                if effect.rollback_duration_ms.is_some() {
+                    rollback_session.duration_ms = effect.rollback_duration_ms;
+                }
+                if let Err(rollback) = state.outputs.restore_session(
+                    auth,
+                    &request.session_id,
+                    &output,
+                    &rollback_session,
+                ) {
+                    return RpcResponse::SessionCommandSend(
+                        SessionCommandSendOutcome::Unavailable(RpcFailure::retryable(
+                            "output.rollbackFailed",
+                            format!("{}; speaker rollback failed: {rollback}", failure.message),
+                        )),
+                    );
+                }
+            }
+            RpcResponse::SessionCommandSend(SessionCommandSendOutcome::Unavailable(failure))
+        }
+    }
+}
+
+fn output_session_failure(error: SessionError) -> RpcFailure {
+    match error {
+        SessionError::CommandIdConflict => RpcFailure::permanent(
+            "session.commandIdConflict",
+            "commandId was already used for different command content",
+        ),
+        SessionError::InvalidCommandId => RpcFailure::permanent(
+            "session.invalidCommandId",
+            "commandId must contain 1 to 128 characters",
+        ),
+        SessionError::Queue(error) => {
+            RpcFailure::permanent("session.invalidQueueCommand", error.to_string())
+        }
+        SessionError::Machine(error) => {
+            RpcFailure::permanent("session.invalidTransportCommand", error.to_string())
+        }
+        other => session_failure(other),
+    }
+}
+
+fn output_error_marks_unreachable(error: &OutputError) -> bool {
+    use crate::plugins::host::PluginCallError;
+
+    match error {
+        OutputError::Plugin(
+            PluginCallError::Unavailable { .. }
+            | PluginCallError::ProcessExited { .. }
+            | PluginCallError::Timeout { .. },
+        ) => true,
+        OutputError::Plugin(PluginCallError::Plugin {
+            code, retryable, ..
+        }) => *retryable && code == "sonos.targetUnavailable",
+        _ => false,
+    }
+}
+
+fn safe_output_target_ids(
+    state: &AppState,
+    plugin_id: &str,
+    topology: &OutputTopology,
+) -> Vec<String> {
+    let Ok(sessions) = state.sessions.all_output_sessions() else {
+        return Vec::new();
+    };
+    let bindings = sessions
+        .into_iter()
+        .filter_map(|(_, session)| session.output)
+        .filter(|output| output.plugin_id == plugin_id)
+        .collect::<Vec<_>>();
+    topology
+        .groups
+        .iter()
+        .filter(|group| {
+            let room_ids = group
+                .rooms
+                .iter()
+                .map(|room| room.id.as_str())
+                .collect::<std::collections::HashSet<_>>();
+            bindings
+                .iter()
+                .filter(|output| room_ids.contains(output.target_id.as_str()))
+                .count()
+                <= 1
+        })
+        .flat_map(|group| group.rooms.iter().map(|room| room.id.clone()))
+        .collect()
+}
+
+pub(crate) fn reconcile_all_output_sessions(state: &AppState) {
+    let Ok(sessions) = state.sessions.all_output_sessions() else {
+        return;
+    };
+    let mut groups = std::collections::HashMap::<_, Vec<Session>>::new();
+    for (account_id, session) in sessions {
+        let Some(output) = &session.output else {
+            continue;
+        };
+        groups
+            .entry((account_id, output.plugin_id.clone()))
+            .or_default()
+            .push(session);
+    }
+    for ((account_id, plugin_id), sessions) in groups {
+        let auth = AuthContext {
+            account_id,
+            principal: Principal::ApiToken {
+                id: "core-output-monitor".into(),
+                scopes: Vec::new(),
+            },
+        };
+        state.outputs.serialize_plugin(&plugin_id, || {
+            let target_ids = match state.outputs.discover(&auth, &plugin_id) {
+                Ok(topology) => safe_output_target_ids(state, &plugin_id, &topology),
+                Err(_) => Vec::new(),
+            };
+            state
+                .sessions
+                .replace_output_reachability(&auth.account_id, &plugin_id, target_ids);
+            for session in sessions {
+                if let Ok(Some(current)) = state.sessions.get(&auth, &session.id) {
+                    if let Some(output) = current.output.clone() {
+                        if current.reachable
+                            && state
+                                .outputs
+                                .claim_target(&auth.account_id, &output)
+                                .is_ok()
+                        {
+                            refresh_one_output_session_locked(state, &auth, &current, &output);
+                        }
+                    }
+                    publish_output_session(state, &auth, &session.id);
+                }
+            }
+        });
+    }
+}
+
+fn refresh_output_sessions(state: &AppState, auth: &AuthContext) {
+    if let Ok(sessions) = state.sessions.list(auth, true) {
+        for session in sessions
+            .into_iter()
+            .filter(|session| session.output.is_some())
+        {
+            refresh_one_output_session(state, auth, session);
+        }
+    }
+}
+
+fn refresh_output_session(state: &AppState, auth: &AuthContext, session_id: &str) {
+    if let Ok(Some(session)) = state.sessions.get(auth, session_id) {
+        if session.output.is_some() {
+            refresh_one_output_session(state, auth, session);
+        }
+    }
+}
+
+fn refresh_one_output_session(state: &AppState, auth: &AuthContext, session: Session) {
+    let Some(output) = session.output.clone() else {
+        return;
+    };
+    if !session.reachable
+        || state
+            .outputs
+            .claim_target(&auth.account_id, &output)
+            .is_err()
+    {
+        return;
+    }
+    state.outputs.serialize_plugin(&output.plugin_id, || {
+        refresh_one_output_session_locked(state, auth, &session, &output);
+    });
+}
+
+fn refresh_one_output_session_locked(
+    state: &AppState,
+    auth: &AuthContext,
+    session: &Session,
+    output: &OutputBinding,
+) {
+    state.outputs.serialize_target(output, || {
+        let Ok(Some(session)) = state.sessions.get(auth, &session.id) else {
+            return;
+        };
+        let physical = match state.outputs.state(auth, output) {
+            Ok(physical) => physical,
+            Err(_) => {
+                state
+                    .sessions
+                    .set_output_reachable(&auth.account_id, output, false);
+                publish_output_session(state, auth, &session.id);
+                return;
+            }
+        };
+        let owns_stream =
+            state
+                .outputs
+                .stream_belongs_to(&session.id, output, physical.stream_url.as_deref());
+        let (transport, position_ms, duration_ms) = if !owns_stream {
+            (Transport::Stopped, Some(0), session.duration_ms)
+        } else {
+            match physical.state.as_str() {
+                "PLAYING" => (
+                    Transport::Playing,
+                    physical.position_ms,
+                    physical.duration_ms,
+                ),
+                "PAUSED_PLAYBACK" => (
+                    Transport::Paused,
+                    physical.position_ms,
+                    physical.duration_ms,
+                ),
+                "STOPPED"
+                    if session.transport == Transport::Playing
+                        && physical.position_ms.zip(physical.duration_ms).is_some_and(
+                            |(position, duration)| position.saturating_add(2_000) >= duration,
+                        ) =>
+                {
+                    (Transport::Ended, physical.position_ms, physical.duration_ms)
+                }
+                "STOPPED" => (Transport::Stopped, Some(0), physical.duration_ms),
+                _ => return,
+            }
+        };
+        if let Ok(updated) = state.sessions.reconcile_output_state(
+            auth,
+            &session.id,
+            transport,
+            position_ms,
+            duration_ms,
+        ) {
+            if updated.revision != session.revision {
+                publish_session(state, auth, &rpc_session(updated));
+            }
+        }
+    });
+}
+
+fn publish_output_plugin_sessions(state: &AppState, auth: &AuthContext, plugin_id: &str) {
+    if let Ok(sessions) = state.sessions.list(auth, true) {
+        for session in sessions.into_iter().filter(|session| {
+            session
+                .output
+                .as_ref()
+                .is_some_and(|output| output.plugin_id == plugin_id)
+        }) {
+            publish_session(state, auth, &rpc_session(session));
+        }
+    }
+}
+
+fn publish_output_session(state: &AppState, auth: &AuthContext, session_id: &str) {
+    if let Ok(Some(session)) = state.sessions.get(auth, session_id) {
+        publish_session(state, auth, &rpc_session(session));
+    }
+}
+
+fn output_failure(error: OutputError) -> RpcFailure {
+    use crate::plugins::host::PluginCallError;
+
+    match error {
+        OutputError::Plugin(plugin_error) => match plugin_error {
+            PluginCallError::Plugin {
+                code,
+                message,
+                retryable,
+                ..
+            } => RpcFailure {
+                code,
+                message,
+                retryable,
+            },
+            PluginCallError::CapabilityUnavailable { .. } | PluginCallError::Protocol { .. } => {
+                RpcFailure::permanent("output.unavailable", plugin_error.to_string())
+            }
+            PluginCallError::Unavailable { .. }
+            | PluginCallError::ProcessExited { .. }
+            | PluginCallError::Timeout { .. } => {
+                RpcFailure::retryable("output.unavailable", plugin_error.to_string())
+            }
+        },
+        OutputError::InvalidOutput(message) => {
+            RpcFailure::permanent("output.invalidResponse", message)
+        }
+        OutputError::UnknownTarget(target) => RpcFailure::permanent("output.unknownTarget", target),
+        OutputError::TargetInUse(account) => RpcFailure::permanent(
+            "output.targetInUse",
+            format!("output target is already owned by account '{account}'"),
+        ),
+        OutputError::RendererOwnershipLost => RpcFailure::permanent(
+            "output.rendererOwnershipLost",
+            "the renderer is playing a different stream; press Play to take it over explicitly",
+        ),
+        OutputError::LanUrlRequired => RpcFailure::permanent(
+            "output.lanUrlRequired",
+            "PYXIS_LAN_BASE_URL must be configured before an output can play",
+        ),
+        OutputError::Credentials(error) => {
+            RpcFailure::retryable("output.configUnavailable", error.to_string())
+        }
+        OutputError::Library(error) => {
+            RpcFailure::retryable("output.libraryUnavailable", error.to_string())
+        }
+        OutputError::Media(error) => {
+            RpcFailure::retryable("output.mediaUnavailable", error.to_string())
+        }
+    }
+}
+
 fn source_album_failure(error: crate::source_catalog::SourceCatalogError) -> RpcFailure {
     use crate::db::store::StoreError;
     use crate::plugin_credentials::CredentialError;
@@ -1074,9 +1767,42 @@ pub(crate) fn rpc_session(session: Session) -> RpcSession {
             .duration_ms
             .map(|duration| u32::try_from(duration).unwrap_or(u32::MAX)),
         volume: session.volume,
+        output: session.output.map(|output| RpcOutputBinding {
+            plugin_id: output.plugin_id,
+            target_id: output.target_id,
+        }),
         reachable: session.reachable,
         revision: u32::try_from(session.revision).unwrap_or(u32::MAX),
         updated_at: session.updated_at,
+    }
+}
+
+fn rpc_output_topology(plugin_id: String, topology: OutputTopology) -> RpcOutputTopology {
+    RpcOutputTopology {
+        plugin_id,
+        groups: topology
+            .groups
+            .into_iter()
+            .map(|group| RpcOutputGroup {
+                id: group.id,
+                coordinator_id: group.coordinator_id,
+                coordinator_name: group.coordinator_name,
+                rooms: group
+                    .rooms
+                    .into_iter()
+                    .map(|room| RpcOutputRoom {
+                        id: room.id,
+                        name: room.name,
+                        model: room.model,
+                        address: room.address,
+                        location_url: room.location_url,
+                        coordinator: room.coordinator,
+                    })
+                    .collect(),
+            })
+            .collect(),
+        refreshed_at: topology.refreshed_at as f64,
+        authoritative: topology.authoritative,
     }
 }
 

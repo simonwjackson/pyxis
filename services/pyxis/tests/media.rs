@@ -77,6 +77,15 @@ fn a_higher_fidelity_candidate_becomes_the_resolution_without_touching_the_track
             .id,
         high.id
     );
+    assert_eq!(
+        media
+            .resolve_id(&account, "track-1", &low.id, &live(&["ytmusic"]))
+            .expect("resolve ticket candidate")
+            .ready()
+            .expect("ticket candidate remains available")
+            .id,
+        low.id
+    );
 
     let lossless = media
         .add_plugin_candidate(

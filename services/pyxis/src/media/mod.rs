@@ -143,6 +143,22 @@ impl Media {
         })
     }
 
+    pub fn resolve_id(
+        &self,
+        account: &AccountId,
+        track_id: &str,
+        candidate_id: &str,
+        live_plugin_ids: &BTreeSet<String>,
+    ) -> Result<ResolveOutcome, MediaError> {
+        Ok(self.candidates.resolve_id(
+            account,
+            track_id,
+            candidate_id,
+            live_plugin_ids,
+            &self.local,
+        )?)
+    }
+
     pub fn resolve(
         &self,
         account: &AccountId,

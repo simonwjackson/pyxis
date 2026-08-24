@@ -1,0 +1,9 @@
+{
+  "name": "@pyxis/plugin-sonos",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@pyxis/plugin-sdk": "workspace:*"
+  }
+}

@@ -2,7 +2,7 @@
 
 Plugins are ordinary programs. The core starts one as a subprocess and speaks
 line-delimited JSON over its stdin and stdout. Nothing about a plugin is privileged: the
-bundled YouTube Music and Pandora plugins use exactly the protocol described here, which is
+bundled YouTube Music, Pandora, and Sonos plugins use exactly the protocol described here, which is
 what keeps "third-party plugins" true rather than a slogan.
 
 The easiest path is [`@pyxis/plugin-sdk`](../../packages/plugin-sdk/README.md), which
@@ -74,7 +74,7 @@ call.
 | Class | For | Shipped example |
 |---|---|---|
 | `source` | Search, browse, playlists, radio, stream resolution | ytmusic, pandora |
-| `output` | Playback targets, transport, volume | none yet |
+| `output` | Playback targets, transport, volume, grouping | sonos |
 | `provider` | Background media acquisition, no client surface | none yet |
 | `enricher` | Metadata augmentation | none yet |
 
@@ -166,8 +166,36 @@ The core rejects any other path and rejects a call that wrote no bytes.
 `lossless` drives quality-first resolution, which prefers a lossless candidate over any
 lossy bitrate. State it truthfully or your source will be ranked wrongly.
 
-The `output`, `provider`, and `enricher` classes have no shipped implementation yet, so
-their operation sets are not fixed. Do not build against them until they are.
+## Output operations
+
+The Sonos plugin establishes the v1 `output` operation set. Inputs are validated before any
+network or speaker effect.
+
+| Operation | Input |
+|---|---|
+| `discover` | `{}` |
+| `transport.play` | `{ targetId, streamUrl, metadata, positionMs? }` |
+| `transport.pause` | `{ targetId }` |
+| `transport.stop` | `{ targetId }` |
+| `transport.state` | `{ targetId }` |
+| `volume.set` | `{ targetId, volume }` |
+| `group.set` | `{ coordinatorId, memberIds }` |
+
+`discover` returns `{ groups, refreshedAt }`. Each group has `id`, `coordinatorId`,
+`coordinatorName`, and `rooms`; each room has `id`, `name`, optional `model`, `address`,
+`locationUrl`, and `coordinator`.
+
+`transport.play` takes an absolute LAN HTTP URL. `metadata.title` is required; `artist`,
+`album`, `artworkUrl`, and `mimeType` are optional. The plugin sends the URL and DIDL-Lite
+metadata to the group coordinator, optionally seeks to `positionMs`, then plays. Audio bytes
+never enter plugin stdio.
+
+`group.set` describes the complete desired group, including its coordinator in `memberIds`.
+Rooms leaving the group are made standalone before new members join. UPnP faults preserve
+their numeric identity in codes such as `sonos.upnp.701`.
+
+The `provider` and `enricher` classes have no shipped implementation yet, so their operation
+sets are not fixed. Do not build against them until they are.
 
 ## Capability calls
 

@@ -4,6 +4,7 @@ import { monotonicFactory } from "ulid"
 import type {
   RpcAuthGrant,
   RpcLibraryAlbum,
+  RpcOutputTopology,
   RpcPlacement,
   RpcPlugin,
   RpcSearchTrack,
@@ -22,6 +23,7 @@ import { createReferenceClient, type ReferenceClient } from "./api.ts"
 import { ReferenceConsole } from "./Console.tsx"
 import { ReferenceLibrary } from "./Library.tsx"
 import { ReferenceOffline } from "./Offline.tsx"
+import { ReferenceOutputs } from "./Outputs.tsx"
 import { ReferencePlugins } from "./Plugins.tsx"
 import { type ConsoleCommand, type LocalState, ReferenceContext } from "./Reference.context.tsx"
 import { ReferenceAudio } from "./ReferenceAudio.tsx"
@@ -79,6 +81,7 @@ export function ReferenceApp({
   const [status, setStatus] = useState<"booting" | "ready" | "busy" | "error">("booting")
   const [grant, setGrant] = useState<RpcAuthGrant>()
   const [plugins, setPlugins] = useState<readonly RpcPlugin[]>([])
+  const [outputs, setOutputs] = useState<readonly RpcOutputTopology[]>([])
   const [albums, setAlbums] = useState<readonly RpcLibraryAlbum[]>([])
   const [query, setQuery] = useState("")
   const [tracks, setTracks] = useState<readonly RpcSearchTrack[]>([])
@@ -805,6 +808,68 @@ export function ReferenceApp({
     [ensureSession, run, runHostCommand],
   )
 
+  const enqueueAlbumOnSession = useCallback(
+    async (sessionId: string, albumId: string) => {
+      await run(async () => {
+        const album = albumsRef.current.find((candidate) => candidate.id === albumId)
+        if (album === undefined) throw new Error("album is not in the library")
+        if (album.tracks.length === 0) throw new Error("album has no tracks")
+        await client.sendCommand(
+          currentToken(),
+          sessionId,
+          { _tag: "queue.add", payload: { trackIds: album.tracks.map((track) => track.id) } },
+          nextClientEventId(),
+        )
+        await reconcileWorker()
+      })
+    },
+    [client, currentToken, reconcileWorker, run],
+  )
+
+  const discoverOutput = useCallback(
+    async (pluginId: string) => {
+      await run(async () => {
+        const topology = await client.listOutputTargets(currentToken(), pluginId)
+        setOutputs((current) => [
+          ...current.filter((candidate) => candidate.pluginId !== pluginId),
+          topology,
+        ])
+        await reconcileWorker()
+      })
+    },
+    [client, currentToken, reconcileWorker, run],
+  )
+
+  const createOutputSession = useCallback(
+    async (pluginId: string, targetId: string, name: string) => {
+      await run(async () => {
+        const created = await client.createOutputSession(currentToken(), pluginId, targetId, name)
+        await store.putSession(created)
+        await applyWorkerSessions(true)
+      })
+    },
+    [applyWorkerSessions, client, currentToken, run, store],
+  )
+
+  const setOutputGroup = useCallback(
+    async (pluginId: string, coordinatorId: string, memberIds: readonly string[]) => {
+      await run(async () => {
+        const topology = await client.setOutputGroup(
+          currentToken(),
+          pluginId,
+          coordinatorId,
+          memberIds,
+        )
+        setOutputs((current) => [
+          ...current.filter((candidate) => candidate.pluginId !== pluginId),
+          topology,
+        ])
+        await reconcileWorker()
+      })
+    },
+    [client, currentToken, reconcileWorker, run],
+  )
+
   const setAlbumPlacement = useCallback(
     async (albumId: string, placement: RpcPlacement) => {
       const album = albumsRef.current.find((candidate) => candidate.id === albumId)
@@ -1038,6 +1103,7 @@ export function ReferenceApp({
       ...(grant === undefined ? {} : { grant }),
       plugins,
       albums,
+      outputs,
       query,
       tracks,
       searchHasNoSources,
@@ -1054,6 +1120,10 @@ export function ReferenceApp({
       search,
       enqueue,
       enqueueAlbum,
+      enqueueAlbumOnSession,
+      discoverOutput,
+      createOutputSession,
+      setOutputGroup,
       setAlbumPlacement,
       pinAlbum,
       unpinAlbum,
@@ -1071,6 +1141,7 @@ export function ReferenceApp({
       grant,
       plugins,
       albums,
+      outputs,
       query,
       tracks,
       searchHasNoSources,
@@ -1086,6 +1157,10 @@ export function ReferenceApp({
       search,
       enqueue,
       enqueueAlbum,
+      enqueueAlbumOnSession,
+      discoverOutput,
+      createOutputSession,
+      setOutputGroup,
       setAlbumPlacement,
       pinAlbum,
       unpinAlbum,
@@ -1108,6 +1183,7 @@ export function ReferenceApp({
           <p>This page is intentionally unstyled. It proves behavior, not design.</p>
           <ReferenceUpdate />
           <ReferencePlugins />
+          <ReferenceOutputs />
           <ReferenceLibrary />
           <ReferenceSessions />
           <ReferenceOffline />

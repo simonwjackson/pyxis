@@ -77,6 +77,89 @@ describe("reference stream client", () => {
   })
 })
 
+describe("reference output client", () => {
+  test("lists output targets and creates a core-hosted session", async () => {
+    const requests: unknown[] = []
+    const fetcher = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+      const request = JSON.parse(String(init?.body)) as { _tag: string }
+      requests.push(request)
+      if (request._tag === "output.targets.list") {
+        return Response.json({
+          _tag: "output.targets.list",
+          outcome: {
+            status: "ready",
+            value: {
+              pluginId: "sonos",
+              groups: [],
+              refreshedAt: 1,
+              authoritative: true,
+            },
+          },
+        })
+      }
+      if (request._tag === "output.group.set") {
+        return Response.json({
+          _tag: "output.group.set",
+          outcome: {
+            status: "ready",
+            value: {
+              pluginId: "sonos",
+              groups: [],
+              refreshedAt: 2,
+              authoritative: true,
+            },
+          },
+        })
+      }
+      return Response.json({
+        _tag: "output.session.create",
+        outcome: {
+          status: "ready",
+          value: {
+            id: "session-output",
+            name: "Kitchen",
+            hostDeviceId: "output:sonos:RINCON_KITCHEN",
+            queue: [],
+            transport: "stopped",
+            positionMs: 0,
+            volume: 100,
+            output: { pluginId: "sonos", targetId: "RINCON_KITCHEN" },
+            reachable: true,
+            revision: 1,
+            updatedAt: "now",
+          },
+        },
+      })
+    })
+    const client = createReferenceClient({ fetch: fetcher as unknown as typeof fetch })
+
+    await expect(client.listOutputTargets("token", "sonos")).resolves.toMatchObject({
+      pluginId: "sonos",
+    })
+    await expect(
+      client.createOutputSession("token", "sonos", "RINCON_KITCHEN", "Kitchen"),
+    ).resolves.toMatchObject({ output: { pluginId: "sonos", targetId: "RINCON_KITCHEN" } })
+    await expect(
+      client.setOutputGroup("token", "sonos", "RINCON_KITCHEN", ["RINCON_KITCHEN"]),
+    ).resolves.toMatchObject({ refreshedAt: 2 })
+    expect(requests).toMatchObject([
+      { _tag: "output.targets.list", payload: { pluginId: "sonos" } },
+      {
+        _tag: "output.session.create",
+        payload: { pluginId: "sonos", targetId: "RINCON_KITCHEN", name: "Kitchen" },
+      },
+      {
+        _tag: "output.group.set",
+        payload: {
+          pluginId: "sonos",
+          coordinatorId: "RINCON_KITCHEN",
+          memberIds: ["RINCON_KITCHEN"],
+        },
+      },
+    ])
+  })
+})
+
 describe("reference realtime client", () => {
   test("persists an event cursor only after its state handler finishes", async () => {
     const socket = new FakeSocket()

@@ -26,6 +26,10 @@ fn main() -> anyhow::Result<()> {
     let PluginRequest::Handshake(_) = handshake.request else {
         anyhow::bail!("first request was not a handshake");
     };
+    let capability = std::env::var("PYXIS_LAB_CAPABILITY")
+        .ok()
+        .and_then(|value| PluginCapability::parse(&value))
+        .unwrap_or(PluginCapability::Source);
     let manifest = PluginManifest {
         id: id.clone(),
         name: format!("Laboratory {id}"),
@@ -35,7 +39,7 @@ fn main() -> anyhow::Result<()> {
         } else {
             PLUGIN_PROTOCOL_VERSION
         },
-        capabilities: vec![PluginCapability::Source],
+        capabilities: vec![capability],
         config_schema: PluginValue::Object(BTreeMap::new()),
     };
     send(
@@ -54,6 +58,8 @@ fn main() -> anyhow::Result<()> {
     }
 
     let mut stream_resolutions = 0_u32;
+    let mut output_transport = "STOPPED".to_string();
+    let mut output_stream_url: Option<String> = None;
     for line in lines {
         let envelope: PluginRequestEnvelope = serde_json::from_str(&line?)?;
         let PluginRequest::CapabilityCall(call) = envelope.request else {
@@ -78,7 +84,79 @@ fn main() -> anyhow::Result<()> {
             _ => {}
         }
 
+        if let Ok(path) = std::env::var("PYXIS_LAB_CALL_LOG") {
+            let line = format!(
+                "{}|{}\n",
+                call.operation,
+                serde_json::to_string(&call.input)?
+            );
+            std::fs::OpenOptions::new()
+                .create(true)
+                .append(true)
+                .open(path)?
+                .write_all(line.as_bytes())?;
+        }
+
         let mut value = BTreeMap::new();
+        if matches!(call.operation.as_str(), "discover" | "group.set")
+            && capability == PluginCapability::Output
+        {
+            let mut room = BTreeMap::new();
+            room.insert("id".into(), PluginValue::String("RINCON_TEST".into()));
+            room.insert("name".into(), PluginValue::String("Test Room".into()));
+            room.insert("address".into(), PluginValue::String("192.168.1.20".into()));
+            room.insert(
+                "locationUrl".into(),
+                PluginValue::String("http://192.168.1.20:1400/xml/device_description.xml".into()),
+            );
+            room.insert("coordinator".into(), PluginValue::Bool(true));
+            let mut group = BTreeMap::new();
+            group.insert("id".into(), PluginValue::String("group-test".into()));
+            group.insert(
+                "coordinatorId".into(),
+                PluginValue::String("RINCON_TEST".into()),
+            );
+            group.insert(
+                "coordinatorName".into(),
+                PluginValue::String("Test Room".into()),
+            );
+            group.insert(
+                "rooms".into(),
+                PluginValue::Array(vec![PluginValue::Object(room)]),
+            );
+            value.insert(
+                "groups".into(),
+                PluginValue::Array(vec![PluginValue::Object(group)]),
+            );
+            value.insert("refreshedAt".into(), PluginValue::Unsigned(1));
+            value.insert("authoritative".into(), PluginValue::Bool(true));
+        }
+        if capability == PluginCapability::Output {
+            if call.operation == "transport.play" {
+                if let PluginValue::Object(input) = &call.input {
+                    if let Some(PluginValue::String(stream_url)) = input.get("streamUrl") {
+                        output_stream_url = Some(stream_url.clone());
+                    }
+                }
+            }
+            output_transport = match call.operation.as_str() {
+                "transport.play" => "PLAYING".into(),
+                "transport.pause" => "PAUSED_PLAYBACK".into(),
+                "transport.stop" => "STOPPED".into(),
+                _ => output_transport,
+            };
+        }
+        if call.operation == "transport.state" && capability == PluginCapability::Output {
+            value.insert(
+                "state".into(),
+                PluginValue::String(output_transport.clone()),
+            );
+            value.insert("positionMs".into(), PluginValue::Unsigned(12_000));
+            value.insert("durationMs".into(), PluginValue::Unsigned(180_000));
+            if let Some(stream_url) = &output_stream_url {
+                value.insert("streamUrl".into(), PluginValue::String(stream_url.clone()));
+            }
+        }
         if call.operation == "search" {
             if let Ok(search) = std::env::var("PYXIS_LAB_SEARCH") {
                 let fields: Vec<_> = search.split('|').collect();

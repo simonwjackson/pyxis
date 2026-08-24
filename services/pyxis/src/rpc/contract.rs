@@ -271,6 +271,31 @@ pub enum PluginListOutcome {
 
 #[typeshare]
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(tag = "status", content = "value", rename_all = "camelCase")]
+pub enum OutputTargetsListOutcome {
+    Ready(RpcOutputTopology),
+    Unavailable(RpcFailure),
+}
+
+#[typeshare]
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(tag = "status", content = "value", rename_all = "camelCase")]
+pub enum OutputSessionCreateOutcome {
+    Ready(RpcSession),
+    UnknownTarget,
+    Unavailable(RpcFailure),
+}
+
+#[typeshare]
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(tag = "status", content = "value", rename_all = "camelCase")]
+pub enum OutputGroupSetOutcome {
+    Ready(RpcOutputTopology),
+    Unavailable(RpcFailure),
+}
+
+#[typeshare]
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct PluginConfigSetRequest {
     pub plugin_id: String,
@@ -437,6 +462,47 @@ pub enum RpcTransport {
 #[typeshare]
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct RpcOutputBinding {
+    pub plugin_id: String,
+    pub target_id: String,
+}
+
+#[typeshare]
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct RpcOutputRoom {
+    pub id: String,
+    pub name: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub model: Option<String>,
+    pub address: String,
+    pub location_url: String,
+    pub coordinator: bool,
+}
+
+#[typeshare]
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct RpcOutputGroup {
+    pub id: String,
+    pub coordinator_id: String,
+    pub coordinator_name: String,
+    pub rooms: Vec<RpcOutputRoom>,
+}
+
+#[typeshare]
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct RpcOutputTopology {
+    pub plugin_id: String,
+    pub groups: Vec<RpcOutputGroup>,
+    pub refreshed_at: f64,
+    pub authoritative: bool,
+}
+
+#[typeshare]
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct RpcSession {
     pub id: String,
     pub name: String,
@@ -453,6 +519,8 @@ pub struct RpcSession {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub duration_ms: Option<u32>,
     pub volume: u8,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub output: Option<RpcOutputBinding>,
     pub reachable: bool,
     pub revision: u32,
     pub updated_at: String,
@@ -463,6 +531,31 @@ pub struct RpcSession {
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct SessionCreateRequest {
     pub name: String,
+}
+
+#[typeshare]
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct OutputTargetsListRequest {
+    pub plugin_id: String,
+}
+
+#[typeshare]
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct OutputSessionCreateRequest {
+    pub plugin_id: String,
+    pub target_id: String,
+    pub name: String,
+}
+
+#[typeshare]
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct OutputGroupSetRequest {
+    pub plugin_id: String,
+    pub coordinator_id: String,
+    pub member_ids: Vec<String>,
 }
 
 #[typeshare]
@@ -620,6 +713,8 @@ pub enum SessionHandoffOutcome {
     /// somebody is listening to.
     TargetBusy,
     SameSession,
+    /// Output sessions require speaker effects and are not moved by device handoff.
+    OutputUnsupported,
     Unavailable(RpcFailure),
 }
 
@@ -1217,6 +1312,12 @@ pub enum RpcRequest {
     AccountCreate(AccountCreateRequest),
     #[serde(rename = "plugin.list")]
     PluginList(EmptyRequest),
+    #[serde(rename = "output.targets.list")]
+    OutputTargetsList(OutputTargetsListRequest),
+    #[serde(rename = "output.session.create")]
+    OutputSessionCreate(OutputSessionCreateRequest),
+    #[serde(rename = "output.group.set")]
+    OutputGroupSet(OutputGroupSetRequest),
     #[serde(rename = "session.create")]
     SessionCreate(SessionCreateRequest),
     #[serde(rename = "session.list")]
@@ -1298,6 +1399,12 @@ pub enum RpcResponse {
     AccountCreate(AccountCreateOutcome),
     #[serde(rename = "plugin.list")]
     PluginList(PluginListOutcome),
+    #[serde(rename = "output.targets.list")]
+    OutputTargetsList(OutputTargetsListOutcome),
+    #[serde(rename = "output.session.create")]
+    OutputSessionCreate(OutputSessionCreateOutcome),
+    #[serde(rename = "output.group.set")]
+    OutputGroupSet(OutputGroupSetOutcome),
     #[serde(rename = "session.create")]
     SessionCreate(SessionCreateOutcome),
     #[serde(rename = "session.list")]
@@ -1351,7 +1458,7 @@ pub enum RpcResponse {
 }
 
 impl RpcRequest {
-    pub const KNOWN_TAGS: [&'static str; 33] = [
+    pub const KNOWN_TAGS: [&'static str; 36] = [
         "system.status.get",
         "auth.device.claim",
         "auth.device.pair",
@@ -1361,6 +1468,9 @@ impl RpcRequest {
         "account.list",
         "account.create",
         "plugin.list",
+        "output.targets.list",
+        "output.session.create",
+        "output.group.set",
         "session.create",
         "session.list",
         "session.state.get",
@@ -1399,6 +1509,9 @@ impl RpcRequest {
             RpcRequest::AccountList(_) => "account.list",
             RpcRequest::AccountCreate(_) => "account.create",
             RpcRequest::PluginList(_) => "plugin.list",
+            RpcRequest::OutputTargetsList(_) => "output.targets.list",
+            RpcRequest::OutputSessionCreate(_) => "output.session.create",
+            RpcRequest::OutputGroupSet(_) => "output.group.set",
             RpcRequest::SessionCreate(_) => "session.create",
             RpcRequest::SessionList(_) => "session.list",
             RpcRequest::SessionStateGet(_) => "session.state.get",
@@ -1445,8 +1558,11 @@ impl RpcRequest {
             | RpcRequest::AuthDeviceClaim(_)
             | RpcRequest::AuthDevicePair(_) => None,
             RpcRequest::AccountList(_) | RpcRequest::PluginList(_) => Some("account:read"),
+            RpcRequest::OutputTargetsList(_) => Some("session:read"),
             RpcRequest::SessionList(_) | RpcRequest::SessionStateGet(_) => Some("session:read"),
-            RpcRequest::SessionCreate(_)
+            RpcRequest::OutputSessionCreate(_)
+            | RpcRequest::OutputGroupSet(_)
+            | RpcRequest::SessionCreate(_)
             | RpcRequest::SessionCommandRun(_)
             | RpcRequest::SessionCommandSend(_)
             | RpcRequest::SessionHandoff(_) => Some("session:control"),
@@ -1479,7 +1595,7 @@ impl RpcRequest {
 }
 
 impl RpcResponse {
-    pub const KNOWN_OPERATION_TAGS: [&'static str; 33] = RpcRequest::KNOWN_TAGS;
+    pub const KNOWN_OPERATION_TAGS: [&'static str; 36] = RpcRequest::KNOWN_TAGS;
 
     pub fn tag(&self) -> &'static str {
         match self {
@@ -1492,6 +1608,9 @@ impl RpcResponse {
             RpcResponse::AccountList(_) => "account.list",
             RpcResponse::AccountCreate(_) => "account.create",
             RpcResponse::PluginList(_) => "plugin.list",
+            RpcResponse::OutputTargetsList(_) => "output.targets.list",
+            RpcResponse::OutputSessionCreate(_) => "output.session.create",
+            RpcResponse::OutputGroupSet(_) => "output.group.set",
             RpcResponse::SessionCreate(_) => "session.create",
             RpcResponse::SessionList(_) => "session.list",
             RpcResponse::SessionStateGet(_) => "session.state.get",

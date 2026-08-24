@@ -4,6 +4,7 @@ import type {
   RealtimeServerMessage,
   RpcAuthGrant,
   RpcLibraryAlbum,
+  RpcOutputTopology,
   RpcPlacement,
   RpcPlugin,
   RpcRequest,
@@ -36,6 +37,19 @@ export interface ReferenceClient {
   claimDevice(name: string): Promise<RpcAuthGrant>
   listPlugins(token: string): Promise<readonly RpcPlugin[]>
   listAlbums(token: string): Promise<readonly RpcLibraryAlbum[]>
+  listOutputTargets(token: string, pluginId: string): Promise<RpcOutputTopology>
+  createOutputSession(
+    token: string,
+    pluginId: string,
+    targetId: string,
+    name: string,
+  ): Promise<RpcSession>
+  setOutputGroup(
+    token: string,
+    pluginId: string,
+    coordinatorId: string,
+    memberIds: readonly string[],
+  ): Promise<RpcOutputTopology>
   setAlbumPlacement(
     token: string,
     albumId: string,
@@ -137,6 +151,41 @@ export function createReferenceClient(config: ReferenceClientConfig = {}): Refer
       const response = await rpc({ _tag: "library.albums.list", payload: {} }, token)
       if (response._tag !== "library.albums.list" || response.outcome.status !== "ready") {
         throw new Error("library album list is unavailable")
+      }
+      return response.outcome.value
+    },
+
+    async listOutputTargets(token, pluginId) {
+      const response = await rpc({ _tag: "output.targets.list", payload: { pluginId } }, token)
+      if (response._tag !== "output.targets.list" || response.outcome.status !== "ready") {
+        throw new Error("output target list is unavailable")
+      }
+      return response.outcome.value
+    },
+
+    async createOutputSession(token, pluginId, targetId, name) {
+      const response = await rpc(
+        { _tag: "output.session.create", payload: { pluginId, targetId, name } },
+        token,
+      )
+      if (response._tag !== "output.session.create" || response.outcome.status !== "ready") {
+        const status =
+          response._tag === "output.session.create" ? response.outcome.status : "invalid"
+        throw new Error(`output session was not created: ${status}`)
+      }
+      return response.outcome.value
+    },
+
+    async setOutputGroup(token, pluginId, coordinatorId, memberIds) {
+      const response = await rpc(
+        {
+          _tag: "output.group.set",
+          payload: { pluginId, coordinatorId, memberIds: [...memberIds] },
+        },
+        token,
+      )
+      if (response._tag !== "output.group.set" || response.outcome.status !== "ready") {
+        throw new Error("output group was not updated")
       }
       return response.outcome.value
     },

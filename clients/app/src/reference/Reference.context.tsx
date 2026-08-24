@@ -2,6 +2,7 @@ import { createContext, useContext } from "react"
 import type {
   RpcAuthGrant,
   RpcLibraryAlbum,
+  RpcOutputTopology,
   RpcPlacement,
   RpcPlugin,
   RpcSearchTrack,
@@ -26,6 +27,7 @@ export interface ReferenceContextValue {
   readonly grant?: RpcAuthGrant
   readonly plugins: readonly RpcPlugin[]
   readonly albums: readonly RpcLibraryAlbum[]
+  readonly outputs: readonly RpcOutputTopology[]
   readonly query: string
   readonly tracks: readonly RpcSearchTrack[]
   readonly searchHasNoSources: boolean
@@ -44,6 +46,14 @@ export interface ReferenceContextValue {
   enqueue(trackId: string): Promise<void>
   /// Queue every track of a library album, in album order.
   enqueueAlbum(albumId: string): Promise<void>
+  enqueueAlbumOnSession(sessionId: string, albumId: string): Promise<void>
+  discoverOutput(pluginId: string): Promise<void>
+  createOutputSession(pluginId: string, targetId: string, name: string): Promise<void>
+  setOutputGroup(
+    pluginId: string,
+    coordinatorId: string,
+    memberIds: readonly string[],
+  ): Promise<void>
   setAlbumPlacement(albumId: string, placement: RpcPlacement): Promise<void>
   pinAlbum(albumId: string): Promise<void>
   unpinAlbum(albumId: string): Promise<void>

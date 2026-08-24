@@ -233,6 +233,27 @@ impl CandidateRepository {
         Ok(candidate)
     }
 
+    pub fn resolve_id(
+        &self,
+        account: &AccountId,
+        track_id: &str,
+        candidate_id: &str,
+        live_plugin_ids: &BTreeSet<String>,
+        local: &LocalMediaStore,
+    ) -> Result<ResolveOutcome, CandidateError> {
+        let Some(record) =
+            self.store
+                .get::<CandidateRecord>(schema::TRACK_CANDIDATES, account, candidate_id)?
+        else {
+            return Ok(ResolveOutcome::Unavailable);
+        };
+        let candidate = MediaCandidate::try_from(record)?;
+        if candidate.track_id != track_id {
+            return Ok(ResolveOutcome::Unavailable);
+        }
+        resolve_candidate(candidate, account, live_plugin_ids, local)
+    }
+
     pub fn resolve(
         &self,
         account: &AccountId,
@@ -244,32 +265,11 @@ impl CandidateRepository {
         candidates.sort_by(|left, right| compare(right, left));
 
         for candidate in candidates {
-            let location = match &candidate.location {
-                CandidateLocation::Plugin {
-                    plugin_id,
-                    external_id,
-                } if live_plugin_ids.contains(plugin_id) => ResolvedLocation::Plugin {
-                    plugin_id: plugin_id.clone(),
-                    external_id: external_id.clone(),
-                },
-                CandidateLocation::Plugin { .. } => continue,
-                CandidateLocation::Local { media_file_id } => {
-                    let Some(file) = local.ready(account, media_file_id)? else {
-                        continue;
-                    };
-                    ResolvedLocation::Local {
-                        media_file_id: media_file_id.clone(),
-                        absolute_path: file.absolute_path,
-                    }
-                }
-            };
-            return Ok(ResolveOutcome::Ready(ResolvedCandidate {
-                id: candidate.id,
-                track_id: candidate.track_id,
-                location,
-                format: candidate.format,
-                fidelity: candidate.fidelity,
-            }));
+            if let ResolveOutcome::Ready(candidate) =
+                resolve_candidate(candidate, account, live_plugin_ids, local)?
+            {
+                return Ok(ResolveOutcome::Ready(candidate));
+            }
         }
 
         Ok(ResolveOutcome::Unavailable)
@@ -326,6 +326,40 @@ impl CandidateRepository {
         )?;
         Ok(())
     }
+}
+
+fn resolve_candidate(
+    candidate: MediaCandidate,
+    account: &AccountId,
+    live_plugin_ids: &BTreeSet<String>,
+    local: &LocalMediaStore,
+) -> Result<ResolveOutcome, CandidateError> {
+    let location = match &candidate.location {
+        CandidateLocation::Plugin {
+            plugin_id,
+            external_id,
+        } if live_plugin_ids.contains(plugin_id) => ResolvedLocation::Plugin {
+            plugin_id: plugin_id.clone(),
+            external_id: external_id.clone(),
+        },
+        CandidateLocation::Plugin { .. } => return Ok(ResolveOutcome::Unavailable),
+        CandidateLocation::Local { media_file_id } => {
+            let Some(file) = local.ready(account, media_file_id)? else {
+                return Ok(ResolveOutcome::Unavailable);
+            };
+            ResolvedLocation::Local {
+                media_file_id: media_file_id.clone(),
+                absolute_path: file.absolute_path,
+            }
+        }
+    };
+    Ok(ResolveOutcome::Ready(ResolvedCandidate {
+        id: candidate.id,
+        track_id: candidate.track_id,
+        location,
+        format: candidate.format,
+        fidelity: candidate.fidelity,
+    }))
 }
 
 fn candidate_record(candidate: &MediaCandidate, updated_by: &str) -> CandidateRecord {

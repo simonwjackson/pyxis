@@ -183,6 +183,54 @@
           "properties": {
             "_tag": {
               "type": "string",
+              "const": "output.targets.list"
+            },
+            "payload": {
+              "$ref": "#/$defs/OutputTargetsListRequest"
+            }
+          },
+          "required": [
+            "_tag",
+            "payload"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "_tag": {
+              "type": "string",
+              "const": "output.session.create"
+            },
+            "payload": {
+              "$ref": "#/$defs/OutputSessionCreateRequest"
+            }
+          },
+          "required": [
+            "_tag",
+            "payload"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "_tag": {
+              "type": "string",
+              "const": "output.group.set"
+            },
+            "payload": {
+              "$ref": "#/$defs/OutputGroupSetRequest"
+            }
+          },
+          "required": [
+            "_tag",
+            "payload"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "_tag": {
+              "type": "string",
               "const": "session.create"
             },
             "payload": {
@@ -642,6 +690,61 @@
       "required": [
         "name",
         "deviceName"
+      ]
+    },
+    "OutputTargetsListRequest": {
+      "type": "object",
+      "properties": {
+        "pluginId": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "pluginId"
+      ]
+    },
+    "OutputSessionCreateRequest": {
+      "type": "object",
+      "properties": {
+        "pluginId": {
+          "type": "string"
+        },
+        "targetId": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "pluginId",
+        "targetId",
+        "name"
+      ]
+    },
+    "OutputGroupSetRequest": {
+      "type": "object",
+      "properties": {
+        "pluginId": {
+          "type": "string"
+        },
+        "coordinatorId": {
+          "type": "string"
+        },
+        "memberIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "pluginId",
+        "coordinatorId",
+        "memberIds"
       ]
     },
     "SessionCreateRequest": {
@@ -1699,6 +1802,54 @@
           "properties": {
             "_tag": {
               "type": "string",
+              "const": "output.targets.list"
+            },
+            "outcome": {
+              "$ref": "#/$defs/OutputTargetsListOutcome"
+            }
+          },
+          "required": [
+            "_tag",
+            "outcome"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "_tag": {
+              "type": "string",
+              "const": "output.session.create"
+            },
+            "outcome": {
+              "$ref": "#/$defs/OutputSessionCreateOutcome"
+            }
+          },
+          "required": [
+            "_tag",
+            "outcome"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "_tag": {
+              "type": "string",
+              "const": "output.group.set"
+            },
+            "outcome": {
+              "$ref": "#/$defs/OutputGroupSetOutcome"
+            }
+          },
+          "required": [
+            "_tag",
+            "outcome"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "_tag": {
+              "type": "string",
               "const": "session.create"
             },
             "outcome": {
@@ -2719,7 +2870,132 @@
         "configured"
       ]
     },
-    "SessionCreateOutcome": {
+    "OutputTargetsListOutcome": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "const": "ready"
+            },
+            "value": {
+              "$ref": "#/$defs/RpcOutputTopology"
+            }
+          },
+          "required": [
+            "status",
+            "value"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "const": "unavailable"
+            },
+            "value": {
+              "$ref": "#/$defs/RpcFailure"
+            }
+          },
+          "required": [
+            "status",
+            "value"
+          ]
+        }
+      ]
+    },
+    "RpcOutputTopology": {
+      "type": "object",
+      "properties": {
+        "pluginId": {
+          "type": "string"
+        },
+        "groups": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/RpcOutputGroup"
+          }
+        },
+        "refreshedAt": {
+          "type": "number",
+          "format": "double"
+        },
+        "authoritative": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "pluginId",
+        "groups",
+        "refreshedAt",
+        "authoritative"
+      ]
+    },
+    "RpcOutputGroup": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "coordinatorId": {
+          "type": "string"
+        },
+        "coordinatorName": {
+          "type": "string"
+        },
+        "rooms": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/RpcOutputRoom"
+          }
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "coordinatorId",
+        "coordinatorName",
+        "rooms"
+      ]
+    },
+    "RpcOutputRoom": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "model": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "address": {
+          "type": "string"
+        },
+        "locationUrl": {
+          "type": "string"
+        },
+        "coordinator": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "name",
+        "address",
+        "locationUrl",
+        "coordinator"
+      ]
+    },
+    "OutputSessionCreateOutcome": {
       "oneOf": [
         {
           "type": "object",
@@ -2742,7 +3018,7 @@
           "properties": {
             "status": {
               "type": "string",
-              "const": "notDevice"
+              "const": "unknownTarget"
             }
           },
           "required": [
@@ -2827,6 +3103,16 @@
           "minimum": 0,
           "maximum": 255
         },
+        "output": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/RpcOutputBinding"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "reachable": {
           "type": "boolean"
         },
@@ -2860,6 +3146,106 @@
         "playing",
         "paused",
         "ended"
+      ]
+    },
+    "RpcOutputBinding": {
+      "type": "object",
+      "properties": {
+        "pluginId": {
+          "type": "string"
+        },
+        "targetId": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "pluginId",
+        "targetId"
+      ]
+    },
+    "OutputGroupSetOutcome": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "const": "ready"
+            },
+            "value": {
+              "$ref": "#/$defs/RpcOutputTopology"
+            }
+          },
+          "required": [
+            "status",
+            "value"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "const": "unavailable"
+            },
+            "value": {
+              "$ref": "#/$defs/RpcFailure"
+            }
+          },
+          "required": [
+            "status",
+            "value"
+          ]
+        }
+      ]
+    },
+    "SessionCreateOutcome": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "const": "ready"
+            },
+            "value": {
+              "$ref": "#/$defs/RpcSession"
+            }
+          },
+          "required": [
+            "status",
+            "value"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "const": "notDevice"
+            }
+          },
+          "required": [
+            "status"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "const": "unavailable"
+            },
+            "value": {
+              "$ref": "#/$defs/RpcFailure"
+            }
+          },
+          "required": [
+            "status",
+            "value"
+          ]
+        }
       ]
     },
     "SessionListOutcome": {
@@ -3207,6 +3593,19 @@
             "status": {
               "type": "string",
               "const": "sameSession"
+            }
+          },
+          "required": [
+            "status"
+          ]
+        },
+        {
+          "description": "Output sessions require speaker effects and are not moved by device handoff.",
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "const": "outputUnsupported"
             }
           },
           "required": [

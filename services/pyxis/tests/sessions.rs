@@ -1,6 +1,9 @@
 use pyxis::accounts::{AuthContext, Principal};
 use pyxis::db::store::{AccountId, Store};
-use pyxis::sessions::{SessionCommand, SessionError, Sessions, Transport};
+use pyxis::sessions::{
+    OutputBinding, OutputConfirmation, PreparedOutputCommand, SessionCommand, SessionError,
+    Sessions, Transport,
+};
 
 fn auth(account: &str, device: &str) -> AuthContext {
     AuthContext {
@@ -209,6 +212,93 @@ fn disconnect_marks_a_session_unreachable_without_destroying_it() {
         .expect("get")
         .expect("session");
     assert!(!after_restart.reachable);
+}
+
+#[test]
+fn output_sessions_prepare_effects_before_committing_state() {
+    let dir = tempfile::tempdir().expect("temp dir");
+    let sessions = Sessions::open(Store::open(dir.path()).expect("store"));
+    let actor = auth("account-a", "device-a");
+    let output = OutputBinding {
+        plugin_id: "sonos".into(),
+        target_id: "RINCON_KITCHEN".into(),
+    };
+    sessions.set_output_reachable(&actor.account_id, &output, true);
+    let session = sessions
+        .create_output(&actor, "Kitchen", output.clone())
+        .expect("create output");
+    assert_eq!(session.output, Some(output));
+    assert!(session.reachable);
+
+    let command = SessionCommand::QueueAdd {
+        track_ids: vec!["track-1".into()],
+    };
+    let prepared = sessions
+        .prepare_output_command(&actor, &session.id, &command, "COMMAND", "queue-one")
+        .expect("prepare");
+    let PreparedOutputCommand::Ready { current, next, .. } = prepared else {
+        panic!("first command must need an effect")
+    };
+    assert!(current.queue.is_empty());
+    assert_eq!(next.queue, ["track-1"]);
+    assert!(sessions
+        .get(&actor, &session.id)
+        .expect("get")
+        .expect("session")
+        .queue
+        .is_empty());
+
+    let committed = sessions
+        .commit_output_command(
+            &actor,
+            &session.id,
+            &command,
+            "COMMAND",
+            "queue-one",
+            OutputConfirmation::default(),
+        )
+        .expect("commit");
+    assert_eq!(committed.queue, ["track-1"]);
+    assert!(matches!(
+        sessions
+            .prepare_output_command(&actor, &session.id, &command, "COMMAND", "queue-one")
+            .expect("replay"),
+        PreparedOutputCommand::Applied(_)
+    ));
+}
+
+#[test]
+fn output_reachability_is_account_scoped() {
+    let dir = tempfile::tempdir().expect("temp dir");
+    let sessions = Sessions::open(Store::open(dir.path()).expect("store"));
+    let first = auth("account-a", "device-a");
+    let second = auth("account-b", "device-b");
+    let output = OutputBinding {
+        plugin_id: "sonos".into(),
+        target_id: "RINCON_KITCHEN".into(),
+    };
+    let first_session = sessions
+        .create_output(&first, "Kitchen", output.clone())
+        .expect("first");
+    let second_session = sessions
+        .create_output(&second, "Kitchen", output.clone())
+        .expect("second");
+    sessions.set_output_reachable(&first.account_id, &output, true);
+
+    assert!(
+        sessions
+            .get(&first, &first_session.id)
+            .expect("first get")
+            .expect("first session")
+            .reachable
+    );
+    assert!(
+        !sessions
+            .get(&second, &second_session.id)
+            .expect("second get")
+            .expect("second session")
+            .reachable
+    );
 }
 
 #[test]

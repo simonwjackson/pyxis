@@ -105,6 +105,12 @@
     url = "https://registry.npmjs.org/@pyxis/plugin-sdk/-/plugin-sdk-workspace:packages/plugin-sdk.tgz";
     hash = "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==";
   };
+  "@pyxis/plugin-sonos" = {
+    out_path = "@pyxis/plugin-sonos";
+    name = "@pyxis/plugin-sonos@workspace:plugins/sonos";
+    url = "https://registry.npmjs.org/@pyxis/plugin-sonos/-/plugin-sonos-workspace:plugins/sonos.tgz";
+    hash = "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==";
+  };
   "@pyxis/plugin-ytmusic" = {
     out_path = "@pyxis/plugin-ytmusic";
     name = "@pyxis/plugin-ytmusic@workspace:plugins/ytmusic";

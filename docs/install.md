@@ -1,8 +1,8 @@
 # Install Pyxis with `nix profile`
 
 Pyxis v2 installs per user. The aggregate package contains the Rust core, built reference
-client, YouTube Music and Pandora plugins, the yt-dlp updater, the dedicated tsnet edge,
-and four systemd user units.
+client, YouTube Music, Pandora, and Sonos plugins, the yt-dlp updater, the dedicated tsnet
+edge, and four systemd user units.
 
 ## Existing NixOS service must leave first
 
@@ -86,6 +86,36 @@ exact HTTPS origin. Clearing site data removes the device grant and offline medi
 Plugin credentials are encrypted with XChaCha20-Poly1305. The owner-only
 `credentials.key` file is required to decrypt them. Back up the whole state directory, not
 only the ProseQL source file.
+
+## Sonos discovery
+
+The Sonos plugin uses SSDP multicast on the local network and does not require credentials.
+Where multicast is unavailable, set account-scoped plugin config for id `sonos` with private
+IPv4 `seedHosts`, for example `{ "seedHosts": ["192.168.1.20"] }`. Optional
+`discoveryTimeoutMs` and `requestTimeoutMs` values bound network waits.
+
+Set `PYXIS_LAN_BASE_URL` to the LAN-reachable HTTP origin speakers use to fetch Pyxis media,
+for example `http://192.168.1.2:4489`. When set, the core binds a second listener at that origin
+which serves only `/stream/:trackId`; RPC, realtime, health, and web routes remain on loopback
+and the tailnet edge. Output Play creates a short-lived track-bound URL under the LAN origin;
+account bearer tokens are never sent to speakers. Fixture tests prove discovery,
+SOAP faults, core-hosted sessions, transport, volume, grouping, and stream-ticket binding. A
+real speaker is still required for M4 product acceptance.
+
+Configure the LAN listener with a user-service override, then restart:
+
+```ini
+[Service]
+Environment=PYXIS_LAN_BASE_URL=http://192.168.1.2:4489
+```
+
+```sh
+systemctl --user daemon-reload
+systemctl --user restart pyxis.service
+```
+
+Use an address assigned to the Pyxis host, not `0.0.0.0`, because that address is embedded in
+speaker URLs as well as used for binding.
 
 ## Pandora configuration
 

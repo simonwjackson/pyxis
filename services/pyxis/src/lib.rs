@@ -12,6 +12,7 @@ pub mod library;
 pub mod listen;
 pub mod matching;
 pub mod media;
+pub mod output_catalog;
 pub mod plugin_credentials;
 pub mod plugins;
 pub mod rpc;

@@ -15,7 +15,11 @@ export function ReferenceRemote() {
         <ul>
           {remoteSessions.map((remote) => (
             <li key={remote.id}>
-              {remote.name} — {remote.transport} — {remote.queue.length} queued
+              {remote.name}
+              {remote.output === undefined
+                ? ""
+                : ` — ${remote.output.pluginId}:${remote.output.targetId}`}{" "}
+              — {remote.transport} — {remote.queue.length} queued
               <button type="button" onClick={() => void driveRemote(remote.id, "play")}>
                 play
               </button>

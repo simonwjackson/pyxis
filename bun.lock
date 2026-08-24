@@ -40,6 +40,13 @@
         "egoroof-blowfish": "4.0.3",
       },
     },
+    "plugins/sonos": {
+      "name": "@pyxis/plugin-sonos",
+      "version": "1.0.0",
+      "dependencies": {
+        "@pyxis/plugin-sdk": "workspace:*",
+      },
+    },
     "plugins/ytmusic": {
       "name": "@pyxis/plugin-ytmusic",
       "version": "1.0.0",
@@ -82,6 +89,8 @@
     "@pyxis/plugin-pandora": ["@pyxis/plugin-pandora@workspace:plugins/pandora"],
 
     "@pyxis/plugin-sdk": ["@pyxis/plugin-sdk@workspace:packages/plugin-sdk"],
+
+    "@pyxis/plugin-sonos": ["@pyxis/plugin-sonos@workspace:plugins/sonos"],
 
     "@pyxis/plugin-ytmusic": ["@pyxis/plugin-ytmusic@workspace:plugins/ytmusic"],
 

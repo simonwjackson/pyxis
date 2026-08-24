@@ -71,3 +71,18 @@ executable in `bin/`.
 
 Media bytes never travel over this protocol. Source operations return a URL plus required
 headers. Provider operations such as Soulseek return a completed local file path.
+
+## Output operations
+
+Output plugins receive absolute LAN media URLs; the speaker fetches bytes directly from the
+core's HTTP stream endpoint. The Sonos plugin defines the first output operation set:
+
+- `discover` returns groups, coordinators, and reachable rooms.
+- `transport.play` accepts `targetId`, `streamUrl`, track `metadata`, and optional `positionMs`.
+- `transport.pause`, `transport.stop`, and `transport.state` accept `targetId`.
+- `volume.set` accepts `targetId` and an integer `volume` from 0 through 100.
+- `group.set` accepts `coordinatorId` and the complete desired `memberIds` list.
+
+These operation bodies remain capability-specific JSON, so plugins must validate them before
+performing network or device effects. Expected UPnP faults should use `PluginOperationError`;
+the Sonos plugin preserves numeric fault codes as values such as `sonos.upnp.701`.

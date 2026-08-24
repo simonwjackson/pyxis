@@ -57,6 +57,7 @@ mod tests {
             position_ms: 0,
             duration_ms: None,
             volume: 100,
+            output: None,
             reachable,
             revision: 1,
             updated_at: "now".into(),

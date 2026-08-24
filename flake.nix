@@ -45,6 +45,7 @@
           inherit pkgs core client tsnet;
           pluginYtmusic = plugins.ytmusic;
           pluginPandora = plugins.pandora;
+          pluginSonos = plugins.sonos;
         };
       in
       {
@@ -52,6 +53,7 @@
           inherit core client pyxis;
           plugin-ytmusic = plugins.ytmusic;
           plugin-pandora = plugins.pandora;
+          plugin-sonos = plugins.sonos;
           pyxis-tsnet = tsnet;
           default = pyxis;
         };
@@ -59,6 +61,7 @@
           inherit core client pyxis;
           plugin-ytmusic = plugins.ytmusic;
           plugin-pandora = plugins.pandora;
+          plugin-sonos = plugins.sonos;
           pyxis-tsnet = tsnet;
         };
         devShells.default = import ./nix/devshell.nix {

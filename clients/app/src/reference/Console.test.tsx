@@ -18,6 +18,7 @@ import type { ReferenceClient } from "./api.ts"
 import { ReferenceConsole } from "./Console.tsx"
 import { ReferenceLibrary } from "./Library.tsx"
 import { ReferenceOffline } from "./Offline.tsx"
+import { ReferenceOutputs } from "./Outputs.tsx"
 import { ReferencePlugins } from "./Plugins.tsx"
 import { ReferenceAudio } from "./ReferenceAudio.tsx"
 import { ReferenceRemote } from "./Remote.tsx"
@@ -88,6 +89,18 @@ function client(plugins: Awaited<ReturnType<ReferenceClient["listPlugins"]>>): R
     }),
     listPlugins: async () => plugins,
     listAlbums: async () => [],
+    listOutputTargets: async () => ({
+      pluginId: "sonos",
+      groups: [],
+      refreshedAt: 0,
+      authoritative: true,
+    }),
+    createOutputSession: async () => {
+      throw new Error("not used")
+    },
+    setOutputGroup: async () => {
+      throw new Error("not used")
+    },
     setAlbumPlacement: async () => {
       throw new Error("not used")
     },
@@ -1686,6 +1699,109 @@ describe("reference client", () => {
     )
 
     await waitFor(() => expect(screen.getByText(/YouTube Music \(ytmusic\)/)).toBeTruthy())
+  })
+
+  test("discovers, groups, and queues a core-hosted output session", async () => {
+    const database = await openWorkerDatabase({ engine: createMemoryEngine() })
+    await database.putAlbum(
+      album({
+        tracks: [
+          {
+            id: "track-1",
+            title: "Heroes",
+            artist: "David Bowie",
+            trackNumber: 1,
+            revision: 1,
+          },
+        ],
+      }),
+    )
+    const store = persistent(createDirectWorkerClient(async () => database))
+    const sendCommand = vi.fn(async () => undefined)
+    const createOutputSession = vi.fn(async () =>
+      session({
+        id: "sonos-session",
+        name: "Kitchen",
+        hostDeviceId: "output:sonos:RINCON_KITCHEN",
+        output: { pluginId: "sonos", targetId: "RINCON_KITCHEN" },
+      }),
+    )
+    const setOutputGroup = vi.fn(async () => ({
+      pluginId: "sonos",
+      refreshedAt: 2,
+      authoritative: true,
+      groups: [],
+    }))
+    const configured: ReferenceClient = {
+      ...client([
+        {
+          id: "sonos",
+          name: "Sonos",
+          version: "1.0.0",
+          capabilities: ["output"],
+          status: "live",
+          configured: true,
+        },
+      ]),
+      listOutputTargets: async () => ({
+        pluginId: "sonos",
+        refreshedAt: 1,
+        authoritative: true,
+        groups: [
+          {
+            id: "group",
+            coordinatorId: "RINCON_KITCHEN",
+            coordinatorName: "Kitchen",
+            rooms: [
+              {
+                id: "RINCON_KITCHEN",
+                name: "Kitchen",
+                model: "Era 100",
+                address: "192.168.1.20",
+                locationUrl: "http://192.168.1.20:1400/xml/device_description.xml",
+                coordinator: true,
+              },
+            ],
+          },
+        ],
+      }),
+      createOutputSession,
+      setOutputGroup,
+      sendCommand,
+    }
+
+    render(
+      <ReferenceApp client={configured} worker={store}>
+        <ReferenceOutputs />
+      </ReferenceApp>,
+    )
+
+    fireEvent.click(await screen.findByRole("button", { name: "Discover targets" }))
+    await waitFor(() => expect(screen.getByText(/Kitchen — Era 100/)).toBeTruthy())
+    fireEvent.click(screen.getByRole("button", { name: "Create output session" }))
+    await waitFor(() =>
+      expect(createOutputSession).toHaveBeenCalledWith(
+        "token",
+        "sonos",
+        "RINCON_KITCHEN",
+        "Kitchen",
+      ),
+    )
+    fireEvent.click(await screen.findByRole("button", { name: "Queue album here" }))
+    await waitFor(() =>
+      expect(sendCommand).toHaveBeenCalledWith(
+        "token",
+        "sonos-session",
+        { _tag: "queue.add", payload: { trackIds: ["track-1"] } },
+        expect.any(String),
+      ),
+    )
+    fireEvent.click(screen.getByRole("button", { name: "Make standalone" }))
+    await waitFor(() =>
+      expect(setOutputGroup).toHaveBeenCalledWith("token", "sonos", "RINCON_KITCHEN", [
+        "RINCON_KITCHEN",
+      ]),
+    )
   })
 
   test("pins an album through the worker download boundary", async () => {
