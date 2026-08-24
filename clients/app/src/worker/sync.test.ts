@@ -695,6 +695,45 @@ describe("a write the server refuses", () => {
 })
 
 describe("pulling", () => {
+  test("applies full remote snapshots through one local batch per domain", async () => {
+    const albums = Array.from({ length: 370 }, (_, index) =>
+      album(`album-${index}`, RpcPlacement.Discovery, 1),
+    )
+    const sessions = Array.from({ length: 20 }, (_, index) =>
+      hostedSession({ id: `session-${index}`, hostDeviceId: `device-${index}` }),
+    )
+    const remote = server(albums)
+    const rpc: WorkerRpc = { ...remote.rpc, listSessions: async () => sessions }
+    const store = await database([], albums, sessions)
+    const applyRemoteAlbums = vi.spyOn(store, "applyRemoteAlbums")
+    const applyRemoteSessions = vi.spyOn(store, "applyRemoteSessions")
+    const albumRead = vi.spyOn(store, "album")
+    const sessionRead = vi.spyOn(store, "session")
+
+    const report = await sync(store, rpc)
+
+    expect(report.pulled).toBe(0)
+    expect(applyRemoteAlbums).toHaveBeenCalledTimes(1)
+    expect(applyRemoteSessions).toHaveBeenCalledTimes(1)
+    expect(albumRead).not.toHaveBeenCalled()
+    expect(sessionRead).not.toHaveBeenCalled()
+  })
+
+  test("accepts live reachability changes without a session revision bump", async () => {
+    const local = hostedSession({ reachable: true, revision: 1 })
+    const remote = { ...local, reachable: false }
+    const rpc: WorkerRpc = {
+      ...server([]).rpc,
+      listSessions: async () => [remote],
+    }
+    const store = await database([], [], [local])
+
+    const report = await sync(store, rpc)
+
+    expect(report.pulled).toBe(1)
+    expect((await store.session(local.id))?.reachable).toBe(false)
+  })
+
   test("removes a cached album that no longer exists on the server", async () => {
     const remote = server([])
     const store = await database([], [album("album-1", RpcPlacement.Discovery, 1)])

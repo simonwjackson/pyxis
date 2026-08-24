@@ -222,6 +222,9 @@ export interface WorkerDatabase {
   writeSettings(patch: Omit<Partial<WorkerSettings>, "id">): Promise<WorkerSettings>
   albums(): Promise<readonly WorkerAlbum[]>
   album(id: string): Promise<WorkerAlbum | undefined>
+  /// Apply one authoritative server snapshot while preserving albums with queued intent.
+  /// Returns the number of rows inserted, updated, or removed.
+  applyRemoteAlbums(albums: readonly WorkerAlbum[]): Promise<number>
   /// Replace the whole local library. Used after a full refetch.
   replaceAlbums(albums: readonly WorkerAlbum[]): Promise<void>
   /// Insert or update one album, keeping the higher revision.
@@ -231,6 +234,9 @@ export interface WorkerDatabase {
   removeAlbum(id: string): Promise<boolean>
   sessions(): Promise<readonly WorkerSession[]>
   session(id: string): Promise<WorkerSession | undefined>
+  /// Apply one authoritative server snapshot while preserving sessions with queued commands.
+  /// Returns the number of rows inserted, updated, or removed.
+  applyRemoteSessions(sessions: readonly WorkerSession[]): Promise<number>
   putSession(session: WorkerSession): Promise<WorkerSession>
   /// Store a server verdict even when it rolls back an optimistic local revision.
   replaceSession(session: WorkerSession): Promise<WorkerSession>

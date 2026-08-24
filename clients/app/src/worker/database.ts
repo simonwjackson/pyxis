@@ -10,6 +10,7 @@ import type {
   RpcPlacement,
   RpcSessionCommand,
 } from "../../../../contracts/generated/pyxis"
+import { acceptsRemoteRevision } from "./conflict"
 import {
   type OfflineMedia,
   type OfflinePin,
@@ -265,6 +266,35 @@ class LocalWorkerDatabase implements WorkerDatabase {
     return this.engine.albums.findById(id)
   }
 
+  async applyRemoteAlbums(albums: readonly WorkerAlbum[]): Promise<number> {
+    const [outbox, existing] = await Promise.all([
+      this.engine.outbox.all(),
+      this.engine.albums.all(),
+    ])
+    const queued = new Set(
+      outbox
+        .filter((entry) => entry.kind === "album.placement")
+        .map((entry) => (entry.kind === "album.placement" ? entry.albumId : "")),
+    )
+    const localById = new Map(existing.map((album) => [album.id, album]))
+    const remoteIds = new Set(albums.map((album) => album.id))
+    let count = 0
+
+    for (const album of albums) {
+      if (queued.has(album.id)) continue
+      const local = localById.get(album.id)
+      if (local !== undefined && !acceptsRemoteRevision(local.revision, album.revision)) continue
+      await this.putAlbum(album)
+      count += 1
+    }
+    for (const local of existing) {
+      if (remoteIds.has(local.id) || queued.has(local.id)) continue
+      await this.removeAlbum(local.id)
+      count += 1
+    }
+    return count
+  }
+
   async replaceAlbums(albums: readonly WorkerAlbum[]): Promise<void> {
     const incoming = new Map(albums.map((album) => [album.id, album]))
     const existing = await this.engine.albums.all()
@@ -328,6 +358,44 @@ class LocalWorkerDatabase implements WorkerDatabase {
 
   async session(id: string): Promise<WorkerSession | undefined> {
     return this.engine.sessions.findById(id)
+  }
+
+  async applyRemoteSessions(sessions: readonly WorkerSession[]): Promise<number> {
+    const [outbox, existing] = await Promise.all([
+      this.engine.outbox.all(),
+      this.engine.sessions.all(),
+    ])
+    const queued = new Set(
+      outbox
+        .filter((entry) => entry.kind === "session.command")
+        .map((entry) => (entry.kind === "session.command" ? entry.sessionId : "")),
+    )
+    const localById = new Map(existing.map((session) => [session.id, session]))
+    const remoteIds = new Set(sessions.map((session) => session.id))
+    let count = 0
+
+    for (const session of sessions) {
+      if (queued.has(session.id)) continue
+      const local = localById.get(session.id)
+      if (local !== undefined && session.revision < local.revision) continue
+      // Reachability is live socket state and can change without a durable session revision.
+      // Equal revisions are otherwise identical, so only that field needs to reopen the row.
+      if (
+        local !== undefined &&
+        session.revision === local.revision &&
+        session.reachable === local.reachable
+      ) {
+        continue
+      }
+      await this.putSession(session)
+      count += 1
+    }
+    for (const local of existing) {
+      if (remoteIds.has(local.id) || queued.has(local.id)) continue
+      await this.removeSession(local.id)
+      count += 1
+    }
+    return count
   }
 
   async putSession(session: WorkerSession): Promise<WorkerSession> {

@@ -22,7 +22,7 @@ type RemoteAlbums = Map<string, RpcLibraryAlbum>
 type RemoteSessions = Map<string, RpcSession>
 
 import { RpcError, type WorkerRpc } from "../rpc/client"
-import { acceptsRemoteRevision, resolvePlacement } from "./conflict"
+import { resolvePlacement } from "./conflict"
 import type { OutboxResult, WorkerDatabase, WorkerOutboxEntry, WorkerSyncNotice } from "./contract"
 import { submitListens } from "./listen-sync"
 import { applySessionCommand } from "./session-local"
@@ -109,26 +109,9 @@ async function pullAlbums(
     return pullFailure(cause)
   }
 
-  const outbox = await database.outbox()
-  const queued = new Set(
-    outbox
-      .filter((entry) => entry.kind === "album.placement")
-      .map((entry) => (entry.kind === "album.placement" ? entry.albumId : "")),
-  )
-  let count = 0
-  const remoteIds = new Set(remote.map((album) => album.id))
-  for (const album of remote) {
-    if (queued.has(album.id)) continue
-    const local = await database.album(album.id)
-    if (local !== undefined && !acceptsRemoteRevision(local.revision, album.revision)) continue
-    await database.putAlbum({ ...album, id: album.id })
-    count += 1
-  }
-  for (const local of await database.albums()) {
-    if (remoteIds.has(local.id) || queued.has(local.id)) continue
-    await database.removeAlbum(local.id)
-    count += 1
-  }
+  // Apply the local half as one database operation. In production that means one Web Lock
+  // acquisition and one ProseQL reopen, rather than one of each for every album.
+  const count = await database.applyRemoteAlbums(remote)
   return {
     count,
     offline: false,
@@ -148,26 +131,9 @@ async function pullSessions(
     return pullFailure(cause)
   }
 
-  const outbox = await database.outbox()
-  const queued = new Set(
-    outbox
-      .filter((entry) => entry.kind === "session.command")
-      .map((entry) => (entry.kind === "session.command" ? entry.sessionId : "")),
-  )
-  let count = 0
-  const remoteIds = new Set(remote.map((session) => session.id))
-  for (const session of remote) {
-    if (queued.has(session.id)) continue
-    const local = await database.session(session.id)
-    if (local !== undefined && !acceptsRemoteRevision(local.revision, session.revision)) continue
-    await database.putSession(session)
-    count += 1
-  }
-  for (const local of await database.sessions()) {
-    if (remoteIds.has(local.id) || queued.has(local.id)) continue
-    await database.removeSession(local.id)
-    count += 1
-  }
+  // Session reachability and queue state are one snapshot. Apply them under one local
+  // critical section so renderer directives are not starved behind per-row reopen churn.
+  const count = await database.applyRemoteSessions(remote)
   return {
     count,
     offline: false,
