@@ -8,8 +8,18 @@ export interface SsdpDiscovery {
   discover(timeoutMs: number): Promise<readonly string[]>
 }
 
-export function createSsdpDiscovery(): SsdpDiscovery {
-  return { discover: discoverSsdpLocations }
+export type MdnsBrowser = (timeoutMs: number) => Promise<string>
+
+export function createSsdpDiscovery(browseMdns: MdnsBrowser = browseAvahi): SsdpDiscovery {
+  return {
+    async discover(timeoutMs) {
+      const [ssdp, mdns] = await Promise.all([
+        discoverSsdpLocations(timeoutMs),
+        discoverMdnsLocations(timeoutMs, browseMdns),
+      ])
+      return [...new Set([...ssdp, ...mdns])].sort()
+    },
+  }
 }
 
 export async function discoverSsdpLocations(timeoutMs: number): Promise<readonly string[]> {
@@ -56,6 +66,43 @@ export async function discoverSsdpLocations(timeoutMs: number): Promise<readonly
       }
     })
   })
+}
+
+export async function discoverMdnsLocations(
+  timeoutMs: number,
+  browse: MdnsBrowser = browseAvahi,
+): Promise<readonly string[]> {
+  try {
+    return locationsFromAvahi(await browse(timeoutMs))
+  } catch {
+    return []
+  }
+}
+
+export function locationsFromAvahi(output: string): readonly string[] {
+  const locations = new Set<string>()
+  for (const line of output.split("\n")) {
+    const fields = line.split(";")
+    if (fields[0] !== "=" || fields[2] !== "IPv4" || fields[4] !== "_sonos._tcp") continue
+    const location = seedLocation(fields[7] ?? "")
+    if (location !== undefined) locations.add(location)
+  }
+  return [...locations].sort()
+}
+
+async function browseAvahi(timeoutMs: number): Promise<string> {
+  const process = Bun.spawn(
+    ["avahi-browse", "--resolve", "--terminate", "--parsable", "_sonos._tcp"],
+    { stdout: "pipe", stderr: "ignore" },
+  )
+  const timer = setTimeout(() => process.kill(), timeoutMs)
+  try {
+    const output = await new Response(process.stdout).text()
+    await process.exited
+    return output
+  } finally {
+    clearTimeout(timer)
+  }
 }
 
 export function locationFromSsdp(message: string): string | undefined {

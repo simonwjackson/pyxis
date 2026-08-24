@@ -21,7 +21,8 @@ pkgs.stdenvNoCC.mkDerivation {
     ln -s $root/packages/plugin-sdk $root/node_modules/@pyxis/plugin-sdk
 
     makeWrapper ${pkgs.bun}/bin/bun $out/bin/pyxis-plugin-sonos \
-      --add-flags $root/plugins/sonos/src/index.ts
+      --add-flags $root/plugins/sonos/src/index.ts \
+      --prefix PATH : ${pkgs.lib.makeBinPath [ pkgs.avahi ]}
   '';
 
   meta = {

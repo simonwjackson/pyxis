@@ -158,6 +158,27 @@ describe("reference output client", () => {
       },
     ])
   })
+
+  test("preserves the typed output discovery failure", async () => {
+    const fetcher = vi.fn(async () =>
+      Response.json({
+        _tag: "output.targets.list",
+        outcome: {
+          status: "unavailable",
+          value: {
+            code: "sonos.unavailable",
+            message: "no Sonos room answered topology refresh",
+            retryable: true,
+          },
+        },
+      }),
+    )
+    const client = createReferenceClient({ fetch: fetcher as unknown as typeof fetch })
+
+    await expect(client.listOutputTargets("token", "sonos")).rejects.toThrow(
+      "sonos.unavailable: no Sonos room answered topology refresh",
+    )
+  })
 })
 
 describe("reference realtime client", () => {

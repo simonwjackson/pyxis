@@ -157,8 +157,11 @@ export function createReferenceClient(config: ReferenceClientConfig = {}): Refer
 
     async listOutputTargets(token, pluginId) {
       const response = await rpc({ _tag: "output.targets.list", payload: { pluginId } }, token)
-      if (response._tag !== "output.targets.list" || response.outcome.status !== "ready") {
-        throw new Error("output target list is unavailable")
+      if (response._tag !== "output.targets.list") {
+        throw new Error("output target list returned an invalid response")
+      }
+      if (response.outcome.status !== "ready") {
+        throw new Error(`${response.outcome.value.code}: ${response.outcome.value.message}`)
       }
       return response.outcome.value
     },
