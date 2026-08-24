@@ -109,18 +109,25 @@ export function ReferenceApp({
     return next
   }, [store])
 
-  const applyWorkerSessions = useCallback(async (): Promise<readonly RpcSession[]> => {
-    const [settings, next] = await Promise.all([store.settings(), store.sessions()])
-    const hosted = next.find((candidate) => candidate.hostDeviceId === settings.deviceId)
-    sessionRef.current = hosted
-    setSession(hosted)
-    setRemoteSessions(
-      next.filter(
-        (candidate) => candidate.hostDeviceId !== settings.deviceId && candidate.reachable,
-      ),
-    )
-    return next
-  }, [store])
+  const applyWorkerSessions = useCallback(
+    async (remoteReachabilityIsLive: boolean): Promise<readonly RpcSession[]> => {
+      const [settings, next] = await Promise.all([store.settings(), store.sessions()])
+      const hosted = next.find((candidate) => candidate.hostDeviceId === settings.deviceId)
+      sessionRef.current = hosted
+      setSession(hosted)
+      // Reachability means a socket exists now. It is useful in the durable session shape
+      // for reconciliation, but a cached `true` must never resurrect a disconnected host.
+      setRemoteSessions(
+        remoteReachabilityIsLive
+          ? next.filter(
+              (candidate) => candidate.hostDeviceId !== settings.deviceId && candidate.reachable,
+            )
+          : [],
+      )
+      return next
+    },
+    [store],
+  )
 
   const watchOffline = useCallback(
     (initial: OfflineOverview) => {
@@ -153,7 +160,7 @@ export function ReferenceApp({
         const report = await store.sync()
         const [, , settings] = await Promise.all([
           applyWorkerAlbums(),
-          applyWorkerSessions(),
+          applyWorkerSessions(report.sessionPullFailed !== true),
           store.settings(),
         ])
         setLocal((current) =>
@@ -456,7 +463,7 @@ export function ReferenceApp({
           }
           if (fallbackSessions !== undefined) {
             for (const session of fallbackSessions) await store.putSession(session)
-            await applyWorkerSessions()
+            await applyWorkerSessions(true)
           }
           setPlugins(nextPlugins)
           setStatus("ready")
@@ -526,7 +533,7 @@ export function ReferenceApp({
           .then((overview) => {
             if (live) watchOffline(overview)
           })
-        await applyWorkerSessions()
+        await applyWorkerSessions(false)
         await connectAccount()
       } catch {
         // connectAccount reports the actionable error. Cached data stays usable.

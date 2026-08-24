@@ -409,6 +409,38 @@ describe("local store", () => {
 })
 
 describe("console mode", () => {
+  test("does not publish cached remote reachability before a live session pull", async () => {
+    const database = await openWorkerDatabase({ engine: createMemoryEngine() })
+    await database.writeSettings({
+      accountId: "default",
+      accountName: "default",
+      accountIsDefault: true,
+      accountCreatedAt: "now",
+      bearerToken: "token",
+      deviceId: "device-1",
+      deviceName: "reference browser",
+    })
+    await database.putSession(session())
+    const base = persistent(createDirectWorkerClient(async () => database))
+    const sessions = vi.fn(base.sessions)
+    const waitingSync = new Promise<Awaited<ReturnType<WorkerClient["sync"]>>>(() => undefined)
+    const store = { ...base, sessions, sync: () => waitingSync }
+
+    render(
+      <ReferenceApp client={client([])} worker={store}>
+        <ReferenceRemote />
+      </ReferenceApp>,
+    )
+
+    await waitFor(() => expect(sessions).toHaveBeenCalled())
+    expect(screen.queryByText(/Kitchen/)).toBeNull()
+    expect(
+      screen.getByText(
+        "No other device is connected. Open this page on a second device to control it.",
+      ),
+    ).toBeTruthy()
+  })
+
   test("drives a session hosted by another device", async () => {
     const sent: string[] = []
     const configured: ReferenceClient = {
