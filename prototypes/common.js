@@ -62,8 +62,10 @@ function seed(album, coverFile) {
     lastPlayedAt: playCount === 0 ? null : Date.now() - daysSincePlay * DAY,
     daysSincePlay: playCount === 0 ? null : daysSincePlay,
     hot: recentPlays >= 8,
-    // Offline availability. Pinned albums are the only ones playable with no network.
-    pinned: random() < 0.34,
+    // Whether the bytes are actually on this device yet. Policy decides what *should* be
+    // here; downloads decide what *is*.
+    downloaded: random() < 0.72,
+    override: null,
     completeness: Math.min(1, random() * 1.3),
     hook: album.tracks[Math.floor(random() * album.tracks.length)] ?? null,
     capturedFrom: ["Pandora station", "YouTube Music radio", "Search"][h % 3],
@@ -96,6 +98,30 @@ export function sleeve(album, className = "") {
   `
 }
 
+/// Offline availability is a hybrid: placement sets the policy, and a per-album override
+/// can force an album onto the device or keep it off. Neither is a promise on its own —
+/// an album is only playable offline once the bytes have actually landed.
+const KEPT_BY_POLICY = new Set(["collection", "discovery"])
+
+export function wantedOffline(album) {
+  if (album.override === "pin") return true
+  if (album.override === "exclude") return false
+  return KEPT_BY_POLICY.has(album.placement)
+}
+
+export function availability(album) {
+  if (!wantedOffline(album)) return "unavailable"
+  return album.downloaded ? "available" : "downloading"
+}
+
+export function policyLabel(album) {
+  if (album.override === "pin") return "Kept on device"
+  if (album.override === "exclude") return "Never on device"
+  return KEPT_BY_POLICY.has(album.placement)
+    ? `Kept because it is in ${album.placement}`
+    : `Not kept because it is in ${album.placement}`
+}
+
 export function escape(value) {
   return String(value).replace(
     /[&<>"]/g,
@@ -125,6 +151,48 @@ export function ago(timestamp) {
   if (days < 365) return `${Math.floor(days / 30)} months ago`
   const years = (days / 365).toFixed(1).replace(/\.0$/, "")
   return `${years} years ago`
+}
+
+/// A listening journal derived from the same hash-stable seed, so History agrees with the
+/// play counts and dates the rest of the prototype shows.
+export function listeningHistory(library, days = 90) {
+  const events = []
+  for (const album of library) {
+    if (!album.lastPlayedAt) continue
+    const sessions = Math.min(album.playCount, 6)
+    for (let index = 0; index < sessions; index += 1) {
+      // Spread each play across a plausible hour of the day, otherwise every event in the
+      // journal lands at the same clock time.
+      const hour = 8 + ((album.sortKey + index * 7) % 14)
+      const minute = (album.sortKey >> (index + 3)) % 60
+      const day = new Date(album.lastPlayedAt - index * (album.daysSincePlay > 60 ? 9 : 3) * DAY)
+      day.setHours(hour, minute, 0, 0)
+      const at = day.getTime()
+      if (Date.now() - at > days * DAY || at > Date.now()) continue
+      const track = album.tracks[index % Math.max(1, album.tracks.length)]
+      events.push({
+        at,
+        album,
+        track,
+        room: ["Kitchen", "Desk", "This phone", "Living room"][(album.sortKey + index) % 4],
+        context: index % 3 === 0 ? "album" : "station",
+      })
+    }
+  }
+  return events.sort((a, b) => b.at - a.at)
+}
+
+export function dayLabel(timestamp) {
+  const date = new Date(timestamp)
+  const today = new Date()
+  const yesterday = new Date(Date.now() - DAY)
+  if (date.toDateString() === today.toDateString()) return "Today"
+  if (date.toDateString() === yesterday.toDateString()) return "Yesterday"
+  return date.toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" })
+}
+
+export function clockTime(timestamp) {
+  return new Date(timestamp).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })
 }
 
 export function element(html) {

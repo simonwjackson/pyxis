@@ -119,14 +119,17 @@
   <body>
     <nav class="proto">
       <a href="./index.html">index</a>
-      <a href="./a-inbox.html" aria-current="page">A discovery</a>
-      <a href="./b-shelves.html">B stacks</a>
-      <a href="./c-console.html">C rooms</a>
+      <a href="./b-shelves.html">stacks</a>
+      <a href="./a-inbox.html" aria-current="page">discovery</a>
+      <a href="./d-search.html">search</a>
+      <a href="./e-history.html">history</a>
+      <a href="./c-console.html">rooms</a>
     </nav>
     <main id="root"></main>
 
     <script type="module">
       import { element, escape, loadLibrary, runtime, sleeve } from "./common.js"
+      import { productNav } from "./nav.js"
       import { mountNowPlaying } from "./nowplaying.js"
       import { currentState, mountStatePicker } from "./states.js"
       import { mountThemeToggle } from "./theme.js"
@@ -160,6 +163,7 @@
       function render() {
         const album = queue[index]
         root.innerHTML = ""
+        root.append(productNav("discovery", { waiting: queue.length - index }))
 
         if (!album) {
           root.append(

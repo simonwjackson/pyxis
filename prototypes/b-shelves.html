@@ -362,6 +362,34 @@
         background: var(--ink);
         border-color: var(--ink);
       }
+      .device {
+        display: flex;
+        gap: 12px;
+        align-items: center;
+        margin-top: 18px;
+        padding-top: 14px;
+        border-top: 1px solid var(--rule);
+      }
+      .device-state {
+        min-width: 0;
+        flex: 1;
+        margin: 0;
+        font-size: 13px;
+      }
+      .device-state b {
+        display: block;
+        font-weight: 700;
+      }
+      .device-state span {
+        color: var(--soft);
+      }
+      .device .act {
+        flex: none;
+        padding: 10px 13px;
+        font-size: 12px;
+        letter-spacing: 0;
+        text-transform: none;
+      }
       .play {
         display: flex;
         gap: 8px;
@@ -426,16 +454,30 @@
   <body>
     <nav class="proto">
       <a href="./index.html">index</a>
-      <a href="./a-inbox.html">A discovery</a>
-      <a href="./b-shelves.html" aria-current="page">B stacks</a>
-      <a href="./c-console.html">C rooms</a>
+      <a href="./b-shelves.html" aria-current="page">stacks</a>
+      <a href="./a-inbox.html">discovery</a>
+      <a href="./d-search.html">search</a>
+      <a href="./e-history.html">history</a>
+      <a href="./c-console.html">rooms</a>
     </nav>
     <div id="strip"></div>
     <main id="root"></main>
     <dialog id="detail"></dialog>
 
     <script type="module">
-      import { ago, element, escape, loadLibrary, reveal, runtime, sleeve } from "./common.js"
+      import {
+        ago,
+        availability,
+        element,
+        escape,
+        loadLibrary,
+        policyLabel,
+        reveal,
+        runtime,
+        sleeve,
+        wantedOffline,
+      } from "./common.js"
+      import { productNav } from "./nav.js"
       import { currentSession, mountNowPlaying } from "./nowplaying.js"
       import { currentState, mountStatePicker } from "./states.js"
       import { mountThemeToggle } from "./theme.js"
@@ -487,7 +529,7 @@
       }
 
       const SIGNALS = {
-        pinned: { label: "On this device", test: (album) => album.pinned },
+        pinned: { label: "On this device", test: (album) => availability(album) === "available" },
         hot: { label: "In rotation", test: (album) => album.hot },
         untouched: { label: "Untouched", test: (album) => album.daysSincePlay > 365 },
         never: { label: "Never played", test: (album) => album.playCount === 0 },
@@ -527,10 +569,10 @@
       // tooltip, it just never occupies the wall.
       function item(album) {
         const sounding = album.id === sounds?.album?.id
-        const marks = [sounding ? "sounding" : "", album.pinned ? "pinned" : ""].join(" ").trim()
+        const marks = [sounding ? "sounding" : "", availability(album)].join(" ").trim()
         const name = `${escape(album.title)} by ${escape(album.artist)}${
           sounding ? ", playing now" : ""
-        }${offline && !album.pinned ? ", not on this device" : ""}`
+        }${offline && availability(album) !== "available" ? ", not on this device" : ""}`
         const node = element(`
           <button class="item" aria-label="${name}" title="${name}">
             <span class="frame ${marks}">${sleeve(album)}</span>
@@ -576,10 +618,38 @@
                   <button class="quiet">Shuffle</button>
                 </div>
                 <div class="move"></div>
+                <div class="device"></div>
               </div>
             </div>
           </div>
         `)
+
+        // Hybrid offline policy: placement decides by default, this overrides it.
+        const device = body.querySelector(".device")
+        const paintDevice = () => {
+          const state = availability(album)
+          const heading =
+            state === "available"
+              ? "On this device"
+              : state === "downloading"
+                ? "Downloading…"
+                : "Not on this device"
+          device.innerHTML = ""
+          device.append(
+            element(`<p class="device-state"><b>${heading}</b><span>${policyLabel(album)}</span></p>`),
+          )
+          const wanted = wantedOffline(album)
+          const button = element(
+            `<button class="act">${wanted ? "Remove from device" : "Keep on device"}</button>`,
+          )
+          button.onclick = () => {
+            album.override = album.override === null ? (wanted ? "exclude" : "pin") : null
+            paintDevice()
+            renderResults()
+          }
+          device.append(button)
+        }
+        paintDevice()
 
         const move = body.querySelector(".move")
         for (const placement of ["discovery", "collection", "archive", "dismissed"]) {
@@ -748,13 +818,14 @@
         more.innerHTML = count ? `Filters <b>${count}</b>` : "Filters"
         more.dataset.active = String(count > 0)
 
-        const available = rows.filter((album) => album.pinned).length
+        const available = rows.filter((album) => availability(album) === "available").length
         section.querySelector(".count").textContent = offline
           ? `${available} of ${rows.length} on this device`
           : `${rows.length} album${rows.length === 1 ? "" : "s"}`
 
         const grid = section.querySelector(".grid")
         grid.innerHTML = ""
+        if (rows.length > 0) return mountWindow(grid, rows)
         if (rows.length === 0) {
           grid.append(
             element(
@@ -765,8 +836,58 @@
           )
           return
         }
-        for (const album of rows) grid.append(item(album))
-        reveal(grid.querySelectorAll(".item"))
+      }
+
+      // Only the rows near the viewport exist in the DOM. Spacers above and below hold the
+      // scroll height, so 5,000 covers cost the same as 50.
+      function mountWindow(grid, rows) {
+        const GAP = 14
+        const MIN = 124
+        let frame = 0
+
+        const paint = () => {
+          const width = grid.clientWidth
+          if (width === 0) return
+          const columns = Math.max(1, Math.floor((width + GAP) / (MIN + GAP)))
+          const cell = (width - GAP * (columns - 1)) / columns
+          const rowHeight = cell + GAP
+          const totalRows = Math.ceil(rows.length / columns)
+          const top = grid.getBoundingClientRect().top
+          const firstVisible = Math.max(0, Math.floor((-top - innerHeight) / rowHeight))
+          const lastVisible = Math.min(
+            totalRows,
+            Math.ceil((-top + innerHeight * 2) / rowHeight),
+          )
+
+          grid.innerHTML = ""
+          if (firstVisible > 0) {
+            grid.append(
+              element(
+                `<div style="grid-column:1/-1;height:${firstVisible * rowHeight - GAP}px"></div>`,
+              ),
+            )
+          }
+          const slice = rows.slice(firstVisible * columns, lastVisible * columns)
+          for (const album of slice) grid.append(item(album))
+          const below = totalRows - lastVisible
+          if (below > 0) {
+            grid.append(
+              element(`<div style="grid-column:1/-1;height:${below * rowHeight - GAP}px"></div>`),
+            )
+          }
+          reveal(grid.querySelectorAll(".item"))
+        }
+
+        const schedule = () => {
+          cancelAnimationFrame(frame)
+          frame = requestAnimationFrame(paint)
+        }
+        grid.windowPaint?.()
+        removeEventListener("scroll", grid.scrollHandler ?? (() => {}))
+        grid.scrollHandler = schedule
+        addEventListener("scroll", schedule, { passive: true })
+        addEventListener("resize", schedule, { passive: true })
+        paint()
       }
 
       function blankState() {
@@ -808,6 +929,7 @@
       function render() {
         if (library.length === 0) return blankState()
         root.innerHTML = ""
+        root.append(productNav("stacks", { waiting: where("discovery").length }))
         const collection = where("collection")
         const waiting = where("discovery").length
 

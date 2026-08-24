@@ -1,0 +1,252 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Pyxis — Search</title>
+    <script>
+      const requested = new URLSearchParams(location.search).get("theme")
+      const stored = requested || localStorage.getItem("pyxis-theme")
+      if (stored === "dark" || stored === "light") document.documentElement.dataset.theme = stored
+    </script>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="./system.css" />
+    <style>
+      main {
+        max-width: 1240px;
+        margin: 0 auto;
+        padding: 0 20px 40px;
+      }
+      .find {
+        width: 100%;
+        padding: 13px 14px;
+        margin-top: 16px;
+        font: inherit;
+        font-size: 16px;
+        color: var(--ink);
+        background: var(--raised);
+        border: 1px solid var(--rule);
+        border-radius: 0;
+        -webkit-appearance: none;
+        appearance: none;
+      }
+      .find::placeholder {
+        color: var(--soft);
+      }
+      .source {
+        padding: 14px 0 0;
+        font-size: 12px;
+        font-weight: 600;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        color: var(--soft);
+      }
+      .results {
+        margin-top: 8px;
+      }
+      .result {
+        display: flex;
+        gap: 14px;
+        align-items: center;
+        padding: 12px 0;
+        border-bottom: 1px solid var(--rule);
+      }
+      .result .frame {
+        width: 56px;
+        flex: none;
+      }
+      .result .t {
+        min-width: 0;
+        flex: 1;
+      }
+      .result .t b {
+        display: block;
+        font-size: 15px;
+        font-weight: 700;
+        letter-spacing: -0.01em;
+      }
+      .result .t span {
+        display: block;
+        margin-top: 3px;
+        font-size: 13px;
+        font-weight: 500;
+        color: var(--soft);
+      }
+      .result .act {
+        flex: none;
+        padding: 10px 14px;
+        font-size: 13px;
+        font-weight: 600;
+        letter-spacing: 0;
+        text-transform: none;
+      }
+      .result .have {
+        flex: none;
+        font-size: 12px;
+        font-weight: 600;
+        color: var(--soft);
+      }
+      .hint {
+        padding: 60px 0;
+        max-width: 40ch;
+        font-size: 14px;
+        font-weight: 500;
+        line-height: 1.5;
+        color: var(--soft);
+      }
+    </style>
+  </head>
+  <body>
+    <nav class="proto">
+      <a href="./index.html">index</a>
+      <a href="./b-shelves.html">stacks</a>
+      <a href="./a-inbox.html">discovery</a>
+      <a href="./d-search.html" aria-current="page">search</a>
+      <a href="./e-history.html">history</a>
+      <a href="./c-console.html">rooms</a>
+    </nav>
+    <main id="root"></main>
+
+    <script type="module">
+      import { element, escape, loadLibrary, runtime, sleeve } from "./common.js"
+      import { productNav } from "./nav.js"
+      import { mountNowPlaying } from "./nowplaying.js"
+      import { currentState, mountStatePicker } from "./states.js"
+      import { mountThemeToggle } from "./theme.js"
+
+      mountThemeToggle()
+      mountStatePicker()
+      const mode = currentState()
+
+      const root = document.getElementById("root")
+      const library = await loadLibrary(mode)
+      const held = new Set(
+        library.filter((album) => album.placement !== "dismissed").map((album) => album.id),
+      )
+      let query = ""
+      const added = new Set()
+
+      // Search reaches sources, so it is the one surface that genuinely cannot work offline.
+      // The library keeps working, which is the point worth making here.
+      function render() {
+        root.innerHTML = ""
+        root.append(productNav("search", { waiting: 14 }))
+
+        if (mode === "nosources") {
+          root.append(
+            element(`
+              <section class="blank-state">
+                <span class="label">Search</span>
+                <h2>Nothing to search</h2>
+                <p>
+                  Search reaches installed sources. With none installed there is nowhere to look —
+                  your library, history and placements are unaffected.
+                </p>
+                <div class="acts"><button class="act primary">Install a source</button></div>
+              </section>
+            `),
+          )
+          return
+        }
+
+        if (mode === "offline") {
+          root.append(
+            element(`
+              <section class="blank-state">
+                <span class="label">Search</span>
+                <h2>Search needs a connection</h2>
+                <p>
+                  Finding new music means reaching a source. Everything you already own is still
+                  here and still plays.
+                </p>
+                <div class="acts">
+                  <a class="act primary" href="./b-shelves.html?state=offline">Browse your library</a>
+                </div>
+              </section>
+            `),
+          )
+          return
+        }
+
+        const input = element(
+          `<input class="find" type="search" placeholder="Search YouTube Music and Pandora" />`,
+        )
+        input.value = query
+        input.oninput = () => {
+          query = input.value
+          paint()
+        }
+        root.append(input)
+        root.append(element(`<p class="source"></p>`))
+        root.append(element(`<div class="results"></div>`))
+        paint()
+        input.focus()
+      }
+
+      function paint() {
+        const source = root.querySelector(".source")
+        const results = root.querySelector(".results")
+        if (!results) return
+        results.innerHTML = ""
+
+        const term = query.trim().toLowerCase()
+        if (term.length < 2) {
+          source.textContent = ""
+          results.append(
+            element(`
+              <p class="hint">
+                Search reaches every installed source. Anything you add lands in Discovery, where
+                you decide whether it stays.
+              </p>
+            `),
+          )
+          return
+        }
+
+        const matches = library
+          .filter((album) => `${album.title} ${album.artist}`.toLowerCase().includes(term))
+          .slice(0, 25)
+
+        source.textContent = `${matches.length} from ytmusic · pandora`
+
+        if (matches.length === 0) {
+          results.append(element(`<p class="hint">Nothing found for “${escape(query)}”.</p>`))
+          return
+        }
+
+        for (const album of matches) {
+          const owned = held.has(album.id) && !added.has(album.id)
+          const row = element(`
+            <div class="result">
+              <span class="frame">${sleeve(album)}</span>
+              <span class="t">
+                <b class="truncate-1">${escape(album.title)}</b>
+                <span class="truncate-1">${escape(album.artist)} · ${album.year ?? "—"} · ${runtime(album)}</span>
+              </span>
+              ${
+                owned
+                  ? `<span class="have">In library</span>`
+                  : added.has(album.id)
+                    ? `<span class="have">Added</span>`
+                    : `<button class="act">Add</button>`
+              }
+            </div>
+          `)
+          row.querySelector("button")?.addEventListener("click", () => {
+            added.add(album.id)
+            paint()
+          })
+          results.append(row)
+        }
+      }
+
+      render()
+      mountNowPlaying(library, { state: mode })
+    </script>
+  </body>
+</html>

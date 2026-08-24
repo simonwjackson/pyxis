@@ -8,6 +8,8 @@ export const STATES = {
   live: "Live",
   silent: "Nothing playing",
   offline: "Offline",
+  multiroom: "Two rooms playing",
+  unreachable: "Room unreachable",
   empty: "Empty library",
   nosources: "No sources",
   loading: "Loading",

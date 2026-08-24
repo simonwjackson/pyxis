@@ -1,0 +1,220 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Pyxis — History</title>
+    <script>
+      const requested = new URLSearchParams(location.search).get("theme")
+      const stored = requested || localStorage.getItem("pyxis-theme")
+      if (stored === "dark" || stored === "light") document.documentElement.dataset.theme = stored
+    </script>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="./system.css" />
+    <style>
+      main {
+        max-width: 720px;
+        margin: 0 auto;
+        padding: 0 20px 40px;
+      }
+      .day {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        padding: 26px 0 10px;
+        font-size: 12px;
+        font-weight: 700;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+      }
+      .day span {
+        font-weight: 500;
+        color: var(--soft);
+      }
+      .play {
+        display: flex;
+        gap: 13px;
+        align-items: center;
+        padding: 9px 0;
+        border-bottom: 1px solid var(--rule);
+      }
+      .play .frame {
+        width: 44px;
+        flex: none;
+      }
+      .play .t {
+        min-width: 0;
+        flex: 1;
+      }
+      .play .t b {
+        display: block;
+        font-size: 14px;
+        font-weight: 600;
+        letter-spacing: -0.01em;
+      }
+      .play .t span {
+        display: block;
+        margin-top: 2px;
+        font-size: 12.5px;
+        font-weight: 500;
+        color: var(--soft);
+      }
+      .play .when {
+        flex: none;
+        font-size: 12px;
+        font-weight: 600;
+        color: var(--soft);
+        text-align: right;
+      }
+      .play .when i {
+        display: block;
+        font-style: normal;
+        font-weight: 500;
+        opacity: 0.75;
+      }
+      /* Stats serve insight, not vanity: one line, no charts, no streaks. */
+      .insight {
+        padding: 18px 0 4px;
+        font-size: 14px;
+        font-weight: 500;
+        line-height: 1.5;
+        color: var(--soft);
+        border-bottom: 1px solid var(--rule);
+      }
+      .insight b {
+        font-weight: 700;
+        color: var(--ink);
+      }
+      .more {
+        display: block;
+        width: 100%;
+        margin-top: 22px;
+        padding: 13px;
+        font-size: 13px;
+        font-weight: 600;
+        letter-spacing: 0;
+        text-transform: none;
+        border: 1px solid var(--rule);
+      }
+    </style>
+  </head>
+  <body>
+    <nav class="proto">
+      <a href="./index.html">index</a>
+      <a href="./b-shelves.html">stacks</a>
+      <a href="./a-inbox.html">discovery</a>
+      <a href="./d-search.html">search</a>
+      <a href="./e-history.html" aria-current="page">history</a>
+      <a href="./c-console.html">rooms</a>
+    </nav>
+    <main id="root"></main>
+
+    <script type="module">
+      import {
+        clockTime,
+        dayLabel,
+        element,
+        escape,
+        listeningHistory,
+        loadLibrary,
+        sleeve,
+      } from "./common.js"
+      import { productNav } from "./nav.js"
+      import { mountNowPlaying } from "./nowplaying.js"
+      import { currentState, mountStatePicker } from "./states.js"
+      import { mountThemeToggle } from "./theme.js"
+
+      mountThemeToggle()
+      mountStatePicker()
+      const mode = currentState()
+
+      const root = document.getElementById("root")
+      const library = await loadLibrary(mode)
+      const events = listeningHistory(library)
+      let shown = 60
+
+      function render() {
+        root.innerHTML = ""
+        root.append(
+          productNav("history", {
+            waiting: library.filter((album) => album.placement === "discovery").length,
+          }),
+        )
+
+        if (events.length === 0) {
+          root.append(
+            element(`
+              <section class="blank-state">
+                <span class="label">History</span>
+                <h2>No listening yet</h2>
+                <p>
+                  Every play is recorded here from the first one — what you heard, when, and in
+                  which room. Nothing to show until you press play.
+                </p>
+                <div class="acts">
+                  <a class="act primary" href="./b-shelves.html">Open your library</a>
+                </div>
+              </section>
+            `),
+          )
+          return
+        }
+
+        const week = events.filter((event) => Date.now() - event.at < 7 * 86400000)
+        const artists = new Set(week.map((event) => event.album.artist))
+        const rooms = new Set(week.map((event) => event.room))
+        root.append(
+          element(`
+            <p class="insight">
+              <b>${week.length} plays</b> this week, across <b>${artists.size} artists</b> and
+              ${rooms.size} rooms.
+            </p>
+          `),
+        )
+
+        let currentDay = null
+        for (const event of events.slice(0, shown)) {
+          const label = dayLabel(event.at)
+          if (label !== currentDay) {
+            currentDay = label
+            const sameDay = events.filter((entry) => dayLabel(entry.at) === label).length
+            root.append(
+              element(`<h2 class="day">${label}<span>${sameDay} plays</span></h2>`),
+            )
+          }
+          root.append(
+            element(`
+              <div class="play">
+                <span class="frame">${sleeve(event.album)}</span>
+                <span class="t">
+                  <b class="truncate-1">${escape(event.album.title)}</b>
+                  <span class="truncate-1">${escape(event.album.artist)} · ${escape(event.track?.title ?? "")}</span>
+                </span>
+                <span class="when">${clockTime(event.at)}<i>${escape(event.room)}</i></span>
+              </div>
+            `),
+          )
+        }
+
+        if (shown < events.length) {
+          const button = element(
+            `<button class="act more">Earlier — ${events.length - shown} more</button>`,
+          )
+          button.onclick = () => {
+            shown += 60
+            render()
+          }
+          root.append(button)
+        }
+      }
+
+      render()
+      mountNowPlaying(library, { state: mode })
+    </script>
+  </body>
+</html>

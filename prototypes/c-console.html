@@ -22,96 +22,33 @@
         margin: 0 auto;
         padding: 0 20px 32px;
       }
-      header.head {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        padding: 14px 0 12px;
-        border-bottom: 1px solid var(--ink);
-      }
-      header.head .tally {
-        font-size: 13px;
-        font-weight: 600;
-        color: var(--soft);
-      }
-
-      /* This surface answers one question the bar cannot: where is the sound, and can I
-         move it. No transport lives here. */
-      .room {
-        display: flex;
-        gap: 14px;
-        align-items: center;
-        padding: 14px 0;
-        border-bottom: 1px solid var(--rule);
-      }
-      .room .frame {
-        width: 56px;
-        flex: none;
-      }
-      .room .blank-slot {
-        display: block;
-        width: 56px;
-        height: 56px;
-        flex: none;
-        background: var(--frame);
-        box-shadow: inset 0 0 0 1px var(--edge);
-      }
-      .room .t {
-        min-width: 0;
-        flex: 1;
-      }
-      .room .t b {
-        display: flex;
-        gap: 8px;
-        align-items: center;
-        font-size: 15px;
-        font-weight: 700;
-      }
-      .room .t span {
-        display: block;
-        margin-top: 3px;
+      .why {
+        padding: 18px 0 4px;
         font-size: 13px;
         font-weight: 500;
+        line-height: 1.5;
         color: var(--soft);
       }
-      .dot {
-        width: 8px;
-        height: 8px;
-        flex: none;
-        background: var(--rule);
-        border-radius: 50%;
-      }
-      .dot.live {
-        background: var(--heat);
-      }
-      .room .act {
-        flex: none;
-        padding: 10px 14px;
-        font-size: 13px;
-        font-weight: 600;
-        letter-spacing: 0;
-        text-transform: none;
-      }
-      .note {
-        padding: 18px 0 0;
-        font-size: 13px;
-        font-weight: 500;
-        color: var(--soft);
+      .why b {
+        color: var(--ink);
       }
     </style>
   </head>
   <body>
     <nav class="proto">
       <a href="./index.html">index</a>
-      <a href="./a-inbox.html">A discovery</a>
-      <a href="./b-shelves.html">B stacks</a>
-      <a href="./c-console.html" aria-current="page">C rooms</a>
+      <a href="./b-shelves.html">stacks</a>
+      <a href="./a-inbox.html">discovery</a>
+      <a href="./d-search.html">search</a>
+      <a href="./e-history.html">history</a>
+      <a href="./c-console.html" aria-current="page">rooms</a>
     </nav>
     <main id="root"></main>
 
     <script type="module">
-      import { element, escape, loadLibrary, sleeve } from "./common.js"
-      import { currentSession, mountNowPlaying } from "./nowplaying.js"
+      import { element, loadLibrary } from "./common.js"
+      import { mountNowPlaying } from "./nowplaying.js"
+      import { makeRooms, roomsPanel } from "./rooms.js"
       import { currentState, mountStatePicker } from "./states.js"
       import { mountThemeToggle } from "./theme.js"
 
@@ -119,73 +56,51 @@
       mountStatePicker()
       const mode = currentState()
 
-      const library = await loadLibrary(mode)
       const root = document.getElementById("root")
-      const session = currentSession(library, mode)
+      const library = await loadLibrary(mode)
+      const rooms = makeRooms(library, mode)
 
-      const rooms = [
-        { id: "kitchen", name: "Kitchen", album: session.album, playing: true },
-        { id: "desk", name: "Desk", album: null, playing: false },
-        { id: "phone", name: "This phone", album: null, playing: false },
-        { id: "living", name: "Living room", album: null, playing: false },
-      ]
+      // Rooms is a sheet in the product, reached from the player's room control. This page
+      // exists only so the same panel can be reviewed on its own.
+      root.append(
+        element(`
+          <p class="why">
+            <b>Rooms is a sheet, not a destination.</b> In the product this opens from the room
+            control in the now-playing bar. Shown here on its own for review.
+          </p>
+        `),
+      )
 
-      function move(target) {
-        for (const room of rooms) {
-          if (room.id === target.id) {
-            room.album = session.album
-            room.playing = true
-          } else {
-            room.album = null
-            room.playing = false
-          }
-        }
-        render()
-      }
-
-      function render() {
-        root.innerHTML = ""
-        const active = rooms.filter((room) => room.playing).length
-
+      const draw = (moving = null) => {
+        for (const old of root.querySelectorAll(".rooms-panel")) old.remove()
         root.append(
-          element(`
-            <header class="head">
-              <span class="label">Rooms</span>
-              <span class="tally">${active} playing</span>
-            </header>
-          `),
-        )
-
-        for (const room of rooms) {
-          const art = room.album
-            ? `<span class="frame">${sleeve(room.album)}</span>`
-            : `<span class="blank-slot"></span>`
-          const row = element(`
-            <div class="room">
-              ${art}
-              <span class="t">
-                <b><span class="dot ${room.playing ? "live" : ""}"></span>${escape(room.name)}</b>
-                <span class="truncate-1">${
-                  room.album
-                    ? `${escape(room.album.title)} — ${escape(room.album.artist)}`
-                    : "Nothing playing"
-                }</span>
-              </span>
-              ${room.playing ? "" : `<button class="act">Move here</button>`}
-            </div>
-          `)
-          row.querySelector("button")?.addEventListener("click", () => move(room))
-          root.append(row)
-        }
-
-        root.append(
-          element(
-            `<p class="note">Audio plays in one room at a time. Moving it here hands the session to that device.</p>`,
-          ),
+          roomsPanel(rooms, {
+            moving,
+            onChange: (event) => {
+              if (event.type === "retry") {
+                event.room.reachable = true
+                draw()
+                return
+              }
+              draw(event.room.id)
+              setTimeout(() => {
+                const from = rooms.find((room) => room.album)
+                const album = from?.album ?? null
+                for (const room of rooms) {
+                  if (room.id === event.room.id) {
+                    Object.assign(room, { album, playing: true, touchedAt: Date.now() })
+                  } else {
+                    Object.assign(room, { album: null, playing: false })
+                  }
+                }
+                draw()
+              }, 900)
+            },
+          }),
         )
       }
 
-      render()
+      draw()
       mountNowPlaying(library, { state: mode })
     </script>
   </body>

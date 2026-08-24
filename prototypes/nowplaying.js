@@ -5,18 +5,19 @@
 // offers the one action that resolves it.
 
 import { duration, element, escape, runtime, sleeve } from "./common.js"
-
-const SILENT = new Set(["silent", "empty", "nosources"])
+import { liveRoom, makeRooms, openRooms, playingCount } from "./rooms.js"
 
 export function currentSession(library, state = "live") {
-  if (SILENT.has(state)) return null
+  const rooms = makeRooms(library, state)
+  const room = liveRoom(rooms)
+  if (!room?.album) return null
   const played = library.filter((album) => album.playCount > 0)
-  const album = played[37 % played.length]
-  if (!album) return null
   return {
-    album,
-    room: "Kitchen",
-    trackIndex: Math.min(2, album.tracks.length - 1),
+    album: room.album,
+    room: room.name,
+    rooms,
+    others: playingCount(rooms) - 1,
+    trackIndex: Math.min(2, room.album.tracks.length - 1),
     next: played[(38 * 37) % played.length],
   }
 }
@@ -27,7 +28,7 @@ function lastPlayed(library) {
     .sort((a, b) => b.lastPlayedAt - a.lastPlayedAt)[0]
 }
 
-export function mountNowPlaying(library, { state = "live", roomsHref = "./c-console.html" } = {}) {
+export function mountNowPlaying(library, { state = "live" } = {}) {
   let session = currentSession(library, state)
   let playing = true
   const holder = element(`<div class="nowbar-holder"></div>`)
@@ -62,8 +63,10 @@ export function mountNowPlaying(library, { state = "live", roomsHref = "./c-cons
   }
 
   function active() {
-    const { album, room, trackIndex, next } = session
+    const { album, room, rooms, others, trackIndex, next } = session
     const track = album.tracks[trackIndex]
+    // With several rooms live, the bar follows the one you touched last and says so.
+    const roomLabel = others > 0 ? `${escape(room)} +${others}` : escape(room)
 
     const bar = element(`
       <div class="nowbar">
@@ -74,7 +77,7 @@ export function mountNowPlaying(library, { state = "live", roomsHref = "./c-cons
             <span class="truncate-1">${escape(album.artist)}</span>
           </span>
         </button>
-        <span class="nowbar-room"><i></i>${escape(room)}</span>
+        <button class="nowbar-room" aria-label="Rooms"><i></i>${roomLabel}</button>
         <button class="nowbar-toggle" aria-label="Pause">❚❚</button>
       </div>
     `)
@@ -83,7 +86,7 @@ export function mountNowPlaying(library, { state = "live", roomsHref = "./c-cons
       <dialog class="player">
         <div class="player-head">
           <button class="player-close" aria-label="Close player">Close</button>
-          <a class="player-room" href="${roomsHref}"><i></i>${escape(room)}</a>
+          <button class="player-room"><i></i>${roomLabel}</button>
         </div>
         <span class="frame player-art">${sleeve(album)}</span>
         <h2 class="player-title">${escape(album.title)}</h2>
@@ -121,6 +124,9 @@ export function mountNowPlaying(library, { state = "live", roomsHref = "./c-cons
       paint()
     }
 
+    const showRooms = () => openRooms(rooms, { onChange: () => draw() })
+    bar.querySelector(".nowbar-room").onclick = showRooms
+    sheet.querySelector(".player-room").onclick = showRooms
     bar.querySelector(".nowbar-toggle").onclick = flip
     sheet.querySelector(".player-toggle").onclick = flip
     bar.querySelector(".nowbar-open").onclick = () => sheet.showModal()
@@ -133,8 +139,25 @@ export function mountNowPlaying(library, { state = "live", roomsHref = "./c-cons
   }
 
   function draw() {
+    session = currentSessionFrom(session)
     holder.innerHTML = ""
     holder.append(session ? active() : resting())
+  }
+
+  // After a room move the house has changed, so re-derive which room the bar speaks for.
+  function currentSessionFrom(previous) {
+    if (!previous?.rooms) return previous
+    const room = previous.rooms
+      .filter((entry) => entry.album && entry.reachable)
+      .sort((a, b) => b.touchedAt - a.touchedAt)[0]
+    if (!room) return null
+    return {
+      ...previous,
+      album: room.album,
+      room: room.name,
+      others: previous.rooms.filter((entry) => entry.playing && entry.reachable).length - 1,
+      trackIndex: Math.min(previous.trackIndex, room.album.tracks.length - 1),
+    }
   }
 
   draw()
