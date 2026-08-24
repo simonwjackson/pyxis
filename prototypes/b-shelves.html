@@ -220,31 +220,7 @@
         color: var(--soft);
       }
 
-      dialog.sheet {
-        width: min(520px, 100%);
-        max-height: 88svh;
-        padding: 0 20px 20px;
-        color: var(--ink);
-        background: var(--ground);
-        border: 1px solid var(--ink);
-      }
-      dialog.sheet::backdrop {
-        background: var(--scrim);
-      }
-      .sheet-head {
-        position: sticky;
-        top: 0;
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        padding: 14px 0 10px;
-        background: var(--ground);
-      }
-      .sheet-head button {
-        font-size: 13px;
-        font-weight: 600;
-        color: var(--soft);
-      }
+      /* dialog.sheet and .sheet-head are system components; see system.css. */
       .group {
         padding: 14px 0 4px;
         border-top: 1px solid var(--rule);
@@ -275,29 +251,12 @@
         font-weight: 500;
         opacity: 0.6;
       }
-      @media (max-width: 620px) {
-        dialog.sheet {
-          margin: auto auto 0;
-          max-height: 92svh;
-        }
-      }
       /* No captions: the wall is covers only, so it can sit tight. */
       .grid {
         display: grid;
         grid-template-columns: repeat(auto-fill, minmax(124px, 1fr));
         gap: 14px;
         padding-top: 26px;
-      }
-      dialog {
-        width: min(680px, 100%);
-        max-height: 88svh;
-        padding: 0;
-        color: var(--ink);
-        background: var(--ground);
-        border: 1px solid var(--ink);
-      }
-      dialog::backdrop {
-        background: var(--scrim);
       }
       .detail {
         padding: 26px;
@@ -444,17 +403,13 @@
         .detail .top {
           grid-template-columns: 1fr;
         }
-        dialog {
-          margin: auto auto 0;
-          max-height: 92svh;
-        }
       }
     </style>
   </head>
   <body>
     <div id="strip"></div>
     <main id="root"></main>
-    <dialog id="detail"></dialog>
+    <dialog id="detail" class="sheet wide"></dialog>
 
     <script type="module">
       import {

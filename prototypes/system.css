@@ -559,6 +559,51 @@ body.has-nowbar main {
   background: var(--scrim);
 }
 
+/* Modal surfaces. One decision, three uses: rooms, filters, album detail.
+   Docks to the bottom edge on narrow screens, where a centred box is a reach.
+   This must stay shared: the rooms sheet opens from the bar on every surface. */
+dialog.sheet {
+  width: min(520px, 100%);
+  max-height: 88svh;
+  padding: 0 20px 20px;
+  color: var(--ink);
+  background: var(--ground);
+  border: 1px solid var(--ink);
+}
+
+/* Wider measure, for content that carries its own padding. */
+dialog.sheet.wide {
+  width: min(680px, 100%);
+  padding: 0;
+}
+
+dialog.sheet::backdrop {
+  background: var(--scrim);
+}
+
+.sheet-head {
+  position: sticky;
+  top: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 0 10px;
+  background: var(--ground);
+}
+
+.sheet-head button {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--soft);
+}
+
+@media (max-width: 620px) {
+  dialog.sheet {
+    margin: auto auto 0;
+    max-height: 92svh;
+  }
+}
+
 .player-head {
   display: flex;
   align-items: center;
