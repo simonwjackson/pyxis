@@ -846,6 +846,13 @@ a manual split cannot be undone by the automatic matcher.
 
 **Verification:** A real speaker plays a library track under console control.
 
+**Implementation status (2026-08-24):** Code-complete, reviewed, packaged, and deployed in
+`1927ec6`. Fixture and integration coverage proves discovery, authoritative topology, transport,
+group volume, grouping, candidate-bound LAN range streaming, core-hosted sessions, console
+control, background hardware reconciliation, rollback, account/target ownership, and restart
+recovery. M4 product acceptance remains open until the same flow is audible on real Sonos
+hardware.
+
 ---
 
 ### U19. Soulseek fidelity plugin

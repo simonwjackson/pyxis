@@ -23,8 +23,8 @@ requirements and decisions were captured directly into `plan.md` sections
 
 ## Current position
 
-**M7 and M5 are complete. M3 still awaits your hands-on validation from a second
-device.**
+**M7 and M5 are complete. U18 Sonos is code-complete and deployed; M4 still awaits a
+real-speaker acceptance test. M3 still awaits your hands-on validation from a second device.**
 
 U26 documents the whole public API, with a worked example that `tools/verify-api-example`
 extracts from the document and runs, so a claim that stops matching the server fails there.
@@ -58,7 +58,7 @@ publication generations, and stream epochs.
 Automated verification covers complete and interrupted downloads, quota pressure, shared
 tracks, fidelity races, account switches, service-worker restart, chunk ranges, shell updates,
 malformed RPC responses, cold offline application logic, and the packaged PWA artifact. The
-full client suite now has 189 passing tests; contract, production/PWA, Nix package, and flake
+full client suite now has 195 passing tests; contract, production/PWA, Nix package, and flake
 gates pass.
 
 Real-browser acceptance used durable device `01M0NXTMN8DKE1F28VJFQZJT0S`. Schema 8 reopened
@@ -85,7 +85,7 @@ Second-device acceptance began after M5. It exposed three browser-only readiness
 `0749c55` refuses cached remote reachability until a current pull or realtime event confirms
 a live socket; `9a2e2ad` applies 370-album and session snapshots under one database lock instead
 of reopening ProseQL per row; and `07840bc` lets account/session startup take that lock before
-large offline-media reconciliation. All are deployed and covered by 193 client tests plus the
+large offline-media reconciliation. All are deployed and covered by the client suite plus the
 package gates. The user chose to move on before the final startup-time, transport, disconnect,
 and handoff feel-test, so M3 remains implementation-complete but not product-accepted.
 
@@ -109,9 +109,24 @@ pre-U8 descriptors, stale placement ordering, plugin album handlers, and relatio
 are all present and passing. The session-state counter remains stale because the planned
 `se_resolve_residual` tool is not yet exposed by the harness.
 
-Next: implement U18 Sonos against fixtures, then validate it on a real speaker when hardware
-is available. U19 Soulseek follows against fixtures and still needs credentials/live-network
-validation. M3's final console/handoff feel-test remains a later acceptance task.
+**U18 is code-complete, reviewed, packaged, and deployed in `1927ec6`.** The TypeScript Sonos
+output plugin provides private-LAN SSDP/seed discovery, authoritative topology, SOAP fault
+classification, transport, group volume, grouping convergence, and DIDL metadata. The Rust core
+hosts output sessions, routes console commands without a browser, serves candidate-bound media
+through a media-only LAN listener, reconciles hardware state in the background, and prevents
+cross-account, regrouping, stream-ownership, and persistence races. The reference client can
+discover rooms, set groups, create output sessions, queue albums, and control transport.
+
+Fixture/plugin conformance tests, 195 client tests, 64 Rust unit tests and all integration tests,
+contract drift, API/PWA verification, owned-source Biome, shellcheck, release build,
+`nix build .#pyxis`, `nix build .#plugin-sonos`, and `nix flake check` pass. Repository-wide
+Biome still sees only unrelated untracked `prototypes/` failures. The installed profile now runs
+commit `1927ec6`; Sonos is a live subprocess, the tailnet health endpoint is 200, and the
+media-only listener is active at `http://192.168.1.243:4489` (`/rpc` is 404 there). M4 remains
+open only because no real speaker was available for audible transport/grouping acceptance.
+
+Next: implement U19 Soulseek against fixtures; credentials and live-network validation remain
+pending. Later, run U18 on real Sonos hardware and finish M3's console/handoff feel-test.
 
 Album removal is no longer deferred. D17 records your decision: server removal wins,
 queued local placement intent is discarded, and the client reports the conflict.
