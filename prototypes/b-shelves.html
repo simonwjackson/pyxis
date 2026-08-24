@@ -1,0 +1,852 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Pyxis — Stacks</title>
+    <script>
+      const requested = new URLSearchParams(location.search).get("theme")
+      const stored = requested || localStorage.getItem("pyxis-theme")
+      if (stored === "dark" || stored === "light") document.documentElement.dataset.theme = stored
+    </script>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="./system.css" />
+    <style>
+      main {
+        max-width: 1240px;
+        margin: 0 auto;
+        padding: 0 24px 120px;
+      }
+      /* A bar, not a masthead. Counts are state, not a headline. */
+      header.opening {
+        display: flex;
+        gap: 20px;
+        align-items: baseline;
+        padding: 20px 0 14px;
+        border-bottom: 1px solid var(--ink);
+      }
+      header.opening .count {
+        font-size: 13px;
+        font-weight: 700;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+      }
+      header.opening .count i {
+        font-style: normal;
+        font-weight: 500;
+        color: var(--soft);
+      }
+      header.opening .waiting {
+        margin-left: auto;
+        font-size: 12px;
+        font-weight: 700;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: var(--heat);
+        text-decoration: none;
+      }
+      header.opening .waiting::before {
+        display: inline-block;
+        width: 7px;
+        height: 7px;
+        margin-right: 7px;
+        content: "";
+        background: var(--heat);
+        border-radius: 50%;
+      }
+      section.shelf {
+        padding-top: 34px;
+      }
+      .shelf h2 {
+        margin: 0;
+        padding-bottom: 12px;
+        font-size: 12px;
+        font-weight: 700;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: var(--soft);
+      }
+      .shelf h2 b {
+        font-weight: 700;
+        color: var(--ink);
+      }
+      .rail {
+        display: grid;
+        grid-auto-columns: 168px;
+        grid-auto-flow: column;
+        gap: 14px;
+        padding-bottom: 8px;
+        /* overflow-y must be stated. Left as `visible` it computes to `auto`, which makes
+           the rail a vertical scroll container and lets Android capture vertical drags,
+           stretching the row instead of scrolling the page. */
+        overflow-x: auto;
+        overflow-y: hidden;
+        overscroll-behavior-x: contain;
+        scroll-snap-type: x proximity;
+        scrollbar-width: none;
+      }
+      .rail::-webkit-scrollbar {
+        display: none;
+      }
+      .item {
+        display: block;
+        padding: 0;
+        text-align: left;
+        background: none;
+        border: none;
+        cursor: pointer;
+        scroll-snap-align: start;
+        opacity: 0;
+        transform: translateY(10px);
+        transition:
+          opacity 0.5s ease,
+          transform 0.5s cubic-bezier(0.2, 0.8, 0.3, 1);
+      }
+      .item.in {
+        opacity: 1;
+        transform: none;
+      }
+      .frame {
+        position: relative;
+      }
+      .sleeve {
+        transition: transform 0.5s cubic-bezier(0.2, 0.8, 0.3, 1);
+      }
+      .item:hover .sleeve,
+      .item:focus-visible .sleeve {
+        transform: scale(1.045);
+      }
+      .item:focus-visible {
+        outline: 2px solid var(--ink);
+        outline-offset: 4px;
+      }
+      /* Everything you always need is on the surface. Everything else is one tap away. */
+      .tools {
+        position: sticky;
+        top: 0;
+        z-index: 20;
+        display: flex;
+        gap: 8px;
+        padding: 12px 0;
+        margin-top: 40px;
+        background: var(--ground);
+        border-top: 1px solid var(--ink);
+      }
+      .tools .find {
+        min-width: 0;
+        flex: 1;
+        padding: 11px 12px;
+        font: inherit;
+        font-size: 14px;
+        color: var(--ink);
+        background: var(--raised);
+        border: 1px solid var(--rule);
+        border-radius: 0;
+        -webkit-appearance: none;
+        appearance: none;
+      }
+      .tools .find::placeholder {
+        color: var(--soft);
+      }
+      .tools select {
+        padding: 11px 8px;
+        font: inherit;
+        font-size: 13px;
+        font-weight: 600;
+        color: var(--ink);
+        background: var(--raised);
+        border: 1px solid var(--rule);
+        border-radius: 0;
+      }
+      .tools .more {
+        display: flex;
+        gap: 7px;
+        align-items: center;
+        padding: 11px 13px;
+        font-size: 13px;
+        font-weight: 600;
+        border: 1px solid var(--rule);
+        white-space: nowrap;
+      }
+      .tools .more[data-active="true"] {
+        color: var(--ground);
+        background: var(--ink);
+        border-color: var(--ink);
+      }
+      .tools .more b {
+        font-weight: 700;
+      }
+      .chips {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        align-items: center;
+        padding: 2px 0 0;
+      }
+      .chips button {
+        display: flex;
+        gap: 7px;
+        align-items: center;
+        padding: 5px 10px;
+        font-size: 12px;
+        font-weight: 600;
+        color: var(--soft);
+        border: 1px solid var(--rule);
+      }
+      .chips button:hover {
+        color: var(--ink);
+        border-color: var(--ink);
+      }
+      .chips button i {
+        font-style: normal;
+        opacity: 0.7;
+      }
+      .count {
+        padding: 12px 0 0;
+        font-size: 12px;
+        font-weight: 600;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: var(--soft);
+      }
+      .none {
+        padding: 40px 0;
+        font-size: 14px;
+        color: var(--soft);
+      }
+
+      dialog.sheet {
+        width: min(520px, 100%);
+        max-height: 88svh;
+        padding: 0 20px 20px;
+        color: var(--ink);
+        background: var(--ground);
+        border: 1px solid var(--ink);
+      }
+      dialog.sheet::backdrop {
+        background: var(--scrim);
+      }
+      .sheet-head {
+        position: sticky;
+        top: 0;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 14px 0 10px;
+        background: var(--ground);
+      }
+      .sheet-head button {
+        font-size: 13px;
+        font-weight: 600;
+        color: var(--soft);
+      }
+      .group {
+        padding: 14px 0 4px;
+        border-top: 1px solid var(--rule);
+      }
+      .group .label {
+        display: block;
+        padding-bottom: 9px;
+      }
+      .opts {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+      }
+      .opts button {
+        padding: 9px 12px;
+        font-size: 13px;
+        font-weight: 600;
+        color: var(--soft);
+        border: 1px solid var(--rule);
+      }
+      .opts button[aria-pressed="true"] {
+        color: var(--ground);
+        background: var(--ink);
+        border-color: var(--ink);
+      }
+      .opts button i {
+        font-style: normal;
+        font-weight: 500;
+        opacity: 0.6;
+      }
+      @media (max-width: 620px) {
+        dialog.sheet {
+          margin: auto auto 0;
+          max-height: 92svh;
+        }
+      }
+      /* No captions: the wall is covers only, so it can sit tight. */
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(124px, 1fr));
+        gap: 14px;
+        padding-top: 26px;
+      }
+      dialog {
+        width: min(680px, 100%);
+        max-height: 88svh;
+        padding: 0;
+        color: var(--ink);
+        background: var(--ground);
+        border: 1px solid var(--ink);
+      }
+      dialog::backdrop {
+        background: var(--scrim);
+      }
+      .detail {
+        padding: 26px;
+      }
+      .detail .top {
+        display: grid;
+        grid-template-columns: 168px 1fr;
+        gap: 22px;
+      }
+      .detail h3 {
+        margin: 0;
+        font-size: clamp(24px, 4vw, 34px);
+        font-weight: 700;
+        line-height: 1.02;
+        letter-spacing: -0.03em;
+      }
+      .detail .who {
+        margin-top: 8px;
+        font-size: 14px;
+        font-weight: 600;
+        color: var(--soft);
+      }
+      dl.signals {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 12px 18px;
+        margin: 20px 0 0;
+        padding-top: 16px;
+        border-top: 1px solid var(--rule);
+      }
+      dl.signals dt {
+        font-size: 10px;
+        font-weight: 700;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: var(--soft);
+      }
+      dl.signals dd {
+        margin: 3px 0 0;
+        font-size: 15px;
+        font-weight: 600;
+      }
+      .move {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-top: 22px;
+      }
+      .move button {
+        padding: 9px 14px;
+        font: inherit;
+        font-size: 11px;
+        font-weight: 600;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        background: none;
+        border: 1px solid var(--rule);
+        cursor: pointer;
+      }
+      .move button[aria-pressed="true"] {
+        color: var(--ground);
+        background: var(--ink);
+        border-color: var(--ink);
+      }
+      .play {
+        display: flex;
+        gap: 8px;
+        margin-top: 20px;
+      }
+      .play button {
+        padding: 12px 18px;
+        font: inherit;
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: var(--ground);
+        background: var(--ink);
+        border: 1px solid var(--ink);
+        cursor: pointer;
+      }
+      .play button:hover,
+      .play button:focus-visible {
+        background: var(--heat);
+        border-color: var(--heat);
+      }
+      .play .quiet {
+        color: var(--ink);
+        background: none;
+        border-color: var(--rule);
+      }
+      .play .quiet:hover,
+      .play .quiet:focus-visible {
+        background: none;
+        border-color: var(--ink);
+      }
+      .close {
+        position: sticky;
+        top: 0;
+        display: flex;
+        justify-content: flex-end;
+        padding: 10px 12px 0;
+        background: var(--ground);
+      }
+      .close button {
+        font: inherit;
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        background: none;
+        border: none;
+        cursor: pointer;
+      }
+      @media (max-width: 620px) {
+        .detail .top {
+          grid-template-columns: 1fr;
+        }
+        dialog {
+          margin: auto auto 0;
+          max-height: 92svh;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <nav class="proto">
+      <a href="./index.html">index</a>
+      <a href="./a-inbox.html">A discovery</a>
+      <a href="./b-shelves.html" aria-current="page">B stacks</a>
+      <a href="./c-console.html">C rooms</a>
+    </nav>
+    <div id="strip"></div>
+    <main id="root"></main>
+    <dialog id="detail"></dialog>
+
+    <script type="module">
+      import { ago, element, escape, loadLibrary, reveal, runtime, sleeve } from "./common.js"
+      import { currentSession, mountNowPlaying } from "./nowplaying.js"
+      import { currentState, mountStatePicker } from "./states.js"
+      import { mountThemeToggle } from "./theme.js"
+
+      mountThemeToggle()
+      mountStatePicker()
+
+      const root = document.getElementById("root")
+      const dialog = document.getElementById("detail")
+      const mode = currentState()
+      const offline = mode === "offline"
+      if (offline) document.body.classList.add("offline")
+
+      // Skeleton first, in the real geometry, so nothing jumps when the data lands.
+      const tile = () => `<span class="frame skeleton" style="aspect-ratio:1"></span>`
+      root.innerHTML = `
+        <header class="opening"><span class="skeleton" style="width:150px;height:14px"></span></header>
+        ${[0, 1]
+          .map(
+            () => `
+          <section class="shelf">
+            <h2><span class="skeleton" style="display:inline-block;width:118px;height:11px"></span></h2>
+            <div class="rail">${Array.from({ length: 6 }, tile).join("")}</div>
+          </section>`,
+          )
+          .join("")}
+        <div class="grid">${Array.from({ length: 18 }, tile).join("")}</div>
+      `
+
+      if (offline) {
+        document.getElementById("strip").append(
+          element(
+            `<p class="strip"><b>Offline</b> <span class="right">changes are queued</span></p>`,
+          ),
+        )
+      }
+
+      const library = await loadLibrary(mode)
+      const sounds = currentSession(library, mode)
+
+      // Placement and sort are always on screen. Signals and decades sit behind one tap,
+      // so the browser stays legible until you actually ask for more control.
+      const state = {
+        query: "",
+        placement: "collection",
+        signals: new Set(),
+        decades: new Set(),
+        sort: "artist",
+      }
+
+      const SIGNALS = {
+        pinned: { label: "On this device", test: (album) => album.pinned },
+        hot: { label: "In rotation", test: (album) => album.hot },
+        untouched: { label: "Untouched", test: (album) => album.daysSincePlay > 365 },
+        never: { label: "Never played", test: (album) => album.playCount === 0 },
+        full: { label: "Heard in full", test: (album) => album.completeness >= 0.5 },
+      }
+
+      const SORTS = {
+        artist: ["Artist", (a, b) => a.artist.localeCompare(b.artist) || a.title.localeCompare(b.title)],
+        added: ["Recently added", (a, b) => new Date(b.addedAt) - new Date(a.addedAt)],
+        played: ["Recently played", (a, b) => (b.lastPlayedAt ?? 0) - (a.lastPlayedAt ?? 0)],
+        neglected: ["Longest unplayed", (a, b) => (b.daysSincePlay ?? 1e6) - (a.daysSincePlay ?? 1e6)],
+        year: ["Year", (a, b) => (b.year ?? 0) - (a.year ?? 0)],
+      }
+
+      const decadeOf = (album) => (album.year ? `${Math.floor(album.year / 10) * 10}s` : null)
+      const decades = [...new Set(library.map(decadeOf).filter(Boolean))].sort().reverse()
+
+      function results() {
+        const query = state.query.trim().toLowerCase()
+        return library
+          .filter((album) => {
+            if (state.placement !== "any" && album.placement !== state.placement) return false
+            if (query && !`${album.title} ${album.artist}`.toLowerCase().includes(query)) return false
+            for (const key of state.signals) if (!SIGNALS[key].test(album)) return false
+            if (state.decades.size && !state.decades.has(decadeOf(album))) return false
+            return true
+          })
+          .sort(SORTS[state.sort][1])
+      }
+
+      const activeCount = () =>
+        state.signals.size + state.decades.size + (state.placement === "collection" ? 0 : 1)
+
+      const where = (placement) => library.filter((album) => album.placement === placement)
+
+      // Covers only. The album still needs a name for assistive tech and for the desktop
+      // tooltip, it just never occupies the wall.
+      function item(album) {
+        const sounding = album.id === sounds?.album?.id
+        const marks = [sounding ? "sounding" : "", album.pinned ? "pinned" : ""].join(" ").trim()
+        const name = `${escape(album.title)} by ${escape(album.artist)}${
+          sounding ? ", playing now" : ""
+        }${offline && !album.pinned ? ", not on this device" : ""}`
+        const node = element(`
+          <button class="item" aria-label="${name}" title="${name}">
+            <span class="frame ${marks}">${sleeve(album)}</span>
+          </button>
+        `)
+        node.onclick = () => open(album)
+        return node
+      }
+
+      function shelf(title, albums) {
+        if (albums.length === 0) return null
+        const node = element(`
+          <section class="shelf">
+            <h2><b>${title}</b> <i>${albums.length}</i></h2>
+            <div class="rail"></div>
+          </section>
+        `)
+        const rail = node.querySelector(".rail")
+        for (const album of albums.slice(0, 20)) rail.append(item(album))
+        return node
+      }
+
+      function open(album) {
+        dialog.innerHTML = ""
+        const close = element(`<div class="close"><button>close</button></div>`)
+        close.querySelector("button").onclick = () => dialog.close()
+
+        const body = element(`
+          <div class="detail">
+            <div class="top">
+              <span class="frame">${sleeve(album)}</span>
+              <div>
+                <h3>${escape(album.title)}</h3>
+                <div class="who">${escape(album.artist)} · ${album.year ?? "—"}</div>
+                <dl class="signals">
+                  <div><dt>Plays</dt><dd>${album.playCount}</dd></div>
+                  <div><dt>Last heard</dt><dd>${ago(album.lastPlayedAt)}</dd></div>
+                  <div><dt>Runtime</dt><dd>${runtime(album)}</dd></div>
+                  <div><dt>Depth</dt><dd>${album.completeness < 0.5 ? "singles only" : "heard in full"}</dd></div>
+                </dl>
+                <div class="play">
+                  <button>Play album</button>
+                  <button class="quiet">Shuffle</button>
+                </div>
+                <div class="move"></div>
+              </div>
+            </div>
+          </div>
+        `)
+
+        const move = body.querySelector(".move")
+        for (const placement of ["discovery", "collection", "archive", "dismissed"]) {
+          const button = element(
+            `<button aria-pressed="${album.placement === placement}">${placement}</button>`,
+          )
+          button.onclick = () => {
+            album.placement = placement
+            dialog.close()
+            render()
+          }
+          move.append(button)
+        }
+
+        dialog.append(close, body)
+        dialog.showModal()
+      }
+
+      function browse() {
+        const section = element(`
+          <section class="browse">
+            <div class="tools">
+              <input class="find" type="search" placeholder="Search ${library.length} albums" />
+              <select class="sort" aria-label="Sort"></select>
+              <button class="more">Filters</button>
+            </div>
+            <div class="chips"></div>
+            <p class="count"></p>
+            <div class="grid"></div>
+          </section>
+        `)
+
+        const find = section.querySelector(".find")
+        find.value = state.query
+        find.oninput = () => {
+          state.query = find.value
+          renderResults()
+        }
+
+        const sort = section.querySelector(".sort")
+        for (const [key, [label]] of Object.entries(SORTS)) {
+          const option = element(`<option value="${key}">${label}</option>`)
+          sort.append(option)
+        }
+        sort.value = state.sort
+        sort.onchange = () => {
+          state.sort = sort.value
+          renderResults()
+        }
+
+        section.querySelector(".more").onclick = openFilters
+        return section
+      }
+
+      function openFilters() {
+        const sheet = element(`
+          <dialog class="sheet">
+            <div class="sheet-head"><span class="label">Filters</span><button>Done</button></div>
+          </dialog>
+        `)
+        sheet.querySelector("button").onclick = () => sheet.close()
+
+        const group = (title, options, isOn, toggle) => {
+          const node = element(`<div class="group"><span class="label">${title}</span><div class="opts"></div></div>`)
+          const holder = node.querySelector(".opts")
+          for (const option of options) {
+            const button = element(`
+              <button aria-pressed="${isOn(option.value)}">${option.label}${
+                option.count === undefined ? "" : ` <i>${option.count}</i>`
+              }</button>
+            `)
+            button.onclick = () => {
+              toggle(option.value)
+              button.setAttribute("aria-pressed", String(isOn(option.value)))
+              if (option.exclusive) {
+                for (const sibling of holder.querySelectorAll("button")) {
+                  if (sibling !== button) sibling.setAttribute("aria-pressed", "false")
+                }
+              }
+              renderResults()
+            }
+            holder.append(button)
+          }
+          return node
+        }
+
+        sheet.append(
+          group(
+            "Placement",
+            ["collection", "discovery", "archive", "dismissed", "any"].map((value) => ({
+              value,
+              label: value,
+              exclusive: true,
+              count: value === "any" ? library.length : where(value).length,
+            })),
+            (value) => state.placement === value,
+            (value) => {
+              state.placement = value
+            },
+          ),
+        )
+
+        sheet.append(
+          group(
+            "Listening",
+            Object.entries(SIGNALS).map(([value, signal]) => ({ value, label: signal.label })),
+            (value) => state.signals.has(value),
+            (value) => {
+              state.signals.has(value) ? state.signals.delete(value) : state.signals.add(value)
+            },
+          ),
+        )
+
+        sheet.append(
+          group(
+            "Decade",
+            decades.map((value) => ({ value, label: value })),
+            (value) => state.decades.has(value),
+            (value) => {
+              state.decades.has(value) ? state.decades.delete(value) : state.decades.add(value)
+            },
+          ),
+        )
+
+        sheet.addEventListener("close", () => sheet.remove())
+        document.body.append(sheet)
+        sheet.showModal()
+      }
+
+      function renderResults() {
+        const section = root.querySelector(".browse")
+        if (!section) return
+        const rows = results()
+
+        const chips = section.querySelector(".chips")
+        chips.innerHTML = ""
+        const chip = (label, clear) => {
+          const button = element(`<button>${label} <i>\u00d7</i></button>`)
+          button.onclick = () => {
+            clear()
+            renderResults()
+          }
+          chips.append(button)
+        }
+        if (state.placement !== "collection") {
+          chip(state.placement, () => {
+            state.placement = "collection"
+          })
+        }
+        for (const key of state.signals) {
+          chip(SIGNALS[key].label, () => state.signals.delete(key))
+        }
+        for (const decade of state.decades) {
+          chip(decade, () => state.decades.delete(decade))
+        }
+        if (activeCount() > 1) {
+          chip("Clear all", () => {
+            state.placement = "collection"
+            state.signals.clear()
+            state.decades.clear()
+          })
+        }
+
+        const more = section.querySelector(".more")
+        const count = activeCount()
+        more.innerHTML = count ? `Filters <b>${count}</b>` : "Filters"
+        more.dataset.active = String(count > 0)
+
+        const available = rows.filter((album) => album.pinned).length
+        section.querySelector(".count").textContent = offline
+          ? `${available} of ${rows.length} on this device`
+          : `${rows.length} album${rows.length === 1 ? "" : "s"}`
+
+        const grid = section.querySelector(".grid")
+        grid.innerHTML = ""
+        if (rows.length === 0) {
+          grid.append(
+            element(
+              activeCount() || state.query
+                ? `<p class="none">Nothing matches those filters.</p>`
+                : `<p class="none">Nothing in ${escape(state.placement)}.</p>`,
+            ),
+          )
+          return
+        }
+        for (const album of rows) grid.append(item(album))
+        reveal(grid.querySelectorAll(".item"))
+      }
+
+      function blankState() {
+        const panel =
+          mode === "nosources"
+            ? element(`
+                <section class="blank-state">
+                  <span class="label">Sources</span>
+                  <h2>No sources installed</h2>
+                  <p>
+                    Pyxis runs without them. Your library, listening history and placements are
+                    all still here — but nothing can be searched, added or played until a source
+                    is installed.
+                  </p>
+                  <div class="acts">
+                    <button class="act primary">Install a source</button>
+                    <button class="act">What is a source?</button>
+                  </div>
+                </section>
+              `)
+            : element(`
+                <section class="blank-state">
+                  <span class="label">Collection</span>
+                  <h2>Nothing kept yet</h2>
+                  <p>
+                    Albums arrive through Discovery. Capture one from a station or a search, then
+                    decide whether it belongs here.
+                  </p>
+                  <div class="acts">
+                    <a class="act primary" href="./a-inbox.html">Open Discovery</a>
+                    <button class="act">Search for an album</button>
+                  </div>
+                </section>
+              `)
+        root.innerHTML = ""
+        root.append(panel)
+      }
+
+      function render() {
+        if (library.length === 0) return blankState()
+        root.innerHTML = ""
+        const collection = where("collection")
+        const waiting = where("discovery").length
+
+        root.append(
+          element(`
+            <header class="opening">
+              <span class="count">Collection <i>${collection.length}</i></span>
+              ${waiting ? `<a class="waiting" href="./a-inbox.html">${waiting}</a>` : ""}
+            </header>
+          `),
+        )
+
+        const shelves = [
+          shelf(
+            "In rotation",
+            library.filter((album) => album.hot).sort((a, b) => b.recentPlays - a.recentPlays),
+          ),
+          shelf(
+            "Untouched",
+            collection
+              .filter((album) => album.daysSincePlay > 365)
+              .sort((a, b) => b.daysSincePlay - a.daysSincePlay),
+          ),
+          shelf("Never played", collection.filter((album) => album.playCount === 0)),
+          shelf(
+            "Recently added",
+            [...collection].sort((a, b) => new Date(b.addedAt) - new Date(a.addedAt)).slice(0, 20),
+          ),
+        ]
+        for (const node of shelves) if (node) root.append(node)
+        // Shelf covers reveal on scroll too. Missing this leaves every rail at opacity 0.
+        reveal(root.querySelectorAll(".shelf .item"))
+
+        root.append(browse())
+        renderResults()
+      }
+
+      render()
+      mountNowPlaying(library, { state: mode })
+    </script>
+  </body>
+</html>

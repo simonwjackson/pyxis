@@ -1,0 +1,601 @@
+/* Shared visual system for the Pyxis prototypes.
+   One typeface. Hairlines instead of cards. Covers are the only colour;
+   heat is reserved for listening signal.
+
+   Light is a bright gallery wall. Dark is the same room at night: warm near-black
+   rather than blue-black, off-white type rather than pure white, and a hairline on
+   every cover so dark album art does not bleed into the background. */
+
+:root {
+  --ground: #faf9f7;
+  --raised: #f4f2ee;
+  --ink: #101010;
+  --soft: #7c7871;
+  --rule: #e2dfd9;
+  --frame: #efece6;
+  --edge: transparent;
+  --heat: #d2431e;
+  --scrim: rgb(16 16 16 / 0.42);
+  --sans: "Archivo", "Helvetica Neue", Arial, sans-serif;
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --ground: #131210;
+    --raised: #1b1917;
+    --ink: #f2efe8;
+    --soft: #948d81;
+    --rule: #2c2925;
+    --frame: #211f1c;
+    --edge: #34302b;
+    --heat: #f0603a;
+    --scrim: rgb(0 0 0 / 0.66);
+    color-scheme: dark;
+  }
+}
+
+:root[data-theme="dark"] {
+  --ground: #131210;
+  --raised: #1b1917;
+  --ink: #f2efe8;
+  --soft: #948d81;
+  --rule: #2c2925;
+  --frame: #211f1c;
+  --edge: #34302b;
+  --heat: #f0603a;
+  --scrim: rgb(0 0 0 / 0.66);
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
+
+body {
+  min-height: 100svh;
+  margin: 0;
+  color: var(--ink);
+  background: var(--ground);
+  font-family: var(--sans);
+  font-variant-numeric: tabular-nums;
+}
+
+nav.proto {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  padding: 10px 24px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  border-bottom: 1px solid var(--rule);
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
+}
+
+nav.proto::-webkit-scrollbar {
+  display: none;
+}
+
+nav.proto a {
+  flex: none;
+  color: var(--soft);
+  text-decoration: none;
+}
+
+nav.proto a[aria-current] {
+  color: var(--heat);
+}
+
+nav.proto .theme {
+  flex: none;
+  margin-left: auto;
+  font: inherit;
+  color: var(--soft);
+  letter-spacing: 0.16em;
+}
+
+nav.proto .state {
+  flex: none;
+  font: inherit;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  color: var(--soft);
+  background: var(--ground);
+  border: 1px solid var(--rule);
+}
+
+nav.proto .theme:hover {
+  color: var(--ink);
+}
+
+.label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--soft);
+}
+
+/* The hairline is load-bearing in dark mode: without it, a black cover has no edge. */
+.frame {
+  display: block;
+  overflow: hidden;
+  background: var(--frame);
+  box-shadow: inset 0 0 0 1px var(--edge);
+}
+
+.sleeve {
+  display: block;
+  width: 100%;
+  aspect-ratio: 1;
+  object-fit: cover;
+}
+
+.sleeve.blank {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  padding: 12px;
+  border: 1px solid var(--rule);
+}
+
+.sleeve.blank em {
+  font-size: 10px;
+  font-style: normal;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--soft);
+}
+
+.sleeve.blank b {
+  margin-top: 5px;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.15;
+}
+
+.album-title {
+  margin: 0;
+  font-weight: 700;
+  line-height: 1.02;
+  letter-spacing: -0.03em;
+}
+
+.album-artist {
+  margin: 9px 0 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--soft);
+}
+
+.facts {
+  margin: 10px 0 0;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--soft);
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+.act {
+  padding: 13px 16px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  border: 1px solid var(--rule);
+  transition:
+    background 0.14s ease,
+    color 0.14s ease,
+    border-color 0.14s ease;
+}
+
+.act:hover,
+.act:focus-visible {
+  border-color: var(--ink);
+  outline: none;
+}
+
+.act.primary {
+  color: var(--ground);
+  background: var(--ink);
+  border-color: var(--ink);
+}
+
+.act.primary:hover,
+.act.primary:focus-visible {
+  color: #fff;
+  background: var(--heat);
+  border-color: var(--heat);
+}
+
+:focus-visible {
+  outline: 2px solid var(--heat);
+  outline-offset: 3px;
+}
+
+/* Playback follows you across surfaces instead of living on one page. */
+.nowbar {
+  position: fixed;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 30;
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  padding: 10px 16px calc(10px + env(safe-area-inset-bottom));
+  color: inherit;
+  text-decoration: none;
+  background: var(--raised);
+  border-top: 1px solid var(--rule);
+}
+
+.nowbar-open {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  min-width: 0;
+  flex: 1;
+  padding: 0;
+  color: inherit;
+  text-align: left;
+  text-decoration: none;
+}
+
+.nowbar .frame {
+  width: 42px;
+  flex: none;
+}
+
+.nowbar-toggle {
+  flex: none;
+  width: 40px;
+  height: 40px;
+  font-size: 13px;
+  border: 1px solid var(--rule);
+}
+
+/* Resting keeps the bar's exact footprint so nothing below it shifts when audio stops. */
+.nowbar.resting .nowbar-text b {
+  color: var(--soft);
+}
+
+.nowbar-slot {
+  flex: none;
+  width: 42px;
+  height: 42px;
+  background: var(--frame);
+  box-shadow: inset 0 0 0 1px var(--edge);
+}
+
+.nowbar.resting .act {
+  flex: none;
+  padding: 10px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.nowbar-toggle:hover,
+.nowbar-toggle:focus-visible {
+  border-color: var(--ink);
+}
+
+.nowbar.paused .nowbar-room i {
+  background: var(--soft);
+}
+
+.nowbar-text {
+  min-width: 0;
+  flex: 1;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.nowbar-text span {
+  display: block;
+  font-weight: 500;
+  color: var(--soft);
+}
+
+.nowbar-room {
+  display: flex;
+  gap: 7px;
+  align-items: center;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--soft);
+  white-space: nowrap;
+}
+
+.nowbar-room i {
+  width: 7px;
+  height: 7px;
+  background: var(--heat);
+  border-radius: 50%;
+}
+
+/* Offline availability, shown on the cover rather than described in words. Unpinned art
+   recedes because it genuinely cannot be played; pinned art stays at full strength. */
+.offline .item .frame:not(.pinned) .sleeve {
+  opacity: 0.28;
+  filter: grayscale(1);
+}
+
+.offline .item .frame:not(.pinned) {
+  cursor: not-allowed;
+}
+
+.frame.pinned::before {
+  position: absolute;
+  right: 7px;
+  bottom: 7px;
+  z-index: 1;
+  width: 9px;
+  height: 9px;
+  content: "";
+  background: var(--ink);
+  box-shadow: 0 0 0 2px var(--ground);
+}
+
+.frame.pinned {
+  position: relative;
+}
+
+.strip {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  padding: 9px 24px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ground);
+  background: var(--ink);
+}
+
+.strip b {
+  font-weight: 700;
+}
+
+.strip .right {
+  margin-left: auto;
+  font-weight: 500;
+  opacity: 0.7;
+}
+
+/* First run and no-sources both land on an empty wall, so the recovery has to be the
+   thing that differs. */
+.blank-state {
+  padding: 64px 0 40px;
+  max-width: 42ch;
+}
+
+.blank-state h2 {
+  margin: 10px 0 0;
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.blank-state p {
+  margin: 10px 0 0;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.5;
+  color: var(--soft);
+}
+
+.blank-state .acts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 20px;
+}
+
+.blank-state .act {
+  font-size: 13px;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+/* Skeleton. Same geometry as the real wall, so nothing moves when data lands. */
+.skeleton {
+  background: var(--frame);
+  animation: breathe 1.4s ease-in-out infinite;
+}
+
+@keyframes breathe {
+  50% {
+    opacity: 0.45;
+  }
+}
+
+/* The same signal, expressed on the wall itself: the cover that is currently sounding. */
+.frame.sounding {
+  position: relative;
+}
+
+.frame.sounding::after {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  width: 9px;
+  height: 9px;
+  content: "";
+  background: var(--heat);
+  border-radius: 50%;
+  box-shadow: 0 0 0 3px rgb(0 0 0 / 0.35);
+}
+
+body.has-nowbar main {
+  padding-bottom: 92px;
+}
+
+/* The bar at full size. Not a destination — no navigation, no page chrome. */
+.player {
+  width: min(520px, 100%);
+  max-width: 100%;
+  max-height: 100svh;
+  height: 100svh;
+  padding: 0 20px 24px;
+  margin: 0 auto;
+  color: var(--ink);
+  background: var(--ground);
+  border: none;
+}
+
+.player::backdrop {
+  background: var(--scrim);
+}
+
+.player-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 0 12px;
+}
+
+.player-close {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--soft);
+}
+
+.player-room {
+  display: flex;
+  gap: 7px;
+  align-items: center;
+  font-size: 13px;
+  font-weight: 700;
+  color: inherit;
+  text-decoration: none;
+}
+
+.player-room i {
+  width: 7px;
+  height: 7px;
+  background: var(--heat);
+  border-radius: 50%;
+}
+
+.player-art {
+  width: calc(100% + 40px);
+  margin-inline: -20px;
+}
+
+.player-title {
+  margin: 18px 0 0;
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.player-artist {
+  margin: 4px 0 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--soft);
+}
+
+.player-position {
+  margin: 10px 0 0;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--soft);
+}
+
+.player-bar {
+  height: 2px;
+  margin-top: 10px;
+  background: var(--rule);
+}
+
+.player-bar div {
+  width: 38%;
+  height: 100%;
+  background: var(--ink);
+}
+
+.player-controls {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-top: 18px;
+}
+
+.player-controls .act {
+  min-width: 58px;
+  padding: 16px 8px;
+  font-size: 14px;
+  letter-spacing: 0;
+  text-align: center;
+  text-transform: none;
+}
+
+.player-controls input {
+  flex: 1;
+  min-width: 60px;
+  margin-left: 8px;
+  accent-color: var(--heat);
+}
+
+.player-next {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  margin-top: 22px;
+  padding-top: 14px;
+  border-top: 1px solid var(--rule);
+}
+
+.player-next .frame {
+  width: 40px;
+  flex: none;
+}
+
+.player-next .t {
+  min-width: 0;
+  flex: 1;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.player-next .t span {
+  display: block;
+  font-weight: 500;
+  color: var(--soft);
+}
+
+.truncate {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.truncate-1 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Pyxis — three prototypes</title>
+    <script>
+      const requested = new URLSearchParams(location.search).get("theme")
+      const stored = requested || localStorage.getItem("pyxis-theme")
+      if (stored === "dark" || stored === "light") document.documentElement.dataset.theme = stored
+    </script>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="./system.css" />
+    <style>
+      main {
+        max-width: 760px;
+        margin: 0 auto;
+        padding: 54px 24px 100px;
+      }
+      h1 {
+        margin: 0;
+        font-size: 13px;
+        font-weight: 700;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+      }
+      .lede {
+        max-width: 46ch;
+        margin: 20px 0 0;
+        font-size: 17px;
+        font-weight: 500;
+        line-height: 1.4;
+        color: var(--soft);
+      }
+      ol {
+        margin: 46px 0 0;
+        padding: 0;
+        list-style: none;
+        border-top: 1px solid var(--ink);
+      }
+      ol a {
+        display: grid;
+        grid-template-columns: 46px 1fr;
+        gap: 18px;
+        padding: 24px 0;
+        color: inherit;
+        text-decoration: none;
+        border-bottom: 1px solid var(--rule);
+      }
+      ol a:hover h2,
+      ol a:focus-visible h2 {
+        color: var(--heat);
+      }
+      .n {
+        font-size: 13px;
+        font-weight: 700;
+        letter-spacing: 0.14em;
+        color: var(--soft);
+      }
+      h2 {
+        margin: 0;
+        font-size: 24px;
+        font-weight: 700;
+        letter-spacing: -0.02em;
+      }
+      .bet {
+        margin: 6px 0 0;
+        font-size: 14px;
+        font-weight: 600;
+      }
+      .look {
+        margin: 10px 0 0;
+        font-size: 14px;
+        font-weight: 500;
+        line-height: 1.45;
+        color: var(--soft);
+      }
+      .truth {
+        margin-top: 46px;
+        padding-top: 18px;
+        font-size: 13px;
+        font-weight: 500;
+        line-height: 1.6;
+        color: var(--soft);
+        border-top: 1px solid var(--rule);
+      }
+      .truth b {
+        color: var(--ink);
+      }
+    </style>
+  </head>
+  <body>
+    <nav class="proto">
+      <a href="./index.html" aria-current="page">index</a>
+      <a href="./a-inbox.html">A discovery</a>
+      <a href="./b-shelves.html">B stacks</a>
+      <a href="./c-console.html">C rooms</a>
+    </nav>
+    <main>
+      <h1>Prototypes</h1>
+      <p class="lede">
+        Three answers to “what is the home screen.” One visual system. The album is the
+        subject everywhere; tracks are demoted or hidden.
+      </p>
+
+      <ol>
+        <li>
+          <a href="./a-inbox.html">
+            <span class="n">A</span>
+            <span>
+              <h2>Discovery</h2>
+              <p class="look">One album at a time. Keep, later, or no.</p>
+            </span>
+          </a>
+        </li>
+        <li>
+          <a href="./b-shelves.html">
+            <span class="n">B</span>
+            <span>
+              <h2>Stacks</h2>
+              <p class="look">A wall of covers. In rotation, untouched, never played.</p>
+            </span>
+          </a>
+        </li>
+        <li>
+          <a href="./c-console.html">
+            <span class="n">C</span>
+            <span>
+              <h2>Rooms</h2>
+              <p class="look">Every room, what it is playing, and how to move it.</p>
+            </span>
+          </a>
+        </li>
+      </ol>
+
+      <p class="truth">
+        <b>Real:</b> 370 albums, 3,865 tracks, and all 370 covers, pulled from the live library
+        and the public source RPC.<br />
+        <b>Invented:</b> placements, play counts and dates. The real library is 370/370 in
+        Discovery with no listening history.
+      </p>
+    </main>
+    <script type="module">
+      import { mountThemeToggle } from "./theme.js"
+
+      mountThemeToggle()
+    </script>
+  </body>
+</html>

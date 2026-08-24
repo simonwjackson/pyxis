@@ -1,0 +1,235 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Pyxis — Discovery</title>
+    <script>
+      const requested = new URLSearchParams(location.search).get("theme")
+      const stored = requested || localStorage.getItem("pyxis-theme")
+      if (stored === "dark" || stored === "light") document.documentElement.dataset.theme = stored
+    </script>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="./system.css" />
+    <style>
+      main {
+        max-width: 520px;
+        margin: 0 auto;
+        padding: 0 20px 32px;
+      }
+      header.head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 14px 0 12px;
+      }
+      .tally {
+        font-size: 13px;
+        font-weight: 600;
+        color: var(--soft);
+      }
+      article {
+        padding-top: 22px;
+        animation: rise 0.42s cubic-bezier(0.2, 0.85, 0.3, 1) both;
+      }
+      @keyframes rise {
+        from {
+          opacity: 0;
+          transform: translateY(12px);
+        }
+      }
+      article.out {
+        animation: leave 0.26s ease-in forwards;
+      }
+      @keyframes leave {
+        to {
+          opacity: 0;
+          transform: translateY(-14px);
+        }
+      }
+      /* The art is the screen, not an illustration above the copy. */
+      .cover {
+        width: calc(100% + 40px);
+        margin-inline: -20px;
+      }
+      .album-title {
+        margin-top: 18px;
+        font-size: 20px;
+        font-weight: 700;
+        letter-spacing: -0.01em;
+      }
+      .album-artist {
+        margin-top: 4px;
+        font-size: 15px;
+      }
+      .origin {
+        margin: 8px 0 0;
+        font-size: 13px;
+        font-weight: 500;
+        color: var(--soft);
+      }
+      .verdict {
+        display: grid;
+        grid-template-columns: 1fr 1fr 1fr;
+        gap: 8px;
+        margin-top: 22px;
+      }
+      .verdict button {
+        padding: 17px 8px;
+        font-size: 14px;
+        font-weight: 600;
+        letter-spacing: 0;
+        text-align: center;
+        text-transform: none;
+      }
+      .undo {
+        margin-top: 14px;
+        font-size: 13px;
+        font-weight: 500;
+        color: var(--soft);
+        text-align: center;
+      }
+      .undo button {
+        color: var(--heat);
+        text-decoration: underline;
+        text-underline-offset: 3px;
+      }
+      .cleared {
+        padding: 96px 0;
+        text-align: center;
+      }
+      .cleared h2 {
+        margin: 12px 0 0;
+        font-size: 22px;
+        font-weight: 700;
+      }
+      .cleared p {
+        margin-top: 12px;
+        font-size: 14px;
+        font-weight: 500;
+        color: var(--soft);
+      }
+    </style>
+  </head>
+  <body>
+    <nav class="proto">
+      <a href="./index.html">index</a>
+      <a href="./a-inbox.html" aria-current="page">A discovery</a>
+      <a href="./b-shelves.html">B stacks</a>
+      <a href="./c-console.html">C rooms</a>
+    </nav>
+    <main id="root"></main>
+
+    <script type="module">
+      import { element, escape, loadLibrary, runtime, sleeve } from "./common.js"
+      import { mountNowPlaying } from "./nowplaying.js"
+      import { currentState, mountStatePicker } from "./states.js"
+      import { mountThemeToggle } from "./theme.js"
+
+      mountThemeToggle()
+      mountStatePicker()
+      const mode = currentState()
+
+      const root = document.getElementById("root")
+      const library = await loadLibrary(mode)
+      const queue = library.filter((album) => album.placement === "discovery")
+      const total = queue.length
+      let index = 0
+      let undo = null
+      let busy = false
+
+      function resolve(placement) {
+        const album = queue[index]
+        if (!album || busy) return
+        busy = true
+        root.querySelector("article")?.classList.add("out")
+        setTimeout(() => {
+          undo = { album, previous: album.placement }
+          album.placement = placement
+          index += 1
+          busy = false
+          render()
+        }, 240)
+      }
+
+      function render() {
+        const album = queue[index]
+        root.innerHTML = ""
+
+        if (!album) {
+          root.append(
+            element(`
+              <section class="cleared">
+                <h2>Nothing is waiting</h2>
+                <p>${total} albums resolved.</p>
+              </section>
+            `),
+          )
+          return
+        }
+
+        root.append(
+          element(`
+            <header class="head">
+              <span class="label">Discovery</span>
+              <span class="tally">${index + 1} of ${total}</span>
+            </header>
+          `),
+        )
+
+        root.append(
+          element(`
+            <article>
+              <span class="frame cover">${sleeve(album)}</span>
+              <h1 class="album-title">${escape(album.title)}</h1>
+              <p class="album-artist">${escape(album.artist)} · ${album.year ?? "—"} · ${runtime(album)}</p>
+              <p class="origin">
+                ${escape(album.capturedFrom)} · ${album.capturedDaysAgo}d ago${
+                  album.hook ? ` · ${escape(album.hook.title)}` : ""
+                }
+              </p>
+            </article>
+          `),
+        )
+
+        const verdict = element(`
+          <div class="verdict">
+            <button class="act primary" data-to="collection">Keep</button>
+            <button class="act" data-to="archive">Later</button>
+            <button class="act" data-to="dismissed">No</button>
+          </div>
+        `)
+        for (const button of verdict.querySelectorAll("button")) {
+          button.onclick = () => resolve(button.dataset.to)
+        }
+        root.append(verdict)
+
+        if (undo) {
+          const line = element(
+            `<p class="undo">${escape(undo.album.artist)} filed · <button>undo</button></p>`,
+          )
+          line.querySelector("button").onclick = () => {
+            undo.album.placement = undo.previous
+            index -= 1
+            undo = null
+            render()
+          }
+          root.append(line)
+        }
+      }
+
+      addEventListener("keydown", (event) => {
+        const map = { k: "collection", l: "archive", n: "dismissed" }
+        if (map[event.key]) resolve(map[event.key])
+      })
+
+      render()
+      mountNowPlaying(library, { state: mode })
+    </script>
+  </body>
+</html>
