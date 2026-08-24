@@ -81,8 +81,13 @@ confirms the browser audio operation, then records public session state. Refused
 stream/decode failure, storage rollback, load cancellation, and crash recovery are covered
 by tests. The deployed worker is now schema 8 after M5.
 
-What remains is hands-on acceptance from a second physical device: attach, queue, transport,
-realtime updates, disconnect behavior, handoff, and whether console mode feels good.
+Second-device acceptance began after M5. It exposed three browser-only readiness defects:
+`0749c55` refuses cached remote reachability until a current pull or realtime event confirms
+a live socket; `9a2e2ad` applies 370-album and session snapshots under one database lock instead
+of reopening ProseQL per row; and `07840bc` lets account/session startup take that lock before
+large offline-media reconciliation. All are deployed and covered by 193 client tests plus the
+package gates. The user chose to move on before the final startup-time, transport, disconnect,
+and handoff feel-test, so M3 remains implementation-complete but not product-accepted.
 
 **Milestone M2 is complete and live on the tailnet.** The live 386-entry legacy manifest is
 fully accounted: 370 albums are in Discovery, 16 remain unresolved after manual review,
@@ -98,8 +103,15 @@ The old system `pyxis.service` and `tsnet-proxy-pyxis.service` units are stopped
 remain declared by the current NixOS generation and can return after a reboot or system
 switch until the prepared `mountainous` removal is deployed.
 
-Next: complete M3's second-device console and handoff acceptance. U18 Sonos and U19
-Soulseek still need hardware and an account.
+The eight old review findings were rechecked against current code and targeted tests: header-first
+album parsing, malformed payload rejection, failure retryability, invalid duration omission,
+pre-U8 descriptors, stale placement ordering, plugin album handlers, and relationship batching
+are all present and passing. The session-state counter remains stale because the planned
+`se_resolve_residual` tool is not yet exposed by the harness.
+
+Next: implement U18 Sonos against fixtures, then validate it on a real speaker when hardware
+is available. U19 Soulseek follows against fixtures and still needs credentials/live-network
+validation. M3's final console/handoff feel-test remains a later acceptance task.
 
 Album removal is no longer deferred. D17 records your decision: server removal wins,
 queued local placement intent is discarded, and the client reports the conflict.
