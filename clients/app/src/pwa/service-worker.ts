@@ -10,7 +10,7 @@ import {
   streamMappingUrl,
 } from "../worker/offline-cache"
 import { offlineStreamResponse } from "./offline-response"
-import { isShellAsset, SHELL_CACHE_PREFIX, shellCacheName } from "./shell"
+import { isShellAsset, navigationShellResponse, SHELL_CACHE_PREFIX, shellCacheName } from "./shell"
 
 interface ExtendableEventLike extends Event {
   waitUntil(promise: Promise<unknown>): void
@@ -110,20 +110,13 @@ async function shellResponse(request: Request): Promise<Response> {
   if (request.cache === "no-store") return fetch(request)
   const url = new URL(request.url)
   if (request.mode === "navigate") {
-    try {
-      const response = await fetch(request)
-      if (response.ok) return response
-    } catch {
-      // The cached shell is the entire point of this path.
-    }
-    try {
-      const cache = await caches.open(SHELL_CACHE)
-      const cached = (await cache.match("/")) ?? (await cache.match("/index.html"))
-      if (cached !== undefined) return cached
-    } catch {
-      // Cache Storage can be blocked independently of the network.
-    }
-    return new Response("Pyxis is offline and its shell is unavailable.", { status: 503 })
+    return navigationShellResponse(
+      (signal) => fetch(request, { signal }),
+      async () => {
+        const cache = await caches.open(SHELL_CACHE)
+        return (await cache.match("/")) ?? (await cache.match("/index.html")) ?? undefined
+      },
+    )
   }
   if (isShellAsset(url.pathname, SHELL_ASSETS)) {
     try {
