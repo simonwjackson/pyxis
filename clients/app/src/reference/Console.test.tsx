@@ -203,6 +203,36 @@ describe("local store", () => {
     expect(screen.getAllByText("false").length).toBeGreaterThan(0)
   })
 
+  test("renders the durable library while Cache Storage inspection is still pending", async () => {
+    const base = persistent(createDirectWorkerClient())
+    await base.putAlbum(album())
+    const waitingOverview = new Promise<Awaited<ReturnType<WorkerClient["offlineOverview"]>>>(
+      () => undefined,
+    )
+    const store = {
+      ...base,
+      offlineOverview: () => waitingOverview,
+    }
+    const waitingForNetwork: ReferenceClient = {
+      ...client([]),
+      claimDevice: () => new Promise<never>(() => undefined),
+    }
+
+    render(
+      <ReferenceApp client={waitingForNetwork} worker={store}>
+        <ReferencePlugins />
+        <ReferenceLibrary />
+        <ReferenceOffline />
+      </ReferenceApp>,
+    )
+
+    await waitFor(() => expect(screen.getByText("Library albums (1)")).toBeTruthy())
+    expect(screen.getByText(/Heroes/)).toBeTruthy()
+    expect(screen.getByText("Loading plugins…")).toBeTruthy()
+    expect(screen.queryByText(/No plugins installed/)).toBeNull()
+    expect(screen.getAllByText("checking")).toHaveLength(3)
+  })
+
   test("an ephemeral no-worker fallback still reads the online library", async () => {
     const configured: ReferenceClient = {
       ...client([]),

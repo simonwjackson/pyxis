@@ -9,7 +9,13 @@ export function ReferencePlugins() {
       <p>Status: {status}</p>
       {error === undefined ? null : <pre role="alert">{error}</pre>}
       {plugins.length === 0 ? (
-        <p>No plugins installed. The core is running, but search and playback have no source.</p>
+        status === "booting" ? (
+          <p>Loading plugins…</p>
+        ) : status === "error" ? (
+          <p>Plugin availability could not be checked.</p>
+        ) : (
+          <p>No plugins installed. The core is running, but search and playback have no source.</p>
+        )
       ) : (
         <ul>
           {plugins.map((plugin) => (

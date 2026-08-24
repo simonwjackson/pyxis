@@ -506,24 +506,26 @@ export function ReferenceApp({
         // simultaneous switch in another tab can mix settings from one account with albums
         // or cache metadata from another.
         const settings = await store.settings()
-        const [albums, offlineOverview] = await Promise.all([
-          store.albums(),
-          store
-            .offlineOverview()
-            .catch((): OfflineOverview => ({ available: false, albums: [], totalBytes: 0 })),
-        ])
+        const albums = await store.albums()
         if (!live) return
         albumsRef.current = albums
         resumeTokenRef.current = settings.resumeToken
         streamEpochRef.current = settings.streamEpoch ?? 0
         setAlbums(albums)
-        setOffline(offlineOverview)
         setLocal({
           report,
           ...(settings.deviceId === undefined ? {} : { deviceId: settings.deviceId }),
           albumCount: albums.length,
           notices: settings.syncNotices ?? [],
         })
+        // Cache reconciliation may scan many media chunks or wait behind another tab. It
+        // must not make a durable 370-album library look empty while the scan runs.
+        void store
+          .offlineOverview()
+          .catch((): OfflineOverview => ({ available: false, albums: [], totalBytes: 0 }))
+          .then((overview) => {
+            if (live) watchOffline(overview)
+          })
         await applyWorkerSessions()
         await connectAccount()
       } catch {
@@ -532,9 +534,10 @@ export function ReferenceApp({
     })()
     return () => {
       live = false
+      offlinePollGeneration.current += 1
       if (worker === undefined) store.terminate()
     }
-  }, [applyWorkerSessions, connectAccount, store, worker])
+  }, [applyWorkerSessions, connectAccount, store, watchOffline, worker])
 
   // The realtime socket is also what makes this device reachable, so a console can drive
   // it. Without a live socket the core correctly reports this session as uncontrollable.

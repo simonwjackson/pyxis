@@ -27,11 +27,11 @@ export function ReferenceOffline() {
           <dt>Writes deferred</dt>
           <dd>{local.lastSync?.deferred ?? 0}</dd>
           <dt>Offline downloads available</dt>
-          <dd>{String(offline?.available === true)}</dd>
+          <dd>{offline === undefined ? "checking" : String(offline.available)}</dd>
           <dt>Albums pinned</dt>
-          <dd>{offline?.albums.length ?? 0}</dd>
+          <dd>{offline?.albums.length ?? "checking"}</dd>
           <dt>Offline bytes</dt>
-          <dd>{offline?.totalBytes ?? 0}</dd>
+          <dd>{offline?.totalBytes ?? "checking"}</dd>
         </dl>
       )}
       {local?.notices.length === 0
