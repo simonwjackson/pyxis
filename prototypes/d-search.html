@@ -102,25 +102,14 @@
     </style>
   </head>
   <body>
-    <nav class="proto">
-      <a href="./index.html">index</a>
-      <a href="./b-shelves.html">stacks</a>
-      <a href="./a-inbox.html">discovery</a>
-      <a href="./d-search.html" aria-current="page">search</a>
-      <a href="./e-history.html">history</a>
-      <a href="./c-console.html">rooms</a>
-    </nav>
     <main id="root"></main>
 
     <script type="module">
       import { element, escape, loadLibrary, runtime, sleeve } from "./common.js"
       import { productNav } from "./nav.js"
       import { mountNowPlaying } from "./nowplaying.js"
-      import { currentState, mountStatePicker } from "./states.js"
-      import { mountThemeToggle } from "./theme.js"
+      import { currentState } from "./states.js"
 
-      mountThemeToggle()
-      mountStatePicker()
       const mode = currentState()
 
       const root = document.getElementById("root")
@@ -248,5 +237,6 @@
       render()
       mountNowPlaying(library, { state: mode })
     </script>
+    <footer class="ref"><a href="./index.html">Pyxis reference</a></footer>
   </body>
 </html>

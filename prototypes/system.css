@@ -62,57 +62,21 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
-nav.proto {
-  display: flex;
-  gap: 16px;
-  align-items: center;
-  padding: 10px 24px;
-  font-size: 10px;
+/* The only chrome that is not product: a way back to the reference index. */
+footer.ref {
+  padding: 26px 24px calc(96px + env(safe-area-inset-bottom));
+  font-size: 11px;
   font-weight: 600;
-  letter-spacing: 0.16em;
+  letter-spacing: 0.14em;
   text-transform: uppercase;
-  white-space: nowrap;
-  border-bottom: 1px solid var(--rule);
-  overflow-x: auto;
-  overflow-y: hidden;
-  overscroll-behavior-x: contain;
-  scrollbar-width: none;
 }
 
-nav.proto::-webkit-scrollbar {
-  display: none;
-}
-
-nav.proto a {
-  flex: none;
+footer.ref a {
   color: var(--soft);
   text-decoration: none;
 }
 
-nav.proto a[aria-current] {
-  color: var(--heat);
-}
-
-nav.proto .theme {
-  flex: none;
-  margin-left: auto;
-  font: inherit;
-  color: var(--soft);
-  letter-spacing: 0.16em;
-}
-
-nav.proto .state {
-  flex: none;
-  font: inherit;
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.1em;
-  color: var(--soft);
-  background: var(--ground);
-  border: 1px solid var(--rule);
-}
-
-nav.proto .theme:hover {
+footer.ref a:hover {
   color: var(--ink);
 }
 

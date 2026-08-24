@@ -452,14 +452,6 @@
     </style>
   </head>
   <body>
-    <nav class="proto">
-      <a href="./index.html">index</a>
-      <a href="./b-shelves.html" aria-current="page">stacks</a>
-      <a href="./a-inbox.html">discovery</a>
-      <a href="./d-search.html">search</a>
-      <a href="./e-history.html">history</a>
-      <a href="./c-console.html">rooms</a>
-    </nav>
     <div id="strip"></div>
     <main id="root"></main>
     <dialog id="detail"></dialog>
@@ -479,11 +471,8 @@
       } from "./common.js"
       import { productNav } from "./nav.js"
       import { currentSession, mountNowPlaying } from "./nowplaying.js"
-      import { currentState, mountStatePicker } from "./states.js"
-      import { mountThemeToggle } from "./theme.js"
+      import { currentState } from "./states.js"
 
-      mountThemeToggle()
-      mountStatePicker()
 
       const root = document.getElementById("root")
       const dialog = document.getElementById("detail")
@@ -970,5 +959,6 @@
       render()
       mountNowPlaying(library, { state: mode })
     </script>
+    <footer class="ref"><a href="./index.html">Pyxis reference</a></footer>
   </body>
 </html>

@@ -35,25 +35,14 @@
     </style>
   </head>
   <body>
-    <nav class="proto">
-      <a href="./index.html">index</a>
-      <a href="./b-shelves.html">stacks</a>
-      <a href="./a-inbox.html">discovery</a>
-      <a href="./d-search.html">search</a>
-      <a href="./e-history.html">history</a>
-      <a href="./c-console.html" aria-current="page">rooms</a>
-    </nav>
     <main id="root"></main>
 
     <script type="module">
       import { element, loadLibrary } from "./common.js"
       import { mountNowPlaying } from "./nowplaying.js"
       import { makeRooms, roomsPanel } from "./rooms.js"
-      import { currentState, mountStatePicker } from "./states.js"
-      import { mountThemeToggle } from "./theme.js"
+      import { currentState } from "./states.js"
 
-      mountThemeToggle()
-      mountStatePicker()
       const mode = currentState()
 
       const root = document.getElementById("root")
@@ -103,5 +92,6 @@
       draw()
       mountNowPlaying(library, { state: mode })
     </script>
+    <footer class="ref"><a href="./index.html">Pyxis reference</a></footer>
   </body>
 </html>
