@@ -23,8 +23,8 @@ requirements and decisions were captured directly into `plan.md` sections
 
 ## Current position
 
-**M7 and M5 are complete. U18 Sonos is code-complete and deployed; M4 still awaits a
-real-speaker acceptance test. M3 still awaits your hands-on validation from a second device.**
+**M7, M5, and M4 are complete. Sonos playback is accepted on real hardware. M3 still
+awaits your hands-on validation from a second device.**
 
 U26 documents the whole public API, with a worked example that `tools/verify-api-example`
 extracts from the document and runs, so a claim that stops matching the server fails there.
@@ -109,24 +109,31 @@ pre-U8 descriptors, stale placement ordering, plugin album handlers, and relatio
 are all present and passing. The session-state counter remains stale because the planned
 `se_resolve_residual` tool is not yet exposed by the harness.
 
-**U18 is code-complete, reviewed, packaged, and deployed in `1927ec6`.** The TypeScript Sonos
-output plugin provides private-LAN SSDP/seed discovery, authoritative topology, SOAP fault
-classification, transport, group volume, grouping convergence, and DIDL metadata. The Rust core
+**M4/U18 is complete and product-accepted on real Sonos hardware.** The TypeScript output plugin
+provides private-LAN SSDP plus mDNS discovery, authoritative topology, SOAP fault classification,
+transport, group volume, grouping convergence, stream profiles, and DIDL metadata. The Rust core
 hosts output sessions, routes console commands without a browser, serves candidate-bound media
 through a media-only LAN listener, reconciles hardware state in the background, and prevents
-cross-account, regrouping, stream-ownership, and persistence races. The reference client can
-discover rooms, set groups, create output sessions, queue albums, and control transport.
+cross-account, regrouping, stream-ownership, format, cache, and persistence races. The reference
+client discovers rooms, sets groups, creates output sessions, queues and clears albums, and
+controls transport.
 
-Fixture/plugin conformance tests, 195 client tests, 64 Rust unit tests and all integration tests,
-contract drift, API/PWA verification, owned-source Biome, shellcheck, release build,
-`nix build .#pyxis`, `nix build .#plugin-sonos`, and `nix flake check` pass. Repository-wide
-Biome still sees only unrelated untracked `prototypes/` failures. The installed profile now runs
-commit `1927ec6`; Sonos is a live subprocess, the tailnet health endpoint is 200, and the
-media-only listener is active at `http://192.168.1.243:4489` (`/rpc` is 404 there). M4 remains
-open only because no real speaker was available for audible transport/grouping acceptance.
+Real-network testing exposed two deployment defects after `1927ec6`: SSDP replies were suppressed
+while `_sonos._tcp` mDNS remained available, fixed in `a3588f2`; and YouTube Music's WebM/Opus
+stream was rejected with Sonos UPnP 714. `bc1f1d1` lets outputs declare ordered formats and binds
+the selected M4A format through source resolution, stream tickets, retries, MIME metadata, and
+cache identity. The host firewall also blocked port 4489, so the media-only listener now uses the
+already-allowed `http://192.168.1.243:9000`; its `/rpc` route is 404 as required. A direct
+low-volume MP3 and M4A probe played on Living Room, WebM reproduced 714, and the user then
+confirmed library playback works. `b178dd2` added the missing output-session queue-clear action.
+
+Fixture/plugin conformance tests, 196 client tests, 64 Rust unit tests and all integration tests,
+contract drift, API/PWA verification, owned-source Biome, shellcheck, release build, exact-commit
+Nix package builds, and `nix flake check` pass. Local and tailnet health remain 200. Repository-wide
+Biome still sees only unrelated `prototypes/` work.
 
 Next: implement U19 Soulseek against fixtures; credentials and live-network validation remain
-pending. Later, run U18 on real Sonos hardware and finish M3's console/handoff feel-test.
+pending. Later, finish M3's console/handoff feel-test.
 
 Album removal is no longer deferred. D17 records your decision: server removal wins,
 queued local placement intent is discarded, and the client reports the conflict.

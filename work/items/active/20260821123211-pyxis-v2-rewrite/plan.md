@@ -846,12 +846,14 @@ a manual split cannot be undone by the automatic matcher.
 
 **Verification:** A real speaker plays a library track under console control.
 
-**Implementation status (2026-08-24):** Code-complete, reviewed, packaged, and deployed in
-`1927ec6`. Fixture and integration coverage proves discovery, authoritative topology, transport,
-group volume, grouping, candidate-bound LAN range streaming, core-hosted sessions, console
-control, background hardware reconciliation, rollback, account/target ownership, and restart
-recovery. M4 product acceptance remains open until the same flow is audible on real Sonos
-hardware.
+**Acceptance status (2026-08-24): M4 complete.** Fixture and integration coverage proves
+discovery, authoritative topology, transport, group volume, grouping, candidate- and
+format-bound LAN range streaming, core-hosted sessions, console control, background hardware
+reconciliation, rollback, account/target ownership, and restart recovery. Real-network testing
+added mDNS fallback for a LAN that suppresses SSDP, moved the media listener to firewall-allowed
+port 9000, and made YouTube Music resolve M4A instead of Sonos-incompatible WebM/Opus. A direct
+Living Room probe and the reference client both produced audible playback; the user confirmed it
+works. Output queues can be cleared from the reference client.
 
 ---
 
