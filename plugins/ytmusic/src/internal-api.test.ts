@@ -118,6 +118,92 @@ test("album browse parsing uses header fallback and only the deduplicated track 
   })
 })
 
+test("a four-digit album title is not mistaken for the release year", () => {
+  const response = {
+    contents: {
+      sectionListRenderer: {
+        contents: [
+          {
+            musicShelfRenderer: {
+              contents: [
+                {
+                  musicResponsiveListItemRenderer: {
+                    playlistItemData: { videoId: "one" },
+                    flexColumns: [
+                      {
+                        musicResponsiveListItemFlexColumnRenderer: {
+                          text: { runs: [{ text: "Toilet" }] },
+                        },
+                      },
+                    ],
+                  },
+                },
+              ],
+            },
+          },
+        ],
+      },
+    },
+    header: {
+      musicResponsiveHeaderRenderer: {
+        title: { runs: [{ text: "1234" }] },
+        straplineTextOne: {
+          runs: [
+            {
+              text: "Clown Core",
+              navigationEndpoint: { browseEndpoint: { browseId: "UC1234567890123456789012" } },
+            },
+          ],
+        },
+        subtitle: { runs: [{ text: "2021" }, { text: "1 song" }] },
+      },
+    },
+  }
+
+  const album = parseAlbum(response, "MPRE_album")
+  expect(album.title).toBe("1234")
+  expect(album.year).toBe(2021)
+})
+
+test("an implausible four-digit header value is not accepted as a year", () => {
+  const response = {
+    contents: {
+      musicShelfRenderer: {
+        contents: [
+          {
+            musicResponsiveListItemRenderer: {
+              playlistItemData: { videoId: "one" },
+              flexColumns: [
+                {
+                  musicResponsiveListItemFlexColumnRenderer: {
+                    text: { runs: [{ text: "Track One" }] },
+                  },
+                },
+              ],
+            },
+          },
+        ],
+      },
+    },
+    header: {
+      musicResponsiveHeaderRenderer: {
+        title: { runs: [{ text: "Catalogue" }] },
+        straplineTextOne: {
+          runs: [
+            {
+              text: "Some Artist",
+              navigationEndpoint: { browseEndpoint: { browseId: "UC1234567890123456789012" } },
+            },
+          ],
+        },
+        subtitle: { runs: [{ text: "0451" }, { text: "1 song" }] },
+      },
+    },
+  }
+
+  expect(parseAlbum(response, "MPRE_album").year).toBeUndefined()
+})
+
 test("album browse parsing refuses tracks without real header identity", () => {
   expect(() =>
     parseAlbum(

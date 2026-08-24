@@ -275,12 +275,20 @@ function firstArtist(header: Record<string, unknown>): string | undefined {
   return found
 }
 
+/// The release year is looked for everywhere in the header except the title, because an
+/// album whose title is four digits (Clown Core, "1234") would otherwise report its own
+/// title as its release year. The range check is a second guard for the same class of
+/// mistake elsewhere in the header.
 function firstYear(header: Record<string, unknown>): number | undefined {
+  const { title: _title, ...rest } = header
+  const latest = new Date().getUTCFullYear() + 1
   let found: number | undefined
-  walk(header, (record) => {
+  walk(rest, (record) => {
     if (found !== undefined || typeof record.text !== "string" || !/^\d{4}$/u.test(record.text))
       return
-    found = Number.parseInt(record.text, 10)
+    const year = Number.parseInt(record.text, 10)
+    if (year < 1900 || year > latest) return
+    found = year
   })
   return found
 }
