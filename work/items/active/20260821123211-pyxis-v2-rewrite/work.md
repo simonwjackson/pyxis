@@ -23,9 +23,8 @@ requirements and decisions were captured directly into `plan.md` sections
 
 ## Current position
 
-**M7, M5, and M4 are complete. M6/U19 Soulseek is implementation-complete and deployed;
-credentialed live-network acceptance remains open. M3 still awaits your hands-on validation
-from a second device.**
+**M7, M6, M5, and M4 are complete. U19 Soulseek is accepted with a verified live-network
+lossless upgrade. M3 still awaits your hands-on validation from a second device.**
 
 U26 documents the whole public API, with a worked example that `tools/verify-api-example`
 extracts from the document and runs, so a claim that stops matching the server fails there.
@@ -152,12 +151,23 @@ Verification passes with 71 TypeScript plugin/SDK tests, 196 client tests, 68 Ru
 all integration tests, including verified-lossless resolution, rejected/ambiguous/no-partial
 paths, provider invisibility, hostile-call cancellation, exact-commit Soulseek and aggregate Nix
 builds, and `nix flake check`. The deployed provider process is live while public status remains
-three visible plugins with only `source` and `output`; local and tailnet health are 200. With no
-Soulseek credentials configured, the scheduler is correctly idle. M6 product acceptance still
-requires credentials and a live peer download that becomes the preferred local candidate.
+three visible plugins with only `source` and `output`; local and tailnet health are 200.
 
-Next: obtain/configure Soulseek credentials and run M6 live-network acceptance. Later, finish
-M3's console/handoff feel-test.
+**M6 product acceptance completed on 2026-08-24.** Test credentials were stored through the public
+encrypted config operation and never appeared in responses or plaintext storage. The live network
+returned both ambiguous candidates, which entered patient monthly retry, and an automatic match
+for A Static Lullaby's “Withered”. Pyxis downloaded 32,853,203 bytes from a peer, verified a
+239.347-second stereo FLAC at 44.1 kHz and 1,098 kbps, registered it as a lossless local candidate,
+and marked the persistent job satisfied. An authenticated byte-range request returned `206`,
+`audio/flac`, the local candidate id, the exact `0-1023/32853203` range, and bytes identical to the
+stored file. Live acceptance exposed that durable imports inherited the staging `.partial` suffix;
+`2840076` now names them from the verified format, has a regression test, passed the full Rust
+suite/clippy, passed an exact-commit Nix build and flake check, and is deployed as
+`/nix/store/w2s7994jw1m12q33vna7c38g1s5fwf0v-pyxis-2.0.0`. The accepted file and record were
+repaired to `.flac`. The temporary credentials were removed afterward, so the scheduler is safely
+idle while the verified local upgrade remains available.
+
+Next: finish M3's console/handoff feel-test when two physical devices are available.
 
 Album removal is no longer deferred. D17 records your decision: server removal wins,
 queued local placement intent is discarded, and the client reports the conflict.

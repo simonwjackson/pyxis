@@ -899,7 +899,13 @@ client advertises zero shares and bounds hostile peer frames/results. Persistent
 AutoMerge-only selection, exact byte binding, core-owned staging, ffprobe verification, strict
 fidelity improvement, playback-safe formats, active-media retention, a 50 GiB budget, patient
 retry, weekly reacquisition checks, and cooperative shutdown are covered by automated tests.
-M6 product acceptance remains open pending credentials and one verified live-network upgrade.
+M6 product acceptance completed on 2026-08-24 with a live peer upgrade of A Static Lullaby's
+“Withered”: 32,853,203 bytes, verified stereo FLAC, 239.347 seconds, 44.1 kHz, 1,098 kbps,
+registered as the preferred lossless local candidate and served through an exact authenticated
+HTTP range. Acceptance also exposed a durable `.partial` suffix inherited from staging;
+`2840076` fixes future imports to use the probed format, and the accepted record was repaired to
+`.flac`. Test credentials were removed after validation, leaving the provider idle without
+removing the verified local candidate.
 
 ---
 
