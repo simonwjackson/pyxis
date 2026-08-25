@@ -16,7 +16,21 @@ function assetManifest(): Plugin {
       const built = Object.values(bundle)
         .map((entry) => `/${entry.fileName}`)
         .filter((file) => file !== "/service-worker.js" && file !== "/asset-manifest.json")
-      const assets = [...new Set(["/", "/manifest.webmanifest", "/icons/pyxis.svg", ...built])]
+      // Files served from public/ never enter the bundle, so anything the shell needs
+      // offline has to be named here or the service worker will not precache it.
+      const shell = [
+        "/",
+        "/manifest.webmanifest",
+        "/icons/pyxis.svg",
+        "/icons/pyxis-maskable.svg",
+        "/icons/icon-192.png",
+        "/icons/icon-512.png",
+        "/icons/icon-maskable-192.png",
+        "/icons/icon-maskable-512.png",
+        "/icons/apple-touch-icon.png",
+        "/icons/favicon-32.png",
+      ]
+      const assets = [...new Set([...shell, ...built])]
       const worker = bundle["service-worker.js"]
       if (worker === undefined || worker.type !== "chunk") {
         throw new Error("service-worker.js was not emitted")

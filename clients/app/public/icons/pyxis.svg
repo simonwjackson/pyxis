@@ -1,7 +1,17 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-  <title>Pyxis</title>
-  <rect width="512" height="512" rx="96" fill="#111"/>
-  <circle cx="256" cy="256" r="154" fill="none" stroke="#fff" stroke-width="28"/>
-  <circle cx="256" cy="256" r="42" fill="#fff"/>
-  <path d="M256 102v112M410 256H298M256 410V298M102 256h112" stroke="#fff" stroke-width="24" stroke-linecap="round"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="t">
+  <title id="t">Pyxis</title>
+  <!--
+    A stack of covers, the front one sounding.
+
+    The album is the unit this product is built on, so the mark is albums. The dot is the
+    same heat the interface uses for "this is playing" and nothing else. Solid fills rather
+    than the interface's hairlines: a 16px stroke at this size is under two pixels on a home
+    screen, and an icon has to survive being small.
+
+    This is the unmasked variant, so it carries its own rounded corners.
+  -->
+  <rect width="512" height="512" rx="112" fill="#131210"/>
+  <rect x="104" y="104" width="252" height="252" fill="#686662"/>
+  <rect x="156" y="156" width="252" height="252" fill="#f2efe8"/>
+  <circle cx="218" cy="218" r="40" fill="#f0603a"/>
 </svg>
