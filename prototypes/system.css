@@ -559,6 +559,83 @@ body.has-nowbar main {
   background: var(--scrim);
 }
 
+/* A horizontal run of covers.
+
+   overflow-y must be stated. Left as `visible` it computes to `auto`, which makes the rail a
+   vertical scroll container and lets Android capture vertical drags, stretching the row
+   instead of scrolling the page. This is the reason the rule is shared: the fix is invisible,
+   and anyone rebuilding a rail locally will omit it. */
+.rail {
+  display: grid;
+  grid-auto-columns: 168px;
+  grid-auto-flow: column;
+  gap: 14px;
+  padding-bottom: 8px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x proximity;
+  scrollbar-width: none;
+}
+
+.rail::-webkit-scrollbar {
+  display: none;
+}
+
+/* The wall. `auto-fill` rather than `auto-fit` so the resolved column list survives an empty
+   grid, which is what lets mountWindow read its geometry back from here. */
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(124px, 1fr));
+  gap: 14px;
+  padding-top: 26px;
+}
+
+/* Chip: a bordered, selectable option. One decision, previously three drifted copies. */
+.chip-set {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
+.chip {
+  padding: 9px 12px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--soft);
+  text-decoration: none;
+  border: 1px solid var(--rule);
+}
+
+.chip:hover,
+.chip:focus-visible {
+  color: var(--ink);
+  border-color: var(--ink);
+}
+
+.chip[aria-pressed="true"] {
+  color: var(--ground);
+  background: var(--ink);
+  border-color: var(--ink);
+}
+
+/* A count riding along inside a chip. */
+.chip i {
+  font-style: normal;
+  font-weight: 500;
+  opacity: 0.6;
+}
+
+/* Smaller, and carries its own dismissal: an active filter rather than an offered one. */
+.chip.removable {
+  display: flex;
+  gap: 7px;
+  align-items: center;
+  padding: 5px 10px;
+  font-size: 12px;
+}
+
 /* Modal surfaces. One decision, three uses: rooms, filters, album detail.
    Docks to the bottom edge on narrow screens, where a centred box is a reach.
    This must stay shared: the rooms sheet opens from the bar on every surface. */

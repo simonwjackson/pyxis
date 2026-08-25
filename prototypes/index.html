@@ -81,22 +81,9 @@
         text-transform: uppercase;
         color: var(--soft);
       }
-      .chips-row {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 8px;
-        padding: 16px 0 0;
-      }
-      .chips-row a {
-        padding: 9px 13px;
-        font-size: 13px;
-        font-weight: 600;
-        color: inherit;
-        text-decoration: none;
-        border: 1px solid var(--rule);
-      }
-      .chips-row a:hover {
-        border-color: var(--ink);
+      /* .chip and .chip-set are system components; see system.css. */
+      .chip-set {
+        padding-top: 16px;
       }
       .note {
         margin: 34px 0 0;
@@ -172,21 +159,21 @@
         Every state the data layer can reach has a designed appearance. Each link opens Stacks
         in that state; append the same <code>?state=</code> to any surface.
       </p>
-      <div class="chips-row">
-        <a href="./b-shelves.html?state=live">Live</a>
-        <a href="./b-shelves.html?state=loading">Loading</a>
-        <a href="./b-shelves.html?state=offline">Offline</a>
-        <a href="./b-shelves.html?state=silent">Nothing playing</a>
-        <a href="./b-shelves.html?state=multiroom">Two rooms playing</a>
-        <a href="./c-console.html?state=unreachable">Room unreachable</a>
-        <a href="./b-shelves.html?state=empty">Empty library</a>
-        <a href="./b-shelves.html?state=nosources">No sources</a>
+      <div class="chip-set">
+        <a class="chip" href="./b-shelves.html?state=live">Live</a>
+        <a class="chip" href="./b-shelves.html?state=loading">Loading</a>
+        <a class="chip" href="./b-shelves.html?state=offline">Offline</a>
+        <a class="chip" href="./b-shelves.html?state=silent">Nothing playing</a>
+        <a class="chip" href="./b-shelves.html?state=multiroom">Two rooms playing</a>
+        <a class="chip" href="./c-console.html?state=unreachable">Room unreachable</a>
+        <a class="chip" href="./b-shelves.html?state=empty">Empty library</a>
+        <a class="chip" href="./b-shelves.html?state=nosources">No sources</a>
       </div>
 
       <h2 class="section">Themes</h2>
-      <div class="chips-row">
-        <a href="./b-shelves.html?theme=light">Light</a>
-        <a href="./b-shelves.html?theme=dark">Dark</a>
+      <div class="chip-set">
+        <a class="chip" href="./b-shelves.html?theme=light">Light</a>
+        <a class="chip" href="./b-shelves.html?theme=dark">Dark</a>
       </div>
 
       <p class="note">

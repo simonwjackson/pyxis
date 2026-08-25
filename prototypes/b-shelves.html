@@ -75,24 +75,6 @@
         font-weight: 700;
         color: var(--ink);
       }
-      .rail {
-        display: grid;
-        grid-auto-columns: 168px;
-        grid-auto-flow: column;
-        gap: 14px;
-        padding-bottom: 8px;
-        /* overflow-y must be stated. Left as `visible` it computes to `auto`, which makes
-           the rail a vertical scroll container and lets Android capture vertical drags,
-           stretching the row instead of scrolling the page. */
-        overflow-x: auto;
-        overflow-y: hidden;
-        overscroll-behavior-x: contain;
-        scroll-snap-type: x proximity;
-        scrollbar-width: none;
-      }
-      .rail::-webkit-scrollbar {
-        display: none;
-      }
       .item {
         display: block;
         padding: 0;
@@ -110,9 +92,6 @@
       .item.in {
         opacity: 1;
         transform: none;
-      }
-      .frame {
-        position: relative;
       }
       .sleeve {
         transition: transform 0.5s cubic-bezier(0.2, 0.8, 0.3, 1);
@@ -181,23 +160,6 @@
       .tools .more b {
         font-weight: 700;
       }
-      .chips {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 6px;
-        align-items: center;
-        padding: 2px 0 0;
-      }
-      .chips button {
-        display: flex;
-        gap: 7px;
-        align-items: center;
-        padding: 5px 10px;
-        font-size: 12px;
-        font-weight: 600;
-        color: var(--soft);
-        border: 1px solid var(--rule);
-      }
       .chips button:hover {
         color: var(--ink);
         border-color: var(--ink);
@@ -229,35 +191,7 @@
         display: block;
         padding-bottom: 9px;
       }
-      .opts {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 6px;
-      }
-      .opts button {
-        padding: 9px 12px;
-        font-size: 13px;
-        font-weight: 600;
-        color: var(--soft);
-        border: 1px solid var(--rule);
-      }
-      .opts button[aria-pressed="true"] {
-        color: var(--ground);
-        background: var(--ink);
-        border-color: var(--ink);
-      }
-      .opts button i {
-        font-style: normal;
-        font-weight: 500;
-        opacity: 0.6;
-      }
       /* No captions: the wall is covers only, so it can sit tight. */
-      .grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(124px, 1fr));
-        gap: 14px;
-        padding-top: 26px;
-      }
       .detail {
         padding: 26px;
       }
@@ -425,6 +359,7 @@
         wantedOffline,
       } from "./common.js"
       import { productNav } from "./nav.js"
+      import { mountWindow } from "./parts.js"
       import { currentSession, mountNowPlaying } from "./nowplaying.js"
       import { currentState } from "./states.js"
 
@@ -620,7 +555,7 @@
               <select class="sort" aria-label="Sort"></select>
               <button class="more">Filters</button>
             </div>
-            <div class="chips"></div>
+            <div class="chip-set chips"></div>
             <p class="count"></p>
             <div class="grid"></div>
           </section>
@@ -657,11 +592,11 @@
         sheet.querySelector("button").onclick = () => sheet.close()
 
         const group = (title, options, isOn, toggle) => {
-          const node = element(`<div class="group"><span class="label">${title}</span><div class="opts"></div></div>`)
+          const node = element(`<div class="group"><span class="label">${title}</span><div class="chip-set opts"></div></div>`)
           const holder = node.querySelector(".opts")
           for (const option of options) {
             const button = element(`
-              <button aria-pressed="${isOn(option.value)}">${option.label}${
+              <button class="chip" aria-pressed="${isOn(option.value)}">${option.label}${
                 option.count === undefined ? "" : ` <i>${option.count}</i>`
               }</button>
             `)
@@ -731,7 +666,7 @@
         const chips = section.querySelector(".chips")
         chips.innerHTML = ""
         const chip = (label, clear) => {
-          const button = element(`<button>${label} <i>\u00d7</i></button>`)
+          const button = element(`<button class="chip removable">${label} <i>\u00d7</i></button>`)
           button.onclick = () => {
             clear()
             renderResults()
@@ -769,7 +704,7 @@
 
         const grid = section.querySelector(".grid")
         grid.innerHTML = ""
-        if (rows.length > 0) return mountWindow(grid, rows)
+        if (rows.length > 0) return mountWindow(grid, rows, item)
         if (rows.length === 0) {
           grid.append(
             element(
@@ -780,58 +715,6 @@
           )
           return
         }
-      }
-
-      // Only the rows near the viewport exist in the DOM. Spacers above and below hold the
-      // scroll height, so 5,000 covers cost the same as 50.
-      function mountWindow(grid, rows) {
-        const GAP = 14
-        const MIN = 124
-        let frame = 0
-
-        const paint = () => {
-          const width = grid.clientWidth
-          if (width === 0) return
-          const columns = Math.max(1, Math.floor((width + GAP) / (MIN + GAP)))
-          const cell = (width - GAP * (columns - 1)) / columns
-          const rowHeight = cell + GAP
-          const totalRows = Math.ceil(rows.length / columns)
-          const top = grid.getBoundingClientRect().top
-          const firstVisible = Math.max(0, Math.floor((-top - innerHeight) / rowHeight))
-          const lastVisible = Math.min(
-            totalRows,
-            Math.ceil((-top + innerHeight * 2) / rowHeight),
-          )
-
-          grid.innerHTML = ""
-          if (firstVisible > 0) {
-            grid.append(
-              element(
-                `<div style="grid-column:1/-1;height:${firstVisible * rowHeight - GAP}px"></div>`,
-              ),
-            )
-          }
-          const slice = rows.slice(firstVisible * columns, lastVisible * columns)
-          for (const album of slice) grid.append(item(album))
-          const below = totalRows - lastVisible
-          if (below > 0) {
-            grid.append(
-              element(`<div style="grid-column:1/-1;height:${below * rowHeight - GAP}px"></div>`),
-            )
-          }
-          reveal(grid.querySelectorAll(".item"))
-        }
-
-        const schedule = () => {
-          cancelAnimationFrame(frame)
-          frame = requestAnimationFrame(paint)
-        }
-        grid.windowPaint?.()
-        removeEventListener("scroll", grid.scrollHandler ?? (() => {}))
-        grid.scrollHandler = schedule
-        addEventListener("scroll", schedule, { passive: true })
-        addEventListener("resize", schedule, { passive: true })
-        paint()
       }
 
       function blankState() {
