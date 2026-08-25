@@ -1,0 +1,209 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Pyxis — mark</title>
+    <script>
+      const requested = new URLSearchParams(location.search).get("theme")
+      const stored = requested || localStorage.getItem("pyxis-theme")
+      if (stored === "dark" || stored === "light") document.documentElement.dataset.theme = stored
+    </script>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="./system.css" />
+    <link rel="stylesheet" href="./reference.css" />
+    <style>
+      .candidate {
+        padding: 30px 0;
+        border-bottom: 1px solid var(--rule);
+      }
+      .sizes {
+        display: flex;
+        gap: 22px;
+        align-items: flex-end;
+        padding: 18px 0 0;
+      }
+      .sizes figure {
+        margin: 0;
+      }
+      .sizes figcaption {
+        padding-top: 7px;
+        font-size: 10px;
+        font-weight: 700;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: var(--soft);
+      }
+      /* Two grounds, because an icon sits on a home screen we do not control. */
+      .grounds {
+        display: flex;
+        gap: 14px;
+        padding: 16px 0 0;
+      }
+      .grounds div {
+        display: grid;
+        place-items: center;
+        width: 104px;
+        height: 104px;
+      }
+      .on-light {
+        background: #eceae6;
+      }
+      .on-dark {
+        background: #131210;
+      }
+      .on-busy {
+        background: repeating-linear-gradient(
+          45deg,
+          #6b7a8f 0 12px,
+          #46586d 12px 24px
+        );
+      }
+      /* The circular crop Android applies to a maskable icon. Anything outside it is gone. */
+      .masked {
+        border-radius: 50%;
+        overflow: hidden;
+      }
+      .reads {
+        max-width: 54ch;
+        margin: 14px 0 0;
+        font-size: 13.5px;
+        font-weight: 500;
+        line-height: 1.55;
+        color: var(--soft);
+      }
+      .reads b {
+        color: var(--ink);
+      }
+    </style>
+  </head>
+  <body>
+    <main class="doc">
+      <h1>Mark</h1>
+      <p class="lede">
+        Four candidates, drawn in the product's own vocabulary: a square is a cover, the heat
+        dot means sound. Shown at the sizes a launcher actually uses, on the grounds we do not
+        control, and inside the circle Android crops to.
+      </p>
+      <p class="lede">
+        The first draft used the interface's own hairlines, which is wrong: a 16px stroke at
+        512 is under two pixels on a home screen and gone in a favicon. An icon is not a small
+        drawing, it is a shape that has to survive being one. These are weighted for 48px and
+        judged there.
+      </p>
+
+      <h2 class="section">A · The sounding cover</h2>
+      <div class="candidate" id="a"></div>
+
+      <h2 class="section">B · The stack</h2>
+      <div class="candidate" id="b"></div>
+
+      <h2 class="section">C · The compass box</h2>
+      <div class="candidate" id="c"></div>
+
+      <h2 class="section">D · The wordmark</h2>
+      <div class="candidate" id="d"></div>
+    </main>
+    <footer class="ref"><a href="./index.html">Pyxis reference</a></footer>
+
+    <script type="module">
+      import { element } from "./common.js"
+
+      const INK = "#f4f1ea"
+      const GROUND = "#131210"
+      const HEAT = "#f0603a"
+
+      // Every mark is drawn full-bleed with its content inside the central 80%, which is the
+      // maskable safe zone. A launcher may crop to a circle, a squircle, or nothing at all,
+      // and the mark has to survive all three.
+      const MARKS = {
+        a: {
+          name: "The sounding cover",
+          note: `A cover, and the heat dot that means this is playing — the same mark the wall
+                 already puts on a sounding album. The icon is a component the product owns
+                 rather than a picture of music.`,
+          verdict: `<b>Strongest idea, weakest silhouette.</b> A square inside a square is
+                    quiet at 32px, and the dot does all the work.`,
+          svg: `
+            <rect width="512" height="512" fill="${GROUND}"/>
+            <rect x="112" y="112" width="288" height="288" fill="none" stroke="${INK}" stroke-width="38"/>
+            <circle cx="186" cy="186" r="38" fill="${HEAT}"/>
+          `,
+        },
+        b: {
+          name: "The stack",
+          note: `Three covers, offset. Stacks is the home surface and the product's whole
+                 claim: the album is the unit. The front one is sounding.`,
+          verdict: `<b>Best silhouette.</b> Reads as a stack of covers at every size, and is
+                    not a vinyl record — which is the object this product never shows.`,
+          svg: `
+            <rect width="512" height="512" fill="${GROUND}"/>
+            <rect x="110" y="110" width="236" height="236" fill="${INK}" opacity="0.38"/>
+            <rect x="166" y="166" width="236" height="236" fill="${INK}"/>
+            <circle cx="226" cy="226" r="38" fill="${HEAT}"/>
+          `,
+        },
+        c: {
+          name: "The compass box",
+          note: `Pyxis is a constellation — Pyxis Nautica, the mariner's compass — and the
+                 Latin for a small box. A box with a needle says both, and squares the round
+                 dial the current icon borrowed from a record.`,
+          verdict: `<b>Honours the name.</b> Sharpest at small sizes. Risks reading as a
+                    navigation app rather than a music one.`,
+          svg: `
+            <rect width="512" height="512" fill="${GROUND}"/>
+            <rect x="112" y="112" width="288" height="288" fill="none" stroke="${INK}" stroke-width="34"/>
+            <path d="M256 148 L322 322 L256 280 L190 322 Z" fill="${HEAT}"/>
+          `,
+        },
+        d: {
+          name: "The wordmark",
+          note: `Archivo 700, tight, with the counter of the P as the only aperture. What the
+                 product would use if it refused to have a symbol at all.`,
+          verdict: `<b>Honest, forgettable.</b> Type is chrome everywhere else in this
+                    product; making it the icon argues against the rest of the design.`,
+          svg: `
+            <rect width="512" height="512" fill="${GROUND}"/>
+            <text x="246" y="268" fill="${INK}" font-family="Archivo, sans-serif"
+                  font-size="340" font-weight="700" letter-spacing="-12"
+                  text-anchor="middle" dominant-baseline="central">P</text>
+            <circle cx="384" cy="146" r="34" fill="${HEAT}"/>
+          `,
+        },
+      }
+
+      const icon = (svg, size) =>
+        `<svg width="${size}" height="${size}" viewBox="0 0 512 512" role="img">${svg}</svg>`
+
+      for (const [id, mark] of Object.entries(MARKS)) {
+        const host = document.getElementById(id)
+        host.append(
+          element(`
+            <div>
+              <p class="reads">${mark.note}</p>
+              <div class="sizes">
+                <figure>${icon(mark.svg, 128)}<figcaption>512</figcaption></figure>
+                <figure>${icon(mark.svg, 64)}<figcaption>192</figcaption></figure>
+                <figure>${icon(mark.svg, 44)}<figcaption>96</figcaption></figure>
+                <figure>${icon(mark.svg, 32)}<figcaption>48</figcaption></figure>
+                <figure>${icon(mark.svg, 20)}<figcaption>Favicon</figcaption></figure>
+              </div>
+              <div class="grounds">
+                <div class="on-light">${icon(mark.svg, 72)}</div>
+                <div class="on-dark">${icon(mark.svg, 72)}</div>
+                <div class="on-busy">${icon(mark.svg, 72)}</div>
+                <div class="on-busy"><span class="masked">${icon(mark.svg, 72)}</span></div>
+              </div>
+              <p class="reads">${mark.verdict}</p>
+            </div>
+          `),
+        )
+      }
+    </script>
+  </body>
+</html>
