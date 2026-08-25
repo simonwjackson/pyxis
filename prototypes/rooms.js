@@ -63,7 +63,7 @@ export function roomsPanel(rooms, { onChange, moving = null } = {}) {
         : "Nothing playing"
 
     const row = element(`
-      <div class="room ${room.reachable ? "" : "gone"}">
+      <div class="row room ${room.reachable ? "" : "gone"}">
         ${art}
         <span class="t">
           <b><span class="dot ${room.playing && room.reachable ? "live" : ""}"></span>${escape(room.name)}</b>
@@ -73,13 +73,13 @@ export function roomsPanel(rooms, { onChange, moving = null } = {}) {
     `)
 
     if (moving === room.id) {
-      row.append(element(`<span class="pending">Moving…</span>`))
+      row.append(element(`<span class="act inline pending">Moving…</span>`))
     } else if (!room.reachable) {
-      const retry = element(`<button class="act">Retry</button>`)
+      const retry = element(`<button class="act inline">Retry</button>`)
       retry.onclick = () => onChange?.({ type: "retry", room })
       row.append(retry)
     } else if (!room.album && active) {
-      const move = element(`<button class="act">Move here</button>`)
+      const move = element(`<button class="act inline">Move here</button>`)
       move.onclick = () => onChange?.({ type: "move", room })
       row.append(move)
     }

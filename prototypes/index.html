@@ -16,91 +16,10 @@
       rel="stylesheet"
     />
     <link rel="stylesheet" href="./system.css" />
-    <style>
-      main {
-        max-width: 820px;
-        margin: 0 auto;
-        padding: 44px 24px 80px;
-      }
-      h1 {
-        margin: 0;
-        font-size: clamp(30px, 6vw, 44px);
-        font-weight: 700;
-        line-height: 1;
-        letter-spacing: -0.035em;
-      }
-      .lede {
-        max-width: 54ch;
-        margin: 16px 0 0;
-        font-size: 15px;
-        font-weight: 500;
-        line-height: 1.55;
-        color: var(--soft);
-      }
-      h2.section {
-        margin: 46px 0 0;
-        padding-bottom: 10px;
-        font-size: 12px;
-        font-weight: 700;
-        letter-spacing: 0.14em;
-        text-transform: uppercase;
-        border-bottom: 1px solid var(--ink);
-      }
-      .rows a {
-        display: grid;
-        grid-template-columns: 1fr auto;
-        gap: 6px 18px;
-        padding: 16px 0;
-        color: inherit;
-        text-decoration: none;
-        border-bottom: 1px solid var(--rule);
-      }
-      .rows a:hover b,
-      .rows a:focus-visible b {
-        color: var(--heat);
-      }
-      .rows b {
-        font-size: 17px;
-        font-weight: 700;
-        letter-spacing: -0.015em;
-      }
-      .rows span {
-        grid-column: 1;
-        font-size: 13.5px;
-        font-weight: 500;
-        line-height: 1.45;
-        color: var(--soft);
-      }
-      .rows i {
-        grid-row: 1;
-        grid-column: 2;
-        font-size: 11px;
-        font-style: normal;
-        font-weight: 700;
-        letter-spacing: 0.12em;
-        text-transform: uppercase;
-        color: var(--soft);
-      }
-      /* .chip and .chip-set are system components; see system.css. */
-      .chip-set {
-        padding-top: 16px;
-      }
-      .note {
-        margin: 34px 0 0;
-        padding-top: 16px;
-        font-size: 13px;
-        font-weight: 500;
-        line-height: 1.6;
-        color: var(--soft);
-        border-top: 1px solid var(--rule);
-      }
-      .note b {
-        color: var(--ink);
-      }
-    </style>
+    <link rel="stylesheet" href="./reference.css" />
   </head>
   <body>
-    <main>
+    <main class="doc">
       <h1>Pyxis design reference</h1>
       <p class="lede">
         Working pages, not mockups. Real library data — 370 albums, 3,865 tracks and every
@@ -111,42 +30,42 @@
       <h2 class="section">Surfaces</h2>
       <div class="rows">
         <a href="./b-shelves.html"
-          ><b>Stacks</b><i>Home</i>
+          ><b>Stacks</b><i class="tag">Home</i>
           <span
             >The collection as a wall of covers. Shelves for what is in rotation, untouched and
             never played, then search, sort, filters and the full grid.</span
           ></a
         >
         <a href="./a-inbox.html"
-          ><b>Discovery</b><i>Inbox</i>
+          ><b>Discovery</b><i class="tag">Inbox</i>
           <span
             >One album at a time. Keep, later or no. The captured track appears only as the
             reason the album is here.</span
           ></a
         >
         <a href="./d-search.html"
-          ><b>Search</b><i>Acquire</i>
+          ><b>Search</b><i class="tag">Acquire</i>
           <span
             >Reaches installed sources. Anything added lands in Discovery. The one surface that
             cannot work offline.</span
           ></a
         >
         <a href="./e-history.html"
-          ><b>History</b><i>Journal</i>
+          ><b>History</b><i class="tag">Journal</i>
           <span
             >Every play, grouped by day, with the room it happened in. One line of insight, no
             charts.</span
           ></a
         >
         <a href="./c-console.html"
-          ><b>Rooms</b><i>Sheet</i>
+          ><b>Rooms</b><i class="tag">Sheet</i>
           <span
             >Where the sound is and how to move it. Opens from the room control in the
             now-playing bar, not from navigation.</span
           ></a
         >
         <a href="./system.html"
-          ><b>System</b><i>Tokens</i>
+          ><b>System</b><i class="tag">Tokens</i>
           <span
             >Colour, type, and the components the surfaces are built from, in both
             themes.</span
@@ -155,7 +74,7 @@
       </div>
 
       <h2 class="section">States</h2>
-      <p class="lede" style="margin-top: 14px">
+      <p class="lede">
         Every state the data layer can reach has a designed appearance. Each link opens Stacks
         in that state; append the same <code>?state=</code> to any surface.
       </p>
@@ -183,7 +102,7 @@
         rarely. Offline availability is set by placement with a per-album override, and having
         an album is shown separately from wanting it.
       </p>
-      <p class="note" style="border: 0; margin-top: 8px; padding-top: 0">
+      <p class="note plain">
         <b>Not answered here.</b> Device pairing, the account switcher once a second account
         exists, and a failed write. Nothing above is styled for a brand.
       </p>

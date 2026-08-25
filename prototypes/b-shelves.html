@@ -93,7 +93,7 @@
         opacity: 1;
         transform: none;
       }
-      .sleeve {
+      .item .sleeve {
         transition: transform 0.5s cubic-bezier(0.2, 0.8, 0.3, 1);
       }
       .item:hover .sleeve,
@@ -200,13 +200,6 @@
         grid-template-columns: 168px 1fr;
         gap: 22px;
       }
-      .detail h3 {
-        margin: 0;
-        font-size: clamp(24px, 4vw, 34px);
-        font-weight: 700;
-        line-height: 1.02;
-        letter-spacing: -0.03em;
-      }
       .detail .who {
         margin-top: 8px;
         font-size: 14px;
@@ -220,13 +213,6 @@
         margin: 20px 0 0;
         padding-top: 16px;
         border-top: 1px solid var(--rule);
-      }
-      dl.signals dt {
-        font-size: 10px;
-        font-weight: 700;
-        letter-spacing: 0.12em;
-        text-transform: uppercase;
-        color: var(--soft);
       }
       dl.signals dd {
         margin: 3px 0 0;
@@ -254,14 +240,6 @@
         color: var(--ground);
         background: var(--ink);
         border-color: var(--ink);
-      }
-      .device {
-        display: flex;
-        gap: 12px;
-        align-items: center;
-        margin-top: 18px;
-        padding-top: 14px;
-        border-top: 1px solid var(--rule);
       }
       .device-state {
         min-width: 0;
@@ -484,20 +462,20 @@
             <div class="top">
               <span class="frame">${sleeve(album)}</span>
               <div>
-                <h3>${escape(album.title)}</h3>
+                <h3 class="album-title big">${escape(album.title)}</h3>
                 <div class="who">${escape(album.artist)} · ${album.year ?? "—"}</div>
                 <dl class="signals">
-                  <div><dt>Plays</dt><dd>${album.playCount}</dd></div>
-                  <div><dt>Last heard</dt><dd>${ago(album.lastPlayedAt)}</dd></div>
-                  <div><dt>Runtime</dt><dd>${runtime(album)}</dd></div>
-                  <div><dt>Depth</dt><dd>${album.completeness < 0.5 ? "singles only" : "heard in full"}</dd></div>
+                  <div><dt class="label">Plays</dt><dd>${album.playCount}</dd></div>
+                  <div><dt class="label">Last heard</dt><dd>${ago(album.lastPlayedAt)}</dd></div>
+                  <div><dt class="label">Runtime</dt><dd>${runtime(album)}</dd></div>
+                  <div><dt class="label">Depth</dt><dd>${album.completeness < 0.5 ? "singles only" : "heard in full"}</dd></div>
                 </dl>
                 <div class="play">
                   <button>Play album</button>
                   <button class="quiet">Shuffle</button>
                 </div>
                 <div class="move"></div>
-                <div class="device"></div>
+                <div class="aside device"></div>
               </div>
             </div>
           </div>

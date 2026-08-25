@@ -22,12 +22,6 @@
         margin: 0 auto;
         padding: 0 20px 32px;
       }
-      header.head {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        padding: 14px 0 12px;
-      }
       .tally {
         font-size: 13px;
         font-weight: 600;
@@ -57,13 +51,13 @@
         width: calc(100% + 40px);
         margin-inline: -20px;
       }
-      .album-title {
+      .card .album-title {
         margin-top: 18px;
         font-size: 20px;
         font-weight: 700;
         letter-spacing: -0.01em;
       }
-      .album-artist {
+      .card .album-artist {
         margin-top: 4px;
         font-size: 15px;
       }
@@ -168,7 +162,7 @@
 
         root.append(
           element(`
-            <header class="head">
+            <header class="split head">
               <span class="label">Discovery</span>
               <span class="tally">${index + 1} of ${total}</span>
             </header>

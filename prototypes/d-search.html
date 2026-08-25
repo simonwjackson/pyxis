@@ -49,47 +49,9 @@
       .results {
         margin-top: 8px;
       }
-      .result {
-        display: flex;
-        gap: 14px;
-        align-items: center;
-        padding: 12px 0;
-        border-bottom: 1px solid var(--rule);
-      }
       .result .frame {
         width: 56px;
         flex: none;
-      }
-      .result .t {
-        min-width: 0;
-        flex: 1;
-      }
-      .result .t b {
-        display: block;
-        font-size: 15px;
-        font-weight: 700;
-        letter-spacing: -0.01em;
-      }
-      .result .t span {
-        display: block;
-        margin-top: 3px;
-        font-size: 13px;
-        font-weight: 500;
-        color: var(--soft);
-      }
-      .result .act {
-        flex: none;
-        padding: 10px 14px;
-        font-size: 13px;
-        font-weight: 600;
-        letter-spacing: 0;
-        text-transform: none;
-      }
-      .result .have {
-        flex: none;
-        font-size: 12px;
-        font-weight: 600;
-        color: var(--soft);
       }
       .hint {
         padding: 60px 0;
@@ -211,7 +173,7 @@
         for (const album of matches) {
           const owned = held.has(album.id) && !added.has(album.id)
           const row = element(`
-            <div class="result">
+            <div class="row result">
               <span class="frame">${sleeve(album)}</span>
               <span class="t">
                 <b class="truncate-1">${escape(album.title)}</b>
@@ -219,10 +181,10 @@
               </span>
               ${
                 owned
-                  ? `<span class="have">In library</span>`
+                  ? `<span class="end meta">In library</span>`
                   : added.has(album.id)
-                    ? `<span class="have">Added</span>`
-                    : `<button class="act">Add</button>`
+                    ? `<span class="end meta">Added</span>`
+                    : `<button class="act inline">Add</button>`
               }
             </div>
           `)

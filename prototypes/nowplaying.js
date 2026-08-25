@@ -46,7 +46,7 @@ export function mountNowPlaying(library, { state = "live" } = {}) {
             resume ? `Last played ${escape(resume.title)}` : "Add an album to get started"
           }</span>
         </span>
-        ${resume ? `<button class="act">Resume</button>` : ""}
+        ${resume ? `<button class="act inline">Resume</button>` : ""}
       </div>
     `)
     bar.querySelector("button")?.addEventListener("click", () => {
@@ -84,7 +84,7 @@ export function mountNowPlaying(library, { state = "live" } = {}) {
 
     const sheet = element(`
       <dialog class="player">
-        <div class="player-head">
+        <div class="split player-head">
           <button class="player-close" aria-label="Close player">Close</button>
           <button class="player-room"><i></i>${roomLabel}</button>
         </div>
@@ -101,7 +101,7 @@ export function mountNowPlaying(library, { state = "live" } = {}) {
           <button class="act" aria-label="Next track">▶▶</button>
           <input type="range" value="62" aria-label="Volume" />
         </div>
-        <div class="player-next">
+        <div class="aside player-next">
           <span class="frame">${sleeve(next)}</span>
           <span class="t">
             <span class="label">Next</span>

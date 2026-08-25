@@ -16,128 +16,10 @@
       rel="stylesheet"
     />
     <link rel="stylesheet" href="./system.css" />
-    <style>
-      main {
-        max-width: 820px;
-        margin: 0 auto;
-        padding: 40px 24px 40px;
-      }
-      h1 {
-        margin: 0;
-        font-size: clamp(28px, 6vw, 40px);
-        font-weight: 700;
-        letter-spacing: -0.035em;
-      }
-      .lede {
-        max-width: 56ch;
-        margin: 14px 0 0;
-        font-size: 15px;
-        font-weight: 500;
-        line-height: 1.55;
-        color: var(--soft);
-      }
-      h2.section {
-        margin: 44px 0 0;
-        padding-bottom: 10px;
-        font-size: 12px;
-        font-weight: 700;
-        letter-spacing: 0.14em;
-        text-transform: uppercase;
-        border-bottom: 1px solid var(--ink);
-      }
-      .swatches {
-        display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-        gap: 14px;
-        padding-top: 18px;
-      }
-      .swatch .chip-box {
-        height: 62px;
-        border: 1px solid var(--rule);
-      }
-      .swatch b {
-        display: block;
-        margin-top: 8px;
-        font-size: 13px;
-        font-weight: 700;
-      }
-      .swatch span {
-        display: block;
-        font-size: 12px;
-        font-weight: 500;
-        line-height: 1.4;
-        color: var(--soft);
-      }
-      .type-row {
-        display: grid;
-        grid-template-columns: 130px 1fr;
-        gap: 18px;
-        padding: 14px 0;
-        border-bottom: 1px solid var(--rule);
-      }
-      .type-row i {
-        font-size: 11px;
-        font-style: normal;
-        font-weight: 700;
-        letter-spacing: 0.12em;
-        text-transform: uppercase;
-        color: var(--soft);
-      }
-      .parts {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 10px;
-        align-items: center;
-        padding: 20px 0;
-        border-bottom: 1px solid var(--rule);
-      }
-      .parts .caption {
-        width: 100%;
-        font-size: 12.5px;
-        font-weight: 500;
-        color: var(--soft);
-      }
-      .marks {
-        display: flex;
-        gap: 18px;
-        padding: 20px 0;
-        border-bottom: 1px solid var(--rule);
-      }
-      .mark {
-        width: 108px;
-      }
-      .mark .frame {
-        width: 108px;
-        height: 108px;
-        background: var(--frame);
-      }
-      .mark b {
-        display: block;
-        margin-top: 8px;
-        font-size: 13px;
-        font-weight: 700;
-      }
-      .mark span {
-        display: block;
-        font-size: 12px;
-        font-weight: 500;
-        line-height: 1.4;
-        color: var(--soft);
-      }
-      .rule-note {
-        margin: 18px 0 0;
-        font-size: 13.5px;
-        font-weight: 500;
-        line-height: 1.6;
-        color: var(--soft);
-      }
-      .rule-note b {
-        color: var(--ink);
-      }
-    </style>
+    <link rel="stylesheet" href="./reference.css" />
   </head>
   <body>
-    <main>
+    <main class="doc">
       <h1>System</h1>
       <p class="lede">
         One typeface, hairlines instead of cards, and covers as the only source of colour. Heat
@@ -146,32 +28,32 @@
 
       <h2 class="section">Colour</h2>
       <div class="swatches">
-        <div class="swatch">
+        <div class="swatch spec">
           <div class="chip-box" style="background: var(--ground)"></div>
           <b>--ground</b><span>Page. Warm near-black in dark, near-white in light.</span>
         </div>
-        <div class="swatch">
+        <div class="swatch spec">
           <div class="chip-box" style="background: var(--raised)"></div>
           <b>--raised</b><span>Inputs and the now-playing bar.</span>
         </div>
-        <div class="swatch">
+        <div class="swatch spec">
           <div class="chip-box" style="background: var(--ink)"></div>
           <b>--ink</b><span>Text, and the fill for primary actions.</span>
         </div>
-        <div class="swatch">
+        <div class="swatch spec">
           <div class="chip-box" style="background: var(--soft)"></div>
           <b>--soft</b><span>Secondary text. Never for anything interactive alone.</span>
         </div>
-        <div class="swatch">
+        <div class="swatch spec">
           <div class="chip-box" style="background: var(--rule)"></div>
           <b>--rule</b><span>Hairlines. Used instead of cards and shadows.</span>
         </div>
-        <div class="swatch">
+        <div class="swatch spec">
           <div class="chip-box" style="background: var(--heat)"></div>
           <b>--heat</b><span>Playing, or awaiting your decision. Nothing else.</span>
         </div>
       </div>
-      <p class="rule-note">
+      <p class="note">
         <b>Dark is not an inversion.</b> It shifts warm rather than blue, text is off-white to
         avoid glare, and <b>--edge</b> adds a hairline inside every cover — without it, black
         album art has no boundary against the page.
@@ -179,45 +61,45 @@
 
       <h2 class="section">Type</h2>
       <div class="type-row">
-        <i>Album title</i>
-        <div><span class="album-title" style="font-size: 20px">Corrosion of Hearts</span></div>
+        <i class="tag">Album title</i>
+        <div><span class="album-title">Corrosion of Hearts</span></div>
       </div>
       <div class="type-row">
-        <i>Artist / facts</i>
+        <i class="tag">Artist / facts</i>
         <div>
-          <p class="album-artist" style="margin: 0">Austere · 2023 · 4 tracks · 47 min</p>
+          <p class="album-artist">Austere · 2023 · 4 tracks · 47 min</p>
         </div>
       </div>
       <div class="type-row">
-        <i>Section label</i>
+        <i class="tag">Section label</i>
         <div><span class="label">In rotation</span></div>
       </div>
       <div class="type-row">
-        <i>Body</i>
+        <i class="tag">Body</i>
         <div style="font-size: 14px; font-weight: 500">
           Albums arrive through Discovery. Capture one from a station or a search.
         </div>
       </div>
-      <p class="rule-note">
+      <p class="note">
         Archivo throughout, with tabular numerals so counts and durations do not shift. Display
         sizes are deliberately absent: this is media consumption, not editorial.
       </p>
 
       <h2 class="section">Availability</h2>
       <div class="marks">
-        <div class="mark">
+        <div class="mark spec">
           <span class="frame available"></span><b>On device</b
           ><span>Filled. Plays with no network.</span>
         </div>
-        <div class="mark">
+        <div class="mark spec">
           <span class="frame downloading"></span><b>Downloading</b
           ><span>Hollow. Wanted, not here yet.</span>
         </div>
-        <div class="mark">
+        <div class="mark spec">
           <span class="frame"></span><b>Not kept</b
           ><span>No mark. Recedes when offline.</span>
         </div>
-        <div class="mark">
+        <div class="mark spec">
           <span class="frame sounding"></span><b>Sounding</b
           ><span>Heat dot. Playing right now.</span>
         </div>
@@ -233,7 +115,7 @@
         </p>
       </div>
       <div class="parts">
-        <nav class="tabs" style="border: 0; padding: 0">
+        <nav class="tabs bare">
           <a href="#" aria-current="page">Stacks</a>
           <a href="#">Discovery <i class="badge">14</i></a>
           <a href="#">Search</a>
@@ -244,7 +126,7 @@
         </p>
       </div>
 
-      <p class="rule-note">
+      <p class="note">
         <b>Rules worth keeping.</b> The album is the subject of every screen; tracks are demoted
         or hidden. Cards only where the card is the interaction. Horizontal rails must set
         <b>overflow-y: hidden</b>, or Android captures vertical drags. The now-playing bar keeps

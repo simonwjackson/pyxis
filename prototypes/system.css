@@ -113,7 +113,12 @@ nav.tabs a {
   letter-spacing: -0.01em;
 }
 
-nav.tabs a[aria-current] {
+nav.tabs.bare {
+  padding: 0;
+  border: 0;
+}
+
+.tabs a[aria-current] {
   color: var(--ink);
 }
 
@@ -200,6 +205,11 @@ nav.tabs .badge {
   letter-spacing: -0.03em;
 }
 
+/* The album as the subject of its own screen, rather than one entry among many. */
+.album-title.big {
+  font-size: clamp(24px, 4vw, 34px);
+}
+
 .album-artist {
   margin: 9px 0 0;
   font-size: 15px;
@@ -222,6 +232,17 @@ button {
   background: none;
   border: none;
   cursor: pointer;
+}
+
+/* Inside a row or a bar, an action is sentence case and smaller: it accompanies content
+   rather than heading it. This variant was unnamed, so three places restated it instead. */
+.act.inline {
+  flex: none;
+  padding: 10px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
 }
 
 .act {
@@ -316,15 +337,6 @@ button {
   box-shadow: inset 0 0 0 1px var(--edge);
 }
 
-.nowbar.resting .act {
-  flex: none;
-  padding: 10px 14px;
-  font-size: 13px;
-  font-weight: 600;
-  letter-spacing: 0;
-  text-transform: none;
-}
-
 .nowbar-toggle:hover,
 .nowbar-toggle:focus-visible {
   border-color: var(--ink);
@@ -359,19 +371,13 @@ button {
   white-space: nowrap;
 }
 
-.nowbar-room i {
+/* The heat dot inside a room control, wherever that control appears. */
+.nowbar-room i,
+.player-room i {
   width: 7px;
   height: 7px;
   background: var(--heat);
   border-radius: 50%;
-}
-
-.rooms-panel .room {
-  display: flex;
-  gap: 14px;
-  align-items: center;
-  padding: 13px 0;
-  border-bottom: 1px solid var(--rule);
 }
 
 .rooms-panel .room.gone .frame,
@@ -389,27 +395,6 @@ button {
   box-shadow: inset 0 0 0 1px var(--edge);
 }
 
-.rooms-panel .t {
-  min-width: 0;
-  flex: 1;
-}
-
-.rooms-panel .t b {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  font-size: 15px;
-  font-weight: 700;
-}
-
-.rooms-panel .t span {
-  display: block;
-  margin-top: 3px;
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--soft);
-}
-
 .rooms-panel .dot {
   width: 8px;
   height: 8px;
@@ -420,16 +405,6 @@ button {
 
 .rooms-panel .dot.live {
   background: var(--heat);
-}
-
-.rooms-panel .act,
-.rooms-panel .pending {
-  flex: none;
-  padding: 10px 14px;
-  font-size: 13px;
-  font-weight: 600;
-  letter-spacing: 0;
-  text-transform: none;
 }
 
 .rooms-panel .pending {
@@ -559,6 +534,67 @@ body.has-nowbar main {
   background: var(--scrim);
 }
 
+/* A row: a cover, a title with its subtitle, and something trailing — an action, a time, a
+   state. Rooms, search results and listening history are all this shape. They were three
+   copies of it, drifting on every axis: 15/15/14px titles, 13/13/12.5px subtitles, 3/3/2px
+   offsets. Nobody chose those differences. */
+.row {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--rule);
+}
+
+.row:last-child {
+  border-bottom: 0;
+}
+
+/* The text column, which must be allowed to shrink or long titles push the row wide. */
+.row .t {
+  min-width: 0;
+  flex: 1;
+}
+
+.row .t b {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.row .t span {
+  display: block;
+  margin-top: 3px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--soft);
+}
+
+/* The trailing slot. Whatever sits here holds its width and never wraps. */
+.row .end {
+  flex: none;
+  text-align: right;
+}
+
+/* Small, uppercase, letterspaced: a fact about something rather than the thing itself.
+   Was restated six times — as .label, as dt, as two different <i> rules, as .have, as
+   .when. */
+.meta {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--soft);
+}
+
+.meta i {
+  display: block;
+  font-style: normal;
+  font-weight: 500;
+  opacity: 0.75;
+}
+
 /* A horizontal run of covers.
 
    overflow-y must be stated. Left as `visible` it computes to `auto`, which makes the rail a
@@ -681,11 +717,22 @@ dialog.sheet::backdrop {
   }
 }
 
-.player-head {
+/* A header split across the full width: something named on the left, a control on the right. */
+.split {
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: 14px 0 12px;
+}
+
+/* A related aside, divided off by a rule above it rather than boxed. */
+.aside {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  margin-top: 20px;
+  padding-top: 14px;
+  border-top: 1px solid var(--rule);
 }
 
 .player-close {
@@ -702,13 +749,6 @@ dialog.sheet::backdrop {
   font-weight: 700;
   color: inherit;
   text-decoration: none;
-}
-
-.player-room i {
-  width: 7px;
-  height: 7px;
-  background: var(--heat);
-  border-radius: 50%;
 }
 
 .player-art {
@@ -770,15 +810,6 @@ dialog.sheet::backdrop {
   min-width: 60px;
   margin-left: 8px;
   accent-color: var(--heat);
-}
-
-.player-next {
-  display: flex;
-  gap: 12px;
-  align-items: center;
-  margin-top: 22px;
-  padding-top: 14px;
-  border-top: 1px solid var(--rule);
 }
 
 .player-next .frame {

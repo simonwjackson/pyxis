@@ -36,46 +36,9 @@
         font-weight: 500;
         color: var(--soft);
       }
-      .play {
-        display: flex;
-        gap: 13px;
-        align-items: center;
-        padding: 9px 0;
-        border-bottom: 1px solid var(--rule);
-      }
       .play .frame {
         width: 44px;
         flex: none;
-      }
-      .play .t {
-        min-width: 0;
-        flex: 1;
-      }
-      .play .t b {
-        display: block;
-        font-size: 14px;
-        font-weight: 600;
-        letter-spacing: -0.01em;
-      }
-      .play .t span {
-        display: block;
-        margin-top: 2px;
-        font-size: 12.5px;
-        font-weight: 500;
-        color: var(--soft);
-      }
-      .play .when {
-        flex: none;
-        font-size: 12px;
-        font-weight: 600;
-        color: var(--soft);
-        text-align: right;
-      }
-      .play .when i {
-        display: block;
-        font-style: normal;
-        font-weight: 500;
-        opacity: 0.75;
       }
       /* Stats serve insight, not vanity: one line, no charts, no streaks. */
       .insight {
@@ -178,13 +141,13 @@
           }
           root.append(
             element(`
-              <div class="play">
+              <div class="row play">
                 <span class="frame">${sleeve(event.album)}</span>
                 <span class="t">
                   <b class="truncate-1">${escape(event.album.title)}</b>
                   <span class="truncate-1">${escape(event.album.artist)} · ${escape(event.track?.title ?? "")}</span>
                 </span>
-                <span class="when">${clockTime(event.at)}<i>${escape(event.room)}</i></span>
+                <span class="end meta">${clockTime(event.at)}<i>${escape(event.room)}</i></span>
               </div>
             `),
           )
