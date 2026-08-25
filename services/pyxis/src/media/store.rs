@@ -96,15 +96,12 @@ impl LocalMediaStore {
         let id = Ulid::new().to_string();
         let account_dir = self.root.join(safe_segment(account.as_str()));
         fs::create_dir_all(&account_dir)?;
-        let extension = source
-            .extension()
-            .and_then(|extension| extension.to_str())
-            .filter(|extension| {
-                !extension.is_empty()
-                    && extension
-                        .chars()
-                        .all(|character| character.is_ascii_alphanumeric())
-            });
+        let extension = format.as_deref().and_then(safe_extension).or_else(|| {
+            source
+                .extension()
+                .and_then(|extension| extension.to_str())
+                .and_then(safe_extension)
+        });
         let filename = match extension {
             Some(extension) => format!("{id}.{extension}"),
             None => id.clone(),
@@ -337,6 +334,14 @@ fn checksum(path: &Path) -> Result<String, std::io::Error> {
         hasher.update(&buffer[..read]);
     }
     Ok(hasher.finalize().to_hex().to_string())
+}
+
+fn safe_extension(value: &str) -> Option<&str> {
+    (!value.is_empty()
+        && value
+            .chars()
+            .all(|character| character.is_ascii_alphanumeric()))
+    .then_some(value)
 }
 
 fn safe_segment(value: &str) -> String {

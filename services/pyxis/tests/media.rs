@@ -177,6 +177,40 @@ fn a_local_file_wins_over_a_remote_candidate_of_equal_quality() {
 }
 
 #[test]
+fn verified_format_names_the_durable_file_instead_of_the_staging_suffix() {
+    let (dir, media, account) = setup();
+    let source = dir.path().join("download.partial");
+    fs::write(&source, b"verified flac bytes").expect("source");
+
+    let local = media
+        .import_local_candidate(
+            &account,
+            "track-1",
+            &source,
+            LocalCandidateInput {
+                format: Some("flac".into()),
+                fidelity: Fidelity {
+                    lossless: true,
+                    bitrate_kbps: Some(1_098),
+                    sample_rate_hz: Some(44_100),
+                },
+                pinned: false,
+            },
+            "provider:soulseek",
+        )
+        .expect("local candidate");
+
+    assert_eq!(
+        local
+            .absolute_path
+            .extension()
+            .and_then(|value| value.to_str()),
+        Some("flac")
+    );
+    assert!(!local.absolute_path.to_string_lossy().ends_with(".partial"));
+}
+
+#[test]
 fn no_available_candidates_is_an_explicit_unavailable_outcome() {
     let (_dir, media, account) = setup();
     media
