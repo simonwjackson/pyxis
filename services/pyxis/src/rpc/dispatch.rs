@@ -437,7 +437,9 @@ pub fn dispatch(state: &AppState, request: RpcRequest, auth: Option<AuthContext>
             let Some(auth) = auth else {
                 return auth_required();
             };
-            refresh_output_sessions(state, &auth);
+            // Output reconciliation runs in the serialized background monitor. A generic
+            // session read must never wait on physical-output I/O: device-hosted workers pull
+            // this snapshot before pushing renderer-confirmed commands.
             match state.sessions.list(&auth, request.include_unreachable) {
                 Ok(sessions) => RpcResponse::SessionList(SessionListOutcome::Ready(
                     sessions.into_iter().map(rpc_session).collect(),
@@ -1441,17 +1443,6 @@ pub(crate) fn reconcile_all_output_sessions(state: &AppState) {
                 }
             }
         });
-    }
-}
-
-fn refresh_output_sessions(state: &AppState, auth: &AuthContext) {
-    if let Ok(sessions) = state.sessions.list(auth, true) {
-        for session in sessions
-            .into_iter()
-            .filter(|session| session.output.is_some())
-        {
-            refresh_one_output_session(state, auth, session);
-        }
     }
 }
 

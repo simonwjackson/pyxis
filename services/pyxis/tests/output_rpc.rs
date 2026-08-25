@@ -187,6 +187,21 @@ async fn sonos_target_hosts_a_core_session_and_applies_console_transport() {
     .await;
     assert_eq!(handoff["outcome"]["status"], "outputUnsupported");
 
+    std::fs::write(&call_log, b"").expect("clear call log");
+    let listed = rpc(
+        &app,
+        json!({ "_tag": "session.list", "payload": { "includeUnreachable": true } }),
+        Some(token),
+    )
+    .await;
+    assert_eq!(listed["outcome"]["status"], "ready");
+    assert_eq!(listed["outcome"]["value"].as_array().unwrap().len(), 2);
+    assert_eq!(
+        std::fs::read_to_string(&call_log).expect("call log"),
+        "",
+        "session.list must not synchronously call an output plugin"
+    );
+
     let queued = rpc(
         &app,
         json!({
