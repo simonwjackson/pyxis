@@ -595,6 +595,28 @@ body.has-nowbar main {
   opacity: 0.75;
 }
 
+/* A named run of albums: its title, its count, and the rail beneath. Shared because
+   albums.js emits it, and a shared unit that depends on one page's styling is broken
+   everywhere else — which is how the rooms sheet reached a designer looking wrong. */
+.shelf {
+  padding-top: 34px;
+}
+
+.shelf h2 {
+  margin: 0;
+  padding-bottom: 12px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--soft);
+}
+
+.shelf h2 b {
+  font-weight: 700;
+  color: var(--ink);
+}
+
 /* A horizontal run of covers.
 
    overflow-y must be stated. Left as `visible` it computes to `auto`, which makes the rail a

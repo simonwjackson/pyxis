@@ -59,22 +59,6 @@
         background: var(--heat);
         border-radius: 50%;
       }
-      section.shelf {
-        padding-top: 34px;
-      }
-      .shelf h2 {
-        margin: 0;
-        padding-bottom: 12px;
-        font-size: 12px;
-        font-weight: 700;
-        letter-spacing: 0.14em;
-        text-transform: uppercase;
-        color: var(--soft);
-      }
-      .shelf h2 b {
-        font-weight: 700;
-        color: var(--ink);
-      }
       .item {
         display: block;
         padding: 0;
@@ -336,6 +320,7 @@
         sleeve,
         wantedOffline,
       } from "./common.js"
+      import { albumShelf, albumTile } from "./albums.js"
       import { productNav } from "./nav.js"
       import { mountWindow } from "./parts.js"
       import { currentSession, mountNowPlaying } from "./nowplaying.js"
@@ -374,6 +359,15 @@
 
       const library = await loadLibrary(mode)
       const sounds = currentSession(library, mode)
+
+      // The page's context, bound to the shared tile once rather than passed at every site.
+      const item = (album) =>
+        albumTile(album, {
+          sounding: album.id === sounds?.album?.id,
+          offline,
+          onOpen: open,
+        })
+      const shelf = (title, albums) => albumShelf(title, albums, { tile: item })
 
       // Placement and sort are always on screen. Signals and decades sit behind one tap,
       // so the browser stays legible until you actually ask for more control.
@@ -424,33 +418,7 @@
 
       // Covers only. The album still needs a name for assistive tech and for the desktop
       // tooltip, it just never occupies the wall.
-      function item(album) {
-        const sounding = album.id === sounds?.album?.id
-        const marks = [sounding ? "sounding" : "", availability(album)].join(" ").trim()
-        const name = `${escape(album.title)} by ${escape(album.artist)}${
-          sounding ? ", playing now" : ""
-        }${offline && availability(album) !== "available" ? ", not on this device" : ""}`
-        const node = element(`
-          <button class="item" aria-label="${name}" title="${name}">
-            <span class="frame ${marks}">${sleeve(album)}</span>
-          </button>
-        `)
-        node.onclick = () => open(album)
-        return node
-      }
 
-      function shelf(title, albums) {
-        if (albums.length === 0) return null
-        const node = element(`
-          <section class="shelf">
-            <h2><b>${title}</b> <i>${albums.length}</i></h2>
-            <div class="rail"></div>
-          </section>
-        `)
-        const rail = node.querySelector(".rail")
-        for (const album of albums.slice(0, 20)) rail.append(item(album))
-        return node
-      }
 
       function open(album) {
         dialog.innerHTML = ""
