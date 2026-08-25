@@ -9,7 +9,7 @@ mkBunDerivation {
 
   buildPhase = ''
     runHook preBuild
-    patch -d node_modules/soulseek-ts -p1 < ${../patches/soulseek-ts@2.1.4.patch}
+    patch -d node_modules/soulseek-ts -p1 < ${../patches}/soulseek-ts@2.1.4.patch
     grep -q 'sharedFoldersFiles", { dirs: 0, files: 0 }' node_modules/soulseek-ts/dist/index.mjs
     runHook postBuild
   '';
