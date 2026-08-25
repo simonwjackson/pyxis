@@ -111,6 +111,12 @@
     url = "https://registry.npmjs.org/@pyxis/plugin-sonos/-/plugin-sonos-workspace:plugins/sonos.tgz";
     hash = "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==";
   };
+  "@pyxis/plugin-soulseek" = {
+    out_path = "@pyxis/plugin-soulseek";
+    name = "@pyxis/plugin-soulseek@workspace:plugins/soulseek";
+    url = "https://registry.npmjs.org/@pyxis/plugin-soulseek/-/plugin-soulseek-workspace:plugins/soulseek.tgz";
+    hash = "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==";
+  };
   "@pyxis/plugin-ytmusic" = {
     out_path = "@pyxis/plugin-ytmusic";
     name = "@pyxis/plugin-ytmusic@workspace:plugins/ytmusic";
@@ -708,6 +714,12 @@
     url = "https://registry.npmjs.org/rolldown/-/rolldown-1.2.5.tgz";
     hash = "sha512-VD2IE5PUG4Oj8zz2VGykiYd5wbnjdIiSsNQb8Qu5B+noEp+A78mu2iVvpp27g8es14Tk9rofNs5Tku9iQCS4fA==";
   };
+  "rxjs" = {
+    out_path = "rxjs";
+    name = "rxjs@7.8.2";
+    url = "https://registry.npmjs.org/rxjs/-/rxjs-7.8.2.tgz";
+    hash = "sha512-dhKf903U/PQZY6boNNtAGdWbG85WAbjT/1xYoZIC7FAY0yWapOBQVsVrDl58W86//e1VpMNBtRV4MaXfdMySFA==";
+  };
   "saxes" = {
     out_path = "saxes";
     name = "saxes@6.0.0";
@@ -725,6 +737,12 @@
     name = "siginfo@2.0.0";
     url = "https://registry.npmjs.org/siginfo/-/siginfo-2.0.0.tgz";
     hash = "sha512-ybx0WO1/8bSBLEWXZvEd7gMW3Sn3JFlW3TvX1nREbDLRNQNaeNN8WK0meBwPdAaOI7TtRRRJn/Es1zhrrCHu7g==";
+  };
+  "soulseek-ts" = {
+    out_path = "soulseek-ts";
+    name = "soulseek-ts@2.1.4";
+    url = "https://registry.npmjs.org/soulseek-ts/-/soulseek-ts-2.1.4.tgz";
+    hash = "sha512-/DHMKD+pQ70KX0tA4KeS8L77kdBuPo4ngkjCYDYXPfh6UHqqCh/OBOS9u0lLsWY8RKWjiaEOcriFk4xDS9CYWQ==";
   };
   "source-map-js" = {
     out_path = "source-map-js";
@@ -800,6 +818,18 @@
     name = "tr46@6.0.0";
     url = "https://registry.npmjs.org/tr46/-/tr46-6.0.0.tgz";
     hash = "sha512-bLVMLPtstlZ4iMQHpFHTR7GAGj2jxi8Dg0s2h2MafAE4uSWF98FC/3MomU51iQAMf8/qDUbKWf5GxuvvVcXEhw==";
+  };
+  "tslib" = {
+    out_path = "tslib";
+    name = "tslib@2.8.1";
+    url = "https://registry.npmjs.org/tslib/-/tslib-2.8.1.tgz";
+    hash = "sha512-oJFu94HQb+KVduSUQL7wnpmqnfmLsOA/nAh6b6EH0wCEoK0/mPeXU6c3wKDV83MkOuHPRHtSXKKU99IBazS/2w==";
+  };
+  "typed-emitter" = {
+    out_path = "typed-emitter";
+    name = "typed-emitter@2.1.0";
+    url = "https://registry.npmjs.org/typed-emitter/-/typed-emitter-2.1.0.tgz";
+    hash = "sha512-g/KzbYKbH5C2vPkaXGu8DJlHrGKHLsM25Zg9WuC9pMGfuvT+X25tZQWo5fK1BjBm8+UrVE9LDCvaY0CQk+fXDA==";
   };
   "typescript" = {
     out_path = "typescript";
@@ -903,5 +933,11 @@
     name = "yaml@2.9.0";
     url = "https://registry.npmjs.org/yaml/-/yaml-2.9.0.tgz";
     hash = "sha512-2AvhNX3mb8zd6Zy7INTtSpl1F15HW6Wnqj0srWlkKLcpYl/gMIMJiyuGq2KeI2YFxUPjdlB+3Lc10seMLtL4cA==";
+  };
+  "zlib" = {
+    out_path = "zlib";
+    name = "zlib@1.0.5";
+    url = "https://registry.npmjs.org/zlib/-/zlib-1.0.5.tgz";
+    hash = "sha512-40fpE2II+Cd3k8HWTWONfeKE2jL+P42iWJ1zzps5W51qcTsOUKM5Q5m2PFb0CLxlmFAaUuUdJGc3OfZy947v0w==";
   };
 }

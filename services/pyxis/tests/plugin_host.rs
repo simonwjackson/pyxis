@@ -1,4 +1,6 @@
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 use std::time::Duration;
 
 use pyxis::plugins::host::{HostPolicy, PluginCallError, PluginCandidate, PluginHost};
@@ -94,6 +96,32 @@ fn a_hung_call_times_out_and_does_not_hang_the_core() {
         Err(PluginCallError::Timeout { .. })
     ));
     assert!(host.wait_for_status("slow", PluginStatus::Live, Duration::from_secs(2)));
+}
+
+#[test]
+fn a_long_provider_call_can_be_cancelled_during_shutdown() {
+    let host = PluginHost::start(vec![laboratory("cancel", "hang")], policy()).expect("host");
+    let cancellation = Arc::new(AtomicBool::new(false));
+    let signal = cancellation.clone();
+    std::thread::spawn(move || {
+        std::thread::sleep(Duration::from_millis(100));
+        signal.store(true, Ordering::Relaxed);
+    });
+    let started = std::time::Instant::now();
+
+    let result = host.call_for_account_with_timeout(
+        "cancel",
+        "source",
+        "search",
+        json!({}),
+        "default",
+        None,
+        Duration::from_secs(60),
+        cancellation,
+    );
+
+    assert!(matches!(result, Err(PluginCallError::Unavailable { .. })));
+    assert!(started.elapsed() < Duration::from_secs(2));
 }
 
 #[test]

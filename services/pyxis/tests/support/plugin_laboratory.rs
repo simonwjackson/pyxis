@@ -261,6 +261,65 @@ fn main() -> anyhow::Result<()> {
                 }
             }
         }
+        if call.operation == "upgrade.search" && capability == PluginCapability::Provider {
+            if let Ok(candidate) = std::env::var("PYXIS_LAB_UPGRADE_CANDIDATE") {
+                let fields = candidate.split('|').collect::<Vec<_>>();
+                if fields.len() == 12 {
+                    let mut fidelity = BTreeMap::new();
+                    fidelity.insert(
+                        "lossless".into(),
+                        PluginValue::Bool(fields[6].parse().unwrap_or(false)),
+                    );
+                    if let Ok(value) = fields[7].parse() {
+                        fidelity.insert("bitrateKbps".into(), PluginValue::Unsigned(value));
+                    }
+                    if let Ok(value) = fields[8].parse() {
+                        fidelity.insert("sampleRateHz".into(), PluginValue::Unsigned(value));
+                    }
+                    let mut result = BTreeMap::new();
+                    result.insert("candidateRef".into(), PluginValue::String(fields[0].into()));
+                    result.insert("artist".into(), PluginValue::String(fields[1].into()));
+                    result.insert("title".into(), PluginValue::String(fields[2].into()));
+                    if !fields[3].is_empty() {
+                        result.insert("album".into(), PluginValue::String(fields[3].into()));
+                    }
+                    if let Ok(value) = fields[4].parse() {
+                        result.insert("durationMs".into(), PluginValue::Unsigned(value));
+                    }
+                    result.insert("format".into(), PluginValue::String(fields[5].into()));
+                    result.insert("advertisedFidelity".into(), PluginValue::Object(fidelity));
+                    result.insert(
+                        "sizeBytes".into(),
+                        PluginValue::Unsigned(fields[9].parse().unwrap_or(0)),
+                    );
+                    result.insert(
+                        "freeSlot".into(),
+                        PluginValue::Bool(fields[10].parse().unwrap_or(false)),
+                    );
+                    result.insert(
+                        "queueLength".into(),
+                        PluginValue::Unsigned(fields[11].parse().unwrap_or(0)),
+                    );
+                    value.insert(
+                        "candidates".into(),
+                        PluginValue::Array(vec![PluginValue::Object(result)]),
+                    );
+                }
+            } else {
+                value.insert("candidates".into(), PluginValue::Array(Vec::new()));
+            }
+        }
+        if call.operation == "upgrade.download" && capability == PluginCapability::Provider {
+            if let (Ok(bytes), PluginValue::Object(input)) =
+                (std::env::var("PYXIS_LAB_UPGRADE_BYTES"), &call.input)
+            {
+                if let Some(PluginValue::String(path)) = input.get("destinationPath") {
+                    std::fs::write(path, bytes.as_bytes())?;
+                    value.insert("destinationPath".into(), PluginValue::String(path.clone()));
+                    value.insert("bytes".into(), PluginValue::Unsigned(bytes.len() as u64));
+                }
+            }
+        }
         if call.operation == "stream.resolve" {
             if let Ok(first) = std::env::var("PYXIS_LAB_STREAM_URL") {
                 let url = if stream_resolutions == 0 {

@@ -2,8 +2,8 @@
 
 Plugins are ordinary programs. The core starts one as a subprocess and speaks
 line-delimited JSON over its stdin and stdout. Nothing about a plugin is privileged: the
-bundled YouTube Music, Pandora, and Sonos plugins use exactly the protocol described here, which is
-what keeps "third-party plugins" true rather than a slogan.
+bundled YouTube Music, Pandora, Sonos, and Soulseek plugins use exactly the protocol described
+here, which is what keeps "third-party plugins" true rather than a slogan.
 
 The easiest path is [`@pyxis/plugin-sdk`](../../packages/plugin-sdk/README.md), which
 handles framing, handshake, and error mapping. This document describes the wire beneath it,
@@ -203,8 +203,25 @@ never enter plugin stdio.
 Rooms leaving the group are made standalone before new members join. UPnP faults preserve
 their numeric identity in codes such as `sonos.upnp.701`.
 
-The `provider` and `enricher` classes have no shipped implementation yet, so their operation
-sets are not fixed. Do not build against them until they are.
+## Provider operations
+
+Provider-only plugins are internal background capabilities and are omitted from public
+`plugin.list`; they create no client surface. Soulseek establishes two operations:
+
+| Operation | Input |
+|---|---|
+| `upgrade.search` | `{ track, currentFidelity, maxResults }` |
+| `upgrade.download` | `{ candidateRef, destinationPath, expectedBytes, maxBytes }` |
+
+Search returns bounded metadata plus an opaque, expiring `candidateRef`; peer identity and remote
+filenames never enter persistent core state. Download writes only to the exact core-created
+`.partial` path and echoes it with the byte count. The core probes the complete file, reruns
+matching with verified duration, requires a strict fidelity improvement, and imports it through
+the local media store. Failed or ambiguous attempts register no candidate.
+
+The bundled Soulseek provider exposes no upload or sharing operation, accepts no shared-folder
+configuration, and pins a download-only client whose login advertises zero folders and zero files.
+The `enricher` operation set is not fixed because no enricher ships yet.
 
 ## Capability calls
 

@@ -153,7 +153,12 @@ pub fn dispatch(state: &AppState, request: RpcRequest, auth: Option<AuthContext>
                 return auth_required();
             };
             let mut plugins = Vec::new();
-            for plugin in state.plugins.list() {
+            for plugin in state.plugins.list().into_iter().filter(|plugin| {
+                plugin
+                    .capabilities
+                    .iter()
+                    .any(|capability| matches!(capability.as_str(), "source" | "output"))
+            }) {
                 let configured = match state
                     .plugin_credentials
                     .is_configured(&auth.account_id, &plugin.id)
@@ -1662,13 +1667,25 @@ fn source_album_failure(error: crate::source_catalog::SourceCatalogError) -> Rpc
 fn system_status(state: &AppState) -> RpcResponse {
     match state.accounts.count() {
         Ok(account_count) => {
-            let (plugin_count, capabilities) = state.plugins.live_summary();
+            let visible = state.plugins.list().into_iter().filter(|plugin| {
+                plugin.status == crate::plugins::registry::PluginStatus::Live
+                    && plugin
+                        .capabilities
+                        .iter()
+                        .any(|capability| matches!(capability.as_str(), "source" | "output"))
+            });
+            let mut plugin_count = 0_u32;
+            let mut capabilities = std::collections::BTreeSet::new();
+            for plugin in visible {
+                plugin_count = plugin_count.saturating_add(1);
+                capabilities.extend(plugin.capabilities);
+            }
             RpcResponse::SystemStatusGet(SystemStatusOutcome::Ready(RpcSystemStatus {
                 version: crate::version().to_string(),
                 contract_id: CONTRACT_ID.to_string(),
                 account_count: u32::try_from(account_count).unwrap_or(u32::MAX),
-                plugin_count: u32::try_from(plugin_count).unwrap_or(u32::MAX),
-                capabilities,
+                plugin_count,
+                capabilities: capabilities.into_iter().collect(),
             }))
         }
         Err(error) => {

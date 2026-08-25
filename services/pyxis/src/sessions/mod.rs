@@ -307,6 +307,19 @@ impl Sessions {
             .map(|record| self.session(record)))
     }
 
+    pub fn active_track_ids(
+        &self,
+        account: &crate::db::store::AccountId,
+    ) -> Result<Vec<String>, SessionError> {
+        Ok(self
+            .store
+            .list::<SessionRecord>(schema::SESSIONS, account)?
+            .into_iter()
+            .filter(|record| matches!(record.transport, Transport::Playing | Transport::Paused))
+            .filter_map(|record| self.session(record).current_track_id().map(str::to_string))
+            .collect())
+    }
+
     pub fn all_output_sessions(
         &self,
     ) -> Result<Vec<(crate::db::store::AccountId, Session)>, SessionError> {

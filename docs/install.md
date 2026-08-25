@@ -1,8 +1,8 @@
 # Install Pyxis with `nix profile`
 
 Pyxis v2 installs per user. The aggregate package contains the Rust core, built reference
-client, YouTube Music, Pandora, and Sonos plugins, the yt-dlp updater, the dedicated tsnet
-edge, and four systemd user units.
+client, YouTube Music, Pandora, Sonos, and download-only Soulseek plugins, the yt-dlp updater,
+the dedicated tsnet edge, and four systemd user units.
 
 ## Existing NixOS service must leave first
 
@@ -126,6 +126,19 @@ Pandora configuration is account-scoped. Clients call `plugin.config.set` with p
 stores only ciphertext. Do not put the password in shell history. The reference client gets
 a temporary configuration form during M2 validation; the later designed client owns the
 final interaction.
+
+## Soulseek fidelity upgrades
+
+Soulseek is a provider-only background plugin and is deliberately omitted from `plugin.list` and
+all clients. Configure plugin id `soulseek` with `{ username, password }`; optional bounded fields
+are `listenPort`, `searchTimeoutMs`, `downloadTimeoutMs`, `maxFileBytes`, and `maxResults`.
+Credentials are account-scoped and encrypted like Pandora credentials.
+
+The bundled client has no sharing operation or shared-folder setting and is patched to advertise
+zero folders and zero files. The core processes at most one due library track per minute, accepts
+only automatic matches, probes every complete download with `ffprobe`, requires a strict fidelity
+improvement, and retries peer/network failures later. Partial or ambiguous downloads never become
+media candidates.
 
 ## Upgrade
 

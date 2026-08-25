@@ -1,0 +1,457 @@
+diff --git a/node_modules/soulseek-ts/.bun-tag-322c22b10f954c20 b/.bun-tag-322c22b10f954c20
+new file mode 100644
+index 0000000000000000000000000000000000000000..e69de29bb2d1d6434b8b29ae775ad8c2e48c5391
+diff --git a/node_modules/soulseek-ts/.bun-tag-401de61777286486 b/.bun-tag-401de61777286486
+new file mode 100644
+index 0000000000000000000000000000000000000000..e69de29bb2d1d6434b8b29ae775ad8c2e48c5391
+diff --git a/node_modules/soulseek-ts/.bun-tag-e62c03e296e7c251 b/.bun-tag-e62c03e296e7c251
+new file mode 100644
+index 0000000000000000000000000000000000000000..e69de29bb2d1d6434b8b29ae775ad8c2e48c5391
+diff --git a/dist/index.js b/dist/index.js
+index bf5549469f99a53ce58e00ba6515180cc349dfb9..42aa646d10a3c0dd18194bd00c0413e44c1030b1 100644
+--- a/dist/index.js
++++ b/dist/index.js
+@@ -132,23 +132,30 @@ var MessageParser = class {
+ };
+ 
+ // src/messages/message-stream.ts
++var MAX_MESSAGE_BYTES = 16 * 1024 * 1024;
+ var MessageStream = class extends import_stream.default.Writable {
+   _write(chunk, enc, next) {
+-    this.read(this.rest ? Buffer.concat([this.rest, chunk]) : chunk);
+-    next();
++    try {
++      this.read(this.rest ? Buffer.concat([this.rest, chunk]) : chunk);
++      next();
++    } catch (error) {
++      this.reset();
++      next(error instanceof Error ? error : new Error("Invalid Soulseek frame"));
++    }
+   }
+   read(data) {
+-    if (data.length < 4) {
+-      this.rest = data.slice(0, data.length);
+-      return;
+-    }
+-    const size = data.readUInt32LE();
+-    if (size + 4 <= data.length) {
+-      this.emit("message", new MessageParser(data.slice(0, size + 4)));
+-      this.read(data.slice(size + 4, data.length));
+-    } else {
+-      this.rest = data.slice(0, data.length);
++    let offset = 0;
++    while (data.length - offset >= 4) {
++      const size = data.readUInt32LE(offset);
++      if (size > MAX_MESSAGE_BYTES) throw new Error("Soulseek frame exceeds the size limit");
++      const end = offset + size + 4;
++      if (end > data.length) break;
++      this.emit("message", new MessageParser(data.slice(offset, end)));
++      offset = end;
+     }
++    const rest = data.slice(offset);
++    if (rest.length > MAX_MESSAGE_BYTES + 4) throw new Error("Soulseek buffered frame exceeds the size limit");
++    this.rest = rest.length === 0 ? void 0 : rest;
+   }
+   reset() {
+     this.rest = void 0;
+@@ -166,6 +173,7 @@ var SlskListen = class extends import_events.EventEmitter {
+         return;
+       }
+       const msgs = new MessageStream();
++      msgs.on("error", () => c.destroy());
+       c.on("data", (chunk) => msgs.write(chunk));
+       c.on("error", (error) => this.emit("error", error));
+       msgs.on("message", (msg) => {
+@@ -176,6 +184,7 @@ var SlskListen = class extends import_events.EventEmitter {
+           }
+         } catch (error) {
+           console.error("Failed to parse peer init message", error);
++          c.destroy();
+         }
+       });
+     });
+@@ -315,18 +324,24 @@ var fromPeerMessage = {
+   },
+   fileSearchResponse: (msg_) => {
+     const content = msg_.data.slice(msg_.pointer);
+-    const buffer = import_zlib.default.unzipSync(content);
++    if (content.length > 1024 * 1024) throw new Error("Compressed search response is too large");
++    const buffer = import_zlib.default.unzipSync(content, { maxOutputLength: 8 * 1024 * 1024 });
+     const msg = new MessageParser(buffer);
+     const username = msg.str();
++    if (username.length > 256) throw new Error("Search username is too long");
+     const token = msg.rawHexStr(4);
+     const numResults = msg.int32();
++    if (numResults < 0 || numResults > 200) throw new Error("Search result count is out of bounds");
+     const results = [];
+     for (let i = 0; i < numResults; i++) {
+       msg.int8();
+       const filename = msg.str();
++      if (filename.length > 2048) throw new Error("Search filename is too long");
+       const size = msg.int64();
+-      msg.str();
++      const extension = msg.str();
++      if (extension.length > 32) throw new Error("Search extension is too long");
+       const numAttrs = msg.int32();
++      if (numAttrs < 0 || numAttrs > 16) throw new Error("Search attribute count is out of bounds");
+       const attrs = /* @__PURE__ */ new Map();
+       for (let attrib = 0; attrib < numAttrs; attrib++) {
+         const attrType = msg.int32();
+@@ -413,6 +428,7 @@ var SlskPeer = class extends import_events2.EventEmitter {
+     this.username = username;
+     this.conn = import_net2.default.createConnection(address);
+     this.msgs = new MessageStream();
++    this.msgs.on("error", () => this.conn.destroy());
+     this.conn.on("connect", () => this.emit("connect"));
+     this.conn.on("error", (error) => this.emit("error", error));
+     this.conn.on("close", (hadError) => this.emit("close", hadError));
+@@ -428,6 +444,7 @@ var SlskPeer = class extends import_events2.EventEmitter {
+         }
+       } catch (error) {
+         console.error("Failed to parse peer message", error);
++        this.conn.destroy();
+       }
+     });
+   }
+@@ -569,6 +586,7 @@ var SlskServer = class extends import_events3.EventEmitter {
+     super();
+     this.conn = import_net3.default.createConnection(address);
+     this.msgs = new MessageStream();
++    this.msgs.on("error", () => this.conn.destroy());
+     this.conn.on("error", (error) => {
+       this.emit("error", error);
+     });
+@@ -583,6 +601,7 @@ var SlskServer = class extends import_events3.EventEmitter {
+         }
+       } catch (error) {
+         console.error("Failed to parse server message", error);
++        this.conn.destroy();
+       }
+     });
+   }
+@@ -621,7 +640,7 @@ var SlskClient = class extends import_events4.default {
+       const handler = () => {
+         switch (msg.kind) {
+           case "login": {
+-            this.server.send("sharedFoldersFiles", { dirs: 1, files: 1 });
++            this.server.send("sharedFoldersFiles", { dirs: 0, files: 0 });
+             this.server.send("haveNoParents", { haveNoParents: true });
+             this.server.send("setStatus", { status: UserStatus.Online });
+             break;
+@@ -883,7 +902,7 @@ var SlskClient = class extends import_events4.default {
+     const listener = (msg) => {
+       if (msg.kind === "fileSearchResponse" && msg.token === token) {
+         onResult?.(msg);
+-        results.push(msg);
++        if (results.length < 100) results.push(msg);
+       }
+     };
+     this.peerMessages.on("message", listener);
+diff --git a/dist/index.mjs b/dist/index.mjs
+index 2c83770d8a3541a91f5ba8254e24de254b548c7a..f03fb8105fa87af099cf6a31dd9f42d70c8ad4ae 100644
+--- a/dist/index.mjs
++++ b/dist/index.mjs
+@@ -89,23 +89,30 @@ var MessageParser = class {
+ };
+ 
+ // src/messages/message-stream.ts
++var MAX_MESSAGE_BYTES = 16 * 1024 * 1024;
+ var MessageStream = class extends stream.Writable {
+   _write(chunk, enc, next) {
+-    this.read(this.rest ? Buffer.concat([this.rest, chunk]) : chunk);
+-    next();
++    try {
++      this.read(this.rest ? Buffer.concat([this.rest, chunk]) : chunk);
++      next();
++    } catch (error) {
++      this.reset();
++      next(error instanceof Error ? error : new Error("Invalid Soulseek frame"));
++    }
+   }
+   read(data) {
+-    if (data.length < 4) {
+-      this.rest = data.slice(0, data.length);
+-      return;
+-    }
+-    const size = data.readUInt32LE();
+-    if (size + 4 <= data.length) {
+-      this.emit("message", new MessageParser(data.slice(0, size + 4)));
+-      this.read(data.slice(size + 4, data.length));
+-    } else {
+-      this.rest = data.slice(0, data.length);
++    let offset = 0;
++    while (data.length - offset >= 4) {
++      const size = data.readUInt32LE(offset);
++      if (size > MAX_MESSAGE_BYTES) throw new Error("Soulseek frame exceeds the size limit");
++      const end = offset + size + 4;
++      if (end > data.length) break;
++      this.emit("message", new MessageParser(data.slice(offset, end)));
++      offset = end;
+     }
++    const rest = data.slice(offset);
++    if (rest.length > MAX_MESSAGE_BYTES + 4) throw new Error("Soulseek buffered frame exceeds the size limit");
++    this.rest = rest.length === 0 ? void 0 : rest;
+   }
+   reset() {
+     this.rest = void 0;
+@@ -123,6 +130,7 @@ var SlskListen = class extends EventEmitter {
+         return;
+       }
+       const msgs = new MessageStream();
++      msgs.on("error", () => c.destroy());
+       c.on("data", (chunk) => msgs.write(chunk));
+       c.on("error", (error) => this.emit("error", error));
+       msgs.on("message", (msg) => {
+@@ -133,6 +141,7 @@ var SlskListen = class extends EventEmitter {
+           }
+         } catch (error) {
+           console.error("Failed to parse peer init message", error);
++          c.destroy();
+         }
+       });
+     });
+@@ -272,18 +281,24 @@ var fromPeerMessage = {
+   },
+   fileSearchResponse: (msg_) => {
+     const content = msg_.data.slice(msg_.pointer);
+-    const buffer = zlib.unzipSync(content);
++    if (content.length > 1024 * 1024) throw new Error("Compressed search response is too large");
++    const buffer = zlib.unzipSync(content, { maxOutputLength: 8 * 1024 * 1024 });
+     const msg = new MessageParser(buffer);
+     const username = msg.str();
++    if (username.length > 256) throw new Error("Search username is too long");
+     const token = msg.rawHexStr(4);
+     const numResults = msg.int32();
++    if (numResults < 0 || numResults > 200) throw new Error("Search result count is out of bounds");
+     const results = [];
+     for (let i = 0; i < numResults; i++) {
+       msg.int8();
+       const filename = msg.str();
++      if (filename.length > 2048) throw new Error("Search filename is too long");
+       const size = msg.int64();
+-      msg.str();
++      const extension = msg.str();
++      if (extension.length > 32) throw new Error("Search extension is too long");
+       const numAttrs = msg.int32();
++      if (numAttrs < 0 || numAttrs > 16) throw new Error("Search attribute count is out of bounds");
+       const attrs = /* @__PURE__ */ new Map();
+       for (let attrib = 0; attrib < numAttrs; attrib++) {
+         const attrType = msg.int32();
+@@ -370,6 +385,7 @@ var SlskPeer = class extends EventEmitter2 {
+     this.username = username;
+     this.conn = net2.createConnection(address);
+     this.msgs = new MessageStream();
++    this.msgs.on("error", () => this.conn.destroy());
+     this.conn.on("connect", () => this.emit("connect"));
+     this.conn.on("error", (error) => this.emit("error", error));
+     this.conn.on("close", (hadError) => this.emit("close", hadError));
+@@ -385,6 +401,7 @@ var SlskPeer = class extends EventEmitter2 {
+         }
+       } catch (error) {
+         console.error("Failed to parse peer message", error);
++        this.conn.destroy();
+       }
+     });
+   }
+@@ -526,6 +543,7 @@ var SlskServer = class extends EventEmitter3 {
+     super();
+     this.conn = net3.createConnection(address);
+     this.msgs = new MessageStream();
++    this.msgs.on("error", () => this.conn.destroy());
+     this.conn.on("error", (error) => {
+       this.emit("error", error);
+     });
+@@ -540,6 +558,7 @@ var SlskServer = class extends EventEmitter3 {
+         }
+       } catch (error) {
+         console.error("Failed to parse server message", error);
++        this.conn.destroy();
+       }
+     });
+   }
+@@ -578,7 +597,7 @@ var SlskClient = class extends EventEmitter4 {
+       const handler = () => {
+         switch (msg.kind) {
+           case "login": {
+-            this.server.send("sharedFoldersFiles", { dirs: 1, files: 1 });
++            this.server.send("sharedFoldersFiles", { dirs: 0, files: 0 });
+             this.server.send("haveNoParents", { haveNoParents: true });
+             this.server.send("setStatus", { status: UserStatus.Online });
+             break;
+@@ -840,7 +859,7 @@ var SlskClient = class extends EventEmitter4 {
+     const listener = (msg) => {
+       if (msg.kind === "fileSearchResponse" && msg.token === token) {
+         onResult?.(msg);
+-        results.push(msg);
++        if (results.length < 100) results.push(msg);
+       }
+     };
+     this.peerMessages.on("message", listener);
+diff --git a/src/client.ts b/src/client.ts
+index e61fac7f3360832d55e1059582b8adbb3811af38..bb064b446a851ad5823cf87305468ad1d07847b1 100644
+--- a/src/client.ts
++++ b/src/client.ts
+@@ -71,7 +71,7 @@ export class SlskClient extends (EventEmitter as new () => TypedEventEmitter<Sls
+       const handler = () => {
+         switch (msg.kind) {
+           case 'login': {
+-            this.server.send('sharedFoldersFiles', { dirs: 1, files: 1 })
++            this.server.send('sharedFoldersFiles', { dirs: 0, files: 0 })
+             this.server.send('haveNoParents', { haveNoParents: true })
+             this.server.send('setStatus', { status: UserStatus.Online })
+             break
+@@ -397,7 +397,7 @@ export class SlskClient extends (EventEmitter as new () => TypedEventEmitter<Sls
+     const listener = (msg: FromPeerMessage) => {
+       if (msg.kind === 'fileSearchResponse' && msg.token === token) {
+         onResult?.(msg)
+-        results.push(msg)
++        if (results.length < 100) results.push(msg)
+       }
+     }
+     this.peerMessages.on('message', listener)
+diff --git a/src/listen.ts b/src/listen.ts
+index d3e804740546836b1f6364e1bd48f9c1480d29c7..0657d711e4c2031652a15678eb1db4bbdc7be418 100644
+--- a/src/listen.ts
++++ b/src/listen.ts
+@@ -27,6 +27,7 @@ export class SlskListen extends (EventEmitter as new () => TypedEventEmitter<Sls
+       }
+ 
+       const msgs = new MessageStream()
++      msgs.on('error', () => c.destroy())
+ 
+       c.on('data', (chunk) => msgs.write(chunk))
+       c.on('error', (error) => this.emit('error', error))
+@@ -39,6 +40,7 @@ export class SlskListen extends (EventEmitter as new () => TypedEventEmitter<Sls
+           }
+         } catch (error) {
+           console.error('Failed to parse peer init message', error)
++          c.destroy()
+         }
+       })
+     })
+diff --git a/src/messages/from/peer.ts b/src/messages/from/peer.ts
+index 657a3348c1f09713436f594658f62a4cfa14226a..ddd28964e51282fc07786d6104753e113c865973 100644
+--- a/src/messages/from/peer.ts
++++ b/src/messages/from/peer.ts
+@@ -66,20 +66,26 @@ export const fromPeerMessage = {
+   },
+   fileSearchResponse: (msg_: MessageParser): FileSearchResponse => {
+     const content = msg_.data.slice(msg_.pointer)
+-    const buffer = zlib.unzipSync(content)
++    if (content.length > 1024 * 1024) throw new Error('Compressed search response is too large')
++    const buffer = zlib.unzipSync(content, { maxOutputLength: 8 * 1024 * 1024 })
+ 
+     const msg = new MessageParser(buffer)
+     const username = msg.str()
++    if (username.length > 256) throw new Error('Search username is too long')
+     const token = msg.rawHexStr(4)
+ 
+     const numResults = msg.int32()
++    if (numResults < 0 || numResults > 200) throw new Error('Search result count is out of bounds')
+     const results: FileSearchResponse['files'] = []
+     for (let i = 0; i < numResults; i++) {
+       msg.int8() // code
+       const filename = msg.str()
++      if (filename.length > 2048) throw new Error('Search filename is too long')
+       const size = msg.int64()
+-      msg.str() // ext
++      const extension = msg.str()
++      if (extension.length > 32) throw new Error('Search extension is too long')
+       const numAttrs = msg.int32()
++      if (numAttrs < 0 || numAttrs > 16) throw new Error('Search attribute count is out of bounds')
+       const attrs: FileSearchResponse['files'][number]['attrs'] = new Map()
+       for (let attrib = 0; attrib < numAttrs; attrib++) {
+         const attrType = msg.int32() as FileAttribute
+diff --git a/src/messages/message-stream.ts b/src/messages/message-stream.ts
+index 15c3f489e3f52723f837d240336eae8ae5349dd6..fae1784f9ea005f6236f80ba706fef1a760d256d 100644
+--- a/src/messages/message-stream.ts
++++ b/src/messages/message-stream.ts
+@@ -2,27 +2,36 @@ import stream from 'stream'
+ 
+ import { MessageParser } from './message-parser'
+ 
++const MAX_MESSAGE_BYTES = 16 * 1024 * 1024
++
+ export class MessageStream extends stream.Writable {
+   rest: Buffer | undefined
+ 
+   _write(chunk: Buffer, enc: BufferEncoding, next: (error?: Error | null) => void) {
+-    this.read(this.rest ? Buffer.concat([this.rest, chunk]) : chunk)
+-    next()
++    try {
++      this.read(this.rest ? Buffer.concat([this.rest, chunk]) : chunk)
++      next()
++    } catch (error) {
++      this.reset()
++      next(error instanceof Error ? error : new Error('Invalid Soulseek frame'))
++    }
+   }
+ 
+   read(data: Buffer) {
+-    if (data.length < 4) {
+-      this.rest = data.slice(0, data.length)
+-      return
++    let offset = 0
++    while (data.length - offset >= 4) {
++      const size = data.readUInt32LE(offset)
++      if (size > MAX_MESSAGE_BYTES) throw new Error('Soulseek frame exceeds the size limit')
++      const end = offset + size + 4
++      if (end > data.length) break
++      this.emit('message', new MessageParser(data.slice(offset, end)))
++      offset = end
+     }
+-
+-    const size = data.readUInt32LE()
+-    if (size + 4 <= data.length) {
+-      this.emit('message', new MessageParser(data.slice(0, size + 4)))
+-      this.read(data.slice(size + 4, data.length))
+-    } else {
+-      this.rest = data.slice(0, data.length)
++    const rest = data.slice(offset)
++    if (rest.length > MAX_MESSAGE_BYTES + 4) {
++      throw new Error('Soulseek buffered frame exceeds the size limit')
+     }
++    this.rest = rest.length === 0 ? undefined : rest
+   }
+ 
+   reset() {
+diff --git a/src/peer.ts b/src/peer.ts
+index 8fe85fdf751ebd6b566aac3f5e14636efb1d7d6b..532193985b9a891511e7994d84723f327151072e 100644
+--- a/src/peer.ts
++++ b/src/peer.ts
+@@ -29,6 +29,7 @@ export class SlskPeer extends (EventEmitter as new () => TypedEventEmitter<SlskP
+     this.conn = net.createConnection(address)
+ 
+     this.msgs = new MessageStream()
++    this.msgs.on('error', () => this.conn.destroy())
+ 
+     this.conn.on('connect', () => this.emit('connect'))
+     this.conn.on('error', (error) => this.emit('error', error))
+@@ -47,6 +48,7 @@ export class SlskPeer extends (EventEmitter as new () => TypedEventEmitter<SlskP
+         }
+       } catch (error) {
+         console.error('Failed to parse peer message', error)
++        this.conn.destroy()
+       }
+     })
+   }
+diff --git a/src/server.ts b/src/server.ts
+index d75f493cd4017525561ed3febeb50e03841c2bdd..29d130aeec17f601f6169199624ab82879ab4162 100644
+--- a/src/server.ts
++++ b/src/server.ts
+@@ -24,6 +24,7 @@ export class SlskServer extends (EventEmitter as new () => TypedEventEmitter<Sls
+     this.conn = net.createConnection(address)
+ 
+     this.msgs = new MessageStream()
++    this.msgs.on('error', () => this.conn.destroy())
+ 
+     this.conn.on('error', (error) => {
+       this.emit('error', error)
+@@ -41,6 +42,7 @@ export class SlskServer extends (EventEmitter as new () => TypedEventEmitter<Sls
+         }
+       } catch (error) {
+         console.error('Failed to parse server message', error)
++        this.conn.destroy()
+       }
+     })
+   }

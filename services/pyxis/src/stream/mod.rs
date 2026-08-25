@@ -629,8 +629,10 @@ pub(crate) fn media_mime_type(format: Option<&str>) -> &'static str {
     let format = format.unwrap_or_default().to_ascii_lowercase();
     if format.contains("webm") {
         "audio/webm"
-    } else if format.contains("mp4") || format.contains("m4a") || format.contains("aac") {
+    } else if format.contains("mp4") || format.contains("m4a") {
         "audio/mp4"
+    } else if format.contains("aac") {
+        "audio/aac"
     } else if format.contains("mp3") {
         "audio/mpeg"
     } else if format.contains("ogg") || format.contains("opus") {
@@ -674,7 +676,8 @@ mod output_token_tests {
 
     #[test]
     fn media_mime_mapping_is_shared_by_http_and_output_metadata() {
-        assert_eq!(media_mime_type(Some("aac")), "audio/mp4");
+        assert_eq!(media_mime_type(Some("aac")), "audio/aac");
+        assert_eq!(media_mime_type(Some("m4a/mp4a.40.2")), "audio/mp4");
         assert_eq!(media_mime_type(Some("webm/opus")), "audio/webm");
         assert_eq!(media_mime_type(Some("flac")), "audio/flac");
     }

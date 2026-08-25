@@ -46,6 +46,7 @@
           pluginYtmusic = plugins.ytmusic;
           pluginPandora = plugins.pandora;
           pluginSonos = plugins.sonos;
+          pluginSoulseek = plugins.soulseek;
         };
       in
       {
@@ -54,6 +55,7 @@
           plugin-ytmusic = plugins.ytmusic;
           plugin-pandora = plugins.pandora;
           plugin-sonos = plugins.sonos;
+          plugin-soulseek = plugins.soulseek;
           pyxis-tsnet = tsnet;
           default = pyxis;
         };
@@ -62,6 +64,7 @@
           plugin-ytmusic = plugins.ytmusic;
           plugin-pandora = plugins.pandora;
           plugin-sonos = plugins.sonos;
+          plugin-soulseek = plugins.soulseek;
           pyxis-tsnet = tsnet;
         };
         devShells.default = import ./nix/devshell.nix {

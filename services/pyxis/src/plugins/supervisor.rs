@@ -8,7 +8,9 @@
 use std::collections::VecDeque;
 use std::io::{BufRead, BufReader, Read, Write};
 use std::process::{Child, ChildStdin, Command, Stdio};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{self, Receiver, RecvTimeoutError, Sender};
+use std::sync::Arc;
 use std::thread;
 use std::time::{Duration, Instant};
 
@@ -81,6 +83,8 @@ pub struct PluginInvocation {
     pub input: Value,
     pub account_id: Option<String>,
     pub config: Option<Value>,
+    pub timeout: Option<Duration>,
+    pub cancellation: Option<Arc<AtomicBool>>,
 }
 
 pub enum SupervisorCommand {
@@ -173,7 +177,12 @@ fn supervise(
                 return;
             }
             Ok(SupervisorCommand::Call { invocation, reply }) => {
-                let outcome = call_process(&mut running, &id, &invocation, policy.call_timeout);
+                let outcome = call_process(
+                    &mut running,
+                    &id,
+                    &invocation,
+                    invocation.timeout.unwrap_or(policy.call_timeout),
+                );
                 let process_failed = matches!(
                     outcome,
                     Err(PluginCallError::ProcessExited { .. })
@@ -376,26 +385,45 @@ fn call_process(
         });
     }
 
-    let line = match running.output.recv_timeout(timeout) {
-        Ok(ProcessOutput::Line(line)) => line,
-        Ok(ProcessOutput::TooLarge) => {
-            return Err(PluginCallError::Protocol {
+    let deadline = Instant::now() + timeout;
+    let line = loop {
+        if invocation
+            .cancellation
+            .as_ref()
+            .is_some_and(|cancellation| cancellation.load(Ordering::Relaxed))
+        {
+            let _ = running.child.kill();
+            return Err(PluginCallError::Unavailable {
                 plugin_id: plugin_id.into(),
-                message: format!("response exceeded {MAX_PROTOCOL_LINE_BYTES} byte protocol limit"),
+                reason: "plugin call was cancelled during shutdown".into(),
             });
         }
-        Err(RecvTimeoutError::Timeout) => {
+        let now = Instant::now();
+        if now >= deadline {
             let _ = running.child.kill();
             return Err(PluginCallError::Timeout {
                 plugin_id: plugin_id.into(),
                 operation: invocation.operation.clone(),
             });
         }
-        Err(RecvTimeoutError::Disconnected) => {
-            return Err(PluginCallError::ProcessExited {
-                plugin_id: plugin_id.into(),
-                operation: invocation.operation.clone(),
-            });
+        let wait = (deadline - now).min(Duration::from_millis(100));
+        match running.output.recv_timeout(wait) {
+            Ok(ProcessOutput::Line(line)) => break line,
+            Ok(ProcessOutput::TooLarge) => {
+                return Err(PluginCallError::Protocol {
+                    plugin_id: plugin_id.into(),
+                    message: format!(
+                        "response exceeded {MAX_PROTOCOL_LINE_BYTES} byte protocol limit"
+                    ),
+                });
+            }
+            Err(RecvTimeoutError::Timeout) => continue,
+            Err(RecvTimeoutError::Disconnected) => {
+                return Err(PluginCallError::ProcessExited {
+                    plugin_id: plugin_id.into(),
+                    operation: invocation.operation.clone(),
+                });
+            }
         }
     };
     let response: PluginResponseEnvelope =

@@ -35,6 +35,7 @@ pub const API_TOKENS: &str = "apiTokens";
 pub const PLUGIN_CREDENTIALS: &str = "pluginCredentials";
 pub const MEDIA_FILES: &str = "mediaFiles";
 pub const MATCH_OVERRIDES: &str = "matchOverrides";
+pub const FIDELITY_UPGRADE_JOBS: &str = "fidelityUpgradeJobs";
 
 fn field(name: &str, schema: SchemaNode) -> StructField {
     StructField {
@@ -382,6 +383,24 @@ pub fn match_overrides() -> CollectionDescriptor {
     ))
 }
 
+/// Server-only retry state for patient background fidelity upgrades. Peer identity,
+/// filenames, candidate references, and raw provider errors are deliberately never stored.
+pub fn fidelity_upgrade_jobs() -> CollectionDescriptor {
+    added_after_m1(scoped(
+        FIDELITY_UPGRADE_JOBS,
+        vec![
+            field("providerId", SchemaNode::Str),
+            field("trackId", SchemaNode::Str),
+            field("status", SchemaNode::Str),
+            field("attempts", SchemaNode::Num),
+            field("nextAttemptAt", SchemaNode::Str),
+            field("lastAttemptAt", optional(SchemaNode::Str)),
+            field("leaseUntil", optional(SchemaNode::Str)),
+            field("lastErrorCode", optional(SchemaNode::Str)),
+        ],
+    ))
+}
+
 /// Every collection the runtime opens.
 pub fn all() -> Vec<CollectionDescriptor> {
     vec![
@@ -405,5 +424,6 @@ pub fn all() -> Vec<CollectionDescriptor> {
         plugin_credentials(),
         media_files(),
         match_overrides(),
+        fidelity_upgrade_jobs(),
     ]
 }

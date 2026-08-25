@@ -2,6 +2,7 @@
 
 pub mod candidates;
 pub mod fidelity;
+pub mod probe;
 pub mod store;
 
 use std::collections::BTreeSet;

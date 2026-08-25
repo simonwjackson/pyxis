@@ -1,0 +1,9 @@
+{
+  "name": "@pyxis/plugin-soulseek",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@pyxis/plugin-sdk": "workspace:*",
+    "soulseek-ts": "2.1.4"
+  }
+}

@@ -7,6 +7,7 @@
 pub mod accounts;
 pub mod api;
 pub mod db;
+pub mod fidelity_upgrades;
 pub mod instance_lock;
 pub mod library;
 pub mod listen;

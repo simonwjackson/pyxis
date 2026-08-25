@@ -7,6 +7,7 @@
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::ffi::{OsStr, OsString};
 use std::path::{Path, PathBuf};
+use std::sync::atomic::AtomicBool;
 use std::sync::mpsc;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
@@ -142,7 +143,9 @@ impl PluginHost {
         operation: &str,
         input: Value,
     ) -> Result<Value, PluginCallError> {
-        self.call_with_context(plugin_id, capability, operation, input, None, None)
+        self.call_with_context(
+            plugin_id, capability, operation, input, None, None, None, None,
+        )
     }
 
     pub fn call_for_account(
@@ -161,9 +164,36 @@ impl PluginHost {
             input,
             Some(account_id.to_string()),
             config,
+            None,
+            None,
         )
     }
 
+    #[allow(clippy::too_many_arguments)]
+    pub fn call_for_account_with_timeout(
+        &self,
+        plugin_id: &str,
+        capability: &str,
+        operation: &str,
+        input: Value,
+        account_id: &str,
+        config: Option<Value>,
+        timeout: Duration,
+        cancellation: Arc<AtomicBool>,
+    ) -> Result<Value, PluginCallError> {
+        self.call_with_context(
+            plugin_id,
+            capability,
+            operation,
+            input,
+            Some(account_id.to_string()),
+            config,
+            Some(timeout),
+            Some(cancellation),
+        )
+    }
+
+    #[allow(clippy::too_many_arguments)]
     fn call_with_context(
         &self,
         plugin_id: &str,
@@ -172,6 +202,8 @@ impl PluginHost {
         input: Value,
         account_id: Option<String>,
         config: Option<Value>,
+        timeout: Option<Duration>,
+        cancellation: Option<Arc<AtomicBool>>,
     ) -> Result<Value, PluginCallError> {
         let capability = PluginCapability::parse(capability).ok_or_else(|| {
             PluginCallError::CapabilityUnavailable {
@@ -224,6 +256,8 @@ impl PluginHost {
                     input,
                     account_id,
                     config,
+                    timeout,
+                    cancellation,
                 }),
                 reply,
             })
@@ -232,7 +266,7 @@ impl PluginHost {
                 reason: "plugin supervisor stopped".into(),
             })?;
         outcome
-            .recv_timeout(self.policy.call_timeout + Duration::from_secs(1))
+            .recv_timeout(timeout.unwrap_or(self.policy.call_timeout) + Duration::from_secs(1))
             .map_err(|_| PluginCallError::Unavailable {
                 plugin_id: plugin_id.into(),
                 reason: "plugin supervisor did not return a call outcome".into(),

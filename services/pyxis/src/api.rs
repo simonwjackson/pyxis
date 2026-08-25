@@ -19,9 +19,11 @@ use tower_http::services::{ServeDir, ServeFile};
 
 use crate::accounts::Accounts;
 use crate::db::store::Store;
+use crate::fidelity_upgrades::{FidelityUpgradeDependencies, FidelityUpgrader, UpgradeRun};
 use crate::library::Library;
 use crate::listen::{ListenLog, Projections};
 use crate::matching::Matcher;
+use crate::media::probe::FfprobeAudioProbe;
 use crate::media::Media;
 use crate::output_catalog::OutputCatalog;
 use crate::plugin_credentials::CredentialVault;
@@ -40,6 +42,7 @@ pub struct AppState {
     pub listen: ListenLog,
     pub matcher: Matcher,
     pub media: Media,
+    pub(crate) fidelity_upgrader: FidelityUpgrader,
     pub(crate) outputs: OutputCatalog,
     pub(crate) output_stream_tokens: OutputStreamTokens,
     pub projections: Projections,
@@ -80,7 +83,19 @@ impl AppState {
         let media = Media::open(store.clone())?;
         let plugin_credentials = CredentialVault::open(store.clone())?;
         let projections = Projections::open(store.clone());
-        let sessions = Sessions::open(store);
+        let sessions = Sessions::open(store.clone());
+        let fidelity_upgrader = FidelityUpgrader::new(
+            FidelityUpgradeDependencies {
+                store: store.clone(),
+                library: library.clone(),
+                matcher: matcher.clone(),
+                media: media.clone(),
+                credentials: plugin_credentials.clone(),
+                plugins: plugins.clone(),
+                sessions: sessions.clone(),
+            },
+            Arc::new(FfprobeAudioProbe::default()),
+        )?;
         let sources =
             SourceCatalog::new(plugins.clone(), media.clone(), plugin_credentials.clone());
         let outputs = OutputCatalog::new(
@@ -103,6 +118,7 @@ impl AppState {
             listen,
             matcher,
             media,
+            fidelity_upgrader,
             outputs,
             output_stream_tokens,
             plugin_credentials,
@@ -165,15 +181,22 @@ pub async fn serve(settings: &Settings, state: AppState) -> anyhow::Result<()> {
         router_with_web(state.clone(), settings.web_root.clone()),
     );
     let output_monitor = spawn_output_monitor(state.clone());
+    let fidelity_monitor = spawn_fidelity_monitor(state.clone());
     let lan_url = std::env::var("PYXIS_LAN_BASE_URL")
         .ok()
         .and_then(|value| reqwest::Url::parse(&value).ok());
     let Some(lan_url) = lan_url else {
+        let shutdown_state = state.clone();
         let result = primary
-            .with_graceful_shutdown(shutdown_signal())
+            .with_graceful_shutdown(async move {
+                shutdown_signal().await;
+                shutdown_state.fidelity_upgrader.cancel();
+            })
             .await
             .context("serve HTTP");
+        state.fidelity_upgrader.cancel();
         output_monitor.abort();
+        fidelity_monitor.abort();
         return result;
     };
     let host = lan_url.host_str().context("LAN URL has no host")?;
@@ -187,15 +210,51 @@ pub async fn serve(settings: &Settings, state: AppState) -> anyhow::Result<()> {
         .local_addr()
         .context("read LAN stream address")?;
     tracing::info!(address = %lan_address, "pyxis LAN stream listening");
-    let lan = axum::serve(lan_listener, stream_router(state));
+    let lan = axum::serve(lan_listener, stream_router(state.clone()));
 
     let result = tokio::select! {
         result = primary => result.context("serve HTTP"),
         result = lan => result.context("serve LAN stream"),
         () = shutdown_signal() => Ok(()),
     };
+    state.fidelity_upgrader.cancel();
     output_monitor.abort();
+    fidelity_monitor.abort();
     result
+}
+
+fn spawn_fidelity_monitor(state: AppState) -> tokio::task::JoinHandle<()> {
+    tokio::spawn(async move {
+        tokio::time::sleep(std::time::Duration::from_secs(10)).await;
+        let mut interval = tokio::time::interval(std::time::Duration::from_secs(60));
+        interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+        loop {
+            interval.tick().await;
+            let upgrader = state.fidelity_upgrader.clone();
+            match tokio::task::spawn_blocking(move || upgrader.run_once(chrono::Utc::now())).await {
+                Ok(Ok(UpgradeRun::Upgraded {
+                    track_id,
+                    format,
+                    fidelity,
+                })) => tracing::info!(
+                    %track_id,
+                    %format,
+                    lossless = fidelity.lossless,
+                    bitrate_kbps = fidelity.bitrate_kbps,
+                    "background fidelity upgrade completed"
+                ),
+                Ok(Ok(UpgradeRun::Deferred { track_id, code })) => {
+                    tracing::debug!(%track_id, %code, "background fidelity upgrade deferred")
+                }
+                Ok(Ok(UpgradeRun::Rejected { track_id, code })) => {
+                    tracing::debug!(%track_id, %code, "background fidelity candidate rejected")
+                }
+                Ok(Ok(UpgradeRun::Idle | UpgradeRun::Satisfied { .. })) => {}
+                Ok(Err(error)) => tracing::warn!(%error, "fidelity monitor run failed"),
+                Err(error) => tracing::warn!(%error, "fidelity monitor task failed"),
+            }
+        }
+    })
 }
 
 fn spawn_output_monitor(state: AppState) -> tokio::task::JoinHandle<()> {
