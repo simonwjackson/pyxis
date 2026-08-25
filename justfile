@@ -49,6 +49,11 @@ test-ts: link-proseql
 test-pandora-fixtures:
     tools/test-pandora-fixtures
 
+# Fail when the design reference set drifts: a shared module depending on one page's styling,
+# a class with two owners, or one decision written twice.
+test-prototypes:
+    node prototypes/gate.mjs
+
 build-client: link-proseql
     bun run --cwd clients/app build
     tools/verify-pwa-build
