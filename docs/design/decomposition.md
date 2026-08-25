@@ -73,9 +73,14 @@ appears on four surfaces, so it is shared *within the feature layer*, not rebuil
 
 Reads the RPC client, the session, and offline state. Passes plain values down.
 
-Nothing below the binding may read a store, a query, or a fetch. That is the whole rule, and
-it is the one the reference pages break most (`loadLibrary()` is called inside render on all
-five). Acceptable in throwaway HTML with no state library; not acceptable in the client.
+Nothing below the binding may read a store, a query, or a fetch. That is the whole rule.
+
+An earlier version of this document asserted that the reference pages break it on all five
+surfaces. That was wrong, and asserted without looking. Each page loads once at module top,
+before `render` is defined, and everything below reads the result — which is the composition
+root, correctly applied. The claim is corrected here rather than quietly deleted, because a
+document that invents violations is as costly as one that misses them: it sends the next
+reader to fix something that is not broken.
 
 ```
 Route
@@ -194,6 +199,20 @@ and its appearance in the same place, and put the reason next to the rule.
 What remains local to Stacks is genuinely its own: the browse controls, the album detail
 body, and the shelf composition. That is a shape doing shape work.
 
-Still unextracted, and deliberately so: `AlbumTile` and `PlayRow` are domain-named molecules
-used on more than one surface. They belong in a shared *feature* layer, which does not exist
-in a set of flat HTML files. In the client, they do.
+`AlbumTile` and `AlbumShelf` now live in `albums.js`, a shared *feature* layer: domain-named,
+so not system components, but shared all the same. An earlier version of this document
+excused leaving them local because only one surface used them. The gate had already disproved
+that reasoning for the row, which was three copies by the time anyone looked; "only one page
+uses it" is a statement about today.
+
+Extracting `AlbumShelf` immediately tripped the first check: `albums.js` emitted `.shelf`
+while `.shelf` was styled inside `b-shelves.html`. That is the same defect as the rooms
+sheet, caught this time within seconds of being created rather than after it reached a
+designer.
+
+### What flat HTML cannot show
+
+There are no page or template components here, and there cannot be: the file *is* the page.
+Layer coverage of the kind a component catalog checks only becomes meaningful in the client.
+The reference set proves the atoms, molecules and organisms; it cannot prove the layers above
+them.
