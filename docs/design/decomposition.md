@@ -91,21 +91,53 @@ Route
 
 Write them first, and watch each fail once. A gate that has never failed is a guess.
 
+`prototypes/gate.mjs` runs over the reference set as `just test-prototypes`, and enforces:
+
+1. **No shared module may depend on styling a page owns.** This is the sheet defect, made
+   mechanical.
+2. **One class, one owner.** Contextual scoping (`.result .act`) is allowed; a second bare
+   definition is not.
+3. **No two rules may say substantially the same thing.** Four or more shared declarations
+   at 70% overlap is one decision written twice.
+4. **No page may hold a function whose body already exists in another page.** Compared by
+   body, never by name, since every page legitimately owns a `render()`.
+
+For the client, add:
+
 ```ts
-// 1. shapes never read the data edge
+// shapes never read the data edge
 expect(filesBelowBindingsThatImportRpc).toEqual([])
 
-// 2. shapes stay thin: no raw layout primitives or magic dimensions
-expect(shapeFilesWithRawSpacingValues).toEqual([])
-
-// 3. no colour outside tokens
+// no colour outside tokens
 expect(filesWithRawHexOutsideTokens).toEqual([])
 
-// 4. shared components carry no domain nouns
+// shared components carry no domain nouns
 expect(sharedComponentsNamedAfterDomain).toEqual([])
 ```
 
-Gate 3 already passes in the reference set: zero raw hex outside `system.css`.
+The token gate already passes in the reference set: zero raw hex outside `system.css`.
+
+### What the gate found that reading did not
+
+It was written after this document claimed the set was decomposed, and it failed on its first
+run with twenty findings — having already discarded eighteen false ones, because the first
+draft treated `.result .act` as a rival definition and `map(` as a component. A gate that
+cries wolf gets muted, and then it protects nothing.
+
+The largest finding was a component this document had explicitly excused as "deliberately
+unextracted": the row. Rooms, search results and listening history were three copies of one
+molecule — cover, title, subtitle, trailing slot — with 15/15/14px titles, 13/13/12.5px
+subtitles and 3/3/2px offsets. Nobody chose those differences; they are what copying looks
+like six weeks in.
+
+Behind it: an action variant that existed three times because it had never been named (now
+`.act.inline`), a small uppercase meta label restated six times (now `.meta`), and two
+layout idioms restated four times (now `.split` and `.aside`).
+
+The gate is also honest about its limits. Consolidating the heat-dot rule, a regex ate the
+wrong block and deleted the dot from the now-playing bar. The gate stayed green, because a
+deleted rule is not duplication. **A screenshot caught it.** Gates check what they check; they
+do not replace looking at the thing.
 
 ---
 

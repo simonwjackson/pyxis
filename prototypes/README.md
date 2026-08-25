@@ -21,6 +21,13 @@ hundreds of covers at once.
 |---|---|
 | `index.html` | Directory: surfaces, states, themes |
 | `system.html` | Colour, type, availability marks, parts |
+
+Shared code: `system.css` and `common.js` (tokens and components), `parts.js` (the windowed
+grid), `nav.js`, `rooms.js`, `nowplaying.js`, `states.js`. `reference.css` is chrome for the
+two documentation pages and is deliberately not part of the product system.
+
+| Page | Surface |
+|---|---|
 | `b-shelves.html` | Stacks — the collection, and home |
 | `a-inbox.html` | Discovery — triage |
 | `d-search.html` | Search — reaches sources, adds to Discovery |
@@ -53,6 +60,19 @@ nix run nixpkgs#python3 -- prototypes/harvest-art.py
 ```
 
 Without it the pages fall back to blank sleeves, which is itself a state worth seeing.
+
+## The gate
+
+```sh
+just test-prototypes      # or: node prototypes/gate.mjs
+```
+
+It fails when a shared module depends on styling a single page owns, when a class has two
+owners, or when two rules say substantially the same thing. All three are drift that reading
+cannot see: the first shipped a broken Rooms sheet to a designer, and the second let one row
+component exist three times with 15/15/14px titles that nobody chose.
+
+Add a surface and it will tell you what you copied.
 
 ## Decisions these pages encode
 
