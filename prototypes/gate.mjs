@@ -83,6 +83,26 @@ const systemClasses = definedClasses(system)
 const failures = []
 
 // ---------------------------------------------------------------------------
+// 0. A comment welded to the text before it.
+//
+// Twice now, a scripted replacement has inserted a block in the middle of a selector,
+// turning `nav.tabs.bare {` into `nav/* comment */ .avatar {`. The result is valid CSS with
+// the wrong meaning: the rule silently becomes a descendant selector and applies nowhere.
+// It cost a screenshot and a hunt to find. It costs one regex to catch.
+// ---------------------------------------------------------------------------
+for (const file of ["system.css", "reference.css", ...pages]) {
+  const raw = read(file)
+  const glued = raw.match(/\S\/\*/)
+  if (glued) {
+    const line = raw.slice(0, raw.indexOf(glued[0])).split("\n").length
+    failures.push(
+      `${file}:${line} has a comment glued to the text before it (${JSON.stringify(glued[0])}). ` +
+        `A scripted edit almost certainly split a selector.`,
+    )
+  }
+}
+
+// ---------------------------------------------------------------------------
 // 1. A shared module may not depend on styling that a page owns.
 //
 // rooms.js emitted class="sheet" while only b-shelves.html knew what a sheet looked like, so

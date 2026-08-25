@@ -1,0 +1,192 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Sources — Pyxis</title>
+    <script>
+      const requested = new URLSearchParams(location.search).get("theme")
+      const stored = requested || localStorage.getItem("pyxis-theme")
+      if (stored === "dark" || stored === "light") document.documentElement.dataset.theme = stored
+    </script>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="./system.css" />
+    <style>
+      main {
+        max-width: 720px;
+        margin: 0 auto;
+        padding: 0 20px calc(120px + env(safe-area-inset-bottom));
+      }
+      .setup {
+        padding: 40px 0 26px;
+      }
+      .setup h1 {
+        margin: 0;
+        font-size: clamp(26px, 5.5vw, 38px);
+        font-weight: 700;
+        line-height: 1.06;
+        letter-spacing: -0.03em;
+      }
+      .setup p {
+        max-width: 46ch;
+        margin: 14px 0 0;
+        font-size: 15px;
+        font-weight: 500;
+        line-height: 1.55;
+        color: var(--soft);
+      }
+      .install {
+        padding: 22px 0 0;
+      }
+      .footnote {
+        max-width: 48ch;
+        margin: 22px 0 0;
+        font-size: 13px;
+        font-weight: 500;
+        line-height: 1.55;
+        color: var(--soft);
+      }
+    </style>
+  </head>
+  <body>
+    <main id="root"></main>
+
+    <script type="module">
+      import { element, escape, loadLibrary } from "./common.js"
+      import { productNav } from "./nav.js"
+      import { mountNowPlaying } from "./nowplaying.js"
+      import { currentState } from "./states.js"
+
+      const root = document.getElementById("root")
+      const mode = currentState()
+      const library = await loadLibrary(mode)
+      const firstRun = mode === "firstrun" || mode === "nosources"
+
+      // A source is either working, working on it, or asking for something. Everything the
+      // surface shows is one of those three, and the third is the only one that needs a verb.
+      const SOURCES = [
+        {
+          id: "ytmusic",
+          glyph: "YT",
+          name: "YouTube Music",
+          detail: "Streaming and library",
+          status: firstRun ? "disconnected" : "connected",
+          note: "Connected · 366 albums",
+        },
+        {
+          id: "pandora",
+          glyph: "PA",
+          name: "Pandora",
+          detail: "Stations, for discovery",
+          status: firstRun ? "disconnected" : mode === "authexpired" ? "expired" : "connected",
+          note:
+            mode === "authexpired"
+              ? "Signed out — sign in to keep stations"
+              : "Connected · 4 albums",
+        },
+        {
+          id: "soulseek",
+          glyph: "SL",
+          name: "Soulseek",
+          detail: "Library only, never uploads",
+          status: "available",
+          note: "Not installed",
+        },
+      ]
+
+      function sourceRow(source) {
+        const connected = source.status === "connected"
+        const expired = source.status === "expired"
+        const row = element(`
+          <div class="row source ${connected ? "" : "dimmed"}">
+            <span class="avatar">${source.glyph}</span>
+            <span class="t">
+              <b>${escape(source.name)}</b>
+              <span class="${expired ? "trouble" : ""}">${escape(
+                source.status === "connected" || expired ? source.note : source.detail,
+              )}</span>
+            </span>
+          </div>
+        `)
+
+        // Installed but signed out, and not installed at all, are different problems with
+        // different first moves. On first run everything is one or the other.
+        if (source.status === "disconnected") {
+          row.append(element(`<button class="act inline">Connect</button>`))
+        } else if (expired) {
+          row.append(element(`<button class="act inline">Sign in</button>`))
+        } else if (connected) {
+          row.append(element(`<span class="end meta">On</span>`))
+        } else {
+          row.append(element(`<button class="act inline">Install</button>`))
+        }
+
+        // Connecting is a real state with a real wait, so it gets shown rather than a spinner
+        // thrown over the whole page.
+        const action = row.querySelector("button")
+        if (action) {
+          action.onclick = () => {
+            const pending = element(`<span class="act inline pending">Connecting…</span>`)
+            action.replaceWith(pending)
+            setTimeout(() => {
+              pending.replaceWith(element(`<span class="end meta">On</span>`))
+              row.classList.remove("off")
+              row.querySelector(".t span").className = ""
+              row.querySelector(".t span").textContent = "Connected"
+            }, 1100)
+          }
+        }
+        return row
+      }
+
+      function render() {
+        root.innerHTML = ""
+        if (!firstRun) root.append(productNav("sources"))
+
+        if (firstRun) {
+          // First run says what the product needs and why, then gets out of the way. No tour,
+          // no account wall: a source is the only thing that has to exist before anything works.
+          root.append(
+            element(`
+              <section class="setup">
+                <h1>Pyxis needs somewhere to listen from.</h1>
+                <p>
+                  Connect a source and your albums arrive in Discovery, where you decide what
+                  stays. Nothing is uploaded, and nothing leaves this device.
+                </p>
+              </section>
+            `),
+          )
+        } else {
+          root.append(
+            element(`<header class="split opening"><span class="label">Sources</span></header>`),
+          )
+        }
+
+        const list = element(`<section class="install"></section>`)
+        for (const source of SOURCES) list.append(sourceRow(source))
+        root.append(list)
+
+        if (!firstRun) {
+          root.append(
+            element(`
+              <p class="footnote">
+                Sources are plugins. Pyxis runs with none installed — it simply has nothing to
+                play.
+              </p>
+            `),
+          )
+        }
+      }
+
+      render()
+      if (!firstRun) mountNowPlaying(library, { state: mode })
+    </script>
+    <footer class="ref"><a href="./index.html">Pyxis reference</a></footer>
+  </body>
+</html>

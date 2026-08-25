@@ -13,7 +13,7 @@ const DAY = 86400000
 export async function loadLibrary(state = "live") {
   // A library with no albums and a library with no sources look identical to this loader;
   // the surfaces tell them apart, because the recovery differs.
-  if (state === "empty" || state === "nosources") return []
+  if (state === "empty" || state === "nosources" || state === "firstrun") return []
   if (state === "loading") await new Promise(() => {})
 
   const [albums, covers] = await Promise.all([

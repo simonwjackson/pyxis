@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Devices — Pyxis</title>
+    <script>
+      const requested = new URLSearchParams(location.search).get("theme")
+      const stored = requested || localStorage.getItem("pyxis-theme")
+      if (stored === "dark" || stored === "light") document.documentElement.dataset.theme = stored
+    </script>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="./system.css" />
+    <style>
+      main {
+        max-width: 720px;
+        margin: 0 auto;
+        padding: 0 20px calc(120px + env(safe-area-inset-bottom));
+      }
+      .pairing p {
+        max-width: 44ch;
+        margin: 0;
+        font-size: 14px;
+        font-weight: 500;
+        line-height: 1.5;
+        color: var(--soft);
+      }
+      .pairing {
+        padding: 8px 0 26px;
+        border-bottom: 1px solid var(--rule);
+      }
+      /* The code is the whole point of the screen while it is on screen: large enough to read
+         from the doorway, spaced enough to say aloud. Scoped past `.pairing p`, which would
+         otherwise outrank it and quietly return it to body size. */
+      .pairing .code {
+        padding: 22px 0 10px;
+        font-size: clamp(34px, 11vw, 56px);
+        font-weight: 700;
+        letter-spacing: 0.18em;
+        line-height: 1;
+        color: var(--ink);
+        font-variant-numeric: tabular-nums;
+      }
+    </style>
+  </head>
+  <body>
+    <main id="root"></main>
+
+    <script type="module">
+      import { element, escape, loadLibrary } from "./common.js"
+      import { productNav } from "./nav.js"
+      import { mountNowPlaying } from "./nowplaying.js"
+      import { makeRooms } from "./rooms.js"
+      import { currentState } from "./states.js"
+
+      const root = document.getElementById("root")
+      const mode = currentState()
+      const library = await loadLibrary(mode)
+
+      // A device is somewhere sound can come out, and "this phone" is one of them: the thing
+      // in your hand is a room like any other, not a remote control.
+      //
+      // Read from the same room model the bar and the rooms sheet read. Two lists of rooms
+      // would disagree the first time one of them changed, and the screen would argue with
+      // the bar three inches below it.
+      const HARDWARE = {
+        phone: "Phone speaker",
+        kitchen: "Sonos One",
+        living: "Sonos Beam",
+        desk: "Audio out",
+      }
+
+      const devices = makeRooms(library, mode).map((room) => ({
+        id: room.id,
+        glyph: room.id === "phone" ? "▣" : "◉",
+        name: room.name,
+        here: room.id === "phone",
+        gone: !room.reachable,
+        note: !room.reachable
+          ? "Unreachable since 4:02 PM"
+          : room.album
+            ? `Playing · ${room.album.title}`
+            : `Idle · ${HARDWARE[room.id] ?? "Audio out"}`,
+      }))
+
+      function deviceRow(device) {
+        const row = element(`
+          <div class="row device-row ${device.gone ? "dimmed" : ""}">
+            <span class="avatar">${device.glyph}</span>
+            <span class="t">
+              <b>${escape(device.name)}</b>
+              <span class="${device.gone ? "trouble" : ""}">${escape(device.note)}</span>
+            </span>
+          </div>
+        `)
+        row.append(
+          device.here
+            ? element(`<span class="end meta">This device</span>`)
+            : device.gone
+              ? element(`<button class="act inline">Retry</button>`)
+              : element(`<button class="act inline">Forget</button>`),
+        )
+        return row
+      }
+
+      function render() {
+        root.innerHTML = ""
+        root.append(productNav("devices"))
+        root.append(
+          element(`<header class="split opening"><span class="label">Devices</span></header>`),
+        )
+
+        // Pairing is shown in progress, because a code that appears after a button press is
+        // the state people are actually looking at while they walk to the other room.
+        root.append(
+          element(`
+            <section class="pairing">
+              <p class="label">Pair a device</p>
+              <p class="code">4 8 2 9</p>
+              <p>
+                Open Pyxis on the other device and enter this code. It works on this network
+                only, and expires in ten minutes.
+              </p>
+            </section>
+          `),
+        )
+
+        const list = element(`<section></section>`)
+        for (const device of devices) list.append(deviceRow(device))
+        root.append(list)
+      }
+
+      render()
+      mountNowPlaying(library, { state: mode })
+    </script>
+    <footer class="ref"><a href="./index.html">Pyxis reference</a></footer>
+  </body>
+</html>

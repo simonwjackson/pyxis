@@ -357,6 +357,20 @@
         )
       }
 
+      // A queued change that came back rejected. Offline is a condition and says so quietly;
+      // this is a thing that did not happen, so it is coloured and carries the retry. It
+      // names the album, because "a change" is not something anyone can act on.
+      if (mode === "writefailed") {
+        const failed = element(`
+          <p class="strip failed">
+            <b>Not saved</b>
+            <span class="right">Moving Bloom to collection failed <button>Retry</button></span>
+          </p>
+        `)
+        failed.querySelector("button").onclick = () => failed.remove()
+        document.getElementById("strip").append(failed)
+      }
+
       const library = await loadLibrary(mode)
       const sounds = currentSession(library, mode)
 

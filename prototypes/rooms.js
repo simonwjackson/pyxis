@@ -32,6 +32,11 @@ export function makeRooms(library, mode = "live") {
   if (mode === "unreachable") {
     Object.assign(byId("kitchen"), { reachable: false })
   }
+  if (mode === "handofffailed") {
+    // The sound never left. Saying so is the whole design: a failed move that reads as
+    // silence sends someone hunting for a device that was never playing.
+    Object.assign(byId("living"), { failed: true })
+  }
   return rooms
 }
 
@@ -56,24 +61,30 @@ export function roomsPanel(rooms, { onChange, moving = null } = {}) {
     const art = room.album
       ? `<span class="frame">${sleeve(room.album)}</span>`
       : `<span class="blank-slot"></span>`
-    const status = !room.reachable
-      ? "Unreachable"
-      : room.album
-        ? `${escape(room.album.title)} — ${escape(room.album.artist)}`
-        : "Nothing playing"
+    const status = room.failed
+      ? "Could not move here — still playing in Kitchen"
+      : !room.reachable
+        ? "Unreachable"
+        : room.album
+          ? `${escape(room.album.title)} — ${escape(room.album.artist)}`
+          : "Nothing playing"
 
     const row = element(`
       <div class="row room ${room.reachable ? "" : "gone"}">
         ${art}
         <span class="t">
           <b><span class="dot ${room.playing && room.reachable ? "live" : ""}"></span>${escape(room.name)}</b>
-          <span class="truncate-1">${status}</span>
+          <span class="truncate-1 ${room.failed ? "trouble" : ""}">${status}</span>
         </span>
       </div>
     `)
 
     if (moving === room.id) {
       row.append(element(`<span class="act inline pending">Moving…</span>`))
+    } else if (room.failed) {
+      const again = element(`<button class="act inline">Try again</button>`)
+      again.onclick = () => onChange?.({ type: "move", room })
+      row.append(again)
     } else if (!room.reachable) {
       const retry = element(`<button class="act inline">Retry</button>`)
       retry.onclick = () => onChange?.({ type: "retry", room })

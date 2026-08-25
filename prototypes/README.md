@@ -23,7 +23,8 @@ hundreds of covers at once.
 | `system.html` | Colour, type, availability marks, parts |
 
 Shared code: `system.css` and `common.js` (tokens and components), `parts.js` (the windowed
-grid), `nav.js`, `rooms.js`, `nowplaying.js`, `states.js`. `reference.css` is chrome for the
+grid), `albums.js` (tile and shelf), `nav.js`, `account.js`, `rooms.js`, `nowplaying.js`,
+`states.js`. `reference.css` is chrome for the
 two documentation pages and is deliberately not part of the product system.
 
 | Page | Surface |
@@ -33,14 +34,17 @@ two documentation pages and is deliberately not part of the product system.
 | `d-search.html` | Search — reaches sources, adds to Discovery |
 | `e-history.html` | History — the listening journal |
 | `c-console.html` | Rooms — a sheet in the product, shown alone here for review |
+| `f-sources.html` | Sources — connecting, re-authenticating, first run |
+| `g-devices.html` | Devices — what can play, and pairing another |
 
 The now-playing bar is permanent on every surface and expands into the player, which is why
 there is no player page.
 
 ## States and themes
 
-Any page takes `?state=` — `live`, `silent`, `offline`, `multiroom`, `unreachable`, `empty`,
-`nosources`, `loading` — and `?theme=light` or `?theme=dark`. Without a theme parameter the
+Any page takes `?state=` — `live`, `silent`, `offline`, `multiroom`, `unreachable`,
+`handofffailed`, `writefailed`, `empty`, `nosources`, `firstrun`, `authexpired`, `loading` —
+and `?theme=light` or `?theme=dark`. Without a theme parameter the
 system preference wins. The index links to every combination worth seeing.
 
 ## Data
@@ -85,5 +89,5 @@ Add a surface and it will tell you what you copied.
 
 ## Not answered here
 
-Device pairing, the account switcher once a second account exists, and a failed write. Nothing
-is styled for a brand.
+Nothing is styled for a brand: no logo, no illustration, no colour beyond the covers. There is
+no artist page and no playlist, because the album is the unit, and no queue editor.

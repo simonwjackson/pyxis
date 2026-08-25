@@ -4,6 +4,7 @@
 // deliberately absent: it is reached from the player's room control, not from navigation,
 // because it is consulted rarely and the slot is worth more to Search and History.
 
+import { accountControl } from "./account.js"
 import { element } from "./common.js"
 
 const DESTINATIONS = [
@@ -27,5 +28,7 @@ export function productNav(current, { waiting = 0 } = {}) {
       `),
     )
   }
+  // Configuration hangs off the account control rather than taking a fifth slot.
+  nav.append(accountControl())
   return nav
 }

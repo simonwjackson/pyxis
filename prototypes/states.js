@@ -9,8 +9,12 @@ export const STATES = {
   offline: "Offline",
   multiroom: "Two rooms playing",
   unreachable: "Room unreachable",
+  handofffailed: "Handoff failed",
+  writefailed: "A change was not saved",
   empty: "Empty library",
   nosources: "No sources",
+  firstrun: "First run",
+  authexpired: "Source needs signing in",
   loading: "Loading",
 }
 
