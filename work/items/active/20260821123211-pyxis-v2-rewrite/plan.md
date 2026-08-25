@@ -893,6 +893,14 @@ works. Output queues can be cleared from the reference client.
 **Verification:** No upload code path exists, confirmed by inspection and by the absence
 of any share configuration. Upgrades appear without any client-visible action.
 
+**Implementation status (2026-08-24):** Fixture-complete, reviewed, packaged, and deployed in
+`d6cf5fb` plus `9da7340`. The provider remains absent from every public plugin summary; the pinned
+client advertises zero shares and bounds hostile peer frames/results. Persistent account jobs,
+AutoMerge-only selection, exact byte binding, core-owned staging, ffprobe verification, strict
+fidelity improvement, playback-safe formats, active-media retention, a 50 GiB budget, patient
+retry, weekly reacquisition checks, and cooperative shutdown are covered by automated tests.
+M6 product acceptance remains open pending credentials and one verified live-network upgrade.
+
 ---
 
 

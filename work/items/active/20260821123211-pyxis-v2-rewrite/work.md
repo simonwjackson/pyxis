@@ -23,8 +23,9 @@ requirements and decisions were captured directly into `plan.md` sections
 
 ## Current position
 
-**M7, M5, and M4 are complete. Sonos playback is accepted on real hardware. M3 still
-awaits your hands-on validation from a second device.**
+**M7, M5, and M4 are complete. M6/U19 Soulseek is implementation-complete and deployed;
+credentialed live-network acceptance remains open. M3 still awaits your hands-on validation
+from a second device.**
 
 U26 documents the whole public API, with a worked example that `tools/verify-api-example`
 extracts from the document and runs, so a claim that stops matching the server fails there.
@@ -132,8 +133,31 @@ contract drift, API/PWA verification, owned-source Biome, shellcheck, release bu
 Nix package builds, and `nix flake check` pass. Local and tailnet health remain 200. Repository-wide
 Biome still sees only unrelated `prototypes/` work.
 
-Next: implement U19 Soulseek against fixtures; credentials and live-network validation remain
-pending. Later, finish M3's console/handoff feel-test.
+**U19 is fixture-complete, reviewed, packaged, and deployed in `d6cf5fb` plus Nix fix
+`9da7340`.** The provider-only Soulseek plugin is absent from public plugin lists and system
+status, exposes only opaque search/download operations, accepts no shared-folder configuration,
+and pins `soulseek-ts` 2.1.4 with a reproducible patch that advertises zero shares, bounds hostile
+frames and compressed results, and drops malformed peers. Account switches close prior clients;
+peer queues can wait up to six hours; failures invalidate the client and enter durable backoff.
+
+The core creates account-scoped fidelity jobs, processes at most one due library track per minute,
+accepts only the existing matcher's AutoMerge band, binds searched and downloaded byte counts,
+probes complete files with packaged `ffprobe`, reruns duration matching, allows only playback-safe
+formats and strict quality improvements, and imports through the existing local media store.
+Staging is exact-path and partial-safe, satisfied jobs revalidate weekly, active playback media is
+retained during eviction, and a strict 50 GiB per-account acquisition budget gates imports.
+Long provider calls are cooperatively cancelled during shutdown.
+
+Verification passes with 71 TypeScript plugin/SDK tests, 196 client tests, 68 Rust unit tests and
+all integration tests, including verified-lossless resolution, rejected/ambiguous/no-partial
+paths, provider invisibility, hostile-call cancellation, exact-commit Soulseek and aggregate Nix
+builds, and `nix flake check`. The deployed provider process is live while public status remains
+three visible plugins with only `source` and `output`; local and tailnet health are 200. With no
+Soulseek credentials configured, the scheduler is correctly idle. M6 product acceptance still
+requires credentials and a live peer download that becomes the preferred local candidate.
+
+Next: obtain/configure Soulseek credentials and run M6 live-network acceptance. Later, finish
+M3's console/handoff feel-test.
 
 Album removal is no longer deferred. D17 records your decision: server removal wins,
 queued local placement intent is discarded, and the client reports the conflict.
