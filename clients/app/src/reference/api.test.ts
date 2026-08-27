@@ -319,7 +319,7 @@ describe("reference realtime client", () => {
     const connected = vi.fn()
     const client = createReferenceClient({
       createWebSocket: () => socket as unknown as WebSocket,
-      realtimeFrameTimeoutMs: 5,
+      realtimeResyncTimeoutMs: 5,
     })
     client.connectRealtime("token", {
       onEvent: () => {},

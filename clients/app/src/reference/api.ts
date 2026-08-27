@@ -104,9 +104,10 @@ interface ReferenceClientConfig {
   }) => Promise<{ readonly candidateUrl?: string; readonly cacheName?: string } | undefined>
   readonly realtimeUrl?: string
   readonly createWebSocket?: (url: string) => WebSocket
-  /// Test seam. A live host must stop claiming reachability when durable frame handling
-  /// cannot finish; production allows 30 seconds per frame.
+  /// Test seams. Incremental frames stay tight, while a first-run full snapshot gets a
+  /// larger budget for opening WASM storage and applying the whole account.
   readonly realtimeFrameTimeoutMs?: number
+  readonly realtimeResyncTimeoutMs?: number
 }
 
 export function createReferenceClient(config: ReferenceClientConfig = {}): ReferenceClient {
@@ -116,6 +117,7 @@ export function createReferenceClient(config: ReferenceClientConfig = {}): Refer
   const realtimeUrl = config.realtimeUrl ?? defaultRealtimeUrl()
   const createWebSocket = config.createWebSocket ?? ((url: string) => new WebSocket(url))
   const realtimeFrameTimeoutMs = config.realtimeFrameTimeoutMs ?? 30_000
+  const realtimeResyncTimeoutMs = config.realtimeResyncTimeoutMs ?? 120_000
 
   const rpc = async (payload: RpcRequest, bearer?: string): Promise<RpcResponse> => {
     assertRpcRequest(payload)
@@ -302,8 +304,11 @@ export function createReferenceClient(config: ReferenceClientConfig = {}): Refer
       // Kept across reconnects and page loads so a brief drop replays instead of losing state.
       let resumeToken = initialResumeToken
 
-      const handle = <T>(label: string, operation: () => T | Promise<T>): Promise<T> =>
-        withTimeout(Promise.resolve().then(operation), realtimeFrameTimeoutMs, label)
+      const handle = <T>(
+        label: string,
+        operation: () => T | Promise<T>,
+        timeoutMs = realtimeFrameTimeoutMs,
+      ): Promise<T> => withTimeout(Promise.resolve().then(operation), timeoutMs, label)
 
       const open = () => {
         if (closed) return
@@ -358,7 +363,11 @@ export function createReferenceClient(config: ReferenceClientConfig = {}): Refer
                 const nextResumeToken = frame.payload.resumeToken
                 // Persist a cursor only after the state it covers is durable.
                 if (frame.payload.missedEventsDropped || helloResumeToken === undefined) {
-                  await handle("realtime resync timed out", handlers.onResync)
+                  await handle(
+                    "realtime resync timed out",
+                    handlers.onResync,
+                    realtimeResyncTimeoutMs,
+                  )
                 }
                 await handle("realtime cursor storage timed out", () =>
                   handlers.onResumeToken(nextResumeToken),
