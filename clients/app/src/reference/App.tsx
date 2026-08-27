@@ -94,6 +94,7 @@ export function ReferenceApp({
   const [updateAvailable, setUpdateAvailable] = useState(false)
   const [audioUrl, setAudioUrl] = useState<string>()
   const [error, setError] = useState<string>()
+  const [realtimeError, setRealtimeError] = useState<string>()
   const sessionRef = useRef<RpcSession>()
   const sessionOpening = useRef<Promise<RpcSession>>()
   const resumeTokenRef = useRef<string>()
@@ -562,6 +563,8 @@ export function ReferenceApp({
     return client.connectRealtime(
       token,
       {
+        onConnected: () => setRealtimeError(undefined),
+        onFailure: (cause) => setRealtimeError(`Realtime connection failed: ${message(cause)}`),
         onEvent: async (event) => {
           const state = event.state
           if (state._tag === "session.state") {
@@ -1112,9 +1115,11 @@ export function ReferenceApp({
     }
   }, [])
 
+  const runtimeError = error ?? realtimeError
+  const runtimeStatus = realtimeError === undefined ? status : "error"
   const context = useMemo(
     () => ({
-      status,
+      status: runtimeStatus,
       ...(grant === undefined ? {} : { grant }),
       plugins,
       albums,
@@ -1130,7 +1135,7 @@ export function ReferenceApp({
       updateAvailable,
       applyUpdate,
       ...(audioUrl === undefined ? {} : { audioUrl }),
-      ...(error === undefined ? {} : { error }),
+      ...(runtimeError === undefined ? {} : { error: runtimeError }),
       setQuery,
       search,
       enqueue,
@@ -1153,7 +1158,7 @@ export function ReferenceApp({
       attachAudio,
     }),
     [
-      status,
+      runtimeStatus,
       grant,
       plugins,
       albums,
@@ -1169,7 +1174,7 @@ export function ReferenceApp({
       updateAvailable,
       applyUpdate,
       audioUrl,
-      error,
+      runtimeError,
       search,
       enqueue,
       enqueueAlbum,

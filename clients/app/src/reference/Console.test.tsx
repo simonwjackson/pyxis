@@ -14,7 +14,7 @@ import { createDirectWorkerClient, type WorkerClient } from "../worker/client.ts
 import { createMemoryEngine, openWorkerDatabase } from "../worker/database.ts"
 import { sync as runWorkerSync } from "../worker/sync.ts"
 import { ReferenceApp } from "./App.tsx"
-import type { ReferenceClient } from "./api.ts"
+import type { RealtimeHandlers, ReferenceClient } from "./api.ts"
 import { ReferenceConsole } from "./Console.tsx"
 import { ReferenceLibrary } from "./Library.tsx"
 import { ReferenceOffline } from "./Offline.tsx"
@@ -159,6 +159,38 @@ describe("update banner", () => {
     expect(reload).not.toHaveBeenCalled()
     fireEvent.click(button)
     expect(reload).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe("realtime visibility", () => {
+  test("shows a failed realtime host and clears it after recovery", async () => {
+    let realtime: RealtimeHandlers | undefined
+    const configured: ReferenceClient = {
+      ...client([]),
+      connectRealtime: (_token, handlers) => {
+        realtime = handlers
+        return () => {}
+      },
+    }
+
+    render(
+      <ReferenceApp client={configured} worker={persistent(createDirectWorkerClient())}>
+        <ReferencePlugins />
+      </ReferenceApp>,
+    )
+
+    await waitFor(() => expect(realtime).toBeDefined())
+    await waitFor(() => expect(screen.getByText("Status: ready")).toBeTruthy())
+    act(() => realtime?.onFailure?.(new Error("realtime resync timed out")))
+
+    await waitFor(() => expect(screen.getByText("Status: error")).toBeTruthy())
+    expect(screen.getByRole("alert").textContent).toContain(
+      "Realtime connection failed: realtime resync timed out",
+    )
+
+    act(() => realtime?.onConnected?.())
+    await waitFor(() => expect(screen.getByText("Status: ready")).toBeTruthy())
+    expect(screen.queryByRole("alert")).toBeNull()
   })
 })
 

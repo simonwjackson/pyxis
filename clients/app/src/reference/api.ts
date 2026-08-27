@@ -25,6 +25,11 @@ export interface RealtimeHandlers {
   /// The server could not replay what was missed. Local state may be stale and has to be
   /// refetched rather than patched.
   onResync(): void | Promise<void>
+  /// The welcome snapshot and its durable cursor have both completed.
+  onConnected?(): void
+  /// A failed handshake, terminal server frame, or local frame handler made the socket
+  /// unable to accept console commands. Reconnect still happens automatically.
+  onFailure?(cause: unknown): void
 }
 
 export interface SearchResult {
@@ -99,6 +104,9 @@ interface ReferenceClientConfig {
   }) => Promise<{ readonly candidateUrl?: string; readonly cacheName?: string } | undefined>
   readonly realtimeUrl?: string
   readonly createWebSocket?: (url: string) => WebSocket
+  /// Test seam. A live host must stop claiming reachability when durable frame handling
+  /// cannot finish; production allows 30 seconds per frame.
+  readonly realtimeFrameTimeoutMs?: number
 }
 
 export function createReferenceClient(config: ReferenceClientConfig = {}): ReferenceClient {
@@ -107,6 +115,7 @@ export function createReferenceClient(config: ReferenceClientConfig = {}): Refer
   const authorizeDirectStream = config.authorizeDirectStream ?? authorizeServiceWorkerStream
   const realtimeUrl = config.realtimeUrl ?? defaultRealtimeUrl()
   const createWebSocket = config.createWebSocket ?? ((url: string) => new WebSocket(url))
+  const realtimeFrameTimeoutMs = config.realtimeFrameTimeoutMs ?? 30_000
 
   const rpc = async (payload: RpcRequest, bearer?: string): Promise<RpcResponse> => {
     assertRpcRequest(payload)
@@ -292,29 +301,46 @@ export function createReferenceClient(config: ReferenceClientConfig = {}): Refer
       let retry: ReturnType<typeof setTimeout> | undefined
       // Kept across reconnects and page loads so a brief drop replays instead of losing state.
       let resumeToken = initialResumeToken
-      let helloHadResume = false
-      let frames: Promise<void> = Promise.resolve()
-      let frameFailed = false
+
+      const handle = <T>(label: string, operation: () => T | Promise<T>): Promise<T> =>
+        withTimeout(Promise.resolve().then(operation), realtimeFrameTimeoutMs, label)
 
       const open = () => {
         if (closed) return
-        frames = Promise.resolve()
-        frameFailed = false
-        socket = createWebSocket(realtimeUrl)
-        socket.addEventListener("open", () => {
-          helloHadResume = resumeToken !== undefined
-          socket?.send(
+        const helloResumeToken = resumeToken
+        let frames: Promise<void> = Promise.resolve()
+        let frameFailed = false
+        let ready = false
+        let failureReported = false
+        let currentSocket: WebSocket
+
+        const reportFailure = (cause: unknown) => {
+          if (failureReported || closed) return
+          failureReported = true
+          handlers.onFailure?.(cause)
+        }
+
+        try {
+          currentSocket = createWebSocket(realtimeUrl)
+        } catch (cause) {
+          reportFailure(cause)
+          retry = setTimeout(open, 1000)
+          return
+        }
+        socket = currentSocket
+        currentSocket.addEventListener("open", () => {
+          currentSocket.send(
             JSON.stringify({
               _tag: "realtime.hello",
               payload: {
                 bearerToken: token,
                 topics: ["sessions", "library"],
-                ...(resumeToken === undefined ? {} : { resumeToken }),
+                ...(helloResumeToken === undefined ? {} : { resumeToken: helloResumeToken }),
               },
             }),
           )
         })
-        socket.addEventListener("message", (message: MessageEvent<string>) => {
+        currentSocket.addEventListener("message", (message: MessageEvent<string>) => {
           if (frameFailed) return
           frames = frames
             .then(async () => {
@@ -331,31 +357,57 @@ export function createReferenceClient(config: ReferenceClientConfig = {}): Refer
               if (frame._tag === "realtime.welcome") {
                 const nextResumeToken = frame.payload.resumeToken
                 // Persist a cursor only after the state it covers is durable.
-                if (frame.payload.missedEventsDropped || !helloHadResume) {
-                  await handlers.onResync()
+                if (frame.payload.missedEventsDropped || helloResumeToken === undefined) {
+                  await handle("realtime resync timed out", handlers.onResync)
                 }
-                await handlers.onResumeToken(nextResumeToken)
+                await handle("realtime cursor storage timed out", () =>
+                  handlers.onResumeToken(nextResumeToken),
+                )
                 resumeToken = nextResumeToken
+                ready = true
+                handlers.onConnected?.()
                 return
               }
               if (frame._tag === "realtime.event") {
                 const nextResumeToken = frame.payload.resumeToken
-                await handlers.onEvent(frame.payload)
-                await handlers.onResumeToken(nextResumeToken)
+                await handle("realtime state storage timed out", () =>
+                  handlers.onEvent(frame.payload),
+                )
+                await handle("realtime cursor storage timed out", () =>
+                  handlers.onResumeToken(nextResumeToken),
+                )
                 resumeToken = nextResumeToken
                 return
               }
-              if (frame._tag === "realtime.command") handlers.onDirective(frame.payload)
+              if (frame._tag === "realtime.command") {
+                handlers.onDirective(frame.payload)
+                return
+              }
+              if (frame._tag === "realtime.failure") {
+                throw new Error(`${frame.payload.code}: ${frame.payload.message}`)
+              }
             })
-            .catch(() => {
+            .catch((cause: unknown) => {
               // Keep the last committed cursor. Reconnect from there rather than letting a
-              // later frame move past state this client did not store.
+              // later frame move past state this client did not store. Closing also removes
+              // this device from live reachability while its durable handler is unhealthy.
               frameFailed = true
-              socket?.close()
+              reportFailure(cause)
+              currentSocket.close()
             })
         })
-        socket.addEventListener("close", () => {
-          if (closed) return
+        currentSocket.addEventListener("error", () => {
+          reportFailure(new Error("realtime socket failed"))
+        })
+        currentSocket.addEventListener("close", () => {
+          if (closed || socket !== currentSocket) return
+          reportFailure(
+            new Error(
+              ready
+                ? "realtime connection closed"
+                : "realtime connection closed before it became ready",
+            ),
+          )
           retry = setTimeout(open, 1000)
         })
       }
@@ -444,6 +496,24 @@ async function authorizeServiceWorkerStream(credentials: {
       controller.postMessage({ _tag: "pyxis.stream.authorize", ...credentials }, [channel.port2])
     },
   )
+}
+
+async function withTimeout<T>(
+  operation: Promise<T>,
+  timeoutMs: number,
+  failure: string,
+): Promise<T> {
+  let timeout: ReturnType<typeof setTimeout> | undefined
+  try {
+    return await Promise.race([
+      operation,
+      new Promise<never>((_, reject) => {
+        timeout = setTimeout(() => reject(new Error(failure)), timeoutMs)
+      }),
+    ])
+  } finally {
+    if (timeout !== undefined) clearTimeout(timeout)
+  }
 }
 
 function defaultRealtimeUrl(): string {

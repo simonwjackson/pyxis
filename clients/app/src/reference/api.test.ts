@@ -243,6 +243,7 @@ describe("reference realtime client", () => {
   test("a failed state handler closes the socket without advancing its cursor", async () => {
     const socket = new FakeSocket()
     const persisted: string[] = []
+    const failed = vi.fn()
     const client = createReferenceClient({
       createWebSocket: () => socket as unknown as WebSocket,
     })
@@ -257,6 +258,7 @@ describe("reference realtime client", () => {
         onResumeToken: async (token) => {
           persisted.push(token)
         },
+        onFailure: failed,
       },
       "resume-old",
     )
@@ -275,6 +277,126 @@ describe("reference realtime client", () => {
     socket.message(event("resume-later"))
 
     expect(persisted).toEqual([])
+    expect(failed).toHaveBeenCalledWith(
+      expect.objectContaining({ message: "database write failed" }),
+    )
+  })
+
+  test("surfaces a terminal server failure before reconnecting", async () => {
+    const socket = new FakeSocket()
+    const failed = vi.fn()
+    const client = createReferenceClient({
+      createWebSocket: () => socket as unknown as WebSocket,
+    })
+    client.connectRealtime("token", {
+      onEvent: () => {},
+      onDirective: () => {},
+      onResync: () => {},
+      onResumeToken: () => {},
+      onFailure: failed,
+    })
+    socket.emit("open")
+    socket.message({
+      _tag: "realtime.failure",
+      payload: {
+        code: "realtime.scopeRequired",
+        message: "topic sessions requires scope session:read",
+        retryable: false,
+      },
+    })
+
+    await vi.waitFor(() => expect(socket.closed).toBe(true))
+    expect(failed).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message: "realtime.scopeRequired: topic sessions requires scope session:read",
+      }),
+    )
+  })
+
+  test("drops reachability when welcome resync cannot finish", async () => {
+    const socket = new FakeSocket()
+    const failed = vi.fn()
+    const connected = vi.fn()
+    const client = createReferenceClient({
+      createWebSocket: () => socket as unknown as WebSocket,
+      realtimeFrameTimeoutMs: 5,
+    })
+    client.connectRealtime("token", {
+      onEvent: () => {},
+      onDirective: () => {},
+      onResync: () => new Promise<never>(() => undefined),
+      onResumeToken: () => {},
+      onConnected: connected,
+      onFailure: failed,
+    })
+    socket.emit("open")
+    socket.message({
+      _tag: "realtime.welcome",
+      payload: { resumeToken: "resume-first", missedEventsDropped: false, topics: [] },
+    })
+
+    await vi.waitFor(() => expect(socket.closed).toBe(true))
+    expect(connected).not.toHaveBeenCalled()
+    expect(failed).toHaveBeenCalledWith(
+      expect.objectContaining({ message: "realtime resync timed out" }),
+    )
+  })
+
+  test("reconnects from the last durable cursor and reports recovery", async () => {
+    vi.useFakeTimers()
+    try {
+      const first = new FakeSocket()
+      const second = new FakeSocket()
+      const sockets = [first, second]
+      let opened = 0
+      const connected = vi.fn()
+      const failed = vi.fn()
+      const persisted: string[] = []
+      const client = createReferenceClient({
+        createWebSocket: () => sockets[opened++] as unknown as WebSocket,
+      })
+      const disconnect = client.connectRealtime(
+        "token",
+        {
+          onEvent: () => {},
+          onDirective: () => {},
+          onResync: () => {},
+          onResumeToken: async (token) => {
+            persisted.push(token)
+          },
+          onConnected: connected,
+          onFailure: failed,
+        },
+        "resume-old",
+      )
+
+      first.emit("open")
+      first.message({
+        _tag: "realtime.welcome",
+        payload: { resumeToken: "resume-new", missedEventsDropped: false, topics: [] },
+      })
+      await vi.waitFor(() => expect(connected).toHaveBeenCalledTimes(1))
+      first.emit("close")
+      expect(failed).toHaveBeenCalledWith(
+        expect.objectContaining({ message: "realtime connection closed" }),
+      )
+
+      await vi.advanceTimersByTimeAsync(1000)
+      expect(opened).toBe(2)
+      second.emit("open")
+      expect(JSON.parse(second.sent[0] ?? "{}")).toMatchObject({
+        payload: { resumeToken: "resume-new" },
+      })
+      second.message({
+        _tag: "realtime.welcome",
+        payload: { resumeToken: "resume-next", missedEventsDropped: false, topics: [] },
+      })
+      await vi.waitFor(() => expect(connected).toHaveBeenCalledTimes(2))
+      expect(persisted).toEqual(["resume-new", "resume-next"])
+      disconnect()
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   test("closes the first-connection snapshot gap before storing its welcome cursor", async () => {
@@ -292,6 +414,7 @@ describe("reference realtime client", () => {
       onResumeToken: async () => {
         order.push("cursor")
       },
+      onConnected: () => order.push("connected"),
     })
     socket.emit("open")
     socket.message({
@@ -299,6 +422,6 @@ describe("reference realtime client", () => {
       payload: { resumeToken: "resume-first", missedEventsDropped: false, topics: [] },
     })
 
-    await vi.waitFor(() => expect(order).toEqual(["resync", "cursor"]))
+    await vi.waitFor(() => expect(order).toEqual(["resync", "cursor", "connected"]))
   })
 })
