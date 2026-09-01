@@ -17,6 +17,7 @@ export interface AccountCreateRequest {
 
 export type RpcAlbumCommand =
 	| { _tag: "placement.set", payload: PlacementSetCommand }
+	| { _tag: "artwork.refresh", payload: EmptyRequest }
 	| { _tag: "remove", payload: EmptyRequest };
 
 export interface AlbumCommandRequest {
@@ -80,6 +81,7 @@ export interface LibraryAlbumAddRequest {
 	title: string;
 	artist: string;
 	year?: number;
+	artworkUrl?: string;
 	sourceReference?: LibrarySourceReference;
 	tracks: LibraryTrackInput[];
 }
@@ -388,6 +390,7 @@ export interface RpcLibraryAlbum {
 	title: string;
 	artist: string;
 	year?: number;
+	artworkUrl?: string;
 	placement: RpcPlacement;
 	placementUpdatedAt: string;
 	addedAt: string;

@@ -51,6 +51,7 @@ fn add_request() -> Value {
             "title": "Heroes",
             "artist": "David Bowie",
             "year": 1977,
+            "artworkUrl": "https://img.example/heroes.jpg",
             "sourceReference": {
                 "pluginId": "ytmusic",
                 "externalId": "album-heroes"
@@ -108,6 +109,14 @@ async fn album_add_list_placement_and_remove_are_one_coherent_public_contract() 
     assert_eq!(
         listed["outcome"]["value"][0]["tracks"][0]["id"],
         "track-heroes"
+    );
+    assert_eq!(
+        listed["outcome"]["value"][0]["artworkUrl"],
+        "https://img.example/heroes.jpg"
+    );
+    assert_eq!(
+        listed["outcome"]["value"][0]["tracks"][0]["artworkUrl"],
+        "https://img.example/heroes.jpg"
     );
 
     let removed = rpc(

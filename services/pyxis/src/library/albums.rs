@@ -23,6 +23,7 @@ pub struct AlbumInput {
     pub title: String,
     pub artist: String,
     pub year: Option<u32>,
+    pub artwork_url: Option<String>,
     pub source_reference: Option<SourceReference>,
     pub tracks: Vec<TrackInput>,
 }
@@ -44,6 +45,7 @@ pub struct Album {
     pub title: String,
     pub artist: String,
     pub year: Option<u32>,
+    pub artwork_url: Option<String>,
     pub placement: Placement,
     pub placement_updated_at: String,
     pub added_at: String,

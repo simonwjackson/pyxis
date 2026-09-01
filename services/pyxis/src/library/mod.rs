@@ -4,6 +4,7 @@
 //! ids live in `albumSourceRefs`; album and track ids remain opaque core identity.
 
 pub mod albums;
+mod artwork;
 pub mod placement;
 
 use std::collections::HashMap;
@@ -20,11 +21,20 @@ pub use albums::{Album, AlbumInput, SourceReference, Track, TrackInput};
 pub use placement::Placement;
 
 use albums::{normalize, AlbumRecord, AlbumTrackRecord, SourceReferenceRecord, TrackRecord};
+use artwork::{AlbumArtworkStore, ArtworkStoreError, StoredArtwork};
+
+#[derive(Clone, Copy)]
+enum ArtworkUpdate {
+    FillMissing,
+    Replace,
+}
 
 #[derive(Debug, thiserror::Error)]
 pub enum LibraryError {
     #[error(transparent)]
     Store(#[from] StoreError),
+    #[error(transparent)]
+    Artwork(#[from] ArtworkStoreError),
     #[error("album title and artist are required")]
     InvalidAlbum,
     #[error("library relationship is corrupt: {0}")]
@@ -79,12 +89,14 @@ struct PlaylistRecord {
 #[derive(Clone)]
 pub struct Library {
     store: Store,
+    artwork: AlbumArtworkStore,
     mutation: Arc<Mutex<()>>,
 }
 
 impl Library {
     pub fn open(store: Store) -> Self {
         Library {
+            artwork: AlbumArtworkStore::open(store.state_dir()),
             store,
             mutation: Arc::new(Mutex::new(())),
         }
@@ -102,9 +114,15 @@ impl Library {
         let _guard = self.mutation.lock().expect("library mutation poisoned");
 
         if let Some(existing_id) = self.find_existing(account, &input)? {
-            let existing = self.get_album(account, &existing_id)?.ok_or_else(|| {
-                LibraryError::Corrupt("source ref points to missing album".into())
-            })?;
+            let existing = self
+                .refresh_existing_locked(
+                    account,
+                    &existing_id,
+                    input,
+                    updated_by,
+                    ArtworkUpdate::FillMissing,
+                )?
+                .ok_or_else(|| LibraryError::Corrupt("album vanished during re-add".into()))?;
             if existing.placement == Placement::Dismissed {
                 return self
                     .set_placement_locked(account, &existing.id, Placement::Discovery, updated_by)?
@@ -115,6 +133,7 @@ impl Library {
 
         let id = Ulid::new().to_string();
         let timestamp = now();
+        let artwork_url = input.artwork_url.clone();
         let album = AlbumRecord {
             id: id.clone(),
             account_id: String::new(),
@@ -201,7 +220,7 @@ impl Library {
                 external_id: reference.external_id,
                 revision: 1,
                 updated_by: updated_by.into(),
-                updated_at: timestamp,
+                updated_at: timestamp.clone(),
             };
             writes.push(Store::write(
                 schema::ALBUM_SOURCE_REFS,
@@ -210,9 +229,132 @@ impl Library {
             )?);
         }
         self.store.put_mixed_batch(account, &writes)?;
+        if let Some(artwork_url) = artwork_url {
+            self.artwork.put(
+                account,
+                &id,
+                StoredArtwork {
+                    url: artwork_url,
+                    revision: 1,
+                    updated_by: updated_by.into(),
+                    updated_at: timestamp,
+                },
+            )?;
+        }
 
         self.get_album(account, &id)?
             .ok_or_else(|| LibraryError::Corrupt("new album could not be read back".into()))
+    }
+
+    pub fn refresh_artwork(
+        &self,
+        account: &AccountId,
+        album_id: &str,
+        input: AlbumInput,
+        updated_by: &str,
+    ) -> Result<Option<Album>, LibraryError> {
+        let _guard = self.mutation.lock().expect("library mutation poisoned");
+        self.refresh_existing_locked(account, album_id, input, updated_by, ArtworkUpdate::Replace)
+    }
+
+    fn refresh_existing_locked(
+        &self,
+        account: &AccountId,
+        album_id: &str,
+        input: AlbumInput,
+        updated_by: &str,
+        artwork_update: ArtworkUpdate,
+    ) -> Result<Option<Album>, LibraryError> {
+        let Some(mut album) = self
+            .store
+            .get::<AlbumRecord>(schema::ALBUMS, account, album_id)?
+        else {
+            return Ok(None);
+        };
+        let timestamp = now();
+        let mut writes = Vec::new();
+        let mut aggregate_changed = false;
+        let mut artwork_write = None;
+
+        if let Some(next_artwork) = input.artwork_url {
+            let current = self.artwork.get(account, album_id);
+            let should_write = match &current {
+                None => true,
+                Some(current) => {
+                    matches!(artwork_update, ArtworkUpdate::Replace) && current.url != next_artwork
+                }
+            };
+            if should_write {
+                artwork_write = Some(StoredArtwork {
+                    url: next_artwork,
+                    revision: current.map_or(1, |record| record.revision + 1),
+                    updated_by: updated_by.into(),
+                    updated_at: timestamp.clone(),
+                });
+                aggregate_changed = true;
+            }
+        }
+
+        for input in input.tracks {
+            let Some(track_id) = input.id else {
+                continue;
+            };
+            let Some(mut track) =
+                self.store
+                    .get::<TrackRecord>(schema::TRACKS, account, &track_id)?
+            else {
+                continue;
+            };
+            let mut changed = false;
+            if is_placeholder(&track.title) && !is_placeholder(&input.title) {
+                track.title = input.title;
+                changed = true;
+            }
+            if is_placeholder(&track.artist) && !is_placeholder(&input.artist) {
+                track.artist = input.artist;
+                changed = true;
+            }
+            if track.duration_ms.is_none() && input.duration_ms.is_some() {
+                track.duration_ms = input.duration_ms;
+                changed = true;
+            }
+            if changed {
+                track.revision += 1;
+                track.updated_by = updated_by.into();
+                track.updated_at = timestamp.clone();
+                writes.push(Store::write(schema::TRACKS, track_id, &track)?);
+                aggregate_changed = true;
+            }
+        }
+        if aggregate_changed {
+            album.revision += 1;
+            album.updated_by = updated_by.into();
+            album.updated_at = timestamp;
+            writes.push(Store::write(schema::ALBUMS, album_id, &album)?);
+        }
+        if !writes.is_empty() {
+            self.store.put_mixed_batch(account, &writes)?;
+        }
+        if let Some(artwork) = artwork_write {
+            self.artwork.put(account, album_id, artwork)?;
+        }
+        self.get_album(account, album_id)
+    }
+
+    pub fn source_reference(
+        &self,
+        account: &AccountId,
+        album_id: &str,
+    ) -> Result<Option<SourceReference>, LibraryError> {
+        Ok(self
+            .store
+            .list::<SourceReferenceRecord>(schema::ALBUM_SOURCE_REFS, account)?
+            .into_iter()
+            .find(|reference| reference.album_id == album_id)
+            .map(|reference| SourceReference {
+                plugin_id: reference.plugin_id,
+                external_id: reference.external_id,
+            }))
     }
 
     pub fn get_track(
@@ -265,6 +407,7 @@ impl Library {
             .into_iter()
             .map(|track| (track.id.clone(), track))
             .collect();
+        let artwork = self.artwork.list(account);
         let mut albums = self
             .store
             .list::<AlbumRecord>(schema::ALBUMS, account)?
@@ -273,7 +416,8 @@ impl Library {
                 let relationships = relationships_by_album
                     .remove(&record.id)
                     .unwrap_or_default();
-                album_from_records(record, relationships, &tracks)
+                let artwork_url = artwork.get(&record.id).map(|artwork| artwork.url.clone());
+                album_from_records(record, relationships, &tracks, artwork_url)
             })
             .collect::<Result<Vec<_>, _>>()?;
         albums.sort_by(|left, right| {
@@ -345,6 +489,9 @@ impl Library {
         );
         records.push((schema::ALBUMS.into(), album_id.into()));
         self.store.delete_batch(account, &records)?;
+        if let Err(error) = self.artwork.remove(account, album_id) {
+            tracing::warn!(%album_id, %error, "removed album left a harmless artwork cache entry");
+        }
         Ok(true)
     }
 
@@ -471,7 +618,11 @@ impl Library {
                 tracks.insert(track.id.clone(), track);
             }
         }
-        album_from_records(record, relationships, &tracks)
+        let artwork_url = self
+            .artwork
+            .get(account, &record.id)
+            .map(|artwork| artwork.url);
+        album_from_records(record, relationships, &tracks, artwork_url)
     }
 }
 
@@ -479,6 +630,7 @@ fn album_from_records(
     record: AlbumRecord,
     mut relationships: Vec<AlbumTrackRecord>,
     tracks_by_id: &HashMap<String, TrackRecord>,
+    artwork_url: Option<String>,
 ) -> Result<Album, LibraryError> {
     relationships.sort_by_key(|relationship| relationship.position);
     let tracks = relationships
@@ -496,7 +648,7 @@ fn album_from_records(
                 artist: track.artist.clone(),
                 duration_ms: track.duration_ms,
                 track_number: relationship.track_number.or(track.track_number),
-                artwork_url: track.artwork_url.clone(),
+                artwork_url: artwork_url.clone().or_else(|| track.artwork_url.clone()),
                 revision: track.revision,
             })
         })
@@ -506,6 +658,7 @@ fn album_from_records(
         title: record.title,
         artist: record.artist,
         year: record.year,
+        artwork_url,
         placement: record.placement,
         placement_updated_at: record.placement_updated_at,
         added_at: record.added_at,

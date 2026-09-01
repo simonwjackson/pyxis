@@ -1120,6 +1120,12 @@
           "format": "uint32",
           "minimum": 0
         },
+        "artworkUrl": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "sourceReference": {
           "anyOf": [
             {
@@ -1225,6 +1231,22 @@
             },
             "payload": {
               "$ref": "#/$defs/PlacementSetCommand"
+            }
+          },
+          "required": [
+            "_tag",
+            "payload"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "_tag": {
+              "type": "string",
+              "const": "artwork.refresh"
+            },
+            "payload": {
+              "$ref": "#/$defs/EmptyRequest"
             }
           },
           "required": [
@@ -3839,6 +3861,12 @@
           ],
           "format": "uint32",
           "minimum": 0
+        },
+        "artworkUrl": {
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "placement": {
           "$ref": "#/$defs/RpcPlacement"

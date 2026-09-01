@@ -225,6 +225,9 @@ fn main() -> anyhow::Result<()> {
                     value.insert("externalId".into(), PluginValue::String(fields[0].into()));
                     value.insert("title".into(), PluginValue::String(fields[1].into()));
                     value.insert("artist".into(), PluginValue::String(fields[2].into()));
+                    if let Ok(artwork_url) = std::env::var("PYXIS_LAB_ARTWORK_URL") {
+                        value.insert("artworkUrl".into(), PluginValue::String(artwork_url));
+                    }
                     let mut track = BTreeMap::new();
                     track.insert(
                         "externalId".into(),

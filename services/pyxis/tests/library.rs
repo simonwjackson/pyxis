@@ -8,6 +8,7 @@ fn album() -> AlbumInput {
         title: "Heroes".into(),
         artist: "David Bowie".into(),
         year: Some(1977),
+        artwork_url: None,
         source_reference: Some(SourceReference {
             plugin_id: "ytmusic".into(),
             external_id: "album-heroes".into(),
@@ -40,6 +41,94 @@ fn explicit_add_enters_discovery_and_duplicate_source_ref_returns_the_same_album
     assert_eq!(first.id, second.id);
     assert_eq!(library.list_albums(&account).unwrap().len(), 1);
     assert_eq!(first.tracks[0].id, "track-heroes");
+}
+
+#[test]
+fn add_retry_fills_missing_artwork_but_only_refresh_replaces_it() {
+    let dir = tempfile::tempdir().expect("temp dir");
+    let store = Store::open(dir.path()).expect("store");
+    let library = Library::open(store.clone());
+    let account = AccountId::new("account-a");
+
+    let first = library
+        .add_album(&account, album(), "device-a")
+        .expect("first add");
+    assert_eq!(first.artwork_url, None);
+    assert_eq!(first.tracks[0].artwork_url, None);
+
+    let mut with_artwork = album();
+    with_artwork.artwork_url = Some("https://img.example/heroes.jpg".into());
+    let filled = library
+        .add_album(&account, with_artwork.clone(), "device-b")
+        .expect("fill missing artwork");
+
+    assert_eq!(filled.id, first.id);
+    assert_eq!(filled.artwork_url, with_artwork.artwork_url);
+    assert_eq!(filled.tracks[0].artwork_url, with_artwork.artwork_url);
+    assert_eq!(filled.revision, first.revision + 1);
+    assert_eq!(filled.tracks[0].revision, first.tracks[0].revision);
+
+    let mut stale_retry = with_artwork.clone();
+    stale_retry.artwork_url = Some("https://img.example/stale.jpg".into());
+    let retried = library
+        .add_album(&account, stale_retry, "device-c")
+        .expect("stale retry");
+    assert_eq!(retried.artwork_url, filled.artwork_url);
+    assert_eq!(retried.revision, filled.revision);
+
+    with_artwork.artwork_url = Some("https://img.example/heroes-v2.jpg".into());
+    let refreshed = library
+        .refresh_artwork(&account, &first.id, with_artwork.clone(), "device-d")
+        .expect("refresh")
+        .expect("album");
+    assert_eq!(refreshed.artwork_url, with_artwork.artwork_url);
+    assert_eq!(refreshed.tracks[0].artwork_url, with_artwork.artwork_url);
+    assert_eq!(refreshed.revision, filled.revision + 1);
+    assert_eq!(refreshed.tracks[0].revision, filled.tracks[0].revision);
+
+    let unchanged = library
+        .refresh_artwork(&account, &first.id, with_artwork, "device-e")
+        .expect("idempotent refresh")
+        .expect("album");
+    assert_eq!(unchanged.revision, refreshed.revision);
+    assert_eq!(unchanged.tracks[0].revision, refreshed.tracks[0].revision);
+
+    library
+        .set_placement(&account, &first.id, Placement::Collection, "device-f")
+        .expect("main store mutation");
+    store.close().expect("close");
+    let reopened = Library::open(Store::open(dir.path()).expect("reopen"));
+    assert_eq!(
+        reopened
+            .get_album(&account, &first.id)
+            .expect("get")
+            .expect("album")
+            .artwork_url,
+        Some("https://img.example/heroes-v2.jpg".into())
+    );
+}
+
+#[test]
+fn corrupt_artwork_cache_is_quarantined_without_blocking_the_library() {
+    let dir = tempfile::tempdir().expect("temp dir");
+    let cache = dir.path().join("cache");
+    std::fs::create_dir_all(&cache).expect("cache directory");
+    std::fs::write(cache.join("album-artwork.json"), b"not json").expect("corrupt cache");
+    let store = Store::open(dir.path()).expect("store");
+
+    let library = Library::open(store);
+
+    assert!(library
+        .list_albums(&AccountId::new("account-a"))
+        .unwrap()
+        .is_empty());
+    assert!(std::fs::read_dir(cache)
+        .expect("cache entries")
+        .flatten()
+        .any(|entry| entry
+            .file_name()
+            .to_string_lossy()
+            .starts_with("album-artwork.corrupt-")));
 }
 
 #[test]

@@ -797,6 +797,8 @@ pub struct LibraryAlbumAddRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub year: Option<u32>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub artwork_url: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub source_reference: Option<LibrarySourceReference>,
     pub tracks: Vec<LibraryTrackInput>,
 }
@@ -826,6 +828,8 @@ pub struct RpcLibraryAlbum {
     pub artist: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub year: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub artwork_url: Option<String>,
     pub placement: RpcPlacement,
     pub placement_updated_at: String,
     pub added_at: String,
@@ -846,6 +850,8 @@ pub struct PlacementSetCommand {
 pub enum RpcAlbumCommand {
     #[serde(rename = "placement.set")]
     PlacementSet(PlacementSetCommand),
+    #[serde(rename = "artwork.refresh")]
+    ArtworkRefresh(EmptyRequest),
     #[serde(rename = "remove")]
     Remove(EmptyRequest),
 }

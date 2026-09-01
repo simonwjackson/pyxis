@@ -88,6 +88,143 @@ async fn album_search_and_get_register_playable_internal_tracks() {
 }
 
 #[tokio::test]
+async fn artwork_refresh_reloads_an_existing_album_from_its_source_reference() {
+    let dir = tempfile::tempdir().expect("temp dir");
+    let candidate =
+        PluginCandidate::new(PathBuf::from(env!("CARGO_BIN_EXE_pyxis-plugin-laboratory")))
+            .with_env("PYXIS_LAB_ID", "album-source")
+            .with_env("PYXIS_LAB_BEHAVIOR", "ready")
+            .with_env("PYXIS_LAB_ALBUM", "external-album|Heroes|David Bowie")
+            .with_env("PYXIS_LAB_ARTWORK_URL", "https://img.example/heroes.jpg");
+    let host = PluginHost::start(vec![candidate], HostPolicy::default()).expect("host");
+    let app = router(AppState::open_with_plugins(Store::open(dir.path()).unwrap(), host).unwrap());
+    let claim = rpc(
+        &app,
+        json!({ "_tag": "auth.device.claim", "payload": { "name": "album" } }),
+        None,
+    )
+    .await;
+    let token = claim["outcome"]["value"]["bearerToken"].as_str().unwrap();
+    let source_album = rpc(
+        &app,
+        json!({
+            "_tag": "source.album.get",
+            "payload": { "pluginId": "album-source", "externalId": "external-album" }
+        }),
+        Some(token),
+    )
+    .await;
+    let track = &source_album["outcome"]["value"]["tracks"][0];
+    let added = rpc(
+        &app,
+        json!({
+            "_tag": "library.album.add",
+            "payload": {
+                "title": "Heroes",
+                "artist": "David Bowie",
+                "sourceReference": {
+                    "pluginId": "album-source",
+                    "externalId": "external-album"
+                },
+                "tracks": [{
+                    "id": track["id"],
+                    "title": track["title"],
+                    "artist": track["artist"],
+                    "trackNumber": track["trackNumber"]
+                }]
+            }
+        }),
+        Some(token),
+    )
+    .await;
+    let album_id = added["outcome"]["value"]["id"].as_str().unwrap();
+    assert!(added["outcome"]["value"].get("artworkUrl").is_none());
+
+    let refreshed = rpc(
+        &app,
+        json!({
+            "_tag": "library.album.command.run",
+            "payload": {
+                "albumId": album_id,
+                "command": { "_tag": "artwork.refresh", "payload": {} }
+            }
+        }),
+        Some(token),
+    )
+    .await;
+
+    assert_eq!(refreshed["outcome"]["status"], "applied");
+    assert_eq!(
+        refreshed["outcome"]["value"]["artworkUrl"],
+        "https://img.example/heroes.jpg"
+    );
+    assert_eq!(
+        refreshed["outcome"]["value"]["tracks"][0]["artworkUrl"],
+        "https://img.example/heroes.jpg"
+    );
+
+    let dismissed = rpc(
+        &app,
+        json!({
+            "_tag": "library.album.command.run",
+            "payload": {
+                "albumId": album_id,
+                "command": {
+                    "_tag": "placement.set",
+                    "payload": { "placement": "dismissed" }
+                }
+            }
+        }),
+        Some(token),
+    )
+    .await;
+    assert_eq!(dismissed["outcome"]["status"], "applied");
+    let refreshed_dismissed = rpc(
+        &app,
+        json!({
+            "_tag": "library.album.command.run",
+            "payload": {
+                "albumId": album_id,
+                "command": { "_tag": "artwork.refresh", "payload": {} }
+            }
+        }),
+        Some(token),
+    )
+    .await;
+    assert_eq!(
+        refreshed_dismissed["outcome"]["value"]["placement"],
+        "dismissed"
+    );
+
+    let removed = rpc(
+        &app,
+        json!({
+            "_tag": "library.album.command.run",
+            "payload": {
+                "albumId": album_id,
+                "command": { "_tag": "remove", "payload": {} }
+            }
+        }),
+        Some(token),
+    )
+    .await;
+    assert_eq!(removed["outcome"]["status"], "removed");
+    let refresh_after_remove = rpc(
+        &app,
+        json!({
+            "_tag": "library.album.command.run",
+            "payload": {
+                "albumId": album_id,
+                "command": { "_tag": "artwork.refresh", "payload": {} }
+            }
+        }),
+        Some(token),
+    )
+    .await;
+    assert_eq!(refresh_after_remove["outcome"]["status"], "unknown");
+}
+
+#[tokio::test]
 async fn concurrent_album_get_registers_one_candidate_per_source_track() {
     let dir = tempfile::tempdir().expect("temp dir");
     let candidate =

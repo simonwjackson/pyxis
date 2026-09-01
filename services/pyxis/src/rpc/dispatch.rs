@@ -711,6 +711,7 @@ pub fn dispatch(state: &AppState, request: RpcRequest, auth: Option<AuthContext>
                 title: request.title,
                 artist: request.artist,
                 year: request.year,
+                artwork_url: request.artwork_url,
                 source_reference: request.source_reference.map(|reference| SourceReference {
                     plugin_id: reference.plugin_id,
                     external_id: reference.external_id,
@@ -771,6 +772,72 @@ pub fn dispatch(state: &AppState, request: RpcRequest, auth: Option<AuthContext>
                         &auth.account_id,
                         &request.album_id,
                         placement,
+                        auth.principal_id(),
+                    ) {
+                        Ok(Some(album)) => {
+                            let album = rpc_album(album);
+                            publish_album(state, &auth, &album);
+                            RpcResponse::LibraryAlbumCommandRun(AlbumCommandOutcome::Applied(album))
+                        }
+                        Ok(None) => {
+                            RpcResponse::LibraryAlbumCommandRun(AlbumCommandOutcome::Unknown)
+                        }
+                        Err(error) => RpcResponse::LibraryAlbumCommandRun(
+                            AlbumCommandOutcome::Unavailable(library_failure(error)),
+                        ),
+                    }
+                }
+                RpcAlbumCommand::ArtworkRefresh(_) => {
+                    let reference = match state
+                        .library
+                        .source_reference(&auth.account_id, &request.album_id)
+                    {
+                        Ok(Some(reference)) => reference,
+                        Ok(None) => {
+                            return RpcResponse::LibraryAlbumCommandRun(
+                                AlbumCommandOutcome::Unknown,
+                            );
+                        }
+                        Err(error) => {
+                            return RpcResponse::LibraryAlbumCommandRun(
+                                AlbumCommandOutcome::Unavailable(library_failure(error)),
+                            );
+                        }
+                    };
+                    let source = match state.sources.get_album(
+                        &auth,
+                        &reference.plugin_id,
+                        &reference.external_id,
+                    ) {
+                        Ok(source) => source,
+                        Err(error) => {
+                            return RpcResponse::LibraryAlbumCommandRun(
+                                AlbumCommandOutcome::Unavailable(source_album_failure(error)),
+                            );
+                        }
+                    };
+                    let input = AlbumInput {
+                        title: source.title,
+                        artist: source.artist,
+                        year: source.year,
+                        artwork_url: source.artwork_url,
+                        source_reference: Some(reference),
+                        tracks: source
+                            .tracks
+                            .into_iter()
+                            .map(|track| TrackInput {
+                                id: Some(track.id),
+                                title: track.title,
+                                artist: track.artist,
+                                duration_ms: track.duration_ms,
+                                track_number: track.track_number,
+                            })
+                            .collect(),
+                    };
+                    match state.library.refresh_artwork(
+                        &auth.account_id,
+                        &request.album_id,
+                        input,
                         auth.principal_id(),
                     ) {
                         Ok(Some(album)) => {
@@ -1858,6 +1925,7 @@ fn rpc_album(album: Album) -> RpcLibraryAlbum {
         title: album.title,
         artist: album.artist,
         year: album.year,
+        artwork_url: album.artwork_url,
         placement: match album.placement {
             Placement::Discovery => RpcPlacement::Discovery,
             Placement::Collection => RpcPlacement::Collection,

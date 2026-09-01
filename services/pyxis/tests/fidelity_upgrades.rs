@@ -101,6 +101,7 @@ fn setup_with_probe(
                 title: "Geogaddi".into(),
                 artist: "Boards of Canada".into(),
                 year: Some(2002),
+                artwork_url: None,
                 source_reference: None,
                 tracks: vec![TrackInput {
                     id: Some("track-1".into()),

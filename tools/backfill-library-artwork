@@ -1,0 +1,156 @@
+#!/usr/bin/env nix-shell
+#!nix-shell -i python3 -p python3
+
+import argparse
+import hashlib
+import json
+import os
+from pathlib import Path
+import sys
+import urllib.error
+import urllib.request
+
+
+def rpc(base_url, tag, payload, bearer=None):
+    request = urllib.request.Request(
+        f"{base_url.rstrip('/')}/rpc",
+        data=json.dumps({"_tag": tag, "payload": payload}).encode(),
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+    if bearer:
+        request.add_header("Authorization", f"Bearer {bearer}")
+    try:
+        with urllib.request.urlopen(request, timeout=120) as response:
+            result = json.load(response)
+    except (urllib.error.URLError, TimeoutError, json.JSONDecodeError) as error:
+        raise RuntimeError(f"{tag} did not return a readable response: {error}") from error
+    if result.get("_tag") == "rpc.failure":
+        raise RuntimeError(f"{tag} failed: {json.dumps(result['outcome'], sort_keys=True)}")
+    return result.get("outcome", {})
+
+
+def needs_artwork(album):
+    return not album.get("artworkUrl")
+
+
+def default_token_file(base_url):
+    state = Path(os.environ.get("XDG_STATE_HOME", "~/.local/state")).expanduser()
+    server_id = hashlib.sha256(base_url.rstrip("/").encode()).hexdigest()[:16]
+    return state / "pyxis" / f"artwork-backfill-{server_id}.token"
+
+
+def bearer_token(base_url, token_file, allow_claim):
+    configured = os.environ.get("PYXIS_BEARER_TOKEN")
+    if configured:
+        return configured
+    path = Path(token_file).expanduser() if token_file else default_token_file(base_url)
+    if path.exists():
+        token = path.read_text().strip()
+        if token:
+            return token
+    if not allow_claim:
+        raise RuntimeError(
+            "--dry-run requires PYXIS_BEARER_TOKEN or an existing server-scoped token file"
+        )
+    claim = rpc(base_url, "auth.device.claim", {"name": "library artwork backfill"})
+    if claim.get("status") != "ready":
+        raise RuntimeError(f"device claim was not ready: {json.dumps(claim, sort_keys=True)}")
+    token = claim["value"]["bearerToken"]
+    path.parent.mkdir(parents=True, exist_ok=True)
+    flags = os.O_WRONLY | os.O_CREAT | os.O_TRUNC | getattr(os, "O_NOFOLLOW", 0)
+    descriptor = os.open(path, flags, 0o600)
+    with os.fdopen(descriptor, "w") as handle:
+        handle.write(f"{token}\n")
+    path.chmod(0o600)
+    return token
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="Refresh missing library artwork through each album's stored source reference."
+    )
+    parser.add_argument(
+        "--url",
+        default=os.environ.get("PYXIS_URL", "http://127.0.0.1:4488"),
+        help="Pyxis origin. Defaults to PYXIS_URL or http://127.0.0.1:4488.",
+    )
+    parser.add_argument(
+        "--token-file",
+        help="Token file override. The default is scoped to a hash of --url.",
+    )
+    parser.add_argument("--album-id", help="Refresh only one album id.")
+    parser.add_argument("--limit", type=int, help="Stop after this many matching albums.")
+    parser.add_argument("--dry-run", action="store_true", help="List matching albums without changing them.")
+    args = parser.parse_args()
+
+    bearer = bearer_token(args.url, args.token_file, allow_claim=not args.dry_run)
+
+    listed = rpc(args.url, "library.albums.list", {}, bearer)
+    if listed.get("status") != "ready":
+        raise RuntimeError(f"library list was not ready: {json.dumps(listed, sort_keys=True)}")
+
+    albums = [album for album in listed["value"] if needs_artwork(album)]
+    if args.album_id:
+        albums = [album for album in albums if album.get("id") == args.album_id]
+    if args.limit is not None:
+        albums = albums[: max(args.limit, 0)]
+
+    if args.dry_run:
+        print(json.dumps({"matching": len(albums), "albums": [album["id"] for album in albums]}))
+        return 0
+
+    refreshed = 0
+    unknown = []
+    failed = []
+    for index, album in enumerate(albums, start=1):
+        album_id = album["id"]
+        try:
+            outcome = rpc(
+                args.url,
+                "library.album.command.run",
+                {
+                    "albumId": album_id,
+                    "command": {"_tag": "artwork.refresh", "payload": {}},
+                },
+                bearer,
+            )
+        except RuntimeError as error:
+            failed.append({"id": album_id, "error": str(error)})
+            print(f"[{index}/{len(albums)}] failed {album_id}: {error}", file=sys.stderr)
+            continue
+        complete = outcome.get("status") == "applied" and not needs_artwork(
+            outcome.get("value", {})
+        )
+        if complete:
+            refreshed += 1
+            print(f"[{index}/{len(albums)}] refreshed {album_id}", file=sys.stderr)
+        elif outcome.get("status") == "applied":
+            failed.append({"id": album_id, "error": "source returned no complete artwork"})
+            print(f"[{index}/{len(albums)}] source returned no complete artwork {album_id}", file=sys.stderr)
+        elif outcome.get("status") == "unknown":
+            unknown.append(album_id)
+            print(f"[{index}/{len(albums)}] no source reference {album_id}", file=sys.stderr)
+        else:
+            failed.append({"id": album_id, "outcome": outcome})
+            print(
+                f"[{index}/{len(albums)}] unavailable {album_id}: {json.dumps(outcome, sort_keys=True)}",
+                file=sys.stderr,
+            )
+
+    summary = {
+        "matching": len(albums),
+        "refreshed": refreshed,
+        "unknown": unknown,
+        "failed": failed,
+    }
+    print(json.dumps(summary, sort_keys=True))
+    return 1 if failed or unknown else 0
+
+
+if __name__ == "__main__":
+    try:
+        raise SystemExit(main())
+    except RuntimeError as error:
+        print(str(error), file=sys.stderr)
+        raise SystemExit(1)

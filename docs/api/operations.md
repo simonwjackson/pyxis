@@ -83,9 +83,10 @@ the core runs with zero plugins installed, so a client must ask rather than assu
 ## Library
 
 A library album is curation, not a copy of a source. `library.album.add` takes the album's
-identity plus a `sourceReference`, and adding the same source reference twice returns the
-same album rather than creating a duplicate. That makes the call safe to retry, which is
-what an offline queue needs.
+identity, optional `artworkUrl`, tracks, and a `sourceReference`. Library track responses
+use the album artwork as their media cover. Adding the same source reference twice returns
+the same album and fills missing artwork instead of creating a duplicate. That makes the call safe to retry,
+which is what an offline queue needs.
 
 Albums carry a `placement`, which is the core organising idea:
 
@@ -96,9 +97,16 @@ Albums carry a `placement`, which is the core organising idea:
 | `archive` | Kept but out of the way |
 | `dismissed` | Explicitly not wanted |
 
-`library.album.command.run` carries a command union: `placement.set` moves an album and
-bumps its `revision`. The `remove` command deletes the library rows. **Removing an album never deletes
-listen events.** History is a record of what happened, not a view of what you currently own.
+`library.album.command.run` carries a command union. `placement.set` moves an album and
+bumps its `revision`. `artwork.refresh` reloads album metadata through the stored source
+reference and fills the album and track artwork. `remove` deletes the library rows.
+**Removing an album never deletes listen events.** History is a record of what happened,
+not a view of what you currently own.
+
+Run `tools/backfill-library-artwork --url <origin>` to apply `artwork.refresh` to every
+album that lacks artwork. The tool keeps one token file per server under
+`$XDG_STATE_HOME/pyxis`; set `PYXIS_BEARER_TOKEN` to supply another. Use `--dry-run` to
+list the matching album ids without writing.
 
 Every album carries a monotonic `revision`. Use it to reject stale writes and stale
 realtime frames rather than trusting arrival order.

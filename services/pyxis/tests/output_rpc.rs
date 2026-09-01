@@ -53,6 +53,7 @@ async fn sonos_target_hosts_a_core_session_and_applies_console_transport() {
                 title: "Heroes".into(),
                 artist: "David Bowie".into(),
                 year: Some(1977),
+                artwork_url: None,
                 source_reference: None,
                 tracks: vec![TrackInput {
                     id: Some("track-1".into()),
