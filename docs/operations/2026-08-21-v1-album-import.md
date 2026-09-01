@@ -104,6 +104,14 @@ Validation through `https://pyxis.hummingbird-lake.ts.net` confirmed:
 - The tailnet response contains zero `Unknown` track artists and zero duplicate track ids
   within an album.
 
+## Artwork backfill
+
+On 2026-09-01, commit `b22c0fd` added album artwork persistence and the
+`artwork.refresh` command. `tools/backfill-library-artwork` refreshed all 370 imported
+albums through their stored source references. The run reported 370 refreshed albums, zero
+unknown references, and zero failures. A follow-up dry run reported zero albums without
+artwork.
+
 ## Remaining cost
 
 The 16 unresolved entries are mostly video mixes, niche releases absent from YouTube Music album search, or exact-title collisions with another artist. This migration does not recover those items. A future source plugin can reacquire them without importing v1 ids or wire data.
