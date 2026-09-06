@@ -114,8 +114,14 @@ export function ReferenceApp({
   }, [store])
 
   const applyWorkerSessions = useCallback(
-    async (remoteReachabilityIsLive: boolean): Promise<readonly RpcSession[]> => {
-      const [settings, next] = await Promise.all([store.settings(), store.sessions()])
+    async (
+      remoteReachabilityIsLive: boolean,
+      knownSettings?: WorkerSettings,
+    ): Promise<readonly RpcSession[]> => {
+      const [settings, next] = await Promise.all([
+        knownSettings ?? store.settings(),
+        store.sessions(),
+      ])
       const hosted = next.find((candidate) => candidate.hostDeviceId === settings.deviceId)
       sessionRef.current = hosted
       setSession(hosted)
@@ -157,35 +163,38 @@ export function ReferenceApp({
     [store],
   )
 
-  const reconcileWorker = useCallback(async () => {
-    const request = syncQueue.current
-      .catch(() => undefined)
-      .then(async () => {
-        const report = await store.sync()
-        const [, , settings] = await Promise.all([
-          applyWorkerAlbums(),
-          applyWorkerSessions(report.sessionPullFailed !== true),
-          store.settings(),
-        ])
-        setLocal((current) =>
-          current === undefined
-            ? current
-            : {
-                ...current,
-                lastSync: report,
-                notices: settings.syncNotices ?? current.notices,
-              },
-        )
-        if (report.authRequired) setError("This device must be paired again.")
-        else if (report.failure !== undefined) setError(report.failure)
-        return report
-      })
-    syncQueue.current = request.then(
-      () => undefined,
-      () => undefined,
-    )
-    return request
-  }, [applyWorkerAlbums, applyWorkerSessions, store])
+  const reconcileWorker = useCallback(
+    async (scope: "all" | "sessions" = "all") => {
+      const request = syncQueue.current
+        .catch(() => undefined)
+        .then(async () => {
+          const report = await (scope === "sessions" ? store.syncSessions() : store.sync())
+          const settings = await store.settings()
+          await Promise.all([
+            scope === "all" ? applyWorkerAlbums() : undefined,
+            applyWorkerSessions(report.sessionPullFailed !== true, settings),
+          ])
+          setLocal((current) =>
+            current === undefined
+              ? current
+              : {
+                  ...current,
+                  lastSync: report,
+                  notices: settings.syncNotices ?? current.notices,
+                },
+          )
+          if (report.authRequired) setError("This device must be paired again.")
+          else if (report.failure !== undefined) setError(report.failure)
+          return report
+        })
+      syncQueue.current = request.then(
+        () => undefined,
+        () => undefined,
+      )
+      return request
+    },
+    [applyWorkerAlbums, applyWorkerSessions, store],
+  )
 
   /// Which track the currently loaded audio URL belongs to. Reloading the same track
   /// would swap the element's src and silently reset it to the beginning.
@@ -590,7 +599,7 @@ export function ReferenceApp({
               applied = await store.applySessionEvent(state.payload)
               checkConnection()
               if (applied.status === "queued") {
-                await reconcileWorker()
+                await reconcileWorker("sessions")
                 checkConnection()
                 applied = await store.applySessionEvent(state.payload)
                 checkConnection()
@@ -661,7 +670,7 @@ export function ReferenceApp({
             try {
               await persistConfirmedHostCommand(current, directive.command, directive.directiveId)
               appliedDirectives.current = [...appliedDirectives.current.slice(-511), directiveKey]
-              await reconcileWorker()
+              await reconcileWorker("sessions")
             } catch (cause) {
               setError(message(cause))
             } finally {
@@ -764,7 +773,7 @@ export function ReferenceApp({
   const runHostCommand = useCallback(
     async (target: RpcSession, command: RpcSessionCommand): Promise<RpcSession> => {
       const optimistic = await persistHostCommand(target, command)
-      await reconcileWorker()
+      await reconcileWorker("sessions")
       return (await store.session(target.id)) ?? optimistic
     },
     [persistHostCommand, reconcileWorker, store],
@@ -804,7 +813,7 @@ export function ReferenceApp({
   const runConfirmedHostCommand = useCallback(
     async (target: RpcSession, command: RpcSessionCommand): Promise<RpcSession> => {
       const optimistic = await persistConfirmedHostCommand(target, command)
-      await reconcileWorker()
+      await reconcileWorker("sessions")
       return (await store.session(target.id)) ?? optimistic
     },
     [persistConfirmedHostCommand, reconcileWorker, store],

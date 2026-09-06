@@ -54,9 +54,16 @@ export interface SyncReport {
   readonly sessionPullFailed?: boolean
 }
 
-export async function sync(database: WorkerDatabase, rpc: WorkerRpc): Promise<SyncReport> {
+export type SyncScope = "all" | "sessions"
+
+export async function sync(
+  database: WorkerDatabase,
+  rpc: WorkerRpc,
+  scope: SyncScope = "all",
+): Promise<SyncReport> {
+  const skippedAlbums: DomainPull<RemoteAlbums> = { count: 0, offline: false, authRequired: false }
   const [albums, sessions] = await Promise.all([
-    pullAlbums(database, rpc),
+    scope === "all" ? pullAlbums(database, rpc) : skippedAlbums,
     pullSessions(database, rpc),
   ])
   const failure = [albums.failure, sessions.failure]
@@ -73,18 +80,18 @@ export async function sync(database: WorkerDatabase, rpc: WorkerRpc): Promise<Sy
       conflicts: [],
       offline: albums.offline || sessions.offline,
       authRequired: true,
-      albumPullFailed: albums.remote === undefined,
+      albumPullFailed: scope === "all" && albums.remote === undefined,
       sessionPullFailed: sessions.remote === undefined,
       ...(failure.length === 0 ? {} : { failure }),
     }
   }
 
-  const push = await drain(database, rpc, albums.remote, sessions.remote)
+  const push = await drain(database, rpc, albums.remote, sessions.remote, scope)
   return {
     ...push,
     pulled: albums.count + sessions.count,
     offline: push.offline || albums.offline || sessions.offline,
-    albumPullFailed: albums.remote === undefined,
+    albumPullFailed: scope === "all" && albums.remote === undefined,
     sessionPullFailed: sessions.remote === undefined,
     ...(failure.length === 0 ? {} : { failure }),
   }
@@ -158,13 +165,16 @@ async function drain(
   rpc: WorkerRpc,
   remote: RemoteAlbums | undefined,
   remoteSessions: RemoteSessions | undefined,
+  scope: SyncScope,
 ): Promise<Omit<SyncReport, "pulled">> {
-  const entries = await database.outbox()
+  const allEntries = await database.outbox()
+  const entries = allEntries.filter((entry) => scope === "all" || entry.kind === "session.command")
   const conflicts: ConflictReport[] = []
   const dropped: { id: string; reason: string }[] = []
   let pushed = 0
   let converged = 0
-  let deferred = 0
+  // Count retained intent even in domains deliberately not synchronized by this request.
+  let deferred = allEntries.length - entries.length
   let offline = false
   let authRequired = false
 

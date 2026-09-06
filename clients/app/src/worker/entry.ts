@@ -240,7 +240,9 @@ async function handle(request: WorkerRequest): Promise<unknown> {
           token: settings.bearerToken,
           ...(request.payload.origin === undefined ? {} : { origin: request.payload.origin }),
         }),
+        request.payload.scope,
       )
+      if (request.payload.scope === "sessions") return report
       await offline.resume(request.accountId).catch((cause: unknown) => {
         // Cache Storage is optional at runtime. Sync success must remain usable when the
         // browser blocks or corrupts only the offline-media subsystem.

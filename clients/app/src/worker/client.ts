@@ -21,7 +21,7 @@ import type {
 } from "./contract"
 import { createMemoryEngine, openWorkerDatabase } from "./database"
 import type { OfflineDownloadManager } from "./downloads"
-import { type SyncReport, sync as syncDatabase } from "./sync"
+import { type SyncReport, type SyncScope, sync as syncDatabase } from "./sync"
 
 export type WorkerRequest = { readonly id: string; readonly accountId?: string } & (
   | { readonly _tag: "worker.open" }
@@ -50,7 +50,7 @@ export type WorkerRequest = { readonly id: string; readonly accountId?: string }
       readonly _tag: "worker.session-command.preview"
       readonly payload: { sessionId: string; command: RpcSessionCommand; commandId: string }
     }
-  | { readonly _tag: "worker.sync"; readonly payload: { origin?: string } }
+  | { readonly _tag: "worker.sync"; readonly payload: { origin?: string; scope?: SyncScope } }
   | {
       readonly _tag: "worker.queue.placement"
       readonly payload: { album: WorkerAlbum; placement: RpcPlacement }
@@ -118,6 +118,8 @@ export interface WorkerClient {
   /// Reconcile with the server. Safe to call when offline: the report says so and the
   /// queue is left intact.
   sync(origin?: string): Promise<SyncReport>
+  /// Pull and replay sessions only; leave unrelated album and listen intent queued.
+  syncSessions(origin?: string): Promise<SyncReport>
   /// Record a placement change locally and queue it for the server. The album changes
   /// immediately so the person sees their own action, network or not.
   queuePlacement(album: WorkerAlbum, placement: RpcPlacement): Promise<WorkerAlbum>
@@ -331,6 +333,11 @@ export function createWorkerClient(channel: Channel): WorkerClient {
         _tag: "worker.sync",
         payload: origin === undefined ? {} : { origin },
       }),
+    syncSessions: (origin) =>
+      send<SyncReport>({
+        _tag: "worker.sync",
+        payload: { scope: "sessions", ...(origin === undefined ? {} : { origin }) },
+      }),
     queuePlacement: (album, placement) =>
       send<WorkerAlbum>({ _tag: "worker.queue.placement", payload: { album, placement } }),
     queueSessionCommand: (session, command, commandId, expectedRevision) =>
@@ -369,6 +376,38 @@ export function createDirectWorkerClient(
     }))
   const offline = offlineFor?.(database) ?? unavailableOfflineManager(database)
 
+  const reconcile = async (scope: SyncScope, origin?: string): Promise<SyncReport> => {
+    const store = await database()
+    const settings = await store.settings()
+    if (rpcFor === undefined) {
+      return {
+        pulled: 0,
+        pushed: 0,
+        converged: 0,
+        dropped: [],
+        deferred: (await store.outbox()).length,
+        conflicts: [],
+        // Test and non-browser fallback. The browser composition root supplies RPC.
+        offline: true,
+        authRequired: false,
+        pageFallbackRequired: true,
+      }
+    }
+    if (settings.bearerToken === undefined) {
+      return {
+        pulled: 0,
+        pushed: 0,
+        converged: 0,
+        dropped: [],
+        deferred: (await store.outbox()).length,
+        conflicts: [],
+        offline: false,
+        authRequired: true,
+      }
+    }
+    return syncDatabase(store, rpcFor(settings, origin), scope)
+  }
+
   return {
     open: async () => ({ ...(await database()).report, ephemeral: true }),
     settings: async () => (await database()).settings(),
@@ -391,37 +430,8 @@ export function createDirectWorkerClient(
     clearOffline: () => offline.clear(),
     previewSessionCommand: async (sessionId, command, commandId) =>
       (await database()).previewSessionCommand(sessionId, command, commandId),
-    sync: async (origin) => {
-      const store = await database()
-      const settings = await store.settings()
-      if (rpcFor === undefined) {
-        return {
-          pulled: 0,
-          pushed: 0,
-          converged: 0,
-          dropped: [],
-          deferred: (await store.outbox()).length,
-          conflicts: [],
-          // Test and non-browser fallback. The browser composition root supplies RPC.
-          offline: true,
-          authRequired: false,
-          pageFallbackRequired: true,
-        }
-      }
-      if (settings.bearerToken === undefined) {
-        return {
-          pulled: 0,
-          pushed: 0,
-          converged: 0,
-          dropped: [],
-          deferred: (await store.outbox()).length,
-          conflicts: [],
-          offline: false,
-          authRequired: true,
-        }
-      }
-      return syncDatabase(store, rpcFor(settings, origin))
-    },
+    sync: (origin) => reconcile("all", origin),
+    syncSessions: (origin) => reconcile("sessions", origin),
     queuePlacement: async (album, placement) => (await database()).queuePlacement(album, placement),
     queueSessionCommand: async (session, command, commandId, expectedRevision) =>
       (await database()).queueSessionCommand(session, command, commandId, expectedRevision),
@@ -522,6 +532,7 @@ export function createFailoverWorkerClient(
     previewSessionCommand: (sessionId, command, commandId) =>
       retry((client) => client.previewSessionCommand(sessionId, command, commandId)),
     sync: (origin) => retry((client) => client.sync(origin)),
+    syncSessions: (origin) => retry((client) => client.syncSessions(origin)),
     queuePlacement: (album, placement) =>
       retry((client) => client.queuePlacement(album, placement)),
     queueSessionCommand: (session, command, commandId, expectedRevision) =>

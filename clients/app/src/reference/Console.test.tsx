@@ -969,7 +969,7 @@ describe("console mode", () => {
       await database.putSession(original)
       let remote = original
       const rpc: WorkerRpc = {
-        listAlbums: async () => [],
+        listAlbums: vi.fn(async () => []),
         listSessions: async () => [remote],
         runSessionCommand: async () =>
           new Promise((resolve) => {
@@ -998,6 +998,7 @@ describe("console mode", () => {
         </ReferenceApp>,
       )
       await screen.findByText("Status: ready")
+      vi.mocked(rpc.listAlbums).mockClear()
       act(() =>
         handlers?.onDirective({
           sessionId: "mine",
@@ -1036,6 +1037,7 @@ describe("console mode", () => {
         })
         await waitFor(async () => expect(await database.outbox()).toEqual([]))
         expect(covered).toBe(mode !== "retired")
+        expect(rpc.listAlbums).not.toHaveBeenCalled()
         expect(await database.session("mine")).toEqual(
           mode === "retired" ? { ...original, volume: 50, revision: 2 } : remote,
         )

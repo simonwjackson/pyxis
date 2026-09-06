@@ -76,6 +76,25 @@ describe("worker client", () => {
       outcome: { status: "ready", value: { status: "applied", session } },
     })
     expect(await applying).toEqual({ status: "applied", session })
+    const synchronizing = client.syncSessions()
+    const scoped = worker.sent[2]
+    expect(scoped).toMatchObject({
+      _tag: "worker.sync",
+      accountId: "default",
+      payload: { scope: "sessions" },
+    })
+    const report = {
+      pulled: 1,
+      pushed: 0,
+      converged: 0,
+      dropped: [],
+      deferred: 0,
+      conflicts: [],
+      offline: false,
+      authRequired: false,
+    }
+    worker.reply({ id: scoped?.id ?? "", outcome: { status: "ready", value: report } })
+    expect(await synchronizing).toEqual(report)
   })
 
   test("an asynchronous worker startup failure switches to the network fallback", async () => {

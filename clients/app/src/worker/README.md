@@ -33,6 +33,13 @@ These read local state only. They never wait for the network.
 
 ## Sync and writes
 
+`syncSessions()` pulls authoritative sessions before replaying queued session commands. It
+uses the same receipts, recovery fingerprints, retry rules, account fences, and worker sync
+queue as `sync()`, but does not read albums, push placements/listens, or resume offline-media
+reconciliation. The report still counts unrelated retained intent as deferred. Use it for
+transport/queue feedback; startup, reconnect gaps, library changes, and listen submission
+continue to use full `sync()`. It is not a replacement for general offline recovery.
+
 `sync()` pulls before pushing. Placement, listen, and session writes are queued locally
 before they become visible. Retryable, auth, malformed, and uncertain failures preserve the
 outbox. Permanent rejection is explicit and produces a durable notice.

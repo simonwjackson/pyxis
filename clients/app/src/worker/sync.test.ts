@@ -1032,3 +1032,93 @@ describe("a full offline session", () => {
     expect(remote.listens.size).toBe(2)
   })
 })
+
+describe("session-scoped synchronization", () => {
+  test("pulls before replay while leaving albums, placements, and listens untouched", async () => {
+    const database = await openWorkerDatabase({ engine: createMemoryEngine() })
+    const localAlbum = await database.putAlbum(album("album-1", RpcPlacement.Collection, 1))
+    await database.queuePlacement(localAlbum, RpcPlacement.Archive)
+    await database.enqueue(listenWrite("listen-1", "track-1"))
+    const unrelated = await database.outbox()
+    const original = await database.putSession(hostedSession())
+    await database.queueSessionCommand(
+      original,
+      { _tag: "queue.add", payload: { trackIds: ["track-1"] } },
+      "command-1",
+    )
+    const order: string[] = []
+    const listAlbums = vi.fn(async () => {
+      throw new Error("unrelated library pull")
+    })
+    const appendListen = vi.fn(async () => ({ accepted: 0, duplicates: 0 }))
+    const rpc: WorkerRpc = {
+      listAlbums,
+      listSessions: async () => {
+        order.push("pull")
+        return [original]
+      },
+      runSessionCommand: async () => {
+        order.push("push")
+        return {
+          ...original,
+          queue: ["track-1"],
+          cursor: 0,
+          currentTrackId: "track-1",
+          revision: 2,
+        }
+      },
+      appendListen,
+      setPlacement: async () => {
+        throw new Error("unrelated placement push")
+      },
+    }
+    const report = await sync(database, rpc, "sessions")
+    expect(listAlbums).not.toHaveBeenCalled()
+    expect(appendListen).not.toHaveBeenCalled()
+    expect(order).toEqual(["pull", "push"])
+    expect(await database.outbox()).toEqual(unrelated)
+    expect((await database.album("album-1"))?.placement).toBe(RpcPlacement.Archive)
+    expect(report).toMatchObject({
+      pushed: 1,
+      deferred: 2,
+      offline: false,
+      authRequired: false,
+      sessionPullFailed: false,
+    })
+  })
+
+  test.each(["offline", "auth", "malformed"])(
+    "a failed %s pull preserves commands without pushing blind",
+    async (failure) => {
+      const database = await openWorkerDatabase({ engine: createMemoryEngine() })
+      const original = await database.putSession(hostedSession())
+      await database.queueSessionCommand(
+        original,
+        { _tag: "queue.add", payload: { trackIds: ["track-1"] } },
+        "command-1",
+      )
+      const before = await database.outbox()
+      const listAlbums = vi.fn(async () => [])
+      const runSessionCommand = vi.fn(async () => original)
+      const rpc: WorkerRpc = {
+        listAlbums,
+        listSessions: async () => {
+          throw new RpcError(failure, failure === "offline", undefined, failure === "auth")
+        },
+        runSessionCommand,
+        appendListen: async () => ({ accepted: 0, duplicates: 0 }),
+        setPlacement: async () => undefined,
+      }
+      const report = await sync(database, rpc, "sessions")
+      expect(listAlbums).not.toHaveBeenCalled()
+      expect(runSessionCommand).not.toHaveBeenCalled()
+      expect(await database.outbox()).toEqual(before)
+      expect(report).toMatchObject({
+        deferred: 1,
+        sessionPullFailed: true,
+        offline: failure === "offline",
+        authRequired: failure === "auth",
+      })
+    },
+  )
+})
