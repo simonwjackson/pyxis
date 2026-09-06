@@ -6,15 +6,19 @@ M3 is implemented and deployed, but **not product-accepted**. This report separa
 automated renderer/state evidence from physical-device audibility, autoplay, and feel.
 M1, M2, M4, M5, M6, and M7 remain accepted. No Sonos hardware commands were issued in this pass.
 
-## Deployment
+**Superseded runtime:** the subsequent user retest still reported 2–3 seconds. The newer
+`d126106` deployment and 352–695 ms diagnostic renderer results are recorded in
+[the read-only reopen follow-up](2026-09-06-m3-read-only-reopens.md).
 
-- Current runtime commit: `12e422e59346820750b291dd8baa1cd60d303e10` (includes the latency follow-up below).
+## Deployment covered by this report
+
+- Runtime commit for this report: `12e422e59346820750b291dd8baa1cd60d303e10` (includes the latency follow-up below).
   The initial two-browser validation used `423ce52`.
 - Built the explicit Git revision, added it through `nix profile add` alongside the older
   entry with a distinct priority, verified its lock/store path, then removed the older entry
   and restarted the user core. The lock is immutable, not a dirty tree.
 - Package: `/nix/store/4g3ha9rhy5ryb7idbzgm846n0f5n966y-pyxis-2.0.0`.
-- Current profile entry: `pyxis-1`, explicitly locked to the revision above.
+- Profile entry at that checkpoint: `pyxis-1`, explicitly locked to the revision above.
 - Origin: `https://pyxis.hummingbird-lake.ts.net`.
 - Client bundle: `assets/index-gPOm4uK-.js`; worker schema remains 8.
 - Local and tailnet health return 200. Core, tailnet, and updater timer user units are active.

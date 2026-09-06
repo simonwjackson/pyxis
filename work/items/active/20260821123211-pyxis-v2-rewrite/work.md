@@ -50,6 +50,18 @@ report, not dismissed as noise. Repeating with sampled I/O and memory pressure a
 services healthy, and the 370-album library intact. Full-library first sync remains slow and
 unmodified. M3 remains open for responsiveness, audibility, and physical-device behavior.
 
+The user's next retest still reported 2–3 seconds. `d126106` then removed eight incidental
+collection writes from every ProseQL reopen while retaining all locks, full collection loads,
+and durable mutation flushes. It also rejects internal worker-memory fallbacks that would be
+discarded on the next lock, preserving page-owned startup fallback and runtime rejection.
+Independent reviews and 237 client plus 71 plugin tests pass with explicit Node 22. The final
+production two-browser smoke measured 352–695 ms renderer effects and 1008–1348 ms core/UI
+convergence, with successful transport, both handoffs, network refusal/recovery, and reload.
+Diagnostics are stopped/unreachable and services/library are healthy. See
+`docs/operations/2026-09-06-m3-read-only-reopens.md` for the exact deployment, pressure samples,
+verification limits, and remaining user acceptance. Fresh full-library sync was not remeasured
+in this follow-up.
+
 U26 documents the whole public API, with a worked example that `tools/verify-api-example`
 extracts from the document and runs, so a claim that stops matching the server fails there.
 
@@ -129,8 +141,8 @@ fully accounted: 370 albums are in Discovery, 16 remain unresolved after manual 
 and no import request failed. The durable audit is
 `docs/operations/2026-08-21-v1-album-import.md`.
 
-The current 2026-09-06 deployment is locked to `12e422e` through the `pyxis-1` Nix profile entry,
-at `/nix/store/4g3ha9rhy5ryb7idbzgm846n0f5n966y-pyxis-2.0.0`. The `pyxis.service`,
+The current 2026-09-06 deployment is locked to `d126106` through the `pyxis` Nix profile entry,
+at `/nix/store/k1nkn9cdv84acg8jwifygyrwz3jgw3hf-pyxis-2.0.0`. The `pyxis.service`,
 `pyxis-tsnet.service`, and `pyxis-ytdlp-update.timer` user units are active; local and tailnet
 health return 200.
 

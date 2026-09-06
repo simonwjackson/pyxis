@@ -54,3 +54,14 @@ assertions passing. First/full-library startup is
 not improved or remeasured. Keep this item open: responsiveness still needs user acceptance
 and startup work remains. Detailed evidence is in
 `docs/operations/2026-09-06-m3-reconnect-validation.md`.
+
+After the user still reported 2–3 seconds, `d126106` removed ProseQL initial-data seeding
+from reopens. Real-WASM tests measured 24 unintended writes across three read-only reopens;
+the fix performs zero while retaining full collection loading, locks, and durable mutation
+flushes. Internal worker-memory fallback now rejects so it cannot be silently discarded on
+the next lock. All 237 client and 71 plugin tests pass with explicit Node 22; independent
+reviews and production/PWA/Nix gates pass. The production two-host repeat measured 352–695 ms
+renderer effects and 1008–1348 ms core/UI convergence, including successive commands.
+Transport, handoff, refused offline intent, reconnect, and reload passed. Keep the item open
+for fresh/full-library startup and user acceptance. See
+`docs/operations/2026-09-06-m3-read-only-reopens.md`.
