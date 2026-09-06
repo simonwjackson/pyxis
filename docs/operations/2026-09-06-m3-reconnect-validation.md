@@ -8,12 +8,15 @@ M1, M2, M4, M5, M6, and M7 remain accepted. No Sonos hardware commands were issu
 
 ## Deployment
 
-- Final runtime commit: `423ce5217688d93a8ae74b139db5292c57cc3e22` (includes `ecbb285`).
-- Installed through `nix profile add` using an explicit Git revision, after building that
-  revision and removing the previous profile entry. The lock is immutable, not a dirty tree.
-- Package: `/nix/store/qdn4bnrxw7cjd6fgjbyfbc584ylcry9g-pyxis-2.0.0`.
+- Current runtime commit: `12e422e59346820750b291dd8baa1cd60d303e10` (includes the latency follow-up below).
+  The initial two-browser validation used `423ce52`.
+- Built the explicit Git revision, added it through `nix profile add` alongside the older
+  entry with a distinct priority, verified its lock/store path, then removed the older entry
+  and restarted the user core. The lock is immutable, not a dirty tree.
+- Package: `/nix/store/4g3ha9rhy5ryb7idbzgm846n0f5n966y-pyxis-2.0.0`.
+- Current profile entry: `pyxis-1`, explicitly locked to the revision above.
 - Origin: `https://pyxis.hummingbird-lake.ts.net`.
-- Client bundle: `assets/index-CjOZqMGp.js`; worker schema remains 8.
+- Client bundle: `assets/index-gPOm4uK-.js`; worker schema remains 8.
 - Local and tailnet health return 200. Core, tailnet, and updater timer user units are active.
 - No push or NixOS switch was performed.
 
@@ -50,7 +53,7 @@ unhealthy rather than permitting overlapping durable writes. The queue is scoped
 The original physical desktop failure was not conclusively explained. Do not attribute it
 retroactively to autoplay or to these races without a matching reproduction.
 
-## Review and automated gates
+## Initial review and automated gates
 
 A synchronous independent reviewer successfully reproduced both races before the fix.
 Follow-up review found no residual defect within the automatic-reconnect scope and exercised
@@ -86,7 +89,7 @@ and newer-revision protection. These were real WASM/Web Storage tests, not Index
 injection. A separate query-cache visibility concern is recorded in
 `01M1VZZYSRGB8C8G4Y0WMS2MXS`; production reopen-under-lock remains intact.
 
-## Two real browser hosts
+## Initial two-browser validation
 
 Chromium 146.0.7680.75 ran with separate durable profiles, production workers, WASM,
 IndexedDB, Web Locks, service workers, and WebSockets. Audio was muted at the browser level;
@@ -128,10 +131,10 @@ The smoke used public RPC calls evaluated in each browser for remote commands/ha
 It did not click every remote-control button. Component tests cover those bindings; physical
 use of the actual control surface remains part of acceptance.
 
-After the final run, both diagnostic browsers and the CONNECT proxy were stopped. Public
+After the initial completed run, both diagnostic browsers and the CONNECT proxy were stopped. Public
 `session.list` confirmed A stopped/unreachable at revision 39 with three entries, and B
-stopped/unreachable at revision 35 with an empty queue. No diagnostic background process
-remains. Their durable session records remain; session deletion is deferred. Final local and
+stopped/unreachable at revision 35 with an empty queue. No diagnostic process remained at
+that checkpoint; the later latency pass reopened these profiles. Their durable records remain; session deletion is deferred. Final local and
 tailnet health are 200, the three user units are active, and LAN `/rpc` remains 404.
 
 ## Timing and limits
@@ -155,6 +158,138 @@ tailnet health are 200, the three user units are active, and LAN `/rpc` remains 
 Performance follow-up `01M1VZ456T3R9EWQ1367WAFTWY` requires profiling the real storage path
 before changing it. Do not hide the issue with larger timeouts, skipped durable writes,
 runtime storage failover, or weaker cross-tab/account fences.
+
+## Manual responsiveness failure and latency follow-up
+
+The user tested normal and incognito windows, confirmed normal-window playback, and reported
+**a major delay** when controlling it from the other browser. M3 acceptance was paused.
+The server still returned all 370 albums quickly (63 ms); the initially empty browser library
+filled without clearing storage. Slow first sync remains unresolved.
+
+All subsequent commands targeted only the known diagnostic hosts above. The user's session
+`01M1W59YH76407X22XSRB4A3W6` was never commanded by the probes. Read-only checks found no live
+user playback before the service restarts. No Sonos commands, pushes, or NixOS switches occurred.
+
+### Changes and review
+
+- `6855cf0` adds `applySessionEvent`: an authoritative session event no longer starts a full
+  library sync. The worker applies one snapshot under its existing refreshed account-fenced
+  lock, preserves newer revisions and queued intent, and accepts same-revision reachability
+  changes. An event for another session hosted by the same device cannot steal the renderer.
+- Initial review caught a delayed-acknowledgement race in the first implementation: ignoring
+  a queued event and advancing its cursor let an older RPC reply replace it permanently.
+  The corrected handler retains the event, awaits outstanding synchronization, and reapplies
+  before cursor advancement. Still-blocked events reconcile and retry or fail honestly;
+  retired connections cannot retry. Single-delivery newer-revision, equal-revision-unreachable,
+  and retired-handler regressions pass; independent follow-up review found no blocker.
+- `578f11b` adds `syncSessions()`. Transport and queue feedback pull/replay only sessions,
+  through the existing command receipt/fingerprint/retry path and shared sync queue. They
+  do not read albums, push placements/listens, or resume offline-media reconciliation.
+  Unrelated intent remains queued and counted. Startup, replay gaps, library changes, and
+  listen submission still run full sync. Settings reads are no longer duplicated.
+- `12e422e` fixes a separately reproduced Stop blip: clearing the audio source allowed the
+  automatic loader to restart the still-durable Playing snapshot before storage finished.
+  Source-reset commands now retain renderer ownership through publication or explicit rollback.
+  Eight delayed-write cases cover Stop, clear, cursor jump, and current-item removal.
+  Independent review also exercised a revision retry that changes current-item removal into
+  non-current removal, followed by later Stop/Play.
+
+Each slice received an independent review before its exact-revision Nix deployment. Final
+verification: **232 client tests and 71 plugin/SDK tests**, typechecking, owned-source Biome,
+production/PWA build, Nix package build, and host flake check pass. Rust tests, Clippy,
+formatting, shellcheck and generated-contract drift passed earlier in this pass; no Rust or
+RPC schema changes followed. `just verify` was rechecked and still stopped at unrelated
+prototype lint, now **25 errors and 16 warnings**. The aggregate tests used the documented
+system-shell workaround; the earlier default-shell discrepancy is not claimed resolved.
+
+### Measured response, not acceptance
+
+An instrumented production Chromium profile recorded command-frame receipt, worker work,
+and actual media events separately. It used the same 370-album diagnostic host before and
+after the changes. These are small samples under varying workstation load, not benchmarks
+with statistical confidence. Browser audio was muted.
+
+| Sequential command | Original renderer effect (`423ce52`) | Final renderer effect (`12e422e`) | Final core/UI convergence |
+|---|---:|---:|---:|
+| Pause after local Play | 652 ms | 460 ms | 4041 ms |
+| Play | 4482 ms | 2930 ms | 4325 ms |
+| Pause | 3098 ms | 1718 ms | 3403 ms |
+| Play | 3023 ms | 1467 ms | 3330 ms |
+| Stop | 3093 ms first pause; restarted; 3600 ms final pause | 1649 ms, no restart | 3327 ms |
+
+The intermediate event-only fix still took 2247–4546 ms for subsequent Play/Pause effects;
+it was not called sufficient. Session-scoped replay removed more of the blocking work.
+The final back-to-back commands remain noticeably slower than idle commands.
+
+A separate final sample waited five seconds between commands. Renderer effects then took
+**335–455 ms**, with core/UI convergence **1814–2991 ms**. Do not substitute these idle
+numbers for the back-to-back result. Socket dispatch in the final samples was 175–264 ms.
+No Pause/Stop sample restarted playback after the renderer fix.
+
+The final package also passed the complete two-host smoke again: local and bidirectional
+remote transport, stopped handoff in both directions with cleared source fields and recipient
+playback, real proxy connection cut, refused offline command without replay, recovery, and
+queue-preserving reload. Warm startup was 4880–6210 ms; core/UI command convergence 2222–3641 ms.
+Handoff plus recipient Play/Stop took 12328 ms forward and 9853 ms back. Forced-close/refusal
+observation took 57 ms; restoration took 4102 ms including the 2500-ms no-replay observation.
+This remains a forced-close test, not silent-blackhole detection.
+
+**A later instrumented two-host run was substantially worse and is not discarded.** It
+recorded both directions separately:
+
+| Direction | Renderer effect range | Core/UI convergence range |
+|---|---:|---:|
+| B → A | 3244–4593 ms | 8162–11391 ms |
+| A → B | 1675–14459 ms | 3335–22615 ms |
+
+That run coincided with an unrelated concurrent Nix build and high workstation disk pressure:
+`/proc/pressure/io` reported 37.47% full-stall time over ten seconds (46.74% some-stall).
+CPU pressure was low; free memory including cache was about 19 GiB, despite nearly full swap.
+These observations are a timing confound, not proof that every delay came from the build.
+The functional assertions and no-Stop-restart checks still passed. The result confirms that
+responsiveness under load remains unresolved; the faster single-host numbers are not a
+blanket latency guarantee.
+
+After disk pressure settled, the same bidirectional script passed again. I/O and memory
+full-stall `avg10` stayed at 0.00 in two-second samples throughout the run:
+
+| Direction, quieter repeat | Renderer effect range | Core/UI convergence range |
+|---|---:|---:|
+| B → A | 488–1431 ms | 2663–3142 ms |
+| A → B | 723–1488 ms | 2147–3052 ms |
+
+Later back-to-back Pause/Play/Stop effects were 1289–1488 ms. This confirms better behavior
+when the workstation is quiet, not acceptable behavior under every workload. Both samples
+remain part of the acceptance evidence.
+
+Core/UI convergence means the server's durable transport and the displayed transport agreed.
+The displayed deferred count is a previous sync report, not a live outbox read; these timings
+do **not** establish the exact instant the local outbox drained. Cold/full-library startup
+was not remeasured or fixed. Responsiveness and audibility still need user acceptance.
+
+Local evidence files: `/tmp/pyxis-m3-latency-before-instrumented.jsonl`,
+`/tmp/pyxis-m3-latency-after-events.jsonl`, `/tmp/pyxis-m3-latency-session-sync.jsonl`,
+`/tmp/pyxis-m3-final-renderer-profile.jsonl`, and
+`/tmp/pyxis-m3-final-renderer-idle-profile.jsonl`. The last two assert the served bundle and
+refuse to command any session except diagnostic A. Final functional and bidirectional timing
+logs are `/tmp/pyxis-m3-final-latency-two-browser.log` and
+`/tmp/pyxis-m3-bidirectional-renderer-timing.log`; both scripts assert the exact final bundle
+and the two known diagnostic session IDs before issuing commands. The quieter repeat is
+`/tmp/pyxis-m3-bidirectional-quieter-timing.log`, with pressure samples in
+`/tmp/pyxis-m3-bidirectional-quieter-pressure.jsonl`.
+
+### Final cleanup
+
+All latency-profiling browsers and the browser-only proxy were stopped. Public read-only
+observation verified A stopped/unreachable at revision 98 with its original three entries,
+and B stopped/unreachable at revision 64 with an empty queue and no current track.
+The library still contains 370 albums. Local and tailnet health return 200, all three user
+units are active, LAN `/rpc` returns 404, and no matching warning/error appeared in the last
+ten minutes of the core journal. Profile metadata still points to exact `12e422e`.
+
+M3 and the performance follow-up remain open. The next user check is responsiveness in the
+normal/incognito windows after refreshing both; physical-device audibility, autoplay,
+handoff, and background/network behavior remain separate acceptance work.
 
 ## Historical review cards
 

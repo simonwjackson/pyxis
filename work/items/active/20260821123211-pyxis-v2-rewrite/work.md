@@ -33,6 +33,23 @@ cases and another successful independent review. See
 `docs/operations/2026-09-06-m3-reconnect-validation.md` for deployment, browser evidence,
 verification exceptions, and the remaining acceptance checklist.
 
+Normal/incognito manual testing then failed responsiveness acceptance. Isolated diagnostics
+led to `6855cf0` (atomic session events with delayed-acknowledgement recovery), `578f11b`
+(session-only command synchronization), and `12e422e` (prevent automatic audio restart during
+Stop/source-reset persistence). Each was independently reviewed and deployed by exact revision.
+Final tests: 232 client and 71 plugin/SDK; typecheck, owned-source lint, PWA/Nix builds and host
+flake checks pass. `just verify` still stops at unrelated prototype lint (25 errors/16 warnings).
+
+Renderer effects improved to 335–455 ms when idle, but subsequent back-to-back Play/Pause still
+measured 1467–2930 ms. These are muted diagnostic measurements, not acceptable-feel claims.
+The Stop restart blip no longer appeared, and the final two-browser functional smoke passed.
+A later two-host timing run coincided with heavy disk-I/O pressure and measured up to 14459 ms
+for a renderer effect and 22615 ms for core/UI convergence; that bad result is retained in the
+report, not dismissed as noise. Repeating with sampled I/O and memory pressure at zero gave
+488–1488 ms renderer effects in both directions. Diagnostics are now stopped/unreachable,
+services healthy, and the 370-album library intact. Full-library first sync remains slow and
+unmodified. M3 remains open for responsiveness, audibility, and physical-device behavior.
+
 U26 documents the whole public API, with a worked example that `tools/verify-api-example`
 extracts from the document and runs, so a claim that stops matching the server fails there.
 
@@ -112,8 +129,8 @@ fully accounted: 370 albums are in Discovery, 16 remain unresolved after manual 
 and no import request failed. The durable audit is
 `docs/operations/2026-08-21-v1-album-import.md`.
 
-The 2026-09-06 deployment is locked to `423ce52` through `nix profile`, at
-`/nix/store/qdn4bnrxw7cjd6fgjbyfbc584ylcry9g-pyxis-2.0.0`. The `pyxis.service`,
+The current 2026-09-06 deployment is locked to `12e422e` through the `pyxis-1` Nix profile entry,
+at `/nix/store/4g3ha9rhy5ryb7idbzgm846n0f5n966y-pyxis-2.0.0`. The `pyxis.service`,
 `pyxis-tsnet.service`, and `pyxis-ytdlp-update.timer` user units are active; local and tailnet
 health return 200.
 
@@ -194,7 +211,9 @@ suite/clippy, passed an exact-commit Nix build and flake check, and is deployed 
 repaired to `.flac`. The temporary credentials were removed afterward, so the scheduler is safely
 idle while the verified local upgrade remains available.
 
-Next: finish M3's console/handoff feel-test when two physical devices are available.
+Next: resume the normal/incognito responsiveness retest on the new bundle. Then finish
+M3's physical-device console, audible handoff, autoplay, and reconnect acceptance. Normal and
+private windows do not establish phone behavior or persistence after all private windows close.
 
 Album removal is no longer deferred. D17 records your decision: server removal wins,
 queued local placement intent is discarded, and the client reports the conflict.
