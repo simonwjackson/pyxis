@@ -6,9 +6,42 @@ stale CSS/JS after an edit. These are prototypes being iterated on minute by min
 every response is explicitly uncacheable.
 """
 
+import json
+import os
 import sys
+import urllib.error
+import urllib.request
 from functools import partial
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
+
+CORE = os.environ.get("PYXIS_CORE", "http://127.0.0.1:4488")
+_token = None
+
+
+def core_call(payload, token=None):
+    request = urllib.request.Request(
+        f"{CORE}/rpc",
+        data=json.dumps(payload).encode(),
+        headers={
+            "content-type": "application/json",
+            **({"authorization": f"Bearer {token}"} if token else {}),
+        },
+    )
+    with urllib.request.urlopen(request, timeout=30) as response:
+        return json.loads(response.read())
+
+
+def bearer():
+    """Claim one device for the reference set and reuse it.
+
+    The claim happens here rather than in the page so the token never reaches the browser,
+    and so opening a prototype does not register a new device every reload.
+    """
+    global _token
+    if _token is None:
+        claimed = core_call({"_tag": "auth.device.claim", "payload": {"name": "pyxis-reference"}})
+        _token = claimed["outcome"]["value"]["bearerToken"]
+    return _token
 
 
 class NoCacheHandler(SimpleHTTPRequestHandler):
@@ -24,6 +57,36 @@ class NoCacheHandler(SimpleHTTPRequestHandler):
 
     def log_message(self, fmt, *args):
         sys.stderr.write(f"{self.address_string()} {fmt % args}\n")
+
+    def do_POST(self):  # noqa: N802 - http.server's naming
+        """Forward one RPC to the running core.
+
+        A design reference that renders a fixture eventually disagrees with the product and
+        nobody notices, because both look fine on their own. Pointing it at the real core over
+        the real contract means a change to either shows up here as a broken page.
+        """
+        if self.path != "/api/rpc":
+            self.send_error(404)
+            return
+        body = self.rfile.read(int(self.headers.get("content-length", 0)))
+        try:
+            result = core_call(json.loads(body), bearer())
+        except (urllib.error.URLError, OSError, KeyError, ValueError) as error:
+            # The core being down is a state the surfaces already draw, so say so in their
+            # language instead of failing the request.
+            result = {
+                "_tag": "rpc.failure",
+                "outcome": {
+                    "status": "rejected",
+                    "value": {"code": "core.unreachable", "message": str(error), "retryable": True},
+                },
+            }
+        payload = json.dumps(result).encode()
+        self.send_response(200)
+        self.send_header("content-type", "application/json")
+        self.send_header("content-length", str(len(payload)))
+        self.end_headers()
+        self.wfile.write(payload)
 
 
 def main():
