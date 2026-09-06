@@ -274,13 +274,18 @@ nav.tabs .badge {
   color: var(--soft);
 }
 
-.facts {
-  margin: 10px 0 0;
+/* Micro type: uppercase, letterspaced, secondary. Album facts and field labels are the same
+   voice at the same size, so they are the same decision written once. */
+.facts,
+.field > span {
   font-size: 12px;
   font-weight: 600;
   letter-spacing: 0.09em;
   text-transform: uppercase;
   color: var(--soft);
+}
+.facts {
+  margin: 10px 0 0;
 }
 
 button {
@@ -944,4 +949,133 @@ dialog.sheet::backdrop {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* ---- Fields -------------------------------------------------------------------------
+   The product asks for typed input in exactly three places: a password, a pairing code and
+   an account name. They live here rather than in the three pages so the second one cannot
+   quietly invent a different box. */
+
+.field {
+  display: block;
+  padding: 16px 0 0;
+}
+.field > span {
+  display: block;
+  padding-bottom: 7px;
+}
+.field input {
+  width: 100%;
+  padding: 12px 13px;
+  font: inherit;
+  font-size: 16px; /* Under 16px, iOS zooms the page on focus and never zooms back. */
+  font-weight: 500;
+  color: var(--ink);
+  background: var(--sink);
+  border: 1px solid var(--rule);
+  border-radius: 3px;
+}
+.field input:focus-visible {
+  outline: none;
+  border-color: var(--ink);
+}
+.field.bad input {
+  border-color: var(--heat);
+}
+.field-error {
+  margin: 8px 0 0;
+  font-size: 13px;
+  font-weight: 600;
+}
+.field-note {
+  max-width: 44ch;
+  margin: 18px 0 0;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.5;
+  color: var(--soft);
+}
+.field-actions {
+  display: flex;
+  justify-content: flex-end;
+  padding: 20px 0 4px;
+}
+/* Setting up is a single column: the action belongs under the field it completes, not pushed
+   to the far edge of a screen that has nothing else on it. */
+.setup .field-actions {
+  justify-content: flex-start;
+}
+
+/* An action that cannot be taken yet still has to look like it cannot be taken. */
+.act:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.field-actions .act {
+  min-width: 130px;
+  justify-content: center;
+}
+
+/* What happens when the album ends, stated before it ends.
+   Silence is the default: continuing is a choice someone makes, not one the product makes on
+   their behalf while they are in another room. */
+.player-ends {
+  padding: 20px 0 2px;
+  margin-top: 20px;
+  border-top: 1px solid var(--rule);
+}
+.player-ends .split {
+  align-items: center;
+  gap: 14px;
+}
+.player-ends .t b {
+  display: block;
+  margin-top: 5px;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+/* ---- Setting up ---------------------------------------------------------------------
+   The voice used before there is anything to listen to. Two surfaces ask a first-run
+   question — connect a source, or join a device that already has one — and they are the
+   same question at the same size, so they are one decision. */
+
+.setup {
+  padding: 40px 0 26px;
+}
+.setup h1 {
+  margin: 0;
+  font-size: clamp(26px, 5.5vw, 38px);
+  font-weight: 700;
+  line-height: 1.06;
+  letter-spacing: -0.03em;
+}
+.setup p {
+  max-width: 46ch;
+  margin: 14px 0 0;
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 1.55;
+  color: var(--soft);
+}
+
+/* An aside that is true but not urgent: how sources work, where to go if this is the wrong
+   screen. Quiet enough to skip, present enough to answer the question if it is asked. */
+.footnote {
+  max-width: 48ch;
+  margin: 22px 0 0;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.55;
+  color: var(--soft);
+}
+
+/* The reference is showing a recording rather than the live library. Pinned above everything
+   so it cannot be mistaken for part of the design being reviewed. */
+.strip.stale {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  margin: 0;
 }

@@ -114,6 +114,19 @@
         <a class="chip" href="./f-sources.html?state=authexpired">Source signed out</a>
       </div>
 
+      <h2 class="section">Live data</h2>
+      <p class="note">
+        Append <code>?live=1</code> to any surface and the albums come from the running core
+        over the public RPC contract, proxied same-origin by <code>serve.py</code>. Listening
+        history, offline availability and which source an album came from stay synthetic — the
+        real library has no plays yet. If the core is down the page says so and falls back to
+        the recording.
+      </p>
+      <div class="chip-set">
+        <a class="chip" href="./b-shelves.html?live=1">Stacks, live</a>
+        <a class="chip" href="./e-history.html?live=1">History, live</a>
+      </div>
+
       <h2 class="section">Themes</h2>
       <div class="chip-set">
         <a class="chip" href="./b-shelves.html?theme=light">Light</a>
@@ -128,9 +141,16 @@
         an album is shown separately from wanting it.
       </p>
       <p class="note plain">
-        <b>Not answered here.</b> Nothing is styled for a brand: no logo, no illustration, no
-        colour beyond the covers. There is no artist page and no playlist, because the album is
-        the unit, and no queue editor.
+        <b>Not answered here.</b> Installing a plugin — Soulseek offers the button and nothing
+        behind it. Disconnecting a source or removing an account: both can be added, neither can
+        be undone. A stream that dies mid-track, as opposed to a source that is signed out
+        before you press play. These are gaps, not decisions.
+      </p>
+      <p class="note plain">
+        <b>Decided, not missing.</b> No brand, no logo, no illustration, no colour beyond the
+        covers. No artist page and no playlist, because the album is the unit. No queue editor:
+        an album ending is an album ending, so silence is the default and continuing is one tap
+        in the player.
       </p>
     </main>
   </body>

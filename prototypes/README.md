@@ -22,9 +22,15 @@ hundreds of covers at once.
 | `index.html` | Directory: surfaces, states, themes |
 | `system.html` | Colour, type, availability marks, parts |
 
-Shared code: `system.css` and `common.js` (tokens and components), `parts.js` (the windowed
-grid), `albums.js` (tile and shelf), `nav.js`, `account.js`, `rooms.js`, `nowplaying.js`,
-`states.js`. `reference.css` is chrome for the
+Shared code: `system.css` and `common.js` (tokens, components and the data layer), `parts.js`
+(the windowed grid), `albums.js` (tile and shelf), `nav.js`, `account.js`, `sources.js`,
+`rooms.js`, `nowplaying.js`, `states.js`.
+
+`gate.mjs` is the drift check: run `node prototypes/gate.mjs` or `just test-prototypes`. It
+fails on shared code depending on page-local styling, a class owned in two places, two rules
+saying the same thing, a function body copied between pages, a comment welded to a selector,
+and a class written by code that no stylesheet defines. Classes named `js-` are declared
+behaviour-only and exempt from the last one. `reference.css` is chrome for the
 two documentation pages and is deliberately not part of the product system.
 
 | Page | Surface |
@@ -89,5 +95,20 @@ Add a surface and it will tell you what you copied.
 
 ## Not answered here
 
-Nothing is styled for a brand: no logo, no illustration, no colour beyond the covers. There is
-no artist page and no playlist, because the album is the unit, and no queue editor.
+Gaps, not decisions:
+
+- Installing a plugin. Soulseek offers the button; nothing is behind it.
+- Disconnecting a source, or removing an account. Both can be added, neither undone.
+- A stream that dies mid-track, as distinct from a source signed out before you press play.
+
+Decided, not missing: no brand, logo, illustration or colour beyond the covers. No artist page
+and no playlist, because the album is the unit. No queue editor — an album ending is an album
+ending, so silence is the default and continuing is one tap in the player.
+
+## Live data
+
+Append `?live=1` and albums come from the running core over the public RPC contract, proxied
+same-origin by `serve.py`, which holds the bearer token so it never reaches the page. Listening
+history, offline availability and an album's source stay synthetic: the real library has no
+plays yet. If the core is unreachable the page says so and falls back to `data/albums.json`
+rather than looking healthy while showing a recording.

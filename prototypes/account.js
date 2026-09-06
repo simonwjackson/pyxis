@@ -33,10 +33,50 @@ export function accountControl(accounts = ACCOUNTS) {
   return button
 }
 
+export function openAddAccount(accounts = ACCOUNTS) {
+  const sheet = element(`
+    <dialog class="sheet">
+      <div class="sheet-head">
+        <span class="label">Add account</span>
+        <button class="js-cancel">Cancel</button>
+      </div>
+      <form method="dialog">
+        <label class="field">
+          <span>Name</span>
+          <input name="name" autocomplete="off" spellcheck="false" />
+        </label>
+        <p class="field-note">A separate library, with its own sources and history. Nothing is
+        shared between accounts unless you play it in the same room.</p>
+        <div class="field-actions"><button class="act primary" disabled>Add</button></div>
+      </form>
+    </dialog>
+  `)
+
+  const input = sheet.querySelector("input")
+  const add = sheet.querySelector(".field-actions button")
+  input.addEventListener("input", () => {
+    add.disabled = input.value.trim().length === 0
+  })
+  sheet.querySelector("form").addEventListener("submit", (event) => {
+    event.preventDefault()
+    const name = input.value.trim()
+    if (!name) return
+    accounts.push({ id: name.toLowerCase(), name, sources: 0, albums: 0 })
+    sheet.close()
+    openAccount(accounts)
+  })
+
+  sheet.querySelector(".js-cancel").onclick = () => sheet.close()
+  sheet.addEventListener("close", () => sheet.remove())
+  document.body.append(sheet)
+  sheet.showModal()
+  return sheet
+}
+
 export function openAccount(accounts = ACCOUNTS) {
   const query = location.search
   const sheet = element(`
-    <dialog class="sheet account-sheet">
+    <dialog class="sheet">
       <div class="sheet-head"><span class="label">Account</span><button>Done</button></div>
     </dialog>
   `)
@@ -71,6 +111,13 @@ export function openAccount(accounts = ACCOUNTS) {
       </div>
     `),
   )
+
+  // An account needs a name and nothing else. Sources, devices and history are all per
+  // account, so asking for anything more here would be asking before there is a reason.
+  sheet.querySelector(".settings button").onclick = () => {
+    sheet.close()
+    openAddAccount(accounts)
+  }
 
   sheet.querySelector(".sheet-head button").onclick = () => sheet.close()
   sheet.addEventListener("close", () => sheet.remove())

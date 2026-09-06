@@ -1,14 +1,33 @@
-// Throwaway prototype data layer.
+// Prototype data layer.
 //
-// REAL: albums.json — 370 albums, 3,865 tracks from the live v2 library.
-// REAL: art/*.jpg — covers harvested through the public source.album.search RPC.
-// FAKE: placements, play counts, dates. The real library is 370/370 Discovery with no
-//       listening history, so triage, Hot, and neglect would all render empty.
+// REAL: the library itself. With `?live=1` the albums come from the running core over the
+//       public RPC contract, proxied same-origin by serve.py. Without it they come from
+//       albums.json, a dump of that same library taken once.
+// REAL: covers — harvested files locally, artworkUrl from the core when live.
+// FAKE: placements, play counts, dates, offline availability, which source an album came
+//       from. The real library is 370/370 Discovery with no listening history, so triage,
+//       Hot and neglect would all render empty and none of the states would be visible.
 //
-// Synthetic values derive from a hash of the album id, so they are stable across reloads
-// and identical in all three prototypes.
+// Synthetic values derive from a hash of the album id, so they are stable across reloads and
+// identical on every surface. Anything hash-derived is a fact this reference invented.
 
 const DAY = 86400000
+
+/// One RPC to the running core, through the same-origin proxy that holds the bearer token.
+export async function rpc(tag, payload = {}) {
+  const response = await fetch("./api/rpc", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ _tag: tag, payload }),
+  })
+  const result = await response.json()
+  if (result._tag === "rpc.failure" || result.outcome?.status !== "ready") {
+    throw new Error(result.outcome?.value?.message ?? "rpc failed")
+  }
+  return result.outcome.value
+}
+
+export const isLive = () => new URLSearchParams(location.search).get("live") === "1"
 
 export async function loadLibrary(state = "live") {
   // A library with no albums and a library with no sources look identical to this loader;
@@ -16,15 +35,46 @@ export async function loadLibrary(state = "live") {
   if (state === "empty" || state === "nosources" || state === "firstrun") return []
   if (state === "loading") await new Promise(() => {})
 
-  const [albums, covers] = await Promise.all([
-    fetch("./data/albums.json").then((response) => response.json()),
-    fetch("./data/art.json")
-      .then((response) => (response.ok ? response.json() : {}))
-      .catch(() => ({})),
-  ])
+  const fixture = () =>
+    Promise.all([
+      fetch("./data/albums.json").then((response) => response.json()),
+      fetch("./data/art.json")
+        .then((response) => (response.ok ? response.json() : {}))
+        .catch(() => ({})),
+    ])
+
+  // Being hooked to a real core creates a failure a fixture never had: the core can be down.
+  // Falling back silently would be the worst of both, since the reference would look healthy
+  // while showing a snapshot from some other day. So it falls back and says so.
+  let albums
+  let covers
+  if (isLive()) {
+    try {
+      albums = await rpc("library.albums.list")
+      covers = {}
+    } catch (error) {
+      announceStale(error)
+      ;[albums, covers] = await fixture()
+    }
+  } else {
+    ;[albums, covers] = await fixture()
+  }
+
   const seeded = albums.map((album) => seed(album, covers[album.id]))
+  for (const album of seeded) album.source = hash(`src${album.id}`) % 9 === 0 ? "pandora" : "ytmusic"
   assignPlacements(seeded)
   return seeded
+}
+
+function announceStale(error) {
+  const strip = element(`
+    <p class="strip failed stale">
+      <b>Core unreachable</b>
+      <span class="right">Showing the recorded library, not the live one</span>
+    </p>
+  `)
+  strip.title = String(error)
+  document.body.prepend(strip)
 }
 
 function hash(value) {
@@ -56,7 +106,8 @@ function seed(album, coverFile) {
 
   return {
     ...album,
-    cover: coverFile ? `./art/${coverFile}` : null,
+    // Live albums carry their artwork URL; the dump is paired with harvested files.
+    cover: album.artworkUrl ?? (coverFile ? `./art/${coverFile}` : null),
     playCount,
     recentPlays,
     lastPlayedAt: playCount === 0 ? null : Date.now() - daysSincePlay * DAY,
@@ -150,7 +201,7 @@ export function ago(timestamp) {
   if (days < 30) return `${days} days ago`
   if (days < 365) return `${Math.floor(days / 30)} months ago`
   const years = (days / 365).toFixed(1).replace(/\.0$/, "")
-  return `${years} years ago`
+  return `${years} ${years === "1" ? "year" : "years"} ago`
 }
 
 /// A listening journal derived from the same hash-stable seed, so History agrees with the

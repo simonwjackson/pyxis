@@ -31,7 +31,7 @@ function lastPlayed(library) {
 export function mountNowPlaying(library, { state = "live" } = {}) {
   let session = currentSession(library, state)
   let playing = true
-  const holder = element(`<div class="nowbar-holder"></div>`)
+  const holder = element(`<div class="js-nowbar-holder"></div>`)
   document.body.append(holder)
   document.body.classList.add("has-nowbar")
 
@@ -84,7 +84,7 @@ export function mountNowPlaying(library, { state = "live" } = {}) {
 
     const sheet = element(`
       <dialog class="player">
-        <div class="split player-head">
+        <div class="split js-player-head">
           <button class="player-close" aria-label="Close player">Close</button>
           <button class="player-room"><i></i>${roomLabel}</button>
         </div>
@@ -97,18 +97,11 @@ export function mountNowPlaying(library, { state = "live" } = {}) {
         <div class="player-bar"><div></div></div>
         <div class="player-controls">
           <button class="act" aria-label="Previous track">◀◀</button>
-          <button class="act primary player-toggle">Pause</button>
+          <button class="act primary js-player-toggle">Pause</button>
           <button class="act" aria-label="Next track">▶▶</button>
           <input type="range" value="62" aria-label="Volume" />
         </div>
-        <div class="aside player-next">
-          <span class="frame">${sleeve(next)}</span>
-          <span class="t">
-            <span class="label">Next</span>
-            <b class="truncate-1">${escape(next.title)}</b>
-            <span class="truncate-1">${escape(next.artist)}</span>
-          </span>
-        </div>
+        <div class="player-ends"></div>
       </dialog>
     `)
 
@@ -117,18 +110,65 @@ export function mountNowPlaying(library, { state = "live" } = {}) {
       toggle.textContent = playing ? "❚❚" : "▶"
       toggle.setAttribute("aria-label", playing ? "Pause" : "Play")
       bar.classList.toggle("paused", !playing)
-      sheet.querySelector(".player-toggle").textContent = playing ? "Pause" : "Play"
+      sheet.querySelector(".js-player-toggle").textContent = playing ? "Pause" : "Play"
     }
     const flip = () => {
       playing = !playing
       paint()
     }
 
+    // An album ending is an album ending. Playing something you did not choose is the habit
+    // this product exists not to have, so silence is the default and continuing is a tap.
+    // The choice is stated before the end arrives, because a decision offered during the last
+    // fade is a decision made by whoever is nearest the phone.
+    const ends = sheet.querySelector(".player-ends")
+    let following = null
+
+    const paintEnds = () => {
+      ends.innerHTML = ""
+      if (!following) {
+        ends.append(
+          element(`
+            <div class="split">
+              <span class="t">
+                <span class="label">When this ends</span>
+                <b>Silence</b>
+              </span>
+              <button class="act inline">Continue in rotation</button>
+            </div>
+          `),
+        )
+        ends.querySelector("button").onclick = () => {
+          following = next
+          paintEnds()
+        }
+        return
+      }
+      ends.append(
+        element(`
+          <div class="aside player-next">
+            <span class="frame">${sleeve(following)}</span>
+            <span class="t">
+              <span class="label">Then</span>
+              <b class="truncate-1">${escape(following.title)}</b>
+              <span class="truncate-1">${escape(following.artist)}</span>
+            </span>
+            <button class="act inline">Stop after this</button>
+          </div>
+        `),
+      )
+      ends.querySelector("button").onclick = () => {
+        following = null
+        paintEnds()
+      }
+    }
+    paintEnds()
+
     const showRooms = () => openRooms(rooms, { onChange: () => draw() })
     bar.querySelector(".nowbar-room").onclick = showRooms
     sheet.querySelector(".player-room").onclick = showRooms
     bar.querySelector(".nowbar-toggle").onclick = flip
-    sheet.querySelector(".player-toggle").onclick = flip
+    sheet.querySelector(".js-player-toggle").onclick = flip
     bar.querySelector(".nowbar-open").onclick = () => sheet.showModal()
     sheet.querySelector(".player-close").onclick = () => sheet.close()
     paint()

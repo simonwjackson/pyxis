@@ -324,6 +324,7 @@
       import { productNav } from "./nav.js"
       import { mountWindow } from "./parts.js"
       import { currentSession, mountNowPlaying } from "./nowplaying.js"
+      import { expiredSource } from "./sources.js"
       import { currentState } from "./states.js"
 
 
@@ -372,6 +373,25 @@
       }
 
       const library = await loadLibrary(mode)
+
+      // A source that has signed itself out is not a fact about a settings screen. It is a
+      // fact about the album someone is about to tap, so it is said on the wall and counted:
+      // "some albums" is not something anyone can act on, and the number decides whether this
+      // is a shrug or an emergency.
+      const out = expiredSource(mode)
+      const stranded = out ? library.filter((album) => album.source === out.id) : []
+      if (out && stranded.length > 0) {
+        document.getElementById("strip").append(
+          element(`
+            <p class="strip failed">
+              <b>${escape(out.name)} signed out</b>
+              <span class="right">${stranded.length} albums cannot play
+                <a class="act inline" href="./f-sources.html${location.search}">Sign in</a></span>
+            </p>
+          `),
+        )
+      }
+      const strandedIds = new Set(stranded.map((album) => album.id))
       const sounds = currentSession(library, mode)
 
       // The page's context, bound to the shared tile once rather than passed at every site.
@@ -452,16 +472,27 @@
                   <div><dt class="label">Runtime</dt><dd>${runtime(album)}</dd></div>
                   <div><dt class="label">Depth</dt><dd>${album.completeness < 0.5 ? "singles only" : "heard in full"}</dd></div>
                 </dl>
-                <div class="play">
-                  <button>Play album</button>
-                  <button class="quiet">Shuffle</button>
-                </div>
+                <div class="play"></div>
                 <div class="move"></div>
                 <div class="aside device"></div>
               </div>
             </div>
           </div>
         `)
+
+        // An album from a signed-out source can still be played if it is already on the
+        // device, so the offer depends on where the bytes are, not only on the source. When it
+        // cannot play, the button says the thing that would fix it instead of failing on tap.
+        const kept = availability(album) === "available"
+        const playable = !strandedIds.has(album.id) || kept
+        body.querySelector(".play").append(
+          element(
+            playable
+              ? `<button>Play album</button><button class="quiet">Shuffle</button>`
+              : `<a class="act primary" href="./f-sources.html${location.search}">Sign in to play</a>
+                 <span class="meta trouble">${escape(out?.name ?? "Source")} signed out</span>`,
+          ),
+        )
 
         // Hybrid offline policy: placement decides by default, this overrides it.
         const device = body.querySelector(".device")
@@ -509,10 +540,10 @@
 
       function browse() {
         const section = element(`
-          <section class="browse">
+          <section class="js-browse">
             <div class="tools">
               <input class="find" type="search" placeholder="Search ${library.length} albums" />
-              <select class="sort" aria-label="Sort"></select>
+              <select class="js-sort" aria-label="Sort"></select>
               <button class="more">Filters</button>
             </div>
             <div class="chip-set chips"></div>
@@ -528,7 +559,7 @@
           renderResults()
         }
 
-        const sort = section.querySelector(".sort")
+        const sort = section.querySelector(".js-sort")
         for (const [key, [label]] of Object.entries(SORTS)) {
           const option = element(`<option value="${key}">${label}</option>`)
           sort.append(option)
@@ -552,8 +583,8 @@
         sheet.querySelector("button").onclick = () => sheet.close()
 
         const group = (title, options, isOn, toggle) => {
-          const node = element(`<div class="group"><span class="label">${title}</span><div class="chip-set opts"></div></div>`)
-          const holder = node.querySelector(".opts")
+          const node = element(`<div class="group"><span class="label">${title}</span><div class="chip-set js-opts"></div></div>`)
+          const holder = node.querySelector(".js-opts")
           for (const option of options) {
             const button = element(`
               <button class="chip" aria-pressed="${isOn(option.value)}">${option.label}${
@@ -619,7 +650,7 @@
       }
 
       function renderResults() {
-        const section = root.querySelector(".browse")
+        const section = root.querySelector(".js-browse")
         if (!section) return
         const rows = results()
 
