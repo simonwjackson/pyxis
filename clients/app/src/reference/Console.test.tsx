@@ -1272,6 +1272,99 @@ describe("console mode", () => {
     expect(play).not.toHaveBeenCalled()
   })
 
+  describe.each([
+    { _tag: "transport.stop", payload: {} },
+    { _tag: "queue.clear", payload: {} },
+    { _tag: "cursor.jump", payload: { index: 0 } },
+    { _tag: "queue.remove", payload: { index: 0 } },
+  ] as const)("renderer reset $_tag", (command) => {
+    test.each(["commit", "rollback"] as const)(
+      "owns the renderer until storage %s",
+      async (mode) => {
+        let deliver: RealtimeHandlers["onDirective"] | undefined
+        let finish: (() => void) | undefined
+        const play = vi.spyOn(HTMLMediaElement.prototype, "play").mockResolvedValue()
+        const database = await openWorkerDatabase({ engine: createMemoryEngine() })
+        await database.putSession(
+          session({
+            id: "mine",
+            hostDeviceId: "device-1",
+            queue: ["track-1"],
+            cursor: 0,
+            currentTrackId: "track-1",
+            transport: RpcTransport.Playing,
+          }),
+        )
+        const base = persistent(createDirectWorkerClient(async () => database))
+        const store: WorkerClient = {
+          ...base,
+          queueSessionCommand: async (...args) => {
+            if (args[1]._tag === command._tag)
+              await new Promise<void>((resolve, reject) => {
+                finish = () =>
+                  mode === "commit" ? resolve() : reject(new Error("storage unavailable"))
+              })
+            return base.queueSessionCommand(...args)
+          },
+        }
+        const loadStream = vi.fn(async () => "blob:track-1")
+        const configured: ReferenceClient = {
+          ...client([]),
+          loadStream,
+          connectRealtime: (_token, handlers) => {
+            deliver = handlers.onDirective
+            return () => {}
+          },
+        }
+        render(
+          <ReferenceApp client={configured} worker={store}>
+            <ReferenceAudio />
+            <ReferenceSessions />
+            <ReferencePlugins />
+          </ReferenceApp>,
+        )
+        await waitFor(() => expect(play).toHaveBeenCalled())
+        play.mockClear()
+        loadStream.mockClear()
+        act(() =>
+          deliver?.({
+            sessionId: "mine",
+            directiveId: "stop-owned",
+            issuedBy: "device-2",
+            command,
+          }),
+        )
+        try {
+          await waitFor(() => expect(finish).toBeTypeOf("function"))
+          await act(async () => {
+            await new Promise((resolve) => setTimeout(resolve, 30))
+          })
+          expect(loadStream).not.toHaveBeenCalled()
+          expect(play).not.toHaveBeenCalled()
+          await act(async () => {
+            finish?.()
+          })
+          if (mode === "commit") {
+            await waitFor(async () =>
+              expect((await database.session("mine"))?.transport).toBe(RpcTransport.Stopped),
+            )
+            expect(play).not.toHaveBeenCalled()
+            expect(loadStream).not.toHaveBeenCalled()
+          } else {
+            await waitFor(() =>
+              expect(screen.getByRole("alert").textContent).toContain("storage unavailable"),
+            )
+            expect(play).toHaveBeenCalledTimes(1)
+            expect((await database.session("mine"))?.transport).toBe(RpcTransport.Playing)
+            expect(await database.outbox()).toEqual([])
+          }
+        } finally {
+          finish?.()
+        }
+      },
+    )
+  })
+
   test("a redundant Play cannot suppress a later same-device Pause", async () => {
     let deliverDirective: ((directive: RpcSessionDirective) => void) | undefined
     let deliverEvent: ((event: RealtimeEvent) => void | Promise<void>) | undefined

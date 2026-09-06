@@ -72,6 +72,7 @@ export function ReferenceApp({
   const rendererFailureRef = useRef<(cause: unknown) => Promise<void>>(async () => undefined)
   const rendererFailureVersion = useRef(0)
   const playTransitionInFlight = useRef(false)
+  const rendererResetOwner = useRef<object>()
   const rendererFailureInFlight = useRef(false)
   const placementQueues = useRef(new Map<string, Promise<void>>())
   const sessionWriteQueue = useRef<Promise<void>>(Promise.resolve())
@@ -360,6 +361,7 @@ export function ReferenceApp({
       // edit can change the current track while Play is loading, producing audio for A and
       // a public Playing snapshot for B.
       const idempotencyKey = commandId ?? nextClientEventId()
+      const resetOwner = {}
       const persisted = sessionWriteQueue.current
         .catch(() => undefined)
         .then(async () => {
@@ -370,6 +372,15 @@ export function ReferenceApp({
               // Repeating Play here could restart audio after a newer Pause.
               return store.queueSessionCommand(preview.session, command, idempotencyKey)
             }
+            // Clearing the source must not let the automatic loader restart the old
+            // durable Playing snapshot while this command is waiting for storage.
+            if (
+              command._tag === "transport.stop" ||
+              command._tag === "queue.clear" ||
+              command._tag === "cursor.jump" ||
+              (command._tag === "queue.remove" && preview.session.cursor === command.payload.index)
+            )
+              rendererResetOwner.current = resetOwner
             const confirmsPlay = command._tag === "transport.play"
             const failureVersion = rendererFailureVersion.current
             if (confirmsPlay) playTransitionInFlight.current = true
@@ -418,12 +429,17 @@ export function ReferenceApp({
         () => undefined,
         () => undefined,
       )
-      const optimistic = await persisted
-      sessionRef.current = optimistic
-      setSession((current) =>
-        current !== undefined && current.revision > optimistic.revision ? current : optimistic,
-      )
-      return optimistic
+      try {
+        const optimistic = await persisted
+        sessionRef.current = optimistic
+        setSession((current) =>
+          current !== undefined && current.revision > optimistic.revision ? current : optimistic,
+        )
+        return optimistic
+      } finally {
+        // Release only after publishing the committed state, or after explicit rollback.
+        if (rendererResetOwner.current === resetOwner) rendererResetOwner.current = undefined
+      }
     },
     [confirmAudioCommand, restoreRenderer, store],
   )
@@ -711,6 +727,7 @@ export function ReferenceApp({
   }, [sessionVolume])
 
   useEffect(() => {
+    if (rendererResetOwner.current !== undefined) return
     const audio = audioElement.current
     if (audio === null) return
     if (session?.transport === "playing" && audioUrl !== undefined) {
@@ -1146,6 +1163,7 @@ export function ReferenceApp({
   // Whatever is playing must be loaded, whoever asked for it. A console can start this
   // device, and a reload can find it already playing.
   useEffect(() => {
+    if (rendererResetOwner.current !== undefined) return
     const trackId = session?.currentTrackId
     if (grant === undefined || session?.transport !== "playing" || trackId === undefined) return
     if (loadedTrack.current === trackId && audioUrl !== undefined) return
