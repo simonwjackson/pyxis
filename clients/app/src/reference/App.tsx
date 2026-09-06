@@ -560,24 +560,63 @@ export function ReferenceApp({
     if (grant === undefined) return
     const token = grant.bearerToken
     const deviceId = grant.device.id
-    return client.connectRealtime(
+    let generation = 0
+    const disconnect = client.connectRealtime(
       token,
       {
         onConnected: () => setRealtimeError(undefined),
-        onFailure: (cause) => setRealtimeError(`Realtime connection failed: ${message(cause)}`),
+        onFailure: (cause) => {
+          generation += 1
+          setRealtimeError(`Realtime connection failed: ${message(cause)}`)
+        },
         onEvent: async (event) => {
           const state = event.state
           if (state._tag === "session.state") {
-            const updated = state.payload
+            // The event already carries the authoritative session. A full library sync
+            // here blocks the realtime lane (and its next transport directive) for seconds.
+            // The worker applies this one snapshot atomically and protects queued intent.
+            const eventGeneration = generation
+            const checkConnection = () => {
+              if (generation !== eventGeneration)
+                throw new Error("session event connection retired")
+            }
+            let applied = await store.applySessionEvent(state.payload)
+            checkConnection()
+            if (applied.status === "queued") {
+              // Keep the event until the in-flight command acknowledgement has finished;
+              // otherwise that older reply can overwrite it after its cursor was saved.
+              await syncQueue.current
+              checkConnection()
+              applied = await store.applySessionEvent(state.payload)
+              checkConnection()
+              if (applied.status === "queued") {
+                await reconcileWorker()
+                checkConnection()
+                applied = await store.applySessionEvent(state.payload)
+                checkConnection()
+              }
+              if (applied.status === "queued")
+                throw new Error("session event still has queued intent")
+            }
+            const updated = applied.session
             if (updated.hostDeviceId === deviceId) {
-              const report = await reconcileWorker()
-              if (report.sessionPullFailed) throw new Error("session state did not sync")
+              // A device can host multiple sessions. An event for another one must not
+              // steal this page's selected renderer.
+              if (sessionRef.current !== undefined && sessionRef.current.id !== updated.id) return
+              if (
+                sessionRef.current === undefined ||
+                sessionRef.current.revision <= updated.revision
+              ) {
+                sessionRef.current = updated
+              }
+              setSession((current) =>
+                current !== undefined && current.revision > updated.revision ? current : updated,
+              )
               return
             }
-            await store.putSession(updated)
             setRemoteSessions((current) => {
               const existing = current.find((candidate) => candidate.id === updated.id)
-              if (existing !== undefined && existing.revision >= updated.revision) return current
+              if (existing !== undefined && existing.revision > updated.revision) return current
               const others = current.filter((candidate) => candidate.id !== updated.id)
               return updated.reachable ? [...others, updated] : others
             })
@@ -633,6 +672,10 @@ export function ReferenceApp({
       },
       resumeTokenRef.current,
     )
+    return () => {
+      generation += 1
+      disconnect()
+    }
   }, [client, grant, persistConfirmedHostCommand, reconcileWorker, store])
 
   useEffect(() => {

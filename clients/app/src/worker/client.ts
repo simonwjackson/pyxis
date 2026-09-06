@@ -16,6 +16,7 @@ import type {
   WorkerDatabase,
   WorkerOpenReport,
   WorkerSessionCommandPreview,
+  WorkerSessionEventResult,
   WorkerSettings,
 } from "./contract"
 import { createMemoryEngine, openWorkerDatabase } from "./database"
@@ -37,6 +38,7 @@ export type WorkerRequest = { readonly id: string; readonly accountId?: string }
   | { readonly _tag: "worker.sessions.read" }
   | { readonly _tag: "worker.session.read"; readonly payload: { id: string } }
   | { readonly _tag: "worker.session.put"; readonly payload: { session: RpcSession } }
+  | { readonly _tag: "worker.session-event.apply"; readonly payload: { session: RpcSession } }
   | { readonly _tag: "worker.session.remove"; readonly payload: { id: string } }
   | { readonly _tag: "worker.offline.overview" }
   | { readonly _tag: "worker.offline.pin"; readonly payload: { albumId: string } }
@@ -98,6 +100,9 @@ export interface WorkerClient {
   sessions(): Promise<readonly RpcSession[]>
   session(id: string): Promise<RpcSession | undefined>
   putSession(session: RpcSession): Promise<RpcSession>
+  /// Store one realtime event without a full network/library sync. A queued result means
+  /// intent prevented application; retain and retry the event before advancing its cursor.
+  applySessionEvent(session: RpcSession): Promise<WorkerSessionEventResult>
   removeSession(id: string): Promise<boolean>
   offlineOverview(): Promise<OfflineOverview>
   pinAlbum(albumId: string): Promise<OfflineOverview>
@@ -304,6 +309,8 @@ export function createWorkerClient(channel: Channel): WorkerClient {
     sessions: () => send<readonly RpcSession[]>({ _tag: "worker.sessions.read" }),
     session: (id) => send<RpcSession | undefined>({ _tag: "worker.session.read", payload: { id } }),
     putSession: (session) => send<RpcSession>({ _tag: "worker.session.put", payload: { session } }),
+    applySessionEvent: (session) =>
+      send<WorkerSessionEventResult>({ _tag: "worker.session-event.apply", payload: { session } }),
     removeSession: (id) => send<boolean>({ _tag: "worker.session.remove", payload: { id } }),
     offlineOverview: () => send<OfflineOverview>({ _tag: "worker.offline.overview" }),
     pinAlbum: (albumId) =>
@@ -374,6 +381,7 @@ export function createDirectWorkerClient(
     sessions: async () => (await database()).sessions(),
     session: async (id) => (await database()).session(id),
     putSession: async (session) => (await database()).putSession(session),
+    applySessionEvent: async (session) => (await database()).applyRemoteSession(session),
     removeSession: async (id) => (await database()).removeSession(id),
     offlineOverview: () => offline.overview(),
     pinAlbum: (albumId) => offline.pinAlbum(albumId),
@@ -503,6 +511,7 @@ export function createFailoverWorkerClient(
     sessions: () => retry((client) => client.sessions()),
     session: (id) => retry((client) => client.session(id)),
     putSession: (session) => retry((client) => client.putSession(session)),
+    applySessionEvent: (session) => retry((client) => client.applySessionEvent(session)),
     removeSession: (id) => retry((client) => client.removeSession(id)),
     offlineOverview: () => retry((client) => client.offlineOverview()),
     pinAlbum: (albumId) => retry((client) => client.pinAlbum(albumId)),

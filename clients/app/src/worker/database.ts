@@ -29,6 +29,7 @@ import {
   type WorkerOutboxEntry,
   type WorkerSession,
   type WorkerSessionCommandPreview,
+  type WorkerSessionEventResult,
   type WorkerSettings,
 } from "./contract"
 import { applySessionCommand } from "./session-local"
@@ -398,6 +399,28 @@ class LocalWorkerDatabase implements WorkerDatabase {
       count += 1
     }
     return count
+  }
+
+  async applyRemoteSession(session: WorkerSession): Promise<WorkerSessionEventResult> {
+    const [local, outbox] = await Promise.all([
+      this.engine.sessions.findById(session.id),
+      this.engine.outbox.all(),
+    ])
+    if (
+      outbox.some((entry) => entry.kind === "session.command" && entry.sessionId === session.id)
+    ) {
+      // Do not call an ignored event durable: a delayed acknowledgement can replace the
+      // local row after this returns. The caller retains and reapplies the event once the
+      // outbox settles, before persisting its cursor.
+      return { status: "queued" }
+    }
+    if (local !== undefined && session.revision < local.revision) {
+      return { status: "applied", session: local }
+    }
+    if (local !== undefined && canonicalJson(session) === canonicalJson(local)) {
+      return { status: "applied", session: local }
+    }
+    return { status: "applied", session: await this.putSession(session) }
   }
 
   async putSession(session: WorkerSession): Promise<WorkerSession> {

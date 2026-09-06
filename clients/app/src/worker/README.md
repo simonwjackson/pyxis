@@ -41,6 +41,18 @@ outbox. Permanent rejection is explicit and produces a durable notice.
 - `queueListen(event)`
 - `previewSessionCommand(sessionId, command, commandId)`
 - `queueSessionCommand(session, command, commandId, expectedRevision)`
+- `applySessionEvent(session)`
+
+`applySessionEvent` applies one authoritative realtime session snapshot under one refreshed,
+account-fenced storage lock. It preserves queued host intent and newer local revisions, handles
+equal-revision reachability changes, and returns `{ status: "applied", session }` after storage.
+It neither reads albums nor performs network sync, and does not remove unrelated sessions.
+If local commands prevent application, it returns `{ status: "queued" }` without applying the
+event. The caller must retain the event, wait for outstanding synchronization (or invoke
+`sync()` for recovery), and retry before persisting its resume cursor. Do not treat a queued
+result as success: an older in-flight command acknowledgement could otherwise overwrite the
+event permanently. Abandon retries from retired connections without advancing their cursors.
+Startup, dropped-history recovery, and command replay still use `sync()`.
 
 A host previews a session command before touching audio. A durable receipt is checked before
 renderer effects, stale state-machine commands fail early, and the expected revision closes

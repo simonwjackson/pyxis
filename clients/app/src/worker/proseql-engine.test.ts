@@ -239,6 +239,46 @@ describe("the real ProseQL engine", () => {
     expect(await reopened.offlinePin(pin.id)).toEqual({ ...pin, generation: 2 })
   })
 
+  test("a single session event preserves durable queued intent across worker reopens", async () => {
+    const cells = new Map<string, string>()
+    const first = await open(cells)
+    const snapshot = {
+      id: "session-1",
+      name: "Browser",
+      hostDeviceId: "device-1",
+      queue: [],
+      transport: RpcTransport.Stopped,
+      positionMs: 0,
+      volume: 100,
+      reachable: true,
+      revision: 1,
+      updatedAt: "now",
+    }
+    await first.putSession(snapshot)
+    const optimistic = await first.queueSessionCommand(
+      snapshot,
+      { _tag: "queue.add", payload: { trackIds: ["local-track"] } },
+      "local-command",
+    )
+    await first.close()
+    const reopened = await open(cells)
+    const remote = { ...snapshot, revision: 3 }
+    expect(await reopened.applyRemoteSession(remote)).toEqual({ status: "queued" })
+    expect(await reopened.session(snapshot.id)).toEqual(optimistic)
+    const pending = await reopened.outbox()
+    expect(pending).toHaveLength(1)
+    for (const entry of pending) await reopened.dequeue(entry.id)
+    await reopened.close()
+    const reconciled = await open(cells)
+    expect(await reconciled.applyRemoteSession(remote)).toEqual({
+      status: "applied",
+      session: remote,
+    })
+    await reconciled.close()
+    const final = await open(cells)
+    expect(await final.session(snapshot.id)).toEqual(remote)
+  })
+
   test("removes what it says it removed", async () => {
     const database = await open(new Map())
     await database.putAlbum(album("album-1"))

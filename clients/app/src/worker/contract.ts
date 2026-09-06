@@ -85,6 +85,10 @@ export interface WorkerSettings {
 export type WorkerAlbum = RpcLibraryAlbum & { readonly id: string }
 export type WorkerSession = RpcSession & { readonly id: string }
 
+export type WorkerSessionEventResult =
+  | { readonly status: "applied"; readonly session: WorkerSession }
+  | { readonly status: "queued" }
+
 export interface WorkerSessionCommandPreview {
   readonly session: WorkerSession
   /// True when this command ID was already durably accepted locally. A caller must not
@@ -237,6 +241,11 @@ export interface WorkerDatabase {
   /// Apply one authoritative server snapshot while preserving sessions with queued commands.
   /// Returns the number of rows inserted, updated, or removed.
   applyRemoteSessions(sessions: readonly WorkerSession[]): Promise<number>
+  /// Apply one realtime snapshot under the caller's account-fenced lock. Preserve queued
+  /// host intent and newer local revisions; never remove unrelated sessions or read albums.
+  /// A queued result did not apply the event: retain it and retry after synchronization
+  /// before acknowledging its cursor. Otherwise a late acknowledgement could hide it.
+  applyRemoteSession(session: WorkerSession): Promise<WorkerSessionEventResult>
   putSession(session: WorkerSession): Promise<WorkerSession>
   /// Store a server verdict even when it rolls back an optimistic local revision.
   replaceSession(session: WorkerSession): Promise<WorkerSession>

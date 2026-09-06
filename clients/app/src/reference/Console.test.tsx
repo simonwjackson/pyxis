@@ -901,6 +901,190 @@ describe("console mode", () => {
     await waitFor(() => expect(screen.getByText(/Heroes/)).toBeTruthy())
   })
 
+  test("a hosted-session event is durable without starting a full library sync", async () => {
+    let deliver: RealtimeHandlers["onEvent"] | undefined
+    const database = await openWorkerDatabase({ engine: createMemoryEngine() })
+    await database.putSession(session({ id: "mine", hostDeviceId: "device-1" }))
+    const base = persistent(createDirectWorkerClient(async () => database))
+    const sync = vi.fn(base.sync)
+    const store = { ...base, sync }
+    const configured: ReferenceClient = {
+      ...client([]),
+      connectRealtime: (_token, handlers) => {
+        deliver = handlers.onEvent
+        return () => {}
+      },
+    }
+    render(
+      <ReferenceApp client={configured} worker={store}>
+        <ReferenceSessions />
+        <ReferencePlugins />
+      </ReferenceApp>,
+    )
+    await screen.findByText("Status: ready")
+    sync.mockClear()
+    const updated = session({
+      id: "mine",
+      hostDeviceId: "device-1",
+      queue: ["track-new"],
+      currentTrackId: "track-new",
+      cursor: 0,
+      revision: 2,
+    })
+    await act(async () => {
+      await deliver?.({
+        topic: RpcRealtimeTopic.Sessions,
+        resumeToken: "cursor-2",
+        state: { _tag: "session.state", payload: updated },
+      })
+    })
+    expect(sync).not.toHaveBeenCalled()
+    expect(await database.session("mine")).toEqual(updated)
+    expect(screen.getAllByText("track-new")).toHaveLength(2)
+    await act(async () => {
+      await deliver?.({
+        topic: RpcRealtimeTopic.Sessions,
+        resumeToken: "cursor-3",
+        state: { _tag: "session.state", payload: { ...updated, id: "also-mine", revision: 10 } },
+      })
+    })
+    expect(screen.getByText("mine")).toBeTruthy()
+    expect(screen.queryByText("also-mine")).toBeNull()
+    expect(await database.session("also-mine")).toBeDefined()
+  })
+
+  test.each(["newer", "reachability", "retired"] as const)(
+    "retains a %s event during a delayed command acknowledgement",
+    async (mode) => {
+      let handlers: RealtimeHandlers | undefined
+      let acknowledge: (() => void) | undefined
+      const database = await openWorkerDatabase({ engine: createMemoryEngine() })
+      const original = session({
+        id: "mine",
+        hostDeviceId: "device-1",
+        queue: ["track-1"],
+        cursor: 0,
+        currentTrackId: "track-1",
+      })
+      await database.putSession(original)
+      let remote = original
+      const rpc: WorkerRpc = {
+        listAlbums: async () => [],
+        listSessions: async () => [remote],
+        runSessionCommand: async () =>
+          new Promise((resolve) => {
+            acknowledge = () => resolve({ ...original, volume: 50, revision: 2 })
+          }),
+        setPlacement: async () => undefined,
+        appendListen: async () => ({ accepted: 0, duplicates: 0 }),
+      }
+      const store = persistent(
+        createDirectWorkerClient(
+          async () => database,
+          () => rpc,
+        ),
+      )
+      const configured: ReferenceClient = {
+        ...client([]),
+        connectRealtime: (_token, value) => {
+          handlers = value
+          return () => {}
+        },
+      }
+      render(
+        <ReferenceApp client={configured} worker={store}>
+          <ReferenceSessions />
+          <ReferencePlugins />
+        </ReferenceApp>,
+      )
+      await screen.findByText("Status: ready")
+      act(() =>
+        handlers?.onDirective({
+          sessionId: "mine",
+          directiveId: "volume",
+          issuedBy: "device-2",
+          command: { _tag: "volume.set", payload: { volume: 50 } },
+        }),
+      )
+      await waitFor(() => expect(acknowledge).toBeTypeOf("function"))
+      const { cursor: _cursor, currentTrackId: _track, ...cleared } = original
+      remote =
+        mode === "reachability"
+          ? { ...original, volume: 50, revision: 2, reachable: false }
+          : { ...cleared, queue: [], volume: 50, revision: 3 }
+      let covered = false
+      let delivery: Promise<void> | undefined
+      try {
+        await act(async () => {
+          delivery = Promise.resolve(
+            handlers?.onEvent({
+              topic: RpcRealtimeTopic.Sessions,
+              resumeToken: "revision-3",
+              state: { _tag: "session.state", payload: remote },
+            }),
+          ).then(() => {
+            covered = true
+          })
+          await Promise.resolve()
+        })
+        expect(covered).toBe(false)
+        if (mode === "retired") act(() => handlers?.onFailure?.(new Error("socket closed")))
+        await act(async () => {
+          acknowledge?.()
+          if (mode === "retired") await expect(delivery).rejects.toThrow("connection retired")
+          else await delivery
+        })
+        await waitFor(async () => expect(await database.outbox()).toEqual([]))
+        expect(covered).toBe(mode !== "retired")
+        expect(await database.session("mine")).toEqual(
+          mode === "retired" ? { ...original, volume: 50, revision: 2 } : remote,
+        )
+        if (mode === "newer") expect(screen.getByText("none")).toBeTruthy()
+      } finally {
+        acknowledge?.()
+      }
+    },
+  )
+
+  test("a same-revision disconnect removes a remote session without a full sync", async () => {
+    let deliver: RealtimeHandlers["onEvent"] | undefined
+    const base = persistent(createDirectWorkerClient())
+    const sync = vi.fn(base.sync)
+    const configured: ReferenceClient = {
+      ...client([]),
+      connectRealtime: (_token, handlers) => {
+        deliver = handlers.onEvent
+        return () => {}
+      },
+    }
+    render(
+      <ReferenceApp client={configured} worker={{ ...base, sync }}>
+        <ReferenceRemote />
+        <ReferencePlugins />
+      </ReferenceApp>,
+    )
+    await screen.findByText("Status: ready")
+    const remote = session()
+    await act(async () => {
+      await deliver?.({
+        topic: RpcRealtimeTopic.Sessions,
+        resumeToken: "one",
+        state: { _tag: "session.state", payload: remote },
+      })
+    })
+    expect(screen.getByText(/Kitchen/)).toBeTruthy()
+    sync.mockClear()
+    await act(async () => {
+      await deliver?.({
+        topic: RpcRealtimeTopic.Sessions,
+        resumeToken: "two",
+        state: { _tag: "session.state", payload: { ...remote, reachable: false } },
+      })
+    })
+    expect(screen.queryByText(/Kitchen/)).toBeNull()
+    expect(sync).not.toHaveBeenCalled()
+  })
+
   test("realtime resync keeps a queued hosted-session command", async () => {
     let resync: (() => void | Promise<void>) | undefined
     const database = await openWorkerDatabase({ engine: createMemoryEngine() })
@@ -1137,6 +1321,9 @@ describe("console mode", () => {
       revision: playing.revision + 1,
       updatedAt: "later",
     }
+    // This fixture's direct client has no network replay. Model acknowledgement of the
+    // earlier Play before publishing the later confirmed Pause from the same device.
+    for (const entry of await database.outbox()) await database.dequeue(entry.id)
     await database.putSession(paused)
     pause.mockClear()
 

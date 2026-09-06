@@ -611,3 +611,54 @@ describe("albums", () => {
     expect(await database.removeAlbum("album-1")).toBe(false)
   })
 })
+
+describe("single realtime session snapshots", () => {
+  test("updates one session without reading the library or removing other sessions", async () => {
+    const engine = createMemoryEngine()
+    const database = await openWorkerDatabase({ engine })
+    await database.putSession(session({ id: "other" }))
+    engine.albums.all = async () => {
+      throw new Error("unrelated library read")
+    }
+    const incoming = session({ revision: 2 })
+    expect(await database.applyRemoteSession(incoming)).toEqual({
+      status: "applied",
+      session: incoming,
+    })
+    expect(await database.session("other")).toBeDefined()
+  })
+
+  test("preserves queued command state and its outbox when an event arrives", async () => {
+    const database = await openWorkerDatabase({ engine: createMemoryEngine() })
+    const original = await database.putSession(session())
+    const optimistic = await database.queueSessionCommand(
+      original,
+      { _tag: "queue.add", payload: { trackIds: ["local"] } },
+      "pending",
+    )
+    const before = await database.outbox()
+    expect(await database.applyRemoteSession(session({ revision: 3 }))).toEqual({
+      status: "queued",
+    })
+    expect(await database.session(original.id)).toEqual(optimistic)
+    expect(await database.outbox()).toEqual(before)
+    for (const entry of before) await database.dequeue(entry.id)
+    expect(await database.applyRemoteSession(session({ revision: 3 }))).toEqual({
+      status: "applied",
+      session: session({ revision: 3 }),
+    })
+  })
+
+  test("preserves newer local state but accepts equal-revision reachability changes", async () => {
+    const database = await openWorkerDatabase({ engine: createMemoryEngine() })
+    const newer = await database.putSession(session({ revision: 4 }))
+    expect(await database.applyRemoteSession(session({ revision: 3, reachable: false }))).toEqual({
+      status: "applied",
+      session: newer,
+    })
+    expect(await database.applyRemoteSession({ ...newer, reachable: false })).toEqual({
+      status: "applied",
+      session: { ...newer, reachable: false },
+    })
+  })
+})

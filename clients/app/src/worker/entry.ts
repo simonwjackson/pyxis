@@ -166,6 +166,10 @@ async function handle(request: WorkerRequest): Promise<unknown> {
       return mutateCurrentAccount(request.accountId, (current) =>
         current.putSession(request.payload.session),
       )
+    case "worker.session-event.apply":
+      return mutateCurrentAccount(request.accountId, (current) =>
+        current.applyRemoteSession(request.payload.session),
+      )
     case "worker.session.remove":
       return mutateCurrentAccount(request.accountId, (current) =>
         current.removeSession(request.payload.id),

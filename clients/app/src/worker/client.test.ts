@@ -40,6 +40,44 @@ class FakeWorker {
 }
 
 describe("worker client", () => {
+  test("routes a session event with the page account fence and returns durable state", async () => {
+    const worker = new FakeWorker()
+    const client = createWorkerClient(worker)
+    const settings = client.settings()
+    worker.reply({
+      id: worker.sent[0]?.id ?? "",
+      outcome: {
+        status: "ready",
+        value: { id: "device", accountId: "default", deviceId: "device-1" },
+      },
+    })
+    await settings
+    const session = {
+      id: "session-1",
+      name: "Browser",
+      hostDeviceId: "device-1",
+      queue: [],
+      transport: RpcTransport.Stopped,
+      positionMs: 0,
+      volume: 100,
+      reachable: true,
+      revision: 1,
+      updatedAt: "now",
+    }
+    const applying = client.applySessionEvent(session)
+    const request = worker.sent[1]
+    expect(request).toMatchObject({
+      _tag: "worker.session-event.apply",
+      accountId: "default",
+      payload: { session },
+    })
+    worker.reply({
+      id: request?.id ?? "",
+      outcome: { status: "ready", value: { status: "applied", session } },
+    })
+    expect(await applying).toEqual({ status: "applied", session })
+  })
+
   test("an asynchronous worker startup failure switches to the network fallback", async () => {
     const worker = new FakeWorker()
     const primary = createWorkerClient(worker)
