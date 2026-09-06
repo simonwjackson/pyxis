@@ -378,12 +378,14 @@ class LocalWorkerDatabase implements WorkerDatabase {
       if (queued.has(session.id)) continue
       const local = localById.get(session.id)
       if (local !== undefined && session.revision < local.revision) continue
-      // Reachability is live socket state and can change without a durable session revision.
-      // Equal revisions are otherwise identical, so only that field needs to reopen the row.
+      // Reachability can change without a revision. Compare the whole snapshot too: an
+      // older adapter may have deep-merged optional fields the server omitted. A current
+      // authoritative pull repairs that stale body without a migration or touching outbox
+      // intent (queued sessions were excluded above).
       if (
         local !== undefined &&
         session.revision === local.revision &&
-        session.reachable === local.reachable
+        canonicalJson(session) === canonicalJson(local)
       ) {
         continue
       }

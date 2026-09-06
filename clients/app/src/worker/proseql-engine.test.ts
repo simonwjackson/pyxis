@@ -14,7 +14,7 @@ import { fileURLToPath } from "node:url"
 import { workerWasmUrl } from "@proseql/browser/worker"
 import { createWebStorageEngineStorageHost } from "@proseql/engine/browser"
 import { beforeAll, describe, expect, test } from "vitest"
-import { RpcPlacement } from "../../../../contracts/generated/pyxis"
+import { RpcPlacement, RpcTransport } from "../../../../contracts/generated/pyxis"
 import type { WorkerAlbum } from "./contract"
 import { openWorkerDatabase } from "./database"
 import { createProseqlEngine } from "./proseql-engine"
@@ -170,6 +170,73 @@ describe("the real ProseQL engine", () => {
     const stored = await database.albums()
     expect(stored).toHaveLength(1)
     expect(stored[0]?.title).toBe("Renamed")
+  })
+
+  test("a cleared session removes its former cursor and current track across reopen", async () => {
+    const cells = new Map<string, string>()
+    const database = await open(cells)
+    const session = {
+      id: "session-1",
+      name: "Browser",
+      hostDeviceId: "device-1",
+      transport: RpcTransport.Stopped,
+      positionMs: 0,
+      volume: 100,
+      reachable: true,
+      revision: 1,
+      updatedAt: "now",
+      queue: ["track-1"],
+      cursor: 0,
+      currentTrackId: "track-1",
+    }
+    await database.putSession(session)
+    const { cursor: _cursor, currentTrackId: _currentTrackId, ...cleared } = session
+    await database.putSession({ ...cleared, queue: [], revision: 2 })
+    expect((await database.session(session.id))?.currentTrackId).toBeUndefined()
+    expect((await database.session(session.id))?.cursor).toBeUndefined()
+    await database.close()
+    const reopened = await open(cells)
+    expect((await reopened.session(session.id))?.currentTrackId).toBeUndefined()
+    expect((await reopened.session(session.id))?.cursor).toBeUndefined()
+    expect((await reopened.session(session.id))?.queue).toEqual([])
+  })
+
+  test("a same-revision pull repairs obsolete optional session fields", async () => {
+    const cells = new Map<string, string>()
+    const database = await open(cells)
+    const snapshot = {
+      id: "session-1",
+      name: "Browser",
+      hostDeviceId: "device-1",
+      transport: RpcTransport.Stopped,
+      positionMs: 0,
+      volume: 100,
+      reachable: true,
+      revision: 2,
+      updatedAt: "now",
+      queue: [],
+    }
+    // Simulate an earlier deep-merged snapshot, then reopen as the production lock does.
+    await database.putSession({ ...snapshot, cursor: 0, currentTrackId: "track-1" })
+    await database.close()
+    const reopened = await open(cells)
+    expect(await reopened.sessions()).toEqual([
+      { ...snapshot, cursor: 0, currentTrackId: "track-1" },
+    ])
+    expect(await reopened.applyRemoteSessions([snapshot])).toBe(1)
+    expect(await reopened.session(snapshot.id)).toEqual(snapshot)
+    expect(await reopened.applyRemoteSessions([snapshot])).toBe(0)
+  })
+
+  test("a complete offline pin snapshot removes an omitted error", async () => {
+    const cells = new Map<string, string>()
+    const database = await open(cells)
+    const pin = { id: "album-1", albumId: "album-1", pinnedAt: 1, generation: 1 }
+    await database.putOfflinePin({ ...pin, lastError: "interrupted download" })
+    await database.putOfflinePin({ ...pin, generation: 2 })
+    await database.close()
+    const reopened = await open(cells)
+    expect(await reopened.offlinePin(pin.id)).toEqual({ ...pin, generation: 2 })
   })
 
   test("removes what it says it removed", async () => {

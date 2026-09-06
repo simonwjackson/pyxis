@@ -307,7 +307,14 @@ function wrapped<T extends { readonly id: string }>(
     async upsert(row) {
       const stored = { ...indexed(row), id: row.id, body: row }
       const { id: _id, ...changes } = stored
-      await collection.upsert({ where: { id: row.id }, create: stored, update: changes })
+      // Worker upserts are complete snapshots, not deep patches. In particular, JSON
+      // omits a cleared session's cursor/currentTrackId. Replace the opaque body in the
+      // same atomic upsert so those omissions cannot preserve obsolete playback state.
+      await collection.upsert({
+        where: { id: row.id },
+        create: stored,
+        update: { ...changes, body: { $set: row } },
+      })
       return row
     },
     async delete(id) {
