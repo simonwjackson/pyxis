@@ -23,8 +23,15 @@ requirements and decisions were captured directly into `plan.md` sections
 
 ## Current position
 
-**M7, M6, M5, and M4 are complete. U19 Soulseek is accepted with a verified live-network
-lossless upgrade. M3 still awaits your hands-on validation from a second device.**
+**M1, M2, M4, M5, M6, and M7 are complete. M3 remains open: its implementation is deployed,
+but physical two-device audio, autoplay, and responsiveness are not product-accepted.**
+
+The 2026-09-06 autonomous pass fixed two more realtime lifecycle races in `ecbb285`, with
+seven regression cases and a successful independent follow-up review. `423ce52` then fixed
+complete worker snapshots retaining omitted playback fields, with three real-WASM regression
+cases and another successful independent review. See
+`docs/operations/2026-09-06-m3-reconnect-validation.md` for deployment, browser evidence,
+verification exceptions, and the remaining acceptance checklist.
 
 U26 documents the whole public API, with a worked example that `tools/verify-api-example`
 extracts from the document and runs, so a claim that stops matching the server fails there.
@@ -58,8 +65,8 @@ publication generations, and stream epochs.
 Automated verification covers complete and interrupted downloads, quota pressure, shared
 tracks, fidelity races, account switches, service-worker restart, chunk ranges, shell updates,
 malformed RPC responses, cold offline application logic, and the packaged PWA artifact. The
-full client suite now has 195 passing tests; contract, production/PWA, Nix package, and flake
-gates pass.
+client suite at that milestone had 195 passing tests; contract, production/PWA, Nix package,
+and flake gates passed. Current verification is recorded in the M3 validation report.
 
 Real-browser acceptance used durable device `01M0NXTMN8DKE1F28VJFQZJT0S`. Schema 8 reopened
 with 370 cached albums and zero queued writes. The installed app retained the same store. A
@@ -74,40 +81,60 @@ identity, and byte ranges remain live; all three user services are active.
 
 ---
 
-**M3 is implemented and deployed.** U5 realtime and U13 console control and handoff are
-built, reviewed, and live at `https://pyxis.hummingbird-lake.ts.net`. The last known
-correctness gap is fixed in `d4adeb9`: a host now validates and deduplicates a directive,
-confirms the browser audio operation, then records public session state. Refused autoplay,
-stream/decode failure, storage rollback, load cancellation, and crash recovery are covered
-by tests. The deployed worker is now schema 8 after M5.
+**M3 is implemented and deployed** at `https://pyxis.hummingbird-lake.ts.net`.
+`d4adeb9` makes the host validate and deduplicate a directive, confirm the browser audio
+operation, then record public session state. Refused autoplay, stream/decode failure,
+storage rollback, load cancellation, and crash recovery are covered by tests. The worker
+remains schema 8 after M5. Later diagnosis found additional issues; this is not a claim
+that all physical-device failures have been explained.
 
 Second-device acceptance began after M5. It exposed three browser-only readiness defects:
 `0749c55` refuses cached remote reachability until a current pull or realtime event confirms
 a live socket; `9a2e2ad` applies 370-album and session snapshots under one database lock instead
 of reopening ProseQL per row; and `07840bc` lets account/session startup take that lock before
 large offline-media reconciliation. All are deployed and covered by the client suite plus the
-package gates. The user chose to move on before the final startup-time, transport, disconnect,
-and handoff feel-test, so M3 remains implementation-complete but not product-accepted.
+package gates. Subsequent Pause diagnosis led to `7353791`, which prevents generic
+`session.list` reads from waiting for physical-output I/O. `081a989` exposes realtime failures
+and closes unhealthy sockets; `4d888f8` separates the 120-second full-resync budget from the
+30-second incremental-handler budget. `ecbb285` fences queued and post-await work from retired
+sockets and serializes actual cursor writes across automatic reconnects. `423ce52` replaces
+opaque worker bodies atomically instead of deep-merging them, so queue clear/handoff removes
+old track/cursor fields. Equal-revision authoritative session pulls repair stale cached bodies
+without discarding queued commands or introducing a migration.
+
+Earlier Chromium checks proved durable reload, remote transport, and stopped-state handoff
+to a synthetic target. They did not establish audibility or physical network-loss behavior.
+The September retest uses two real browser profiles and a browser-only connection-cut proxy.
+Large-library startup and command convergence remain performance concerns, not accepted feel.
 
 **Milestone M2 is complete and live on the tailnet.** The live 386-entry legacy manifest is
 fully accounted: 370 albums are in Discovery, 16 remain unresolved after manual review,
 and no import request failed. The durable audit is
 `docs/operations/2026-08-21-v1-album-import.md`.
 
-Commit `18a5cce` is installed through `nix profile`. The `pyxis.service`,
-`pyxis-tsnet.service`, and `pyxis-ytdlp-update.timer` user units are active. HTTPS, health,
-system status, and the full 370-album library were verified through
-`https://pyxis.hummingbird-lake.ts.net`.
+The 2026-09-06 deployment is locked to `423ce52` through `nix profile`, at
+`/nix/store/qdn4bnrxw7cjd6fgjbyfbc584ylcry9g-pyxis-2.0.0`. The `pyxis.service`,
+`pyxis-tsnet.service`, and `pyxis-ytdlp-update.timer` user units are active; local and tailnet
+health return 200.
 
-The old system `pyxis.service` and `tsnet-proxy-pyxis.service` units are stopped. They
-remain declared by the current NixOS generation and can return after a reboot or system
-switch until the prepared `mountainous` removal is deployed.
+The previously reported old-system-unit risk is no longer observed: on 2026-09-06,
+`systemctl show` reports both system `pyxis.service` and `tsnet-proxy-pyxis.service` inactive
+with no loaded fragment or unit-file state. This pass made no NixOS configuration changes.
+A proper NixOS module remains deferred.
 
-The eight old review findings were rechecked against current code and targeted tests: header-first
-album parsing, malformed payload rejection, failure retryability, invalid duration omission,
-pre-U8 descriptors, stale placement ordering, plugin album handlers, and relationship batching
-are all present and passing. The session-state counter remains stale because the planned
-`se_resolve_residual` tool is not yet exposed by the harness.
+Artwork persistence and refresh landed in `b22c0fd`; `f415040` records the successful backfill
+of all 370 imported albums. The older untracked artwork parking-lot file remains untouched;
+it is not evidence of unfinished implementation.
+
+The 2026-09-06 independent review rechecked all eight historical cards. Six are fixed within
+their original scope: header-first parsing, malformed album rejection, retryability mapping,
+pre-U8 descriptors, plugin album-handler coverage, and batched relationship listing. Two are
+still partly unresolved: empty/overflowing provider durations can be emitted, and a placement
+queued between acknowledgement lookup and replacement can be temporarily hidden despite its
+outbox entry surviving. Follow-ups `01M1W0J02HD295KB4SCDV074MN` and
+`01M1W0HN5JXHGDWCHV269DQZ40` capture the reproductions. The harness still shows all eight
+cards because its residual-resolution tool is unavailable; earlier claims that all eight
+were merely stale were too broad.
 
 **M4/U18 is complete and product-accepted on real Sonos hardware.** The TypeScript output plugin
 provides private-LAN SSDP plus mDNS discovery, authoritative topology, SOAP fault classification,
