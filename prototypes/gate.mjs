@@ -30,6 +30,19 @@ function definedClasses(css) {
   return found
 }
 
+// Every class named anywhere in a selector, compounds included.
+//
+// definedClasses() above takes only the first class of a compound, because that is what
+// ownership means. Asking "is this styled at all?" is a different question: `.act.inline` and
+// `body.has-nowbar` define `inline` and `has-nowbar` just as surely.
+function mentionedClasses(css) {
+  const found = new Set()
+  for (const match of css.matchAll(/([^{}]+)\{[^{}]*\}/g)) {
+    for (const name of match[1].matchAll(/\.(-?[_a-zA-Z][\w-]*)/g)) found.add(name[1])
+  }
+  return found
+}
+
 // Classes a stylesheet *owns*, as opposed to ones it merely scopes.
 //
 // `.act { }` claims the action button. `.result .act { }` adjusts one in context, which is
@@ -201,6 +214,44 @@ for (let i = 0; i < functions.length; i++) {
     failures.push(
       `${a.page} ${a.name}() and ${b.page} ${b.name}() have identical bodies. ` +
         `A unit written twice belongs in a shared module.`,
+    )
+  }
+}
+
+// ---------------------------------------------------------------------------
+// 5. A class that code writes but no stylesheet defines.
+//
+// A blind edit that misses its target leaves markup asking for a rule that was never added.
+// Nothing throws: the element renders unstyled, and unstyled usually still looks like
+// something. Three times now this has been caught by eye. Reuses definedClasses() rather than
+// re-deriving it, because a gate that duplicates its own logic is arguing against itself.
+
+const styledAnywhere = mentionedClasses(system)
+for (const page of pages) {
+  for (const name of mentionedClasses(localStyle(read(page)))) styledAnywhere.add(name)
+}
+
+// A class is either styled or it is named `js-`, which declares it behaviour-only: a handle
+// for a script, never a rule. No allowlist, because a list you can append to is a gate you can
+// silence. `ref` predates the convention and belongs to the documentation footer.
+const behaviourOnly = (name) => name.startsWith("js-") || name === "ref"
+
+for (const file of [...pages, ...modules]) {
+  const text = file.endsWith(".html") ? read(file).replace(/<style>[\s\S]*?<\/style>/g, "") : read(file)
+  const emitted = new Set()
+  // Template literals interpolate, so a class attribute containing ${...} is skipped: its
+  // value is not knowable here, and guessing produces the false failures that get gates muted.
+  for (const match of text.matchAll(/class="([^"$]*)"/g)) {
+    for (const name of match[1].split(/\s+/)) if (name) emitted.add(name)
+  }
+  for (const match of text.matchAll(/classList\.(?:add|toggle|remove)\(\s*"([^"]+)"/g)) {
+    emitted.add(match[1])
+  }
+  for (const name of [...emitted].sort()) {
+    if (styledAnywhere.has(name) || behaviourOnly(name)) continue
+    failures.push(
+      `${file} writes class "${name}" but no stylesheet defines it. ` +
+        `Either a rule was meant to be added and was not, or the class is dead.`,
     )
   }
 }
