@@ -23,8 +23,8 @@ requirements and decisions were captured directly into `plan.md` sections
 
 ## Current position
 
-**M1, M2, M4, M5, M6, and M7 are complete. M3 remains open: its implementation is deployed,
-but physical two-device audio, autoplay, and responsiveness are not product-accepted.**
+**M1, M2, M4, M5, M6, and M7 are complete. Control responsiveness is accepted for now.
+M3 remains open for physical-device audible transport, autoplay, handoff, and reconnect acceptance.**
 
 The 2026-09-06 autonomous pass fixed two more realtime lifecycle races in `ecbb285`, with
 seven regression cases and a successful independent follow-up review. `423ce52` then fixed
@@ -61,6 +61,11 @@ Diagnostics are stopped/unreachable and services/library are healthy. See
 `docs/operations/2026-09-06-m3-read-only-reopens.md` for the exact deployment, pressure samples,
 verification limits, and remaining user acceptance. Fresh full-library sync was not remeasured
 in this follow-up.
+
+After this deployment, the user accepted the current responsiveness: **“Acceptable for now.”**
+This closes the immediate latency retest provisionally, not the remaining physical-device
+M3 checks or the outstanding first/full-library startup work. Do not resume latency tuning
+without a regression or a renewed request.
 
 U26 documents the whole public API, with a worked example that `tools/verify-api-example`
 extracts from the document and runs, so a claim that stops matching the server fails there.
@@ -223,8 +228,8 @@ suite/clippy, passed an exact-commit Nix build and flake check, and is deployed 
 repaired to `.flac`. The temporary credentials were removed afterward, so the scheduler is safely
 idle while the verified local upgrade remains available.
 
-Next: resume the normal/incognito responsiveness retest on the new bundle. Then finish
-M3's physical-device console, audible handoff, autoplay, and reconnect acceptance. Normal and
+Next: finish M3's physical-device console, audible handoff, autoplay, and reconnect acceptance
+when those devices are available; responsiveness is accepted for now. Normal and
 private windows do not establish phone behavior or persistence after all private windows close.
 
 Album removal is no longer deferred. D17 records your decision: server removal wins,

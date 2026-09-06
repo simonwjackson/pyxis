@@ -3,8 +3,9 @@
 ## Status and deployment
 
 After the previous latency fixes, the user still reported **2–3 seconds** between browsers.
-M3 remains unaccepted. This pass improves the measured response again; it does not establish
-physical-device audibility, phone behavior, or acceptable feel.
+After this deployment, the user accepted the current responsiveness: **“Acceptable for now.”**
+That is provisional acceptance of the latency retest, not full M3 acceptance. Physical-device
+audibility, phone behavior, handoff, and reconnect checks remain open.
 
 - Runtime: `d1261064f7e321f81b711abea339629fa311fb82`.
 - Nix profile entry: `pyxis`, explicitly locked to that Git revision.
@@ -120,10 +121,11 @@ The library still has 370 albums. Local/tailnet health return 200, all three use
 active, LAN `/rpc` returns 404, and no matching warning/error appeared in the last ten minutes
 of the core journal.
 
-Next: refresh the user's normal/incognito windows and recheck actual response, including
-successive commands. Do not mark M3 accepted from muted automation. Physical-device audible
-playback, autoplay, handoff, and background/network behavior remain separate acceptance work.
-The broader performance item remains open for startup and product acceptance.
+The user subsequently accepted the current responsiveness as **“Acceptable for now.”** No
+further latency tuning is planned without a regression or renewed request. Physical-device
+audible playback, autoplay, handoff, and background/network behavior remain separate M3
+acceptance work. The broader performance item remains open for first/full-library startup;
+this feedback is not acceptance of the earlier severe-I/O-pressure sample.
 
 Local evidence:
 - `/tmp/pyxis-m3-no-seed-two-browser.log`

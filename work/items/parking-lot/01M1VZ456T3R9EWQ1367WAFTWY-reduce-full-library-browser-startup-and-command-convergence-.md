@@ -62,6 +62,10 @@ flushes. Internal worker-memory fallback now rejects so it cannot be silently di
 the next lock. All 237 client and 71 plugin tests pass with explicit Node 22; independent
 reviews and production/PWA/Nix gates pass. The production two-host repeat measured 352–695 ms
 renderer effects and 1008–1348 ms core/UI convergence, including successive commands.
-Transport, handoff, refused offline intent, reconnect, and reload passed. Keep the item open
-for fresh/full-library startup and user acceptance. See
+Transport, handoff, refused offline intent, reconnect, and reload passed. See
 `docs/operations/2026-09-06-m3-read-only-reopens.md`.
+
+The user subsequently accepted responsiveness: **“Acceptable for now.”** The immediate
+latency retest is provisionally accepted; do not continue latency tuning without a regression
+or renewed request. Keep this broader item open for first/full-library startup. Physical-device
+M3 acceptance remains separate, and the earlier severe-I/O-pressure sample remains on record.
