@@ -182,6 +182,216 @@ describe("reference output client", () => {
 })
 
 describe("reference realtime client", () => {
+  test.each(["state", "cursor"] as const)(
+    "discards already queued frames after a failed %s write",
+    async (stage) => {
+      vi.useFakeTimers()
+      const sockets: FakeSocket[] = []
+      let rejectWrite!: (cause: Error) => void
+      const blocked = new Promise<void>((_, reject) => {
+        rejectWrite = reject
+      })
+      const onEvent = vi.fn(() => (stage === "state" ? blocked : undefined))
+      const onResumeToken = vi.fn(() => (stage === "cursor" ? blocked : undefined))
+      const onDirective = vi.fn()
+      const client = createReferenceClient({
+        createWebSocket: () => {
+          const socket = new FakeSocket()
+          sockets.push(socket)
+          return socket as unknown as WebSocket
+        },
+      })
+      const disconnect = client.connectRealtime(
+        "token",
+        {
+          onEvent,
+          onResumeToken,
+          onDirective,
+          onResync: () => {},
+        },
+        "durable",
+      )
+      try {
+        const first = socketAt(sockets, 0)
+        first.message(realtimeEvent("failed"))
+        await vi.advanceTimersByTimeAsync(0)
+        first.message(realtimeEvent("later"))
+        first.message({ _tag: "realtime.command", payload: {} })
+        rejectWrite(new Error("write failed"))
+        await vi.advanceTimersByTimeAsync(0)
+        expect(first.closed).toBe(true)
+        expect(onEvent).toHaveBeenCalledTimes(1)
+        expect(onResumeToken).toHaveBeenCalledTimes(stage === "cursor" ? 1 : 0)
+        expect(onDirective).not.toHaveBeenCalled()
+        first.emit("close")
+        await vi.advanceTimersByTimeAsync(1000)
+        socketAt(sockets, 1).emit("open")
+        expect(JSON.parse(socketAt(sockets, 1).sent[0] ?? "{}")).toMatchObject({
+          payload: { resumeToken: "durable" },
+        })
+      } finally {
+        disconnect()
+        vi.useRealTimers()
+      }
+    },
+  )
+
+  test.each(["resync", "event"] as const)(
+    "a retired socket cannot publish a cursor after its pending %s finishes",
+    async (stage) => {
+      vi.useFakeTimers()
+      const sockets: FakeSocket[] = []
+      let finish!: () => void
+      const blocked = new Promise<void>((resolve) => {
+        finish = resolve
+      })
+      const persisted: string[] = []
+      const onConnected = vi.fn()
+      const onResync = vi.fn().mockImplementationOnce(() => blocked)
+      const client = createReferenceClient({
+        createWebSocket: () => {
+          const socket = new FakeSocket()
+          sockets.push(socket)
+          return socket as unknown as WebSocket
+        },
+      })
+      const disconnect = client.connectRealtime(
+        "token",
+        {
+          onEvent: () => blocked,
+          onResync,
+          onDirective: () => {},
+          onResumeToken: (token) => {
+            persisted.push(token)
+          },
+          onConnected,
+        },
+        "durable",
+      )
+      try {
+        socketAt(sockets, 0).message(
+          stage === "resync" ? realtimeWelcome("retired", true) : realtimeEvent("retired"),
+        )
+        await vi.advanceTimersByTimeAsync(0)
+        socketAt(sockets, 0).emit("close")
+        await vi.advanceTimersByTimeAsync(1000)
+        socketAt(sockets, 1).message(realtimeWelcome("current"))
+        await vi.advanceTimersByTimeAsync(0)
+        expect(persisted).toEqual(["current"])
+        finish()
+        await vi.advanceTimersByTimeAsync(0)
+        expect(persisted).toEqual(["current"])
+        expect(onConnected).toHaveBeenCalledTimes(1)
+        socketAt(sockets, 1).emit("close")
+        await vi.advanceTimersByTimeAsync(1000)
+        socketAt(sockets, 2).emit("open")
+        expect(JSON.parse(socketAt(sockets, 2).sent[0] ?? "{}")).toMatchObject({
+          payload: { resumeToken: "current" },
+        })
+      } finally {
+        disconnect()
+        vi.useRealTimers()
+      }
+    },
+  )
+
+  test("disposal fences pending resync and queued directives", async () => {
+    vi.useFakeTimers()
+    let finish!: () => void
+    const blocked = new Promise<void>((resolve) => {
+      finish = resolve
+    })
+    const socket = new FakeSocket()
+    const onResumeToken = vi.fn()
+    const onConnected = vi.fn()
+    const onDirective = vi.fn()
+    const client = createReferenceClient({ createWebSocket: () => socket as unknown as WebSocket })
+    const disconnect = client.connectRealtime("token", {
+      onEvent: () => {},
+      onResync: () => blocked,
+      onResumeToken,
+      onConnected,
+      onDirective,
+    })
+    try {
+      socket.message(realtimeWelcome("retired"))
+      socket.message({ _tag: "realtime.command", payload: {} })
+      await vi.advanceTimersByTimeAsync(0)
+      disconnect()
+      finish()
+      await vi.advanceTimersByTimeAsync(0)
+      expect(onResumeToken).not.toHaveBeenCalled()
+      expect(onConnected).not.toHaveBeenCalled()
+      expect(onDirective).not.toHaveBeenCalled()
+    } finally {
+      disconnect()
+      vi.useRealTimers()
+    }
+  })
+
+  test.each(["close", "timeout"] as const)(
+    "serializes cursor storage across %s reconnects",
+    async (reason) => {
+      vi.useFakeTimers()
+      const sockets: FakeSocket[] = []
+      let finish!: () => void
+      const blocked = new Promise<void>((resolve) => {
+        finish = resolve
+      })
+      const persisted: string[] = []
+      const onConnected = vi.fn()
+      const onResumeToken = vi.fn(async (token: string) => {
+        if (token === "retired") await blocked
+        persisted.push(token)
+      })
+      const client = createReferenceClient({
+        createWebSocket: () => {
+          const socket = new FakeSocket()
+          sockets.push(socket)
+          return socket as unknown as WebSocket
+        },
+      })
+      const disconnect = client.connectRealtime(
+        "token",
+        {
+          onEvent: () => {},
+          onResync: () => {},
+          onDirective: () => {},
+          onResumeToken,
+          onConnected,
+        },
+        "durable",
+      )
+      try {
+        socketAt(sockets, 0).message(realtimeWelcome("retired"))
+        await vi.advanceTimersByTimeAsync(0)
+        expect(onResumeToken).toHaveBeenCalledTimes(1)
+        if (reason === "timeout") {
+          await vi.advanceTimersByTimeAsync(30_000)
+          expect(socketAt(sockets, 0).closed).toBe(true)
+        }
+        socketAt(sockets, 0).emit("close")
+        await vi.advanceTimersByTimeAsync(1000)
+        socketAt(sockets, 1).message(realtimeWelcome("current"))
+        await vi.advanceTimersByTimeAsync(0)
+        expect(onResumeToken).toHaveBeenCalledTimes(1)
+        finish()
+        await vi.advanceTimersByTimeAsync(0)
+        expect(persisted).toEqual(["retired", "current"])
+        expect(onConnected).toHaveBeenCalledTimes(1)
+        socketAt(sockets, 1).emit("close")
+        await vi.advanceTimersByTimeAsync(1000)
+        socketAt(sockets, 2).emit("open")
+        expect(JSON.parse(socketAt(sockets, 2).sent[0] ?? "{}")).toMatchObject({
+          payload: { resumeToken: "current" },
+        })
+      } finally {
+        disconnect()
+        vi.useRealTimers()
+      }
+    },
+  )
+
   test("persists an event cursor only after its state handler finishes", async () => {
     const socket = new FakeSocket()
     let finishEvent: (() => void) | undefined
@@ -425,3 +635,24 @@ describe("reference realtime client", () => {
     await vi.waitFor(() => expect(order).toEqual(["resync", "cursor", "connected"]))
   })
 })
+
+function realtimeEvent(resumeToken: string) {
+  return {
+    _tag: "realtime.event",
+    payload: {
+      topic: RpcRealtimeTopic.Library,
+      resumeToken,
+      state: { _tag: "library.album.removed", payload: { id: "album-1" } },
+    },
+  }
+}
+
+function realtimeWelcome(resumeToken: string, missedEventsDropped = false) {
+  return { _tag: "realtime.welcome", payload: { resumeToken, missedEventsDropped, topics: [] } }
+}
+
+function socketAt(sockets: readonly FakeSocket[], index: number): FakeSocket {
+  const socket = sockets[index]
+  if (socket === undefined) throw new Error(`socket ${index} was not opened`)
+  return socket
+}

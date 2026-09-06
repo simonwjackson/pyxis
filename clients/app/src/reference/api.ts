@@ -304,20 +304,42 @@ export function createReferenceClient(config: ReferenceClientConfig = {}): Refer
       // Kept across reconnects and page loads so a brief drop replays instead of losing state.
       let resumeToken = initialResumeToken
 
-      const handle = <T>(
-        label: string,
-        operation: () => T | Promise<T>,
-        timeoutMs = realtimeFrameTimeoutMs,
-      ): Promise<T> => withTimeout(Promise.resolve().then(operation), timeoutMs, label)
+      // A timeout cannot cancel storage already in progress. Keep actual cursor writes
+      // serialized across reconnects, not just their timeout wrappers, so a late old write
+      // cannot overwrite a newer connection's durable cursor.
+      let cursorWrites: Promise<void> = Promise.resolve()
 
       const open = () => {
         if (closed) return
+        retry = undefined
         const helloResumeToken = resumeToken
         let frames: Promise<void> = Promise.resolve()
-        let frameFailed = false
+        let retired = false
         let ready = false
         let failureReported = false
         let currentSocket: WebSocket
+        const isActive = () => !closed && !retired && socket === currentSocket
+        const handle = (
+          label: string,
+          operation: () => void | Promise<void>,
+          timeoutMs = realtimeFrameTimeoutMs,
+        ): Promise<void> =>
+          withTimeout(
+            Promise.resolve().then(() => {
+              if (isActive()) return operation()
+            }),
+            timeoutMs,
+            label,
+          )
+        const persistCursor = (nextResumeToken: string): Promise<void> => {
+          const write = cursorWrites.then(async () => {
+            if (!isActive()) return
+            await handlers.onResumeToken(nextResumeToken)
+            if (isActive()) resumeToken = nextResumeToken
+          })
+          cursorWrites = write.catch(() => undefined)
+          return handle("realtime cursor storage timed out", () => write)
+        }
 
         const reportFailure = (cause: unknown) => {
           if (failureReported || closed) return
@@ -333,7 +355,14 @@ export function createReferenceClient(config: ReferenceClientConfig = {}): Refer
           return
         }
         socket = currentSocket
+        const fail = (cause: unknown) => {
+          if (!isActive()) return
+          retired = true
+          reportFailure(cause)
+          currentSocket.close()
+        }
         currentSocket.addEventListener("open", () => {
+          if (!isActive()) return
           currentSocket.send(
             JSON.stringify({
               _tag: "realtime.hello",
@@ -346,9 +375,11 @@ export function createReferenceClient(config: ReferenceClientConfig = {}): Refer
           )
         })
         currentSocket.addEventListener("message", (message: MessageEvent<string>) => {
-          if (frameFailed) return
+          if (!isActive()) return
           frames = frames
             .then(async () => {
+              // Frames received before a failure may already be waiting in this chain.
+              if (!isActive()) return
               let parsed: unknown
               try {
                 parsed = JSON.parse(message.data)
@@ -369,10 +400,9 @@ export function createReferenceClient(config: ReferenceClientConfig = {}): Refer
                     realtimeResyncTimeoutMs,
                   )
                 }
-                await handle("realtime cursor storage timed out", () =>
-                  handlers.onResumeToken(nextResumeToken),
-                )
-                resumeToken = nextResumeToken
+                if (!isActive()) return
+                await persistCursor(nextResumeToken)
+                if (!isActive()) return
                 ready = true
                 handlers.onConnected?.()
                 return
@@ -382,10 +412,8 @@ export function createReferenceClient(config: ReferenceClientConfig = {}): Refer
                 await handle("realtime state storage timed out", () =>
                   handlers.onEvent(frame.payload),
                 )
-                await handle("realtime cursor storage timed out", () =>
-                  handlers.onResumeToken(nextResumeToken),
-                )
-                resumeToken = nextResumeToken
+                if (!isActive()) return
+                await persistCursor(nextResumeToken)
                 return
               }
               if (frame._tag === "realtime.command") {
@@ -396,20 +424,16 @@ export function createReferenceClient(config: ReferenceClientConfig = {}): Refer
                 throw new Error(`${frame.payload.code}: ${frame.payload.message}`)
               }
             })
-            .catch((cause: unknown) => {
-              // Keep the last committed cursor. Reconnect from there rather than letting a
-              // later frame move past state this client did not store. Closing also removes
-              // this device from live reachability while its durable handler is unhealthy.
-              frameFailed = true
-              reportFailure(cause)
-              currentSocket.close()
-            })
+            // Retire before reporting failure or closing. Later queued frames and pending
+            // continuations must not move past state this connection failed to store.
+            .catch(fail)
         })
         currentSocket.addEventListener("error", () => {
-          reportFailure(new Error("realtime socket failed"))
+          fail(new Error("realtime socket failed"))
         })
         currentSocket.addEventListener("close", () => {
           if (closed || socket !== currentSocket) return
+          retired = true
           reportFailure(
             new Error(
               ready
