@@ -29,7 +29,7 @@ let opening: Promise<WorkerDatabase> | undefined
 async function database(): Promise<WorkerDatabase> {
   opening ??= (async () => {
     const handle = await createProseqlEngine()
-    return openWorkerDatabase({
+    const opened = await openWorkerDatabase({
       engine: handle.engine,
       clear: handle.clear,
       onReset: (cause) => {
@@ -38,6 +38,14 @@ async function database(): Promise<WorkerDatabase> {
         console.warn("pyxis worker: local database reset", cause)
       },
     })
+    if (opened.report.ephemeral === true) {
+      // A memory fallback inside this worker would be discarded on its next lock/reopen.
+      // Let the page select its stable startup fallback instead. During runtime, reject
+      // the operation: already-durable storage must never silently become fresh memory.
+      await handle.engine.close?.().catch(() => undefined)
+      throw new Error("persistent worker storage could not be opened")
+    }
+    return opened
   })().catch((cause: unknown) => {
     // A cached rejection would wedge local storage for the life of the page. Let the next
     // request try again, since the usual causes are transient.

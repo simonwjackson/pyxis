@@ -154,20 +154,14 @@ export async function createProseqlEngine(
       originId: ORIGIN_ID,
     })
 
-  const database = await createServiceWorkerEngineDatabase(
-    config,
-    {
-      meta: [],
-      settings: [],
-      albums: [],
-      sessions: [],
-      offlinePins: [],
-      offlineMedia: [],
-      commandReceipts: [],
-      outbox: [],
-    },
-    { storageHost, writeDebounce: 0 } as never,
-  )
+  // Initial data is a write request, even for empty arrays: ProseQL marks every supplied
+  // collection dirty and flushes it on open. Reopening under each Web Lock must load the
+  // durable files, not rewrite the entire library for a settings/session read. Missing
+  // collections already start empty; openWorkerDatabase owns schema initialization.
+  const database = await createServiceWorkerEngineDatabase(config, undefined, {
+    storageHost,
+    writeDebounce: 0,
+  } as never)
 
   const raw = database as unknown as RawEngine
 

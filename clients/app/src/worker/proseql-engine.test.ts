@@ -27,7 +27,7 @@ beforeAll(() => {
 
 /// One in-memory `Storage`, shared across engine instances, so a second open sees what the
 /// first one wrote. That is what "survives a reload" means.
-function storageBackedBy(cells: Map<string, string>): Storage {
+function storageBackedBy(cells: Map<string, string>, writes?: string[]): Storage {
   return {
     get length() {
       return cells.size
@@ -35,6 +35,7 @@ function storageBackedBy(cells: Map<string, string>): Storage {
     key: (index: number) => [...cells.keys()][index] ?? null,
     getItem: (key: string) => cells.get(key) ?? null,
     setItem: (key: string, value: string) => {
+      writes?.push(key)
       cells.set(key, String(value))
     },
     removeItem: (key: string) => {
@@ -44,11 +45,11 @@ function storageBackedBy(cells: Map<string, string>): Storage {
   } as unknown as Storage
 }
 
-async function open(cells: Map<string, string>) {
+async function open(cells: Map<string, string>, writes?: string[]) {
   const handle = await createProseqlEngine({
     wasm,
     storageHost: createWebStorageEngineStorageHost({
-      storage: storageBackedBy(cells),
+      storage: storageBackedBy(cells, writes),
       keyPrefix: "pyxis-test:",
     }),
   })
@@ -75,6 +76,132 @@ describe("the real ProseQL engine", () => {
     expect(database.report.reason).toBe("created")
     // The symptom on a real device: an ephemeral fallback reporting `reset`.
     expect(database.report.ephemeral).toBeUndefined()
+  })
+
+  test("read-only reopens never rewrite persisted collections", async () => {
+    const cells = new Map<string, string>()
+    const first = await open(cells)
+    await first.writeSettings({ bearerToken: "token", deviceId: "device-1" })
+    await first.putAlbum(album("album-1"))
+    const session = {
+      id: "session-1",
+      name: "Browser",
+      hostDeviceId: "device-1",
+      queue: [],
+      transport: RpcTransport.Stopped,
+      positionMs: 0,
+      volume: 100,
+      reachable: true,
+      revision: 1,
+      updatedAt: "now",
+    }
+    await first.putSession(session)
+    const queued = await first.queueSessionCommand(
+      session,
+      { _tag: "queue.add", payload: { trackIds: ["track-1"] } },
+      "one",
+    )
+    await first.putOfflinePin({ id: "album-1", albumId: "album-1", pinnedAt: 1, generation: 1 })
+    await first.putOfflineMedium({
+      id: "track-1",
+      trackId: "track-1",
+      albumIds: ["album-1"],
+      candidateId: "candidate-1",
+      candidateUrl: "https://pyxis.test/candidate-1",
+      bytes: 100,
+      contentType: "audio/webm",
+      cachedAt: 1,
+    })
+    await first.close()
+    const before = new Map(cells)
+    const writes: string[] = []
+    for (let round = 0; round < 3; round += 1) {
+      const reopened = await open(cells, writes)
+      expect(reopened.report).toMatchObject({ reason: "opened", version: 8 })
+      expect(await reopened.session("session-1")).toEqual(queued)
+      expect(await reopened.albums()).toEqual([album("album-1")])
+      expect((await reopened.settings()).deviceId).toBe("device-1")
+      expect(await reopened.outbox()).toHaveLength(1)
+      expect(await reopened.offlinePins()).toHaveLength(1)
+      expect(await reopened.offlineMedia()).toHaveLength(1)
+      expect(
+        (
+          await reopened.previewSessionCommand(
+            session.id,
+            { _tag: "queue.add", payload: { trackIds: ["track-1"] } },
+            "one",
+          )
+        ).replayed,
+      ).toBe(true)
+      await reopened.close()
+    }
+    expect(writes).toEqual([])
+    expect(cells).toEqual(before)
+  })
+
+  test("a session mutation does not rewrite unrelated collections on reopen", async () => {
+    const cells = new Map<string, string>()
+    const first = await open(cells)
+    await first.putAlbum(album("album-1"))
+    const session = {
+      id: "session-1",
+      name: "Browser",
+      hostDeviceId: "device-1",
+      queue: [],
+      transport: RpcTransport.Stopped,
+      positionMs: 0,
+      volume: 100,
+      reachable: true,
+      revision: 1,
+      updatedAt: "now",
+    }
+    await first.putSession(session)
+    await first.close()
+    const before = new Map(cells)
+    const writes: string[] = []
+    const reopened = await open(cells, writes)
+    const changed = { ...session, volume: 50, revision: 2 }
+    expect(await reopened.applyRemoteSession(changed)).toEqual({
+      status: "applied",
+      session: changed,
+    })
+    await reopened.close()
+    expect(writes).toHaveLength(1)
+    expect(writes[0]).toMatch(/sessions\.json$/)
+    for (const [key, value] of before)
+      if (!key.endsWith("sessions.json")) expect(cells.get(key)).toBe(value)
+    const final = await open(cells)
+    expect(await final.session(session.id)).toEqual(changed)
+    expect(await final.album("album-1")).toEqual(album("album-1"))
+    await final.close()
+  })
+
+  test("readable storage stays durable when a later mutation is rejected", async () => {
+    const cells = new Map<string, string>()
+    const first = await open(cells)
+    await first.putAlbum(album("album-1"))
+    await first.close()
+    const before = new Map(cells)
+    const storage = storageBackedBy(cells)
+    storage.setItem = () => {
+      throw new Error("quota exhausted")
+    }
+    const handle = await createProseqlEngine({
+      wasm,
+      storageHost: createWebStorageEngineStorageHost({ storage, keyPrefix: "pyxis-test:" }),
+    })
+    const reopened = await openWorkerDatabase({ engine: handle.engine, clear: handle.clear })
+    expect(reopened.report).toMatchObject({ reason: "opened" })
+    expect(reopened.report.ephemeral).toBeUndefined()
+    expect(await reopened.album("album-1")).toEqual(album("album-1"))
+    await expect(reopened.putAlbum(album("album-1", 2, "changed"))).rejects.toThrow(
+      "quota exhausted",
+    )
+    await reopened.close().catch(() => undefined)
+    expect(cells).toEqual(before)
+    const final = await open(cells)
+    expect(await final.album("album-1")).toEqual(album("album-1"))
+    await final.close()
   })
 
   test("a missing row is an answer, not a failure", async () => {
