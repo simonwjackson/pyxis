@@ -101,10 +101,22 @@ everything provider-shaped lives at the edge behind a plugin protocol.
 - Metadata enricher plugins (MusicBrainz, Discogs). The enricher capability class is
   designed in U7 but no enricher ships in v1. `VISION.md` marks Enrichment accordingly.
 - Chromecast and AirPlay output plugins. The output capability class makes them possible.
+- **M10, continuous radio.** M9 ships one explicit bounded batch per station. Endless play needs
+  one refill owner per hosted session, bounded prefetch, batch idempotency, next-track
+  advancement, and explicit failure and exhaustion states. A late batch must never append to the
+  wrong account or seed, replace a user's queue, or restart playback after Stop. Clear, handoff,
+  disconnect and account switch each need defined cancellation. Prefetch depth is bounded by a
+  provider fact recorded in U30: a Pandora batch is perishable and process-bound. The session
+  acknowledgement fix in `9c0efb7` was the stated precondition and has landed.
+- **The browse space: charts, moods, genres and provider playlists.** Deliberately unnamed under
+  D21 until it is built, so the guess does not reach the generated contract. It reuses the station
+  contract's opaque-cursor and declared-support rules.
 - **Weekly Mix.** A first-class `VISION.md` feature that this plan does not build. It needs
   upstream recommendations, which now arrive through source plugins, so it cannot precede
-  Phase 3. The listen events and placement data it depends on are recorded from U8 and U9
-  onward, so deferring it loses no history. `VISION.md` carries a matching status note.
+  Phase 3. The generic station operations from U30 are the intended foundation: the mix is
+  composed by Pyxis on top of provider answers, not requested from any one provider. The listen
+  events and placement data it depends on are recorded from U8 and U9 onward, so deferring it
+  loses no history. `VISION.md` carries a matching status note.
 - Album-level neglect detection and time-travel history views. The append-only log in U9
   makes both pure projections, but neither is built in v1.
 - Align reference handoff affordances and failure messages with the current contract
@@ -142,6 +154,9 @@ Settled. Do not re-open without the user asking.
 | D17 | Server album removal wins over queued offline placement intent, with an explicit conflict report | A placement cannot recreate a removed album. Keeping a stale copy wedges convergence; dropping the local change silently hides data loss |
 | D18 | Track search asks the music catalog, and no general-video search remains | User decision, 2026-09-07: "i dont think i want this. not yet anyway". Catalog search returns real artist and album identity instead of uploader names. Cost: recordings that exist only as ordinary uploads, such as live sets and rare versions, stop being findable. Results must never mix catalog songs with general videos |
 | D19 | Discovery search covers albums, artists and songs in one fan-out operation | User requirement, 2026-09-07. One search box asks once and shows three sections. Per-plugin partial failure already exists in the search result, so a source that answers only some kinds degrades honestly. Cost: one slow source delays every kind in that response |
+| D20 | A `Station` is the one generic radio object, and every source maps its own mechanism onto it | User requirement, 2026-09-07: discovery and radio are a core concept, and YouTube Music and Pandora are only source plugins beneath it. A seed produces a station; a station yields bounded batches. Pandora station tokens and YouTube Music `RDAMVM` watch queues both fit that shape, so no provider needs its own operation, RPC or client surface. Cost: a provider concept that does not fit, such as Pandora thumbs or YouTube mood chips, stays unavailable until the generic model grows to hold it |
+| D21 | `Discovery` keeps its existing meaning as a library placement, and the browse space stays unnamed until it is built | The placement model in `VISION.md` already owns the word, and `Station` is already the vision's word for a discovery engine. Naming a third concept before building it would put a guess into the generated contract and the client store, where renaming is expensive. Charts, moods and sections are not in M9, so the noun is not needed yet |
+| D22 | A source declares its supported seed kinds in the handshake manifest, and the SDK refuses a declaration that its handlers do not back | User requirement, 2026-09-07: sources declare what they support so partial support degrades honestly. R10 needs a third-party client to adapt without probing every source. Declaring in the manifest keeps `plugin.list` the single place a client looks. The SDK check is what stops a declaration from drifting away from the implementation. Cost: adding a seed kind is a manifest change, not only a handler change |
 
 ---
 
@@ -298,6 +313,7 @@ milestone below answers a question the user can only answer by using the thing.
 | M6 | **Audio quietly improves** | U19 | Does no-upload Soulseek actually upgrade anything? |
 | M7 | **Someone else could build a client** | U26 | Can a third party integrate from documentation alone? |
 | M8 | **Search finds albums, artists and songs** | U28, U29 | Does discovery return real catalog identity instead of general video results? |
+| M9 | **A station plays, whatever the source is behind it** | U30, U31, U32, U33 | Is one generic station model honest against two very different providers? |
 
 Notes on sequencing:
 
@@ -316,6 +332,19 @@ Notes on sequencing:
   first slice widened by the user from songs alone to albums, artists and songs. Radio,
   playlists, moods and personalization stay out; they need queue refill and authentication
   work that this milestone does not build.
+- **M9 was added on 2026-09-07**, when the user required that YouTube Music and Pandora
+  discovery/radio be source abstractions under a generic Pyxis model rather than two provider
+  features. It ships a station the user can pick and hear from either source. It deliberately
+  stops at one explicit bounded batch. **Continuous refill is M10, not M9.** The research report
+  calls refill the largest correctness slice, and it needs session queue advancement that does
+  not exist yet. Shipping the generic contract against two unlike providers is what proves the
+  abstraction; endless play is what proves the session work, and that is a separate question the
+  user can only answer after the first one is true.
+- **Pandora leads M9, not YouTube Music.** Pandora already implements station list, station
+  search and station tracks inside its plugin with no public route to them, so mapping it onto
+  the generic contract tests the abstraction against real provider behavior with the least new
+  provider research. YouTube Music needs a watch-next request and continuations that no code in
+  this repo has ever made.
 
 ## Implementation Units
 
@@ -918,6 +947,175 @@ origin returned four artists, four albums and four catalog songs, with one expec
 Adding a source album to the library needs a `library.album.add` affordance the reference
 client has never had; the 370 imported albums came from the ephemeral import tool. Opening an
 artist needs artist detail, which no source operation provides yet.
+
+---
+
+### U30. Generic station contract and declared seed kinds
+
+**Goal:** The core owns one station model that any source can implement, and a source states which
+seeds it accepts.
+
+**Requirements:** R4, R10
+
+**Dependencies:** U7, U29
+
+**Files:**
+- Create: `services/pyxis/src/stations.rs`
+- Modify: `services/pyxis/src/rpc/contract.rs`, `services/pyxis/src/plugins/protocol.rs`,
+  `services/pyxis/src/rpc/dispatch.rs`, `services/pyxis/src/lib.rs`,
+  `packages/plugin-sdk/src/capabilities.ts`, `packages/plugin-sdk/src/protocol.ts`, generated
+  contracts
+
+**Approach:**
+- The model is deliberately small: a **seed** is what you point at, a **station** is what a seed
+  produces, and a station yields **bounded batches**. Four `source` operations express it:
+  `station.search`, `station.list`, `station.create`, `station.next`.
+- `station.next` takes an opaque cursor and returns bounded tracks plus the next cursor, or
+  reports exhaustion. The cursor is opaque outside the plugin and is bound to account, source and
+  station, so a cursor cannot be replayed against another account or station.
+- `PluginManifest` gains a source feature block declaring accepted seed kinds. The SDK refuses a
+  manifest that declares a seed kind or station operation its handler table does not implement,
+  which is the same consistency rule already applied to capability classes.
+- The fan-out mirrors `source_catalog::search`: per-source calls, per-source typed failures, each
+  kind bounded by the requested limit, and `capability.unknownOperation` treated as a capability
+  boundary rather than a fault, per D19.
+- Stations register playable candidates for returned tracks only. Stations never write the
+  library, and a station batch is not a library placement. `Discovery` in `RpcPlacement` keeps its
+  existing placement meaning, per D21.
+- Batches are perishable. Pandora's `stream.resolve` needs its own `station.tracks` call to have
+  filled a process-local cache first, and re-resolves URLs older than 60 seconds. The core must
+  therefore not persist a batch and assume it stays playable across a plugin restart. This bounds
+  prefetch depth in U34 and is recorded here because it is a provider fact, not a design choice.
+
+**Test scenarios:**
+- Happy path: a source implementing all four operations answers all four.
+- Happy path: a track seed produces a station, and the station returns a bounded first batch.
+- Edge case: a source implementing only `station.list` and `station.next` contributes both and
+  reports no failure.
+- Edge case: with zero plugins installed, every station operation reports no sources instead of
+  failing.
+- Edge case: each batch is truncated to the requested limit.
+- Error path: a cursor issued for one account or station is refused for another.
+- Error path: one failing source does not remove another source's stations.
+- Error path: a manifest declaring an unimplemented seed kind fails the SDK check.
+
+**Verification:** `just verify`, including `contract-check` after regeneration.
+
+---
+
+### U31. Pandora stations through the generic contract
+
+**Goal:** Pandora's existing station code becomes reachable as generic stations, with no
+Pandora-specific public operation.
+
+**Requirements:** R4
+
+**Dependencies:** U30
+
+**Files:**
+- Modify: `plugins/pandora/src/index.ts`, `plugins/pandora/src/api.ts`,
+  `plugins/pandora/src/stations.ts`, `plugins/pandora/src/types.ts`, and their tests
+
+**Approach:**
+- `stations.list` becomes `station.list`, `station.tracks` becomes `station.next`, and
+  `station.search` returns typed station summaries instead of the raw `music.search` envelope it
+  currently passes through untouched.
+- `station.create` is new: `music.search` returns seed tokens, and `station.createStation` turns a
+  chosen seed into a station. The plugin declares the seed kinds Pandora actually accepts rather
+  than every kind the contract can express.
+- Pandora returns a fresh playlist per call and carries no continuation token, so its cursor is
+  the absence of one. `station.next` reports more-available rather than inventing a cursor.
+- The existing in-memory track cache stays. `station.next` must keep filling it, because
+  `stream.resolve` still depends on it and losing that would break playback.
+- The untyped `search(): Promise<unknown>` gains a parsed result type. An unrecognized envelope is
+  a typed failure, never an empty list, so a changed layout cannot look like "no stations".
+
+**Test scenarios:**
+- Happy path: station list, station search, station create and a first batch each return typed
+  results.
+- Happy path: a track from `station.next` resolves to a stream URL through the existing cache.
+- Edge case: a playlist item missing a token, title, artist or album is dropped, not invented.
+- Edge case: a QuickMix station is listed like any other station.
+- Error path: an unrecognized `music.search` envelope fails with a typed code.
+- Error path: `stream.resolve` for a track no batch produced still reports `pandora.trackNotCached`.
+
+**Verification:** `bun test` in `plugins/pandora`, plus `just test-pandora-fixtures`.
+
+**Note:** Pandora has no credentials configured on the deployed service. Fixture coverage proves
+the mapping; a live check needs the user to supply an account.
+
+---
+
+### U32. YouTube Music stations through the generic contract
+
+**Goal:** YouTube Music answers the same station operations using its watch-next queue.
+
+**Requirements:** R4
+
+**Dependencies:** U30
+
+**Files:**
+- Modify: `plugins/ytmusic/src/internal-api.ts`, `plugins/ytmusic/src/index.ts`, and their tests
+
+**Approach:**
+- A YouTube Music station is derived, not stored: a track seed yields the `RDAMVM<videoId>` radio
+  queue. `station.create` therefore performs no upstream write, and `station.list` is unimplemented
+  rather than faked, which is exactly the honest degradation D22 exists to allow.
+- `station.next` issues the watch-next request and follows continuations. The recovered Raziel
+  parser is the field-mapping reference, not the implementation: it returns empty arrays on
+  unknown layouts, which would make a broken parse look like an exhausted station.
+- A changed layout must be a typed failure distinct from an empty result. This is the specific
+  hardening the research report requires before shipping recovered parser knowledge.
+- Requests reuse the existing innertube wrapper and its rate limiting, and must fit inside the
+  core's 30-second plugin call deadline. An unbounded fetch plus retry backoff does not.
+- Only `MUSIC_VIDEO_TYPE_ATV` entries are songs, per D18. A radio queue that returns other types
+  drops them rather than widening what search is allowed to return.
+
+**Test scenarios:**
+- Happy path: a track seed produces a station whose first batch reads ids, titles, artists,
+  durations and artwork.
+- Happy path: a continuation returns the next batch and a new cursor.
+- Edge case: a queue that runs out reports exhaustion rather than an error.
+- Edge case: non-catalog entries in a radio queue are dropped.
+- Edge case: `station.list` is absent, and the core records it as unsupported with no failure.
+- Error path: an unknown response layout fails with a typed code, not an empty batch.
+- Error path: a malformed duration omits duration instead of inventing one, per U28.
+
+**Verification:** `bun test` in `plugins/ytmusic`, repo typecheck, Biome.
+
+---
+
+### U33. One station surface in the reference client
+
+**Goal:** The user picks a station from one list and hears it, without knowing which source served
+it.
+
+**Requirements:** R10, R13
+
+**Dependencies:** U31, U32
+
+**Files:**
+- Modify: `clients/app/src/reference/*`, `clients/app/src/worker/*`, `clients/app/src/rpc/*`
+
+**Approach:**
+- One list, source label per row, no Pandora section and no YouTube Music section. This is the
+  visible test of D20.
+- Starting a station queues its first batch through the existing session queue commands. The
+  client issues no Play by itself; fetching recommendations must never start playback.
+- A source that reports no station support contributes nothing and shows no error, matching how
+  the three-kind search already treats an unimplemented kind.
+- Stations are server-to-client under the existing sync domain table. The client does not merge
+  station state.
+- Visual design stays out of scope under R13. This surface is deliberately ugly.
+
+**Test scenarios:**
+- Happy path: stations from two sources appear in one labelled list, and starting one adds its
+  batch to the queue.
+- Edge case: with no configured source, the surface reports no stations rather than an error.
+- Edge case: a partial source failure still shows the working source's stations.
+- Error path: a failed batch leaves the queue and transport untouched.
+
+**Verification:** `just verify`, plus a read-only check against the deployed service.
 
 ---
 

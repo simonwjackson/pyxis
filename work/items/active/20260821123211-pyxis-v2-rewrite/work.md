@@ -23,6 +23,16 @@ requirements and decisions were captured directly into `plan.md` sections
 
 ## Current position
 
+**Current focus is M9: a station plays, whatever the source is behind it.** On 2026-09-07 the user
+required that YouTube Music and Pandora discovery/radio be source abstractions under a generic
+Pyxis model, not two provider features, and then said to build it. D20, D21 and D22 record the
+model, the naming call and the declared-support rule. U30 to U33 are the units. This replaces the
+Sonos pointer recorded further down; do not resume Sonos diagnosis because that older note says
+to. The Sonos work is paused, not closed, and its read-only-and-no-playback limits still hold.
+
+M9 stops at one explicit bounded batch per station. Continuous refill is M10 and is listed under
+`Deferred to Follow-Up Work` in `plan.md`.
+
 **M8 (search finds albums, artists and songs) is deployed and answering on the tailnet.**
 `a63036e` is live at `/nix/store/h3lqhy1f11xn5y12a3kxjpc29b0vmi6q-pyxis-2.0.0`, profile priority
 11. `tools/verify-api-example` passes against the running service and now returns
@@ -52,7 +62,11 @@ report requires diagnosis and revalidation. Bidirectional Play/Pause/Stop and cu
 responsiveness are accepted. The user resolved the handoff report by identifying the wrong
 initiating device. M3 retains physical autoplay/background/reconnect checks.**
 
-**The session-command acknowledgement race is corrected locally, not deployed.** A command
+**The session-command acknowledgement race is corrected and deployed.** Corrected on 2026-09-07:
+an earlier version of this note said the fix was local only. `9c0efb7` and `d62f174` are ancestors
+of the deployed `a63036e`, so the fix is live, though it was not retested after deployment. See
+`docs/operations/2026-09-07-catalog-search-deployment.md`. This matters because the fix was the
+stated precondition for adding automatic queue mutations, which M10 needs. A command
 queued while an earlier command is acknowledged now stays visible instead of disappearing
 until the next sync. `WorkerDatabase.applySessionVerdict` reads still-queued commands and
 replaces the session in one account-fenced operation, and `putServerSession` is deleted so
@@ -335,7 +349,8 @@ Let's move to the next thing.”** Close the reported browser-handoff issue on t
 as proof that either diagnostic patch resolved their case. Direction/error affordances remain
 parked; do not ask for another identical handoff test.
 
-Current focus is the remaining **Sonos report**. Read-only checks reproduced discovery failing
+The **Sonos report** was the focus until the user redirected to M9 on 2026-09-07. It is paused,
+not resolved, and everything below still describes its state. Read-only checks reproduced discovery failing
 after 25.903 s and succeeding after 29.862 s, while direct identity-checked topology reads were
 fast under both Bun and Node. The user then clarified that devices were flashing in/out of the
 browser. `6334018` now retains known output rows with truthful availability and disabled
