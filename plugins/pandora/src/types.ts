@@ -16,6 +16,8 @@ export interface PandoraStation {
   readonly stationName: string
   readonly stationId: string
   readonly isQuickMix?: boolean
+  /// Present because the station list is requested with `includeStationArtUrl`.
+  readonly artUrl?: string
 }
 
 export interface PandoraPlaylistItem {

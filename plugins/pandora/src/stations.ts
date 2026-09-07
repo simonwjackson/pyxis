@@ -1,10 +1,15 @@
 import type { CanonicalPandoraTrack, PandoraPlaylistItem, PandoraStation } from "./types"
 
+/// A Pandora station in the shape every source answers with.
+///
+/// `isQuickMix` is deliberately dropped. QuickMix is a Pandora idea, and the generic station
+/// model carries only what every provider can mean. It returns when the model grows a concept
+/// that holds it, not before.
 export function canonicalStation(station: PandoraStation) {
   return {
-    id: station.stationToken,
+    externalId: station.stationToken,
     name: station.stationName,
-    quickMix: station.isQuickMix ?? false,
+    ...(station.artUrl === undefined ? {} : { artworkUrl: station.artUrl }),
   }
 }
 

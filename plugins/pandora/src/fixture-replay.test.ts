@@ -59,7 +59,7 @@ test.skipIf(!available)("fresh fixtures replay through the public plugin capabil
       }),
     )
 
-  const stations = await call("stations.list", {})
+  const stations = await call("station.list", {})
   expect(stations).toMatchObject({
     _tag: "response",
     envelope: { response: { outcome: { status: "ready" } } },
@@ -72,10 +72,10 @@ test.skipIf(!available)("fresh fixtures replay through the public plugin capabil
     stations.envelope.response.outcome.value !== null &&
     "stations" in stations.envelope.response.outcome.value &&
     Array.isArray(stations.envelope.response.outcome.value.stations)
-      ? stations.envelope.response.outcome.value.stations[0]?.id
+      ? stations.envelope.response.outcome.value.stations[0]?.externalId
       : undefined
   expect(typeof stationId).toBe("string")
-  const tracks = await call("station.tracks", { stationId })
+  const tracks = await call("station.next", { stationId })
   expect(tracks).toMatchObject({
     _tag: "response",
     envelope: { response: { outcome: { status: "ready" } } },

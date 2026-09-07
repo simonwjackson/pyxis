@@ -42,6 +42,10 @@ export function createPandoraPlugin(api: PandoraApi) {
       name: "Pandora",
       version: "1.0.0",
       capabilities: [PluginCapability.Source],
+      // Pandora stations belong to the account and are made on Pandora's own surfaces.
+      // Creating one is an upstream account write, so this source accepts no seed and the
+      // core reports that honestly instead of failing a create call.
+      source: { stationSeedKinds: [] },
       configSchema: {
         type: "object",
         required: ["username", "password"],
@@ -59,25 +63,37 @@ export function createPandoraPlugin(api: PandoraApi) {
           await withSession(context, (session) => api.search(session, queryOf(_input)))
           return { tracks: [] }
         },
-        "station.search": (input, context) =>
-          withSession(context, (session) => api.search(session, queryOf(input))),
-        "stations.list": (_input, context) =>
+        "station.list": (_input, context) =>
           withSession(context, async (session) => ({
             stations: (await api.stations(session)).map(canonicalStation),
           })),
-        "station.tracks": (input, context) => {
+        // Searching asks no new upstream question. Pandora's music search returns seeds for
+        // making a station, and this source cannot make one, so matching the account's own
+        // stations by name is the only answer it can honestly give.
+        "station.search": (input, context) => {
+          const query = queryOf(input).trim().toLowerCase()
+          return withSession(context, async (session) => ({
+            stations: (await api.stations(session))
+              .filter((station) => station.stationName.toLowerCase().includes(query))
+              .map(canonicalStation),
+          }))
+        },
+        "station.next": (input, context) => {
           const stationId = stationIdOf(input)
+          const limit = limitOf(input)
           const accountId = account(context)
           return withSession(context, async (session) => {
             const items = await api.stationTracks(session, stationId)
             const canonical = []
-            for (const item of items) {
+            for (const item of items.slice(0, limit)) {
               const track = canonicalTrack(item)
               if (track === undefined) continue
               tracks.set(trackKey(accountId, item.trackToken), { stationId, item })
               canonical.push(track)
             }
-            return { tracks: canonical }
+            // Pandora issues a fresh playlist on every call and carries no continuation, so
+            // there is no cursor to return and the station never runs out.
+            return { tracks: canonical, exhausted: false }
           })
         },
         "stream.resolve": (_input, context) => {
@@ -88,7 +104,7 @@ export function createPandoraPlugin(api: PandoraApi) {
             if (cached === undefined) {
               throw new PandoraError(
                 "pandora.trackNotCached",
-                "Pandora tracks must come from station.tracks before playback",
+                "Pandora tracks must come from station.next before playback",
                 false,
               )
             }
@@ -159,6 +175,13 @@ function queryOf(input: unknown): string {
     throw new PluginOperationError("capability.invalidInput", "query is required", false)
   }
   return input.query
+}
+
+function limitOf(input: unknown): number {
+  if (typeof input !== "object" || input === null || !("limit" in input)) return 25
+  const limit = input.limit
+  if (typeof limit !== "number" || !Number.isInteger(limit) || limit < 1) return 25
+  return Math.min(limit, 100)
 }
 
 function stationIdOf(input: unknown): string {

@@ -1031,27 +1031,40 @@ Pandora-specific public operation.
 - Modify: `plugins/pandora/src/index.ts`, `plugins/pandora/src/api.ts`,
   `plugins/pandora/src/stations.ts`, `plugins/pandora/src/types.ts`, and their tests
 
-**Approach:**
-- `stations.list` becomes `station.list`, `station.tracks` becomes `station.next`, and
-  `station.search` returns typed station summaries instead of the raw `music.search` envelope it
-  currently passes through untouched.
-- `station.create` is new: `music.search` returns seed tokens, and `station.createStation` turns a
-  chosen seed into a station. The plugin declares the seed kinds Pandora actually accepts rather
-  than every kind the contract can express.
-- Pandora returns a fresh playlist per call and carries no continuation token, so its cursor is
-  the absence of one. `station.next` reports more-available rather than inventing a cursor.
+**Approach, corrected during implementation.** The original approach had `station.create` turn a
+`music.search` seed into a Pandora station. Reading the API showed that `station.createStation`
+**writes a new station to the user's Pandora account**. The research report requires account
+mutations to stay out of the first read-only discovery release, and a musicToken is not reachable
+through any public Pyxis operation today. So Pandora ships as the account-owned corner of the
+model and creates nothing.
+
+- `stations.list` becomes `station.list` and `station.tracks` becomes `station.next`. Both keep
+  their existing upstream calls; only the shape and the operation name change.
+- `station.search` filters the account's own stations by name inside the plugin. It issues no new
+  upstream request and exposes no seeds.
+- **Pandora declares no seed kinds and does not implement `station.create`.** That is the honest
+  answer for a provider whose stations are all account-owned, and it is what the empty declaration
+  in U30 exists to express.
+- Pandora returns a fresh playlist per call and carries no continuation, so `station.next` reports
+  no cursor and is never exhausted. The core already treats that as a real provider shape.
 - The existing in-memory track cache stays. `station.next` must keep filling it, because
   `stream.resolve` still depends on it and losing that would break playback.
-- The untyped `search(): Promise<unknown>` gains a parsed result type. An unrecognized envelope is
-  a typed failure, never an empty list, so a changed layout cannot look like "no stations".
+- `quickMix` leaves the public shape. It is a Pandora concept and D20 keeps provider concepts out
+  until the generic model grows to hold them. Station artwork enters it, because every provider
+  has artwork and the list call already requests it.
+
+Pandora and YouTube Music now sit at opposite corners of the model: account-owned stations that
+cannot be created, and derived stations that cannot be listed. A contract that serves both without
+a provider branch is the real test of D20.
 
 **Test scenarios:**
-- Happy path: station list, station search, station create and a first batch each return typed
-  results.
+- Happy path: station list and a first batch return typed results with artwork.
 - Happy path: a track from `station.next` resolves to a stream URL through the existing cache.
+- Happy path: station search returns only the account's stations whose name matches.
 - Edge case: a playlist item missing a token, title, artist or album is dropped, not invented.
-- Edge case: a QuickMix station is listed like any other station.
-- Error path: an unrecognized `music.search` envelope fails with a typed code.
+- Edge case: `station.next` honors the requested limit.
+- Edge case: a batch reports no cursor and is not exhausted, because Pandora always has more.
+- Error path: `station.create` is absent, so the core records Pandora as unable to accept a seed.
 - Error path: `stream.resolve` for a track no batch produced still reports `pandora.trackNotCached`.
 
 **Verification:** `bun test` in `plugins/pandora`, plus `just test-pandora-fixtures`.
