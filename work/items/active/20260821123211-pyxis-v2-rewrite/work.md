@@ -255,8 +255,20 @@ stored file. Live acceptance exposed that durable imports inherited the staging 
 `2840076` now names them from the verified format, has a regression test, passed the full Rust
 suite/clippy, passed an exact-commit Nix build and flake check, and is deployed as
 `/nix/store/w2s7994jw1m12q33vna7c38g1s5fwf0v-pyxis-2.0.0`. The accepted file and record were
-repaired to `.flac`. The temporary credentials were removed afterward, so the scheduler is safely
-idle while the verified local upgrade remains available.
+repaired to `.flac`. The temporary credentials were removed afterward, leaving the scheduler
+idle while the verified local upgrade remained available.
+
+**Soulseek configuration follow-up, 2026-09-07:** The user supplied a temporary account and
+asked to leave it configured for later rotation. The public `plugin.config.set` operation
+succeeded for `default` at 15:04:55 UTC. Credentials remain encrypted and were not written to
+scripts or reports. The scheduler rechecked the existing satisfied job, then started a fresh
+attempt at 15:06:40 UTC. No code deployment, restart, forced retry, or Sonos command occurred.
+By 15:09:54 UTC, two new automatic upgrades completed as lossless FLAC. Their ready files
+matched stored sizes of 9,772,421 and 39,784,191 bytes. The core journal recorded completion;
+a separate ambiguous match entered retry. This proves resumed upgrades with the supplied account,
+not long-running throughput or physical playback. Leave the configuration installed until the
+user rotates or removes it. See
+`docs/operations/2026-09-07-soulseek-background-enablement.md`.
 
 The user subsequently said **“Nevermind, I was handing off from the wrong device aparently.
 Let's move to the next thing.”** Close the reported browser-handoff issue on that basis, not

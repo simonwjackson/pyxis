@@ -936,6 +936,14 @@ HTTP range. Acceptance also exposed a durable `.partial` suffix inherited from s
 `.flac`. Test credentials were removed after validation, leaving the provider idle without
 removing the verified local candidate.
 
+**Operational follow-up, 2026-09-07:** The user supplied a temporary account for ongoing use
+and will rotate it later. Configuration succeeded through the public encrypted-config operation
+for `default`. The scheduler resumed and started a fresh attempt without a restart. Keep the
+credentials configured until rotation or a removal request. Two new automatic lossless FLAC
+upgrades then completed, with ready files matching the stored byte counts and core completion logs.
+An ambiguous match entered retry. Sustained throughput and physical playback were not tested. See
+`docs/operations/2026-09-07-soulseek-background-enablement.md` for bounded verification.
+
 ---
 
 
