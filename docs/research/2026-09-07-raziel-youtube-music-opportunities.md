@@ -61,8 +61,15 @@ a complete music-video search implementation.
 Pyxis currently uses yt-dlp's `ytsearchN:` for track search. That is general YouTube search,
 with artist information falling back to uploader/channel fields. Adapting Raziel's Music search
 would improve the type of results Pyxis requests. It does not guarantee perfect recording matches.
-Keep general video search as an explicit capability if wanted, rather than silently mixing its
-results with songs.
+**Scope decision, 2026-09-07:** the user does not want a general YouTube search option yet.
+An earlier draft of this document recommended keeping one. Do not propose it again without a
+new request. Music song search therefore replaces the current track search instead of sitting
+beside it, and search results must not silently mix songs with general videos.
+
+That trade is deliberate. Recordings that exist only as ordinary YouTube uploads, such as live
+sets and rare versions, become unfindable through search. Nothing already working breaks: the
+370 imported albums came from album search, existing candidates keep their video-ID identity,
+and yt-dlp still resolves and downloads audio.
 
 References: `plugins/ytmusic/src/index.ts:23–29`, `plugins/ytmusic/src/ytdlp.ts:87–118`.
 
@@ -239,7 +246,7 @@ Rust core source-agnostic, runnable without plugins, and keep media bytes off pl
 
 | Slice | User-visible result | Relative scope and acceptance |
 |---|---|---|
-| 1. Music-specific song search | Search songs and queue them through existing Pyxis playback | Smallest adaptation. Validate Music results, format compatibility and invalid metadata without changing library ownership |
+| 1. Music-specific song search | Search songs and queue them through existing Pyxis playback | Smallest adaptation. Replaces general YouTube track search rather than adding a second option. Validate Music results, format compatibility and invalid metadata without changing library ownership |
 | 2. Public playlist discovery | Search/open public playlists and explicitly queue selections | Medium. Add typed summaries, pagination, item order, unavailable entries and repeated entries |
 | 3. Finite song/artist radio batch | Request related tracks, inspect them and explicitly queue a bounded batch | Medium with upstream research. Validate actual request inputs and fresh responses before claiming radio |
 | 4. Continuous radio | Advance tracks and refill while preserving user control | Largest correctness slice. Test Stop, clear, account change, handoff, disconnect, duplicates and failed refill for each host type |
