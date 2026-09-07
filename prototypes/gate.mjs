@@ -257,6 +257,90 @@ for (const file of [...pages, ...modules]) {
 }
 
 // ---------------------------------------------------------------------------
+// 6. Type and spacing off the scale.
+//
+// Six sizes between 10px and 16px is not a scale, it is a list: the eye cannot tell 13 from
+// 14, so everything reads as one size and nothing leads. Twenty-three spacing values mean no
+// two surfaces breathe the same way, which reads as "slightly off" without being locatable.
+//
+// A scale is only a scale if it is the only thing used, so this refuses raw values. Sizes
+// (width, height, border-radius) are not spacing and are not checked; --s-hair exists for
+// optical nudges that are genuinely not spacing decisions.
+
+const SPACING_PROPERTIES =
+  /^(padding|margin|gap|row-gap|column-gap|padding-(top|right|bottom|left|inline|block)|margin-(top|right|bottom|left|inline|block))$/
+
+const declarations = (css, file) => {
+  const found = []
+  for (const rule of css.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+    for (const line of rule[2].split(";")) {
+      const [property, ...rest] = line.split(":")
+      if (rest.length === 0) continue
+      found.push({ file, property: property.trim(), value: rest.join(":").trim() })
+    }
+  }
+  return found
+}
+
+const onScale = (part) =>
+  part === "0" ||
+  part === "auto" ||
+  part === "inherit" ||
+  part.endsWith("%") ||
+  part.startsWith("var(--s") ||
+  part.startsWith("env(") ||
+  (part.startsWith("calc(") && (part.includes("var(--s") || part.includes("env(")))
+
+// Another agent's surface, in flight in this worktree. Refactoring someone else's active
+// page to satisfy a gate they have not adopted is how two people end up fighting over a file.
+// Delete this line when the mark lands.
+const NOT_OURS = new Set(["h-logo.html"])
+
+// An inline style attribute is a stylesheet with one selector and no reviewer. Left
+// unchecked it is the obvious way around the scale, so it is read the same way.
+const inlineDeclarations = (html, file) => {
+  const found = []
+  for (const match of html.matchAll(/\sstyle="([^"]*)"/g)) {
+    found.push(...declarations(`x{${match[1]}}`, file))
+  }
+  return found
+}
+
+for (const file of [...pages, ...modules, "system.css", "reference.css"].filter(
+  (f) => !NOT_OURS.has(f),
+)) {
+  const source = read(file)
+  const css = file.endsWith(".css") ? stripComments(source) : localStyle(source)
+  const found = file.endsWith(".css")
+    ? declarations(css, file)
+    : [...declarations(css, file), ...inlineDeclarations(source, file)]
+  for (const { property, value } of found) {
+    if (property === "font-size") {
+      const ok =
+        value.startsWith("var(--t-") ||
+        value === "inherit" ||
+        (value.startsWith("clamp(") && (value.match(/var\(--t-/g) ?? []).length >= 2)
+      if (!ok) {
+        failures.push(
+          `${file} sets font-size: ${value}. Use the type scale (--t-micro … --t-huge); ` +
+            `a clamp must be built from two of them.`,
+        )
+      }
+      continue
+    }
+    if (!SPACING_PROPERTIES.test(property)) continue
+    // calc() and env() can contain spaces, so only split on spaces outside brackets.
+    const parts = value.match(/(?:[^\s()]|\([^()]*(?:\([^()]*\)[^()]*)*\))+/g) ?? []
+    const bad = parts.filter((part) => !onScale(part))
+    if (bad.length > 0) {
+      failures.push(
+        `${file} sets ${property}: ${value}. Use the spacing scale (--s1 … --s9, --s-hair).`,
+      )
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
 
 if (failures.length > 0) {
   console.error(`\n${failures.length} failure(s):\n`)
