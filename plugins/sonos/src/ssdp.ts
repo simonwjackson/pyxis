@@ -90,16 +90,30 @@ export function locationsFromAvahi(output: string): readonly string[] {
   return [...locations].sort()
 }
 
-async function browseAvahi(timeoutMs: number): Promise<string> {
-  const process = Bun.spawn(
-    ["avahi-browse", "--resolve", "--terminate", "--parsable", "_sonos._tcp"],
-    { stdout: "pipe", stderr: "ignore" },
-  )
-  const timer = setTimeout(() => process.kill(), timeoutMs)
+export async function browseAvahi(
+  timeoutMs: number,
+  spawn: () => Pick<
+    Bun.Subprocess<"ignore", "pipe", "ignore">,
+    "stdout" | "exited" | "kill"
+  > = () =>
+    Bun.spawn(["avahi-browse", "--resolve", "--terminate", "--parsable", "_sonos._tcp"], {
+      stdout: "pipe",
+      stderr: "ignore",
+    }),
+): Promise<string> {
+  const process = spawn()
+  let expired = false
+  const timer = setTimeout(() => {
+    expired = true
+    // Avahi can outlive SIGTERM by tens of seconds. This read-only helper owns no
+    // durable work: force its deadline so stdout/exit cannot hold the plugin call open.
+    process.kill("SIGKILL")
+  }, timeoutMs)
   try {
     const output = await new Response(process.stdout).text()
     await process.exited
-    return output
+    // A hard stop can interrupt a record halfway through an otherwise valid IPv4 address.
+    return expired ? output.slice(0, output.lastIndexOf("\n") + 1) : output
   } finally {
     clearTimeout(timer)
   }
