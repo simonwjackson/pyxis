@@ -239,6 +239,14 @@ export function mountNowPlaying(library, { state = "live" } = {}) {
     session = currentSessionFrom(session)
     holder.innerHTML = ""
     holder.append(session ? active() : resting())
+    // The bar owns what is playing, so it says so out loud. A surface that draws the same
+    // fact — the lead on the wall, a row in Rooms — listens rather than deciding again, which
+    // is how a page ends up contradicting the bar three inches below it.
+    document.dispatchEvent(
+      new CustomEvent("pyxis:playing", {
+        detail: session ? { album: session.album, room: session.room } : { album: null, room: null },
+      }),
+    )
   }
 
   // After a room move the house has changed, so re-derive which room the bar speaks for.

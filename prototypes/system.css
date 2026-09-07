@@ -660,18 +660,22 @@ body.has-nowbar main {
 }
 
 .shelf h2 {
+  display: flex;
+  gap: 9px;
+  align-items: baseline;
   margin: 0;
-  padding-bottom: 12px;
-  font-size: 12px;
+  padding-bottom: 14px;
+  font-size: 19px;
   font-weight: 700;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--soft);
+  letter-spacing: -0.015em;
+  color: var(--ink);
 }
 
-.shelf h2 b {
-  font-weight: 700;
-  color: var(--ink);
+.shelf h2 i {
+  font-size: 14px;
+  font-style: normal;
+  font-weight: 600;
+  color: var(--soft);
 }
 
 /* A horizontal run of covers.
@@ -682,9 +686,10 @@ body.has-nowbar main {
    and anyone rebuilding a rail locally will omit it. */
 .rail {
   display: grid;
-  grid-auto-columns: 168px;
+  grid-auto-columns: 156px;
   grid-auto-flow: column;
-  gap: 14px;
+  gap: 0;
+  padding-top: 4px;
   padding-bottom: 8px;
   overflow-x: auto;
   overflow-y: hidden;
@@ -695,6 +700,41 @@ body.has-nowbar main {
 
 .rail::-webkit-scrollbar {
   display: none;
+}
+
+.rail > * {
+  margin-right: -16px;
+  transition:
+    transform 0.16s ease,
+    margin 0.16s ease;
+}
+.rail > *:last-child {
+  margin-right: 0;
+}
+.rail .frame {
+  border-radius: 2px;
+  box-shadow:
+    inset 0 0 0 1px rgb(255 255 255 / 0.09),
+    -1px 0 0 0 rgb(0 0 0 / 0.55),
+    -10px 2px 18px -7px rgb(0 0 0 / 0.8);
+}
+:root:not([data-theme="dark"]) .rail .frame {
+  box-shadow:
+    inset 0 0 0 1px rgb(0 0 0 / 0.1),
+    -1px 0 0 0 rgb(0 0 0 / 0.14),
+    -10px 2px 18px -7px rgb(0 0 0 / 0.45);
+}
+/* Pulled out of the crate far enough to see the whole sleeve. */
+.rail > *:hover,
+.rail > *:focus-visible,
+.rail > *:focus-within {
+  margin-right: -4px;
+  transform: translateY(-4px);
+}
+@media (prefers-reduced-motion: reduce) {
+  .rail > * {
+    transition: none;
+  }
 }
 
 /* The wall. `auto-fill` rather than `auto-fit` so the resolved column list survives an empty
@@ -1224,4 +1264,64 @@ dialog.sheet::backdrop {
 .nowbar-toggle svg {
   width: 20px;
   height: 20px;
+}
+
+/* ---- The lead -----------------------------------------------------------------------
+   One album given the top of the surface, in its own colour. A wall at one size is a
+   texture and a texture has no lead; this is the record on the turntable. */
+
+.lead {
+  padding: 20px 0 10px;
+}
+.lead-art {
+  display: block;
+  width: min(100%, 420px);
+  padding: 0;
+  border-radius: 3px;
+}
+.lead-say {
+  padding-top: 20px;
+}
+.lead-context {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: color-mix(in oklab, var(--tint, var(--soft)) 55%, var(--soft));
+}
+.lead-title {
+  margin: 6px 0 0;
+  font-size: clamp(26px, 8vw, 36px);
+  font-weight: 700;
+  line-height: 1.04;
+  letter-spacing: -0.03em;
+}
+.lead-artist {
+  margin: 7px 0 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--soft);
+}
+.lead-play {
+  margin-top: 18px;
+  color: var(--ground);
+  background: var(--tint, var(--ink));
+  border-color: transparent;
+}
+.lead-play:hover,
+.lead-play:focus-visible {
+  color: var(--ground);
+  background: color-mix(in oklab, var(--tint, var(--ink)) 85%, var(--ink));
+  border-color: transparent;
+}
+
+/* A quiet count. Discovery counts what is left to decide, the wall counts what is kept; both
+   are the same voice, and were 13px/600 and 14px/500 until they were the same rule. */
+.tally {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--soft);
+}
+.lead + .tally {
+  padding-top: 24px;
 }

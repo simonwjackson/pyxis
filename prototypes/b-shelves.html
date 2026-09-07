@@ -23,41 +23,11 @@
         padding: 0 24px 120px;
       }
       /* A bar, not a masthead. Counts are state, not a headline. */
-      header.opening {
-        display: flex;
-        gap: 20px;
-        align-items: baseline;
-        padding: 20px 0 14px;
-        border-bottom: 1px solid var(--ink);
-      }
-      header.opening .count {
-        font-size: 13px;
-        font-weight: 700;
-        letter-spacing: 0.14em;
-        text-transform: uppercase;
-      }
-      header.opening .count i {
-        font-style: normal;
-        font-weight: 500;
-        color: var(--soft);
-      }
-      header.opening .waiting {
-        margin-left: auto;
-        font-size: 12px;
-        font-weight: 700;
-        letter-spacing: 0.12em;
-        text-transform: uppercase;
-        color: var(--heat);
-        text-decoration: none;
-      }
-      header.opening .waiting::before {
-        display: inline-block;
-        width: 7px;
-        height: 7px;
-        margin-right: 7px;
-        content: "";
-        background: var(--heat);
-        border-radius: 50%;
+      .tally a {
+        color: var(--ink);
+        text-decoration: underline;
+        text-decoration-color: color-mix(in oklab, var(--ink) 35%, transparent);
+        text-underline-offset: 3px;
       }
       .item {
         display: block;
@@ -320,7 +290,7 @@
         sleeve,
         wantedOffline,
       } from "./common.js"
-      import { albumShelf, albumTile } from "./albums.js"
+      import { albumLead, albumShelf, albumTile } from "./albums.js"
       import { productNav } from "./nav.js"
       import { mountWindow } from "./parts.js"
       import { currentSession, mountNowPlaying } from "./nowplaying.js"
@@ -337,7 +307,7 @@
       // Skeleton first, in the real geometry, so nothing jumps when the data lands.
       const tile = () => `<span class="frame skeleton" style="aspect-ratio:1"></span>`
       root.innerHTML = `
-        <header class="opening"><span class="skeleton" style="width:150px;height:14px"></span></header>
+        <header ><span class="skeleton" style="width:150px;height:14px"></span></header>
         ${[0, 1]
           .map(
             () => `
@@ -759,13 +729,48 @@
         const collection = where("collection")
         const waiting = where("discovery").length
 
+        // The lead: what you are most likely to want, at the size that says so. What is
+        // playing, or the last thing that did, or — in a library nobody has played yet — the
+        // most recently added. The nav already carries the Discovery count, so it is not
+        // repeated here.
+        const fallback =
+          [...library].filter((a) => a.lastPlayedAt).sort((a, b) => b.lastPlayedAt - a.lastPlayedAt)[0] ??
+          [...collection].sort((a, b) => (b.addedAt ?? 0) - (a.addedAt ?? 0))[0] ??
+          library[0]
+
+        const leadSlot = element(`<div></div>`)
+        root.append(leadSlot)
+
+        // Redrawn whenever the bar says playback changed, so the largest thing on the page
+        // cannot end up naming a different album than the bar at the bottom of it.
+        const paintLead = ({ album, room } = {}) => {
+          const shown = album ?? fallback
+          if (!shown) return
+          leadSlot.innerHTML = ""
+          leadSlot.append(
+            albumLead(shown, {
+              context: album
+                ? `Playing in ${room}`
+                : shown.lastPlayedAt
+                  ? `Last played ${ago(shown.lastPlayedAt)}`
+                  : "Never played",
+              onOpen: open,
+              onPlay: album
+                ? null
+                : (chosen) =>
+                    document.dispatchEvent(new CustomEvent("pyxis:play", { detail: { album: chosen } })),
+            }),
+          )
+        }
+        document.addEventListener("pyxis:playing", (event) => paintLead(event.detail))
+        paintLead(sounds ? { album: sounds.album, room: sounds.room } : {})
+
         root.append(
-          element(`
-            <header class="opening">
-              <span class="count">Collection <i>${collection.length}</i></span>
-              ${waiting ? `<a class="waiting" href="./a-inbox.html">${waiting}</a>` : ""}
-            </header>
-          `),
+          element(
+            `<p class="tally">${collection.length} albums${
+              waiting ? ` \u00b7 <a href="./a-inbox.html">${waiting} waiting in Discovery</a>` : ""
+            }</p>`,
+          ),
         )
 
         const shelves = [
