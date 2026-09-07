@@ -104,6 +104,13 @@ everything provider-shaped lives at the edge behind a plugin protocol.
   onward, so deferring it loses no history. `VISION.md` carries a matching status note.
 - Album-level neglect detection and time-travel history views. The append-only log in U9
   makes both pure projections, but neither is built in v1.
+- Align reference handoff affordances and failure messages with the current contract
+  (`01M1WMM0NJ8H3SKG58PTVMCA6N`). Output handoff is currently explicitly refused; implementing
+  it is a separate behavior decision, not an automatic consequence of hiding a false affordance.
+- Consolidate fail-closed browser diagnostics with request-level target guards, section-scoped
+  selectors, and persistent profiles outside temporary cleanup (`01M1WNM11MH33SPVVGE5P1KJN6`).
+  A failed unintended Sonos queue-clear request and a missing temporary-profile manifest are
+  documented in `docs/operations/2026-09-06-m3-handoff-sonos-follow-up.md`.
 
 ---
 

@@ -23,8 +23,9 @@ requirements and decisions were captured directly into `plan.md` sections
 
 ## Current position
 
-**M1, M2, M4, M5, M6, and M7 are complete. Control responsiveness is accepted for now.
-M3 remains open for physical-device audible transport, autoplay, handoff, and reconnect acceptance.**
+**M1, M2, M5, M6, and M7 are complete. M4 was accepted previously; the new Sonos failure
+report requires diagnosis and revalidation. Bidirectional Play/Pause/Stop and current
+responsiveness are accepted. M3 remains open for handoff, autoplay, and reconnect acceptance.**
 
 The 2026-09-06 autonomous pass fixed two more realtime lifecycle races in `ecbb285`, with
 seven regression cases and a successful independent follow-up review. `423ce52` then fixed
@@ -66,6 +67,22 @@ After this deployment, the user accepted the current responsiveness: **“Accept
 This closes the immediate latency retest provisionally, not the remaining physical-device
 M3 checks or the outstanding first/full-library startup work. Do not resume latency tuning
 without a regression or a renewed request.
+
+The user then confirmed Play/Pause/Stop both directions, but reported handoff and Sonos not
+working. `a54ec1a` fixes a reproduced browser handoff source restart and adds cleared-state
+teardown when the Stop directive is absent. Review caught and verified the latter requirement.
+241 client plus 71 plugin tests and scoped production/Nix gates pass. The final guarded browser
+smoke passed stopped and playing handoff both ways, transport, cut/refusal/recovery, and reload.
+Sonos remains unresolved: read-only Kitchen position queries sometimes time out under Bun;
+output handoff is explicitly unsupported despite being offered in the reference UI.
+
+This pass also exposed two harness incidents: the old temporary A profile lost its expected
+store/identity, and an unscoped Clear queue selector sent one unintended Sonos request that
+failed (Kitchen retained all 42 tracks). The user was informed. New helpers scope selectors
+and reject non-diagnostic page RPCs before delivery, with negative probes. Final validation
+used a new durable diagnostic outside /tmp; first full-library startup still took 83.621 seconds.
+All diagnostics are stopped/unreachable. Details, exact scope and exceptions are in
+`docs/operations/2026-09-06-m3-handoff-sonos-follow-up.md`.
 
 U26 documents the whole public API, with a worked example that `tools/verify-api-example`
 extracts from the document and runs, so a claim that stops matching the server fails there.
@@ -146,8 +163,8 @@ fully accounted: 370 albums are in Discovery, 16 remain unresolved after manual 
 and no import request failed. The durable audit is
 `docs/operations/2026-08-21-v1-album-import.md`.
 
-The current 2026-09-06 deployment is locked to `d126106` through the `pyxis` Nix profile entry,
-at `/nix/store/k1nkn9cdv84acg8jwifygyrwz3jgw3hf-pyxis-2.0.0`. The `pyxis.service`,
+The current 2026-09-06 deployment is locked to `a54ec1a` through the `pyxis-1` Nix profile entry,
+at `/nix/store/mc44awmc9mb347srb04xaz42fhi1b835-pyxis-2.0.0`. The `pyxis.service`,
 `pyxis-tsnet.service`, and `pyxis-ytdlp-update.timer` user units are active; local and tailnet
 health return 200.
 
@@ -228,9 +245,11 @@ suite/clippy, passed an exact-commit Nix build and flake check, and is deployed 
 repaired to `.flac`. The temporary credentials were removed afterward, so the scheduler is safely
 idle while the verified local upgrade remains available.
 
-Next: finish M3's physical-device console, audible handoff, autoplay, and reconnect acceptance
-when those devices are available; responsiveness is accepted for now. Normal and
-private windows do not establish phone behavior or persistence after all private windows close.
+Next: obtain the failed handoff source/destination and Sonos room, control, and exact error.
+Do not treat the browser restart correction as resolving every reported symptom, or run
+unsolicited speaker playback/grouping/configuration tests. Then finish handoff, autoplay, and
+reconnect acceptance. Bidirectional transport and responsiveness are accepted. Normal/private
+windows alone do not establish phone behavior or persistence after all private windows close.
 
 Album removal is no longer deferred. D17 records your decision: server removal wins,
 queued local placement intent is discarded, and the client reports the conflict.

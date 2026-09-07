@@ -2,6 +2,10 @@
 
 ## Status and deployment
 
+**Later follow-up:** the user accepted bidirectional Play/Pause/Stop, then reported handoff
+and Sonos failures. Runtime `a54ec1a` supersedes this deployment; see
+[the handoff/Sonos report](2026-09-06-m3-handoff-sonos-follow-up.md).
+
 After the previous latency fixes, the user still reported **2–3 seconds** between browsers.
 After this deployment, the user accepted the current responsiveness: **“Acceptable for now.”**
 That is provisional acceptance of the latency retest, not full M3 acceptance. Physical-device

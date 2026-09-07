@@ -69,3 +69,10 @@ The user subsequently accepted responsiveness: **“Acceptable for now.”** The
 latency retest is provisionally accepted; do not continue latency tuning without a regression
 or renewed request. Keep this broader item open for first/full-library startup. Physical-device
 M3 acceptance remains separate, and the earlier severe-I/O-pressure sample remains on record.
+
+During the later `a54ec1a` handoff validation, a deliberately fresh durable diagnostic profile
+outside /tmp reached ready with all 370 albums in **83.621 seconds**. This is a new first/full-
+library startup measurement, not a restored-profile timing; startup remains slow. See
+`docs/operations/2026-09-06-m3-handoff-sonos-follow-up.md` for the profile incident that prompted
+this replacement and the separate handoff/Sonos findings. No further transport-latency tuning
+was performed.
