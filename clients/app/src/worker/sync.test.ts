@@ -232,6 +232,76 @@ describe("offline writes", () => {
     ).resolves.toMatchObject({ replayed: true })
   })
 
+  test("a command queued during acknowledgement stays visible and replays once", async () => {
+    let remote = hostedSession()
+    const engine = createMemoryEngine()
+    const store = await openWorkerDatabase({ engine })
+    await store.writeSettings({ deviceId: "device-1" })
+    await store.putSession(remote)
+    await store.queueSessionCommand(
+      remote,
+      { _tag: "queue.add", payload: { trackIds: ["first"] } },
+      "first-command",
+    )
+    const exclusive = browserOfflineExclusive(undefined)
+    let acknowledged = false
+    let laterWrite: Promise<void> | undefined
+    const rpc: WorkerRpc = {
+      listAlbums: async () => [],
+      listSessions: async () => [remote],
+      setPlacement: async () => undefined,
+      appendListen: async () => ({ accepted: 0, duplicates: 0 }),
+      async runSessionCommand(_sessionId, command) {
+        if (command._tag !== "queue.add") throw new Error("wrong command")
+        remote = {
+          ...remote,
+          queue: [...remote.queue, ...command.payload.trackIds],
+          revision: remote.revision + 1,
+        }
+        acknowledged = true
+        return remote
+      },
+    }
+    const readOutbox = engine.outbox.all.bind(engine.outbox)
+    engine.outbox.all = async () => {
+      const entries = await readOutbox()
+      if (acknowledged && laterWrite === undefined) {
+        // A local queue.add becomes ready while the acknowledgement reads pending commands.
+        // It waits for the current database operation, not for the whole network sync.
+        laterWrite = exclusive(async () => {
+          const current = await store.session(remote.id)
+          if (current === undefined) throw new Error("session disappeared")
+          await store.queueSessionCommand(
+            current,
+            { _tag: "queue.add", payload: { trackIds: ["second"] } },
+            "second-command",
+          )
+        })
+      }
+      return entries
+    }
+    const locked = accountFencedDatabase(store, undefined, (operation) =>
+      exclusive(() => operation(store)),
+    )
+
+    const report = await sync(locked, rpc)
+    expect(laterWrite).toBeDefined()
+    await laterWrite
+
+    expect.soft((await store.session(remote.id))?.queue).toEqual(["first", "second"])
+    expect.soft(report).toMatchObject({ pushed: 1, deferred: 1, offline: false })
+    expect(await store.outbox()).toMatchObject([
+      { kind: "session.command", commandId: "second-command" },
+    ])
+
+    const replay = await sync(locked, rpc)
+    expect(replay).toMatchObject({ pushed: 1, deferred: 0, dropped: [] })
+    expect(remote.queue).toEqual(["first", "second"])
+    expect((await store.session(remote.id))?.queue).toEqual(["first", "second"])
+    expect(await store.outbox()).toEqual([])
+    await store.close()
+  })
+
   test("a local receipt repair failure defers without sending or dropping the command", async () => {
     const command: RpcSessionCommand = {
       _tag: "queue.add",

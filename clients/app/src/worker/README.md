@@ -50,6 +50,12 @@ queued. Network requests run outside this lock. `deferred` counts all writes rem
 the final locked outbox read, including writes added during sync and excluded domains.
 It does not promise that no new write can arrive after that read.
 
+A session-command verdict does the same for sessions: it reads still-queued commands for that
+session and replaces the session under one refreshed, account-fenced storage lock. Replay stops
+at the first command the current state rejects, so one invalid later command cannot hide the
+command that just succeeded. A command queued during an acknowledgement stays visible and
+replays once instead of disappearing until the next sync.
+
 Full album pulls batch storage writes under the existing refreshed, account-fenced Web Lock.
 Albums commit first, then offline pins and media relationships. Both batches finish before
 sync acknowledges them. Separate files are not crash-atomic together. A retry repairs offline

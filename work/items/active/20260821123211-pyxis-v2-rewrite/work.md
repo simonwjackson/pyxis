@@ -28,6 +28,18 @@ report requires diagnosis and revalidation. Bidirectional Play/Pause/Stop and cu
 responsiveness are accepted. The user resolved the handoff report by identifying the wrong
 initiating device. M3 retains physical autoplay/background/reconnect checks.**
 
+**The session-command acknowledgement race is corrected locally, not deployed.** A command
+queued while an earlier command is acknowledged now stays visible instead of disappearing
+until the next sync. `WorkerDatabase.applySessionVerdict` reads still-queued commands and
+replaces the session in one account-fenced operation, and `putServerSession` is deleted so
+no bare `replaceSession` remains on the verdict path. This is the session analogue of the
+album fix in `cac84b0`. The client suite is 267 passing, up from 261; plugin/SDK, Rust,
+typecheck, contract, owned lint, and PWA build all pass. `just verify` still stops at the
+inherited 29 prototype lint errors and 17 warnings, matching a clean baseline at `72a1f90`.
+This closes follow-up `01M1Y7QS1QWPHXN5JY8P14RXRT`. It makes no physical playback claim, and
+radio or automatic queue refill remain unbuilt and still depend on it. See
+`docs/operations/2026-09-07-session-ack-race.md`.
+
 **First/full-library startup is corrected and deployed in `dcf702e`.** The same 370-album
 Chromium startup measured 2.542 seconds, down from 82.857 seconds. Warm reload measured
 1.700 seconds and retained all albums and the same identity. A separate profiled fresh run

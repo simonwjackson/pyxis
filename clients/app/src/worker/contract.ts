@@ -251,7 +251,15 @@ export interface WorkerDatabase {
   applyRemoteSession(session: WorkerSession): Promise<WorkerSessionEventResult>
   putSession(session: WorkerSession): Promise<WorkerSession>
   /// Store a server verdict even when it rolls back an optimistic local revision.
+  /// Do not use this to settle a command acknowledgement. A bare replace can be interleaved
+  /// between reading pending commands and writing, which hides a command that is still
+  /// queued. Use `applySessionVerdict` instead.
   replaceSession(session: WorkerSession): Promise<WorkerSession>
+  /// Apply a command verdict and replay still-queued commands for the same session in one
+  /// account-fenced operation. Exclude the settled write without removing any outbox entry.
+  /// Stop replaying at the first command the current state rejects, so one invalid later
+  /// command cannot hide the earlier command that just succeeded.
+  applySessionVerdict(session: WorkerSession, writeId: string): Promise<WorkerSession>
   removeSession(id: string): Promise<boolean>
   offlinePins(): Promise<readonly OfflinePin[]>
   offlinePin(id: string): Promise<OfflinePin | undefined>

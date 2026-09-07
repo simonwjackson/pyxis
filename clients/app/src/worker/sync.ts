@@ -25,7 +25,6 @@ import { RpcError, type WorkerRpc } from "../rpc/client"
 import { resolvePlacement } from "./conflict"
 import type { OutboxResult, WorkerDatabase, WorkerOutboxEntry, WorkerSyncNotice } from "./contract"
 import { submitListens } from "./listen-sync"
-import { applySessionCommand } from "./session-local"
 
 export interface ConflictReport {
   readonly albumId: string
@@ -301,7 +300,7 @@ async function pushSessionCommand(
       return { outcome: "dropped", reason: "session no longer exists" }
     }
     sessions.set(updated.id, updated)
-    await putServerSession(database, updated, entry.id)
+    await database.applySessionVerdict(updated, entry.id)
     await database.dequeue(entry.id)
     return { outcome: "pushed" }
   } catch (cause) {
@@ -315,7 +314,7 @@ async function pushSessionCommand(
         writeId: entry.id,
         reason: error.message,
       })
-      await putServerSession(database, remote, entry.id)
+      await database.applySessionVerdict(remote, entry.id)
       await database.dequeue(entry.id)
       return { outcome: "dropped", reason: error.message }
     }
@@ -471,26 +470,4 @@ async function persistNotice(database: WorkerDatabase, notice: WorkerSyncNotice)
   const current = settings.syncNotices ?? []
   if (current.some((entry) => entry.id === notice.id)) return
   await database.writeSettings({ syncNotices: [...current, notice].slice(-100) })
-}
-
-async function putServerSession(
-  database: WorkerDatabase,
-  session: RpcSession,
-  excludeId?: string,
-): Promise<void> {
-  const pending = (await database.outbox()).filter(
-    (entry): entry is Extract<WorkerOutboxEntry, { kind: "session.command" }> =>
-      entry.kind === "session.command" && entry.sessionId === session.id && entry.id !== excludeId,
-  )
-  let visible = session
-  for (const entry of pending) {
-    try {
-      visible = applySessionCommand(visible, entry.command, visible.updatedAt)
-    } catch {
-      // The server will return the typed rejection when this entry reaches the front. Do
-      // not let one invalid later command hide the earlier command that just succeeded.
-      break
-    }
-  }
-  await database.replaceSession(visible)
 }

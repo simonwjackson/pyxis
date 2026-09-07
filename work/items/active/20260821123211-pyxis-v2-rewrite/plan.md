@@ -93,10 +93,6 @@ everything provider-shaped lives at the edge behind a plugin protocol.
 
 ### Deferred to Follow-Up Work
 
-- Apply session-command acknowledgements and pending commands under one account-fenced
-  operation (`01M1Y7QS1QWPHXN5JY8P14RXRT`). A September 7 probe independently reproduced
-  a later queue.add becoming invisible while its outbox entry survives. The album-placement
-  correction does not change this session path. Preserve renderer confirmation and receipts.
 - Verify ProseQL query-cache invalidation before reducing refresh-under-lock
   (`01M1VZZYSRGB8C8G4Y0WMS2MXS`). A real-WASM placement probe again found a persisted
   outbox row missing from a same-handle query. Production reopen boundaries remain required.
@@ -1007,6 +1003,11 @@ An ambiguous match entered retry. Sustained throughput and physical playback wer
 - Placement verdicts read pending intent and replace the album within one account-fenced
   database operation. Network I/O stays outside the lock. Sync reports all writes remaining
   at its final locked outbox read, including writes queued during the pass.
+- Session-command verdicts follow the same rule: still-queued commands for that session are
+  read and replayed onto the server verdict within one account-fenced database operation.
+  Replay stops at the first command the current state rejects, so an invalid later command
+  cannot hide the command that just succeeded. Sync never calls `replaceSession` directly
+  for a verdict, because a bare replace can be interleaved between the read and the write.
 - Full album pulls batch durable writes under that same refreshed account lock. Commit
   albums before offline relationships. Retry repairs partially persisted relationships even
   when album revisions already match. Separate files are not crash-atomic together.
@@ -1019,6 +1020,7 @@ An ambiguous match entered retry. Sustained throughput and physical playback wer
 - Edge case: a partially failed batch retries only the failed remainder.
 - Edge case: removing an album elsewhere discards queued placement intent and reports it.
 - Edge case: replaying one session `commandId` with different content is rejected.
+- Edge case: a command queued during an acknowledgement stays visible and replays once.
 - Error path: a malformed or uncertain server response stays retryable at the trust boundary.
 - Integration: a full offline session of queue edits and listens reconciles correctly.
 

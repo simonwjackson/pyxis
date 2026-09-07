@@ -497,6 +497,27 @@ class LocalWorkerDatabase implements WorkerDatabase {
     return this.engine.sessions.upsert(session)
   }
 
+  async applySessionVerdict(session: WorkerSession, writeId: string): Promise<WorkerSession> {
+    // Both the pending-command read and the replacement stay inside the caller's
+    // account-fenced lock. A local command must run wholly before or after this operation,
+    // never between them, or its optimistic result is overwritten while it stays queued.
+    const pending = (await this.outbox()).filter(
+      (entry): entry is Extract<WorkerOutboxEntry, { kind: "session.command" }> =>
+        entry.kind === "session.command" && entry.sessionId === session.id && entry.id !== writeId,
+    )
+    let visible = session
+    for (const entry of pending) {
+      try {
+        visible = applySessionCommand(visible, entry.command, visible.updatedAt)
+      } catch {
+        // The server will return the typed rejection when this entry reaches the front. Do
+        // not let one invalid later command hide the earlier command that just succeeded.
+        break
+      }
+    }
+    return this.replaceSession(visible)
+  }
+
   async removeSession(id: string): Promise<boolean> {
     return this.engine.sessions.delete(id)
   }

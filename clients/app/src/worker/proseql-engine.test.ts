@@ -448,6 +448,58 @@ describe("the real ProseQL engine", () => {
     await final.close()
   })
 
+  test("command verdicts preserve later queued commands through a real engine reopen", async () => {
+    const cells = new Map<string, string>()
+    const snapshot = {
+      id: "session-1",
+      name: "Browser",
+      hostDeviceId: "device-1",
+      queue: [] as string[],
+      transport: RpcTransport.Stopped,
+      positionMs: 0,
+      volume: 100,
+      reachable: true,
+      revision: 1,
+      updatedAt: "now",
+    }
+    const first = await open(cells)
+    await first.writeSettings({ deviceId: "device-1" })
+    await first.putSession(snapshot)
+    await first.queueSessionCommand(
+      snapshot,
+      { _tag: "queue.add", payload: { trackIds: ["first"] } },
+      "first-command",
+    )
+    await first.close()
+
+    // Match production's refreshed handle for each public database operation. ProseQL can
+    // retain a prior empty query result on the handle that enqueued the first write.
+    const second = await open(cells)
+    const [entry] = await second.outbox()
+    const current = await second.session(snapshot.id)
+    if (entry === undefined || current === undefined) throw new Error("missing command")
+    await second.queueSessionCommand(
+      current,
+      { _tag: "queue.add", payload: { trackIds: ["second"] } },
+      "second-command",
+    )
+    await second.close()
+
+    const reopened = await open(cells)
+    // The server acknowledged only the first command. The second is still queued.
+    await reopened.applySessionVerdict({ ...snapshot, queue: ["first"], revision: 2 }, entry.id)
+    await reopened.dequeue(entry.id)
+    await reopened.close()
+
+    const final = await open(cells)
+    expect(final.report.ephemeral).toBeUndefined()
+    expect((await final.session(snapshot.id))?.queue).toEqual(["first", "second"])
+    expect(await final.outbox()).toMatchObject([
+      { kind: "session.command", commandId: "second-command" },
+    ])
+    await final.close()
+  })
+
   test("a session mutation does not rewrite unrelated collections on reopen", async () => {
     const cells = new Map<string, string>()
     const first = await open(cells)

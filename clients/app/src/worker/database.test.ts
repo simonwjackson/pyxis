@@ -3,6 +3,7 @@ import {
   type ListenTrackEventInput,
   RpcPlacement,
   type RpcSession,
+  type RpcSessionCommand,
   RpcTransport,
 } from "../../../../contracts/generated/pyxis"
 import { accountFencedDatabase } from "./account-fenced-database"
@@ -141,6 +142,118 @@ describe("placement verdicts", () => {
     expect(await replacement.albums()).toEqual([secondAlbum])
     expect(await replacement.outbox()).toEqual([])
     expect(await original.albums()).toEqual([])
+    await original.close()
+    await replacement.close()
+  })
+})
+
+describe("session command verdicts", () => {
+  test("replays still-queued commands for this session in outbox order", async () => {
+    const store = await openWorkerDatabase({ engine: createMemoryEngine() })
+    const initial = session({ queue: ["first"], cursor: 0 })
+    await store.putSession(initial)
+    // Storage insertion order is not replay order, and another session's commands must not
+    // reach this one.
+    for (const [id, sessionId, trackId] of [
+      ["03", initial.id, "third"],
+      ["02", initial.id, "second"],
+      ["04", "other-session", "elsewhere"],
+    ] as const) {
+      await store.enqueue({
+        id,
+        kind: "session.command",
+        sessionId,
+        commandId: id,
+        createdAt: "2026-06-01",
+        attempts: 0,
+        baseRevision: 1,
+        command: { _tag: "queue.add", payload: { trackIds: [trackId] } },
+      })
+    }
+    const before = await store.outbox()
+    const verdict = { ...initial, revision: 2, updatedAt: "later" }
+
+    const visible = await store.applySessionVerdict(verdict, "01SETTLED")
+
+    expect(visible.queue).toEqual(["first", "second", "third"])
+    // A replay must not invent a new timestamp, or an unrelated later revision looks newer.
+    expect(visible.updatedAt).toBe("later")
+    expect(await store.outbox()).toEqual(before)
+    await store.close()
+  })
+
+  test("uses the server verdict when only the settled command remains", async () => {
+    const store = await openWorkerDatabase({ engine: createMemoryEngine() })
+    const initial = session()
+    await store.putSession(initial)
+    await store.queueSessionCommand(
+      initial,
+      { _tag: "queue.add", payload: { trackIds: ["first"] } },
+      "first-command",
+    )
+    const [entry] = await store.outbox()
+    if (entry === undefined) throw new Error("missing command")
+    const verdict = { ...initial, queue: ["first"], cursor: 0, revision: 2 }
+
+    expect(await store.applySessionVerdict(verdict, entry.id)).toMatchObject({
+      queue: ["first"],
+      revision: 2,
+    })
+    expect(await store.outbox()).toEqual([entry])
+    await store.close()
+  })
+
+  test("stops at the first queued command the verdict rejects", async () => {
+    const store = await openWorkerDatabase({ engine: createMemoryEngine() })
+    const initial = session({ queue: ["first"], cursor: 0 })
+    await store.putSession(initial)
+    const rejected: readonly (readonly [string, RpcSessionCommand])[] = [
+      ["02", { _tag: "cursor.jump", payload: { index: 9 } }],
+      ["03", { _tag: "queue.add", payload: { trackIds: ["third"] } }],
+    ]
+    for (const [id, command] of rejected) {
+      await store.enqueue({
+        id,
+        kind: "session.command",
+        sessionId: initial.id,
+        commandId: id,
+        createdAt: "2026-06-01",
+        attempts: 0,
+        baseRevision: 1,
+        command,
+      })
+    }
+
+    // The invalid jump is the server's problem when it reaches the front. Until then it
+    // must not hide the command that just succeeded, and it must not let a later command
+    // apply out of order.
+    const visible = await store.applySessionVerdict({ ...initial, revision: 2 }, "01SETTLED")
+
+    expect(visible.queue).toEqual(["first"])
+    expect(visible.revision).toBe(2)
+    expect(await store.outbox()).toHaveLength(2)
+    await store.close()
+  })
+
+  test("checks the refreshed account inside the lock before applying a late verdict", async () => {
+    const original = await openWorkerDatabase({ engine: createMemoryEngine() })
+    await original.writeSettings({ accountId: "first" })
+    const replacement = await openWorkerDatabase({ engine: createMemoryEngine() })
+    await replacement.writeSettings({ accountId: "second" })
+    const secondSession = session({ name: "Second account" })
+    await replacement.putSession(secondSession)
+    const exclusive = browserOfflineExclusive(undefined)
+    let current = original
+    const fenced = accountFencedDatabase(original, "first", (operation) =>
+      exclusive(() => operation(current)),
+    )
+    // The operation was issued for the old account, but another tab switches accounts
+    // before its lock is granted. It must inspect the refreshed owner, not the old handle.
+    const pending = fenced.applySessionVerdict(session({ queue: ["leak"], revision: 2 }), "settled")
+    current = replacement
+    await expect(pending).rejects.toThrow("account changed while sync was in flight")
+    expect(await replacement.sessions()).toEqual([secondSession])
+    expect(await original.sessions()).toEqual([])
     await original.close()
     await replacement.close()
   })
