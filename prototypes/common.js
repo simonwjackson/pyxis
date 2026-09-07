@@ -253,7 +253,16 @@ export function element(html) {
 }
 
 export function reveal(nodes) {
-  if (!("IntersectionObserver" in window)) return
+  // Tiles start at opacity 0 and are revealed as they arrive, which means the fallback path
+  // is not "no animation" but "no library". Both of these show everything at once instead:
+  // someone who has asked for less motion, and any browser without an observer.
+  const still =
+    !("IntersectionObserver" in window) ||
+    window.matchMedia?.("(prefers-reduced-motion: reduce)").matches
+  if (still) {
+    for (const node of nodes) node.classList.add("in")
+    return
+  }
   const observer = new IntersectionObserver(
     (entries) => {
       for (const entry of entries) {
