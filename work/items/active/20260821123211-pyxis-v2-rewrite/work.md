@@ -258,11 +258,14 @@ idle while the verified local upgrade remains available.
 
 Current user direction: **focus only on browser-to-browser handoff**. Sonos investigation is
 paused. The silent-click correction is deployed as `560b530`, bundle `index-EelMZonK.js`.
-Next ask the user to reload both windows and repeat playing handoff from the four-track source
-to the empty browser. Record queue movement separately from sound. The latest public reads
-show user revisions 71/18 and queues four/empty; no automated user-session command was sent.
-Do not assume the reproduced click loss was their exact cause, or treat automated muted
-handoff as physical acceptance. Bidirectional transport and responsiveness remain accepted;
+The user retried after deployment and selected **“Still nothing happens.”** This did not resolve
+their case. Latest public reads show source revision 79 with nine queued tracks, while the
+empty destination is still revision 18. No automated user-session command was sent.
+Next identify the exact button/row and Runtime status rather than repeating the same test or
+assuming another cause. In particular, the existing button sends this window's own queue to
+the listed row; it does not bring the listed device's queue here, and errors appear far above
+in Runtime. Neither misleading direction nor a missed click has been established for the user.
+Do not treat the isolated native-click correction or muted handoffs as physical acceptance. Bidirectional transport and responsiveness remain accepted;
 handoff, autoplay, and reconnect acceptance remain open.
 
 Album removal is no longer deferred. D17 records your decision: server removal wins,

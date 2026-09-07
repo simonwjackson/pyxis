@@ -119,6 +119,11 @@ Sanitized fixture, native red/green evidence, failed/passing live logs, review, 
 reads are retained under `~/.local/state/pyxis-diagnostics/handoff-gesture-evidence/`. This
 report preserves the essential observations in Git; credential-bearing profiles are not committed.
 
-Next: reload both user browsers and repeat playing handoff from the four-track source to the
-empty destination. Record queue movement separately from sound. Do not claim the original
-symptom accepted until the user confirms it, and do not resume Sonos or latency work.
+The user was asked to reload both browsers and retry, then selected **“Still nothing happens.”**
+The isolated correction therefore has not resolved their case. A subsequent public read showed
+the source at revision 79 with nine tracks, while the empty destination remained revision 18.
+No automated command targeted either user session. Next identify the actual clicked row and
+Runtime status rather than repeat the same test or presume a cause. The current button sends
+the clicking window's queue to the listed device, not the reverse; errors are rendered in Runtime
+above the large library. Neither misleading direction nor missed input is established for the
+user. Keep acceptance open, and do not resume Sonos or latency work.
