@@ -1,0 +1,62 @@
+#!/usr/bin/env bash
+# Run the published worked example against a freshly built core, not the deployed service.
+#
+# `tools/verify-api-example` targets whatever is serving 127.0.0.1:4488, which is the
+# installed build. That is the right default for checking the running system, and the wrong
+# one for checking a change before it is deployed. This script builds the core from the
+# working tree, gives it a throwaway state directory with the ytmusic plugin installed, and
+# points the same extraction at it.
+#
+# It performs one real read-only YouTube Music search, because the example is only honest if
+# a real source answers it. It never writes to the installed state directory.
+set -euo pipefail
+
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$root"
+
+port="${PYXIS_VERIFY_PORT:-4491}"
+state="$(mktemp -d -t pyxis-api-example-state-XXXXXX)"
+
+cleanup() {
+  if [[ -n "${core:-}" ]]; then
+    kill "$core" 2>/dev/null || true
+    wait "$core" 2>/dev/null || true
+  fi
+  rm -rf "$state"
+}
+trap cleanup EXIT INT TERM
+
+echo "verify-api-example-local: building the ytmusic plugin"
+nix build .#plugin-ytmusic --out-link "$state/plugin-ytmusic" >/dev/null
+
+mkdir -p "$state/plugins"
+ln -s "$state/plugin-ytmusic/bin/pyxis-plugin-ytmusic" "$state/plugins/pyxis-plugin-ytmusic"
+
+echo "verify-api-example-local: building the core"
+cargo build --bin pyxis >/dev/null
+
+env PATH="/usr/bin:/bin" ./target/debug/pyxis --state-dir "$state" --port "$port" >"$state/core.log" 2>&1 &
+core=$!
+
+deadline=$((SECONDS + 120))
+ready=false
+while ((SECONDS < deadline)); do
+  if curl -fsS "http://127.0.0.1:$port/healthz" >/dev/null 2>&1; then
+    ready=true
+    break
+  fi
+  if ! kill -0 "$core" 2>/dev/null; then
+    echo "core exited before becoming healthy" >&2
+    cat "$state/core.log" >&2
+    exit 1
+  fi
+  sleep 0.1
+done
+
+if [[ "$ready" != true ]]; then
+  echo "core did not become healthy within 120 seconds" >&2
+  cat "$state/core.log" >&2
+  exit 1
+fi
+
+PYXIS_ORIGIN="http://127.0.0.1:$port" tools/verify-api-example

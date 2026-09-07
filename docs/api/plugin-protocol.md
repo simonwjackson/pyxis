@@ -91,15 +91,22 @@ degrades only that plugin's contribution.
 ## Source operations
 
 These are the operations the core actually calls on a `source`. A plugin that implements
-only `search` is useful. One that implements all five is a full source.
+only `search` is useful. One that implements all six is a full source.
 
 | Operation | Input |
 |---|---|
 | `search` | `{ query, limit }` |
 | `album.search` | `{ query }` |
+| `artist.search` | `{ query, limit }` |
 | `album.get` | `{ externalId }` |
 | `stream.resolve` | `{ trackId, preferredFormats? }` |
 | `stream.fetch` | `{ trackId, targetPath, preferredFormats? }` |
+
+One `source.search.run` asks every live source for songs, albums and artists. Refusing an
+operation you do not implement is expected and costs nothing: the core reports the kinds you
+do answer and does not put your plugin in the result's `failures`. Answer with the SDK's
+ordinary unknown-operation outcome, which `definePlugin` produces for you by simply not
+declaring the handler.
 
 Output shapes are decoded strictly. **An unknown field is rejected, and so is a missing
 required one.** Getting a field name wrong fails the whole call, so copy these exactly.
@@ -112,6 +119,7 @@ required one.** Getting a field name wrong fails the whole call, so copy these e
   "title": "...",             // required
   "artist": "...",            // required
   "album": "...",             // optional
+  "albumExternalId": "...",   // optional, addresses album.get
   "durationMs": 372000,       // optional
   "artworkUrl": "https://..." // optional
 }] }
@@ -122,6 +130,13 @@ required one.** Getting a field name wrong fails the whole call, so copy these e
   "title": "...",             // required
   "artist": "...",            // required
   "year": 1977,               // optional
+  "artworkUrl": "https://..." // optional
+}] }
+
+// artist.search
+{ "artists": [{
+  "externalId": "...",        // required
+  "name": "...",              // required
   "artworkUrl": "https://..." // optional
 }] }
 
@@ -156,8 +171,8 @@ required one.** Getting a field name wrong fails the whole call, so copy these e
 { "kind": "local", "targetPath": "/exact/path/the/core/gave/you" }
 ```
 
-There is no `sourcePluginId` on a search track. The core knows which plugin answered and
-fills that in itself.
+There is no `sourcePluginId` on a search track, album or artist. The core knows which plugin
+answered and fills that in itself.
 
 `preferredFormats`, when present, is an ordered list supplied by an output plugin. Resolve or
 fetch the first available compatible encoding without weakening the normal quality ranking for

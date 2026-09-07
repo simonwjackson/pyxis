@@ -150,7 +150,9 @@ if (status.outcome.value.pluginCount === 0) {
   throw new Error("no plugins installed, so there is nothing to play")
 }
 
-// 3. Search. `noSources` is a distinct, valid answer from an empty result list.
+// 3. Search. One request answers with songs, albums and artists. `noSources` is a distinct,
+// valid answer from an empty result list, and a source that cannot answer one kind is not
+// reported in `failures`.
 const search = await rpc(
   { _tag: "source.search.run", payload: { query: "David Bowie Heroes", limit: 5 } },
   token,
@@ -159,6 +161,9 @@ if (search.outcome.status === "noSources") throw new Error("no source plugin is 
 if (search.outcome.status !== "ready") {
   throw new Error(`search unavailable: ${search.outcome.value.message}`)
 }
+console.log(
+  `albums: ${search.outcome.value.albums.length}, artists: ${search.outcome.value.artists.length}`,
+)
 const track = search.outcome.value.tracks[0]
 if (track === undefined) throw new Error("no track matched the query")
 

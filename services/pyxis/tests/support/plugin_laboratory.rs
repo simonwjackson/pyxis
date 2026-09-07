@@ -163,27 +163,75 @@ fn main() -> anyhow::Result<()> {
                 value.insert("streamUrl".into(), PluginValue::String(stream_url.clone()));
             }
         }
+        // A source plugin need not implement every search kind. Answering the way the SDK
+        // answers a missing handler lets the core prove that an unimplemented kind is not
+        // reported to clients as a provider failure.
+        let unimplemented = match call.operation.as_str() {
+            "artist.search" => std::env::var("PYXIS_LAB_ARTIST").is_err(),
+            "album.search" => std::env::var("PYXIS_LAB_ALBUM").is_err(),
+            _ => false,
+        };
+        if unimplemented {
+            send(
+                &mut stdout,
+                PluginResponseEnvelope {
+                    id: envelope.id,
+                    response: PluginResponse::CapabilityCall(PluginCallOutcome::Unavailable(
+                        PluginFailure {
+                            code: "capability.unknownOperation".into(),
+                            message: format!(
+                                "capability 'source' does not implement '{}'",
+                                call.operation
+                            ),
+                            retryable: false,
+                        },
+                    )),
+                },
+            )?;
+            continue;
+        }
         if call.operation == "search" {
             if let Ok(search) = std::env::var("PYXIS_LAB_SEARCH") {
                 let fields: Vec<_> = search.split('|').collect();
                 if fields.len() == 4 {
-                    let mut track = BTreeMap::new();
-                    track.insert("source".into(), PluginValue::String(id.clone()));
-                    track.insert(
-                        "externalId".into(),
-                        PluginValue::String("laboratory-track".into()),
-                    );
-                    track.insert("title".into(), PluginValue::String(fields[0].into()));
-                    track.insert("artist".into(), PluginValue::String(fields[1].into()));
-                    track.insert("album".into(), PluginValue::String(fields[2].into()));
-                    track.insert(
-                        "durationMs".into(),
-                        PluginValue::Unsigned(fields[3].parse()?),
-                    );
-                    value.insert(
-                        "tracks".into(),
-                        PluginValue::Array(vec![PluginValue::Object(track)]),
-                    );
+                    let duration_ms: u64 = fields[3].parse()?;
+                    let tracks = copies()
+                        .into_iter()
+                        .map(|copy| {
+                            let mut track = BTreeMap::new();
+                            track.insert("source".into(), PluginValue::String(id.clone()));
+                            track.insert(
+                                "externalId".into(),
+                                PluginValue::String(format!("laboratory-track{copy}")),
+                            );
+                            track.insert("title".into(), PluginValue::String(fields[0].into()));
+                            track.insert("artist".into(), PluginValue::String(fields[1].into()));
+                            track.insert("album".into(), PluginValue::String(fields[2].into()));
+                            track.insert("durationMs".into(), PluginValue::Unsigned(duration_ms));
+                            PluginValue::Object(track)
+                        })
+                        .collect();
+                    value.insert("tracks".into(), PluginValue::Array(tracks));
+                }
+            }
+        }
+        if call.operation == "artist.search" {
+            if let Ok(artist) = std::env::var("PYXIS_LAB_ARTIST") {
+                let fields: Vec<_> = artist.split('|').collect();
+                if fields.len() == 2 {
+                    let artists = copies()
+                        .into_iter()
+                        .map(|copy| {
+                            let mut summary = BTreeMap::new();
+                            summary.insert(
+                                "externalId".into(),
+                                PluginValue::String(format!("{}{copy}", fields[0])),
+                            );
+                            summary.insert("name".into(), PluginValue::String(fields[1].into()));
+                            PluginValue::Object(summary)
+                        })
+                        .collect();
+                    value.insert("artists".into(), PluginValue::Array(artists));
                 }
             }
         }
@@ -191,14 +239,20 @@ fn main() -> anyhow::Result<()> {
             if let Ok(album) = std::env::var("PYXIS_LAB_ALBUM") {
                 let fields: Vec<_> = album.split('|').collect();
                 if fields.len() == 3 {
-                    let mut summary = BTreeMap::new();
-                    summary.insert("externalId".into(), PluginValue::String(fields[0].into()));
-                    summary.insert("title".into(), PluginValue::String(fields[1].into()));
-                    summary.insert("artist".into(), PluginValue::String(fields[2].into()));
-                    value.insert(
-                        "albums".into(),
-                        PluginValue::Array(vec![PluginValue::Object(summary)]),
-                    );
+                    let albums = copies()
+                        .into_iter()
+                        .map(|copy| {
+                            let mut summary = BTreeMap::new();
+                            summary.insert(
+                                "externalId".into(),
+                                PluginValue::String(format!("{}{copy}", fields[0])),
+                            );
+                            summary.insert("title".into(), PluginValue::String(fields[1].into()));
+                            summary.insert("artist".into(), PluginValue::String(fields[2].into()));
+                            PluginValue::Object(summary)
+                        })
+                        .collect();
+                    value.insert("albums".into(), PluginValue::Array(albums));
                 }
             }
         }
@@ -355,6 +409,25 @@ fn main() -> anyhow::Result<()> {
     }
 
     Ok(())
+}
+
+/// Distinct suffixes for repeated search results. One unsuffixed result keeps every existing
+/// expectation intact; a configured count lets a test prove that the core bounds each kind.
+fn copies() -> Vec<String> {
+    let count = std::env::var("PYXIS_LAB_RESULT_COPIES")
+        .ok()
+        .and_then(|value| value.parse::<usize>().ok())
+        .unwrap_or(1)
+        .max(1);
+    (0..count)
+        .map(|index| {
+            if index == 0 {
+                String::new()
+            } else {
+                format!("-{index}")
+            }
+        })
+        .collect()
 }
 
 fn next_request(

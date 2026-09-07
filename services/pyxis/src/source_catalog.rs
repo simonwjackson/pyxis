@@ -11,6 +11,7 @@ use crate::plugins::host::{PluginCallError, PluginHost};
 use crate::plugins::registry::PluginStatus;
 
 const MAX_ALBUM_RESULTS: usize = 1_000;
+const MAX_ARTIST_RESULTS: usize = 1_000;
 const MAX_ALBUM_TRACKS: usize = 1_000;
 const MAX_METADATA_CHARS: usize = 4_096;
 
@@ -20,6 +21,7 @@ pub struct SearchTrack {
     pub title: String,
     pub artist: String,
     pub album: Option<String>,
+    pub album_external_id: Option<String>,
     pub duration_ms: Option<u32>,
     pub track_number: Option<u32>,
     pub artwork_url: Option<String>,
@@ -56,9 +58,19 @@ pub struct CatalogAlbum {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CatalogArtistSummary {
+    pub external_id: String,
+    pub name: String,
+    pub artwork_url: Option<String>,
+    pub source_plugin_id: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SearchOutcome {
     Ready {
         tracks: Vec<SearchTrack>,
+        albums: Vec<CatalogAlbumSummary>,
+        artists: Vec<CatalogArtistSummary>,
         failures: Vec<SearchFailure>,
     },
     NoSources,
@@ -91,7 +103,22 @@ struct PluginSearchTrack {
     title: String,
     artist: String,
     album: Option<String>,
+    album_external_id: Option<String>,
     duration_ms: Option<u32>,
+    artwork_url: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct PluginArtistSearchOutput {
+    artists: Vec<PluginArtistSummary>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct PluginArtistSummary {
+    external_id: String,
+    name: String,
     artwork_url: Option<String>,
 }
 
@@ -171,71 +198,162 @@ impl SourceCatalog {
         }
 
         let mut tracks = Vec::new();
+        let mut albums = Vec::new();
+        let mut artists = Vec::new();
         let mut failures = Vec::new();
+        let bound = limit as usize;
         for source in sources {
             let config = self
                 .credentials
                 .get(&auth.account_id, &source.id)?
                 .map(serde_json::Value::from);
-            let output = match self.plugins.call_for_account(
+
+            let songs: Option<PluginSearchOutput> = self.search_kind(
+                auth,
                 &source.id,
-                "source",
                 "search",
                 serde_json::json!({ "query": query, "limit": limit }),
-                auth.account_id.as_str(),
-                config,
-            ) {
-                Ok(output) => output,
-                Err(error) => {
-                    failures.push(call_failure(&source.id, error));
-                    continue;
+                config.clone(),
+                &mut failures,
+            );
+            if let Some(songs) = songs {
+                for track in songs.tracks.into_iter().take(bound) {
+                    let id = track_id(auth.account_id.as_str(), &source.id, &track.external_id);
+                    self.media.ensure_plugin_candidate(
+                        &auth.account_id,
+                        &id,
+                        PluginCandidateInput {
+                            plugin_id: source.id.clone(),
+                            external_id: track.external_id,
+                            format: None,
+                            fidelity: Fidelity {
+                                lossless: false,
+                                bitrate_kbps: None,
+                                sample_rate_hz: None,
+                            },
+                            source_priority: 0,
+                        },
+                        auth.principal_id(),
+                    )?;
+                    tracks.push(SearchTrack {
+                        id,
+                        title: track.title,
+                        artist: track.artist,
+                        album: track.album,
+                        album_external_id: track.album_external_id,
+                        duration_ms: track.duration_ms,
+                        track_number: None,
+                        artwork_url: track.artwork_url,
+                        source_plugin_id: source.id.clone(),
+                    });
                 }
-            };
-            let output: PluginSearchOutput = match serde_json::from_value(output) {
-                Ok(output) => output,
-                Err(error) => {
-                    failures.push(SearchFailure {
+            }
+
+            let found: Option<PluginAlbumSearchOutput> = self.search_kind(
+                auth,
+                &source.id,
+                "album.search",
+                serde_json::json!({ "query": query }),
+                config.clone(),
+                &mut failures,
+            );
+            if let Some(found) = found {
+                match validate_album_summaries(&found.albums) {
+                    Ok(()) => albums.extend(found.albums.into_iter().take(bound).map(|album| {
+                        CatalogAlbumSummary {
+                            external_id: album.external_id,
+                            title: album.title,
+                            artist: album.artist,
+                            year: album.year,
+                            artwork_url: album.artwork_url,
+                            source_plugin_id: source.id.clone(),
+                        }
+                    })),
+                    Err(error) => failures.push(SearchFailure {
                         plugin_id: source.id.clone(),
                         code: "plugin.invalidSearch".into(),
                         message: error.to_string(),
                         retryable: false,
-                    });
-                    continue;
+                    }),
                 }
-            };
+            }
 
-            for track in output.tracks {
-                let id = track_id(auth.account_id.as_str(), &source.id, &track.external_id);
-                self.media.ensure_plugin_candidate(
-                    &auth.account_id,
-                    &id,
-                    PluginCandidateInput {
+            let found: Option<PluginArtistSearchOutput> = self.search_kind(
+                auth,
+                &source.id,
+                "artist.search",
+                serde_json::json!({ "query": query, "limit": limit }),
+                config,
+                &mut failures,
+            );
+            if let Some(found) = found {
+                match validate_artist_summaries(&found.artists) {
+                    Ok(()) => artists.extend(found.artists.into_iter().take(bound).map(|artist| {
+                        CatalogArtistSummary {
+                            external_id: artist.external_id,
+                            name: artist.name,
+                            artwork_url: artist.artwork_url,
+                            source_plugin_id: source.id.clone(),
+                        }
+                    })),
+                    Err(error) => failures.push(SearchFailure {
                         plugin_id: source.id.clone(),
-                        external_id: track.external_id,
-                        format: None,
-                        fidelity: Fidelity {
-                            lossless: false,
-                            bitrate_kbps: None,
-                            sample_rate_hz: None,
-                        },
-                        source_priority: 0,
-                    },
-                    auth.principal_id(),
-                )?;
-                tracks.push(SearchTrack {
-                    id,
-                    title: track.title,
-                    artist: track.artist,
-                    album: track.album,
-                    duration_ms: track.duration_ms,
-                    track_number: None,
-                    artwork_url: track.artwork_url,
-                    source_plugin_id: source.id.clone(),
-                });
+                        code: "plugin.invalidSearch".into(),
+                        message: error.to_string(),
+                        retryable: false,
+                    }),
+                }
             }
         }
 
-        Ok(SearchOutcome::Ready { tracks, failures })
+        Ok(SearchOutcome::Ready {
+            tracks,
+            albums,
+            artists,
+            failures,
+        })
+    }
+
+    /// Asks one source for one kind of result. A source that does not implement the operation
+    /// contributes nothing and reports nothing: refusing an unimplemented kind is a capability
+    /// boundary, and calling it a failure would put an error beside every honest result.
+    fn search_kind<T: serde::de::DeserializeOwned>(
+        &self,
+        auth: &AuthContext,
+        plugin_id: &str,
+        operation: &str,
+        input: serde_json::Value,
+        config: Option<serde_json::Value>,
+        failures: &mut Vec<SearchFailure>,
+    ) -> Option<T> {
+        let output = match self.plugins.call_for_account(
+            plugin_id,
+            "source",
+            operation,
+            input,
+            auth.account_id.as_str(),
+            config,
+        ) {
+            Ok(output) => output,
+            Err(error) => {
+                if !unimplemented_operation(&error) {
+                    failures.push(call_failure(plugin_id, error));
+                }
+                return None;
+            }
+        };
+        match serde_json::from_value(output) {
+            Ok(output) => Some(output),
+            Err(error) => {
+                failures.push(SearchFailure {
+                    plugin_id: plugin_id.into(),
+                    code: "plugin.invalidSearch".into(),
+                    message: error.to_string(),
+                    retryable: false,
+                });
+                None
+            }
+        }
     }
 
     pub fn search_albums(
@@ -326,6 +444,7 @@ impl SourceCatalog {
                 title: track.title,
                 artist: track.artist,
                 album: Some(album.title.clone()),
+                album_external_id: Some(album.external_id.clone()),
                 duration_ms: track.duration_ms,
                 track_number: Some(track.track_number),
                 artwork_url: album.artwork_url.clone(),
@@ -363,6 +482,30 @@ fn validate_album_summaries(albums: &[PluginAlbumSummary]) -> Result<(), SourceC
         }
     }
     Ok(())
+}
+
+fn validate_artist_summaries(artists: &[PluginArtistSummary]) -> Result<(), SourceCatalogError> {
+    if artists.len() > MAX_ARTIST_RESULTS {
+        return Err(SourceCatalogError::InvalidOutput(format!(
+            "artist search returned {} results; maximum is {MAX_ARTIST_RESULTS}",
+            artists.len()
+        )));
+    }
+    for artist in artists {
+        if !valid_text(&artist.external_id)
+            || !valid_text(&artist.name)
+            || !valid_optional_text(&artist.artwork_url)
+        {
+            return Err(SourceCatalogError::InvalidOutput(
+                "artist summaries require non-empty externalId and name".into(),
+            ));
+        }
+    }
+    Ok(())
+}
+
+fn unimplemented_operation(error: &PluginCallError) -> bool {
+    matches!(error, PluginCallError::Plugin { code, .. } if code == "capability.unknownOperation")
 }
 
 fn validate_album(album: &PluginAlbum, requested_id: &str) -> Result<(), SourceCatalogError> {

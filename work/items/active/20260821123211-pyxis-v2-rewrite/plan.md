@@ -903,7 +903,20 @@ YouTube.
 - Edge case: each kind is truncated to the requested limit.
 - Error path: one failing source does not remove another source's results.
 
-**Verification:** `just verify`, plus a reference-client search that shows the three sections.
+**Verification:** `just verify`, plus `tools/verify-api-example-local`, which runs the published
+worked example against a core built from the working tree instead of the deployed service.
+
+**Acceptance status (2026-09-07): implemented, not deployed.** One live query for
+"David Bowie Heroes" returned three catalog songs, three albums and three artists from
+`ytmusic`, with an empty `failures` list. The same query previously answered with
+`David Bowie - "Heroes" (Official Video) [HD]`. `tools/verify-api-example` still fails against
+the installed service, correctly: the deployed build predates this contract. Deployment is a
+separate, user-authorized step.
+
+**Known gap:** the reference client lists source albums and artists but cannot act on them.
+Adding a source album to the library needs a `library.album.add` affordance the reference
+client has never had; the 370 imported albums came from the ephemeral import tool. Opening an
+artist needs artist detail, which no source operation provides yet.
 
 ---
 

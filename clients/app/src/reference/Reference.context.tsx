@@ -7,6 +7,8 @@ import type {
   RpcPlugin,
   RpcSearchTrack,
   RpcSession,
+  RpcSourceAlbumSummary,
+  RpcSourceArtistSummary,
 } from "../../../../contracts/generated/pyxis"
 import type { OfflineOverview, WorkerOpenReport, WorkerSyncNotice } from "../worker/contract.ts"
 import type { SyncReport } from "../worker/sync.ts"
@@ -30,6 +32,10 @@ export interface ReferenceContextValue {
   readonly outputs: readonly RpcOutputTopology[]
   readonly query: string
   readonly tracks: readonly RpcSearchTrack[]
+  /// Source albums and artists matching the same query. They are results only: adding a
+  /// source album to the library is a separate action this client does not offer yet.
+  readonly sourceAlbums: readonly RpcSourceAlbumSummary[]
+  readonly sourceArtists: readonly RpcSourceArtistSummary[]
   readonly searchHasNoSources: boolean
   readonly sourceFailures: readonly string[]
   readonly session?: RpcSession

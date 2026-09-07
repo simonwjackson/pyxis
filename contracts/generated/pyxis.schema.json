@@ -3701,12 +3701,25 @@
       ]
     },
     "RpcSourceSearchResult": {
+      "description": "Every kind a discovery search can return. A source that cannot answer one kind\ncontributes the kinds it can and appears in no failure, because an unimplemented\noperation is a capability boundary rather than a provider fault.",
       "type": "object",
       "properties": {
         "tracks": {
           "type": "array",
           "items": {
             "$ref": "#/$defs/RpcSearchTrack"
+          }
+        },
+        "albums": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/RpcSourceAlbumSummary"
+          }
+        },
+        "artists": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/RpcSourceArtistSummary"
           }
         },
         "failures": {
@@ -3719,6 +3732,8 @@
       "additionalProperties": false,
       "required": [
         "tracks",
+        "albums",
+        "artists",
         "failures"
       ]
     },
@@ -3735,6 +3750,13 @@
           "type": "string"
         },
         "album": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "albumExternalId": {
+          "description": "The source's reference for the album this recording belongs to, when it has one.\nIt addresses `source.album.get`, so a client can open the album behind a song.",
           "type": [
             "string",
             "null"
@@ -3771,6 +3793,70 @@
         "id",
         "title",
         "artist",
+        "sourcePluginId"
+      ]
+    },
+    "RpcSourceAlbumSummary": {
+      "type": "object",
+      "properties": {
+        "externalId": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "artist": {
+          "type": "string"
+        },
+        "year": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint32",
+          "minimum": 0
+        },
+        "artworkUrl": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "sourcePluginId": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "externalId",
+        "title",
+        "artist",
+        "sourcePluginId"
+      ]
+    },
+    "RpcSourceArtistSummary": {
+      "type": "object",
+      "properties": {
+        "externalId": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "artworkUrl": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "sourcePluginId": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "externalId",
+        "name",
         "sourcePluginId"
       ]
     },
@@ -4687,44 +4773,6 @@
             "value"
           ]
         }
-      ]
-    },
-    "RpcSourceAlbumSummary": {
-      "type": "object",
-      "properties": {
-        "externalId": {
-          "type": "string"
-        },
-        "title": {
-          "type": "string"
-        },
-        "artist": {
-          "type": "string"
-        },
-        "year": {
-          "type": [
-            "integer",
-            "null"
-          ],
-          "format": "uint32",
-          "minimum": 0
-        },
-        "artworkUrl": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "sourcePluginId": {
-          "type": "string"
-        }
-      },
-      "additionalProperties": false,
-      "required": [
-        "externalId",
-        "title",
-        "artist",
-        "sourcePluginId"
       ]
     },
     "SourceAlbumGetOutcome": {

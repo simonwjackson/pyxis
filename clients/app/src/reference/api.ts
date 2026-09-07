@@ -13,6 +13,8 @@ import type {
   RpcSession,
   RpcSessionCommand,
   RpcSessionDirective,
+  RpcSourceAlbumSummary,
+  RpcSourceArtistSummary,
 } from "../../../../contracts/generated/pyxis"
 import { assertRpcRequest, assertRpcResponse } from "../rpc/validation"
 
@@ -34,6 +36,8 @@ export interface RealtimeHandlers {
 
 export interface SearchResult {
   readonly tracks: readonly RpcSearchTrack[]
+  readonly albums: readonly RpcSourceAlbumSummary[]
+  readonly artists: readonly RpcSourceArtistSummary[]
   readonly noSources: boolean
   readonly failures: readonly string[]
 }
@@ -228,11 +232,13 @@ export function createReferenceClient(config: ReferenceClientConfig = {}): Refer
       )
       if (response._tag !== "source.search.run") throw new Error("invalid search response")
       if (response.outcome.status === "noSources") {
-        return { tracks: [], noSources: true, failures: [] }
+        return { tracks: [], albums: [], artists: [], noSources: true, failures: [] }
       }
       if (response.outcome.status !== "ready") throw new Error("source search is unavailable")
       return {
         tracks: response.outcome.value.tracks,
+        albums: response.outcome.value.albums,
+        artists: response.outcome.value.artists,
         noSources: false,
         failures: response.outcome.value.failures.map(
           (failure) => `${failure.pluginId}: ${failure.failure.message}`,

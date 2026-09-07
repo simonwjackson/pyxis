@@ -32,10 +32,10 @@ use crate::rpc::contract::{
     RpcOverrideDecision, RpcPairingCode, RpcPlacement, RpcPlaylist, RpcPlugin, RpcRealtimeRemoval,
     RpcRealtimeState, RpcRealtimeTopic, RpcRequest, RpcResponse, RpcSearchTrack, RpcSession,
     RpcSessionCommand, RpcSessionDirective, RpcSourceAlbum, RpcSourceAlbumSummary,
-    RpcSourceFailure, RpcSourceSearchResult, RpcSystemStatus, RpcTransport, SessionCommandOutcome,
-    SessionCommandRequest, SessionCommandSendOutcome, SessionCreateOutcome, SessionHandoffOutcome,
-    SessionListOutcome, SessionStateOutcome, SourceAlbumGetOutcome, SourceAlbumSearchOutcome,
-    SourceSearchOutcome, SystemStatusOutcome, CONTRACT_ID,
+    RpcSourceArtistSummary, RpcSourceFailure, RpcSourceSearchResult, RpcSystemStatus, RpcTransport,
+    SessionCommandOutcome, SessionCommandRequest, SessionCommandSendOutcome, SessionCreateOutcome,
+    SessionHandoffOutcome, SessionListOutcome, SessionStateOutcome, SourceAlbumGetOutcome,
+    SourceAlbumSearchOutcome, SourceSearchOutcome, SystemStatusOutcome, CONTRACT_ID,
 };
 use crate::rpc::realtime::Delivery;
 use crate::sessions::{
@@ -670,8 +670,13 @@ pub fn dispatch(state: &AppState, request: RpcRequest, auth: Option<AuthContext>
                 Ok(SearchOutcome::NoSources) => {
                     RpcResponse::SourceSearchRun(SourceSearchOutcome::NoSources)
                 }
-                Ok(SearchOutcome::Ready { tracks, failures }) => RpcResponse::SourceSearchRun(
-                    SourceSearchOutcome::Ready(RpcSourceSearchResult {
+                Ok(SearchOutcome::Ready {
+                    tracks,
+                    albums,
+                    artists,
+                    failures,
+                }) => RpcResponse::SourceSearchRun(SourceSearchOutcome::Ready(
+                    RpcSourceSearchResult {
                         tracks: tracks
                             .into_iter()
                             .map(|track| RpcSearchTrack {
@@ -679,10 +684,31 @@ pub fn dispatch(state: &AppState, request: RpcRequest, auth: Option<AuthContext>
                                 title: track.title,
                                 artist: track.artist,
                                 album: track.album,
+                                album_external_id: track.album_external_id,
                                 duration_ms: track.duration_ms,
                                 track_number: track.track_number,
                                 artwork_url: track.artwork_url,
                                 source_plugin_id: track.source_plugin_id,
+                            })
+                            .collect(),
+                        albums: albums
+                            .into_iter()
+                            .map(|album| RpcSourceAlbumSummary {
+                                external_id: album.external_id,
+                                title: album.title,
+                                artist: album.artist,
+                                year: album.year,
+                                artwork_url: album.artwork_url,
+                                source_plugin_id: album.source_plugin_id,
+                            })
+                            .collect(),
+                        artists: artists
+                            .into_iter()
+                            .map(|artist| RpcSourceArtistSummary {
+                                external_id: artist.external_id,
+                                name: artist.name,
+                                artwork_url: artist.artwork_url,
+                                source_plugin_id: artist.source_plugin_id,
                             })
                             .collect(),
                         failures: failures
@@ -696,8 +722,8 @@ pub fn dispatch(state: &AppState, request: RpcRequest, auth: Option<AuthContext>
                                 },
                             })
                             .collect(),
-                    }),
-                ),
+                    },
+                )),
                 Err(error) => RpcResponse::SourceSearchRun(SourceSearchOutcome::Unavailable(
                     RpcFailure::retryable("source.unavailable", error.to_string()),
                 )),
@@ -1226,6 +1252,7 @@ pub fn dispatch(state: &AppState, request: RpcRequest, auth: Option<AuthContext>
                                 title: track.title,
                                 artist: track.artist,
                                 album: track.album,
+                                album_external_id: track.album_external_id,
                                 duration_ms: track.duration_ms,
                                 track_number: track.track_number,
                                 artwork_url: track.artwork_url,

@@ -327,6 +327,10 @@ pub struct RpcSearchTrack {
     pub artist: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub album: Option<String>,
+    /// The source's reference for the album this recording belongs to, when it has one.
+    /// It addresses `source.album.get`, so a client can open the album behind a song.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub album_external_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub duration_ms: Option<u32>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -347,8 +351,24 @@ pub struct RpcSourceFailure {
 #[typeshare]
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct RpcSourceArtistSummary {
+    pub external_id: String,
+    pub name: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub artwork_url: Option<String>,
+    pub source_plugin_id: String,
+}
+
+/// Every kind a discovery search can return. A source that cannot answer one kind
+/// contributes the kinds it can and appears in no failure, because an unimplemented
+/// operation is a capability boundary rather than a provider fault.
+#[typeshare]
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct RpcSourceSearchResult {
     pub tracks: Vec<RpcSearchTrack>,
+    pub albums: Vec<RpcSourceAlbumSummary>,
+    pub artists: Vec<RpcSourceArtistSummary>,
     pub failures: Vec<RpcSourceFailure>,
 }
 

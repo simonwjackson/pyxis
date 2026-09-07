@@ -1,5 +1,7 @@
 import { RpcPlacement } from "../../../../contracts/generated/pyxis"
 import { useReference } from "./Reference.context.tsx"
+import { ReferenceSourceAlbums } from "./SourceAlbums.tsx"
+import { ReferenceSourceArtists } from "./SourceArtists.tsx"
 
 export function ReferenceLibrary() {
   const {
@@ -39,6 +41,9 @@ export function ReferenceLibrary() {
       {sourceFailures.map((failure) => (
         <pre key={failure}>{failure}</pre>
       ))}
+      <ReferenceSourceArtists />
+      <ReferenceSourceAlbums />
+      <h3>Songs ({tracks.length})</h3>
       <ol>
         {tracks.map((track) => (
           <li key={track.id}>

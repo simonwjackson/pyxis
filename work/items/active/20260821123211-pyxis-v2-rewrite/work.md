@@ -23,6 +23,19 @@ requirements and decisions were captured directly into `plan.md` sections
 
 ## Current position
 
+**M8 (search finds albums, artists and songs) is implemented locally and not deployed.**
+`c871fe2` moves song search to the YouTube Music catalog and adds artist search in the plugin;
+the follow-up unit adds albums and artists to `source.search.run`, bounds each kind by the
+requested limit, and treats an unimplemented kind as a capability boundary rather than a
+provider failure. A live read-only query for "David Bowie Heroes" returned three catalog
+songs, three albums and three artists with no failures, where the same query previously
+answered `David Bowie - "Heroes" (Official Video) [HD]`. 261 client tests, all Rust unit and
+integration tests, clippy, fmt, contract-check, typecheck and the PWA build pass. `just verify`
+retains the inherited prototype lint exception: 29 errors and 17 warnings, identical with and
+without this change. `tools/verify-api-example` fails against the installed service because
+that build predates the contract; `tools/verify-api-example-local` passes against a core built
+from the working tree. Nothing was deployed and no Sonos command was issued.
+
 **M1, M2, M5, M6, and M7 are complete. M4 was accepted previously; the new Sonos failure
 report requires diagnosis and revalidation. Bidirectional Play/Pause/Stop and current
 responsiveness are accepted. The user resolved the handoff report by identifying the wrong

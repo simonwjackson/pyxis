@@ -104,7 +104,13 @@ function client(plugins: Awaited<ReturnType<ReferenceClient["listPlugins"]>>): R
     setAlbumPlacement: async () => {
       throw new Error("not used")
     },
-    search: async () => ({ tracks: [], noSources: plugins.length === 0, failures: [] }),
+    search: async () => ({
+      tracks: [],
+      albums: [],
+      artists: [],
+      noSources: plugins.length === 0,
+      failures: [],
+    }),
     listSessions: async () => [],
     createSession: async () => {
       throw new Error("not used")
@@ -2912,6 +2918,8 @@ describe("reference client", () => {
       search: async () => ({
         noSources: false,
         failures: [],
+        albums: [],
+        artists: [],
         tracks: [
           { id: "track-1", title: "One", artist: "Artist", sourcePluginId: "source" },
           { id: "track-2", title: "Two", artist: "Artist", sourcePluginId: "source" },
@@ -2970,6 +2978,21 @@ describe("reference client", () => {
       search: async () => ({
         noSources: false,
         failures: [],
+        albums: [
+          {
+            externalId: "MPRE_album",
+            title: "Heroes",
+            artist: "David Bowie",
+            sourcePluginId: "ytmusic",
+          },
+        ],
+        artists: [
+          {
+            externalId: "UC1234567890123456789012",
+            name: "David Bowie",
+            sourcePluginId: "ytmusic",
+          },
+        ],
         tracks: [
           {
             id: "track-1",
@@ -3027,7 +3050,12 @@ describe("reference client", () => {
 
     fireEvent.change(screen.getByLabelText("Query"), { target: { value: "Bowie" } })
     fireEvent.click(screen.getByRole("button", { name: "Search" }))
-    await waitFor(() => expect(screen.getByText(/Heroes — David Bowie/)).toBeTruthy())
+    // One query answers with all three kinds. The album and the song legitimately read the
+    // same text, so the assertion counts both instead of demanding a single match.
+    await waitFor(() => expect(screen.getAllByText(/Heroes — David Bowie/).length).toBe(2))
+    expect(screen.getByText("Artists (1)")).toBeTruthy()
+    expect(screen.getByText("Albums (1)")).toBeTruthy()
+    expect(screen.getByText("Songs (1)")).toBeTruthy()
     fireEvent.click(screen.getByRole("button", { name: "Add to queue" }))
     await waitFor(() => expect(screen.getAllByText("track-1").length).toBeGreaterThanOrEqual(2))
     fireEvent.click(screen.getByRole("button", { name: "Play" }))

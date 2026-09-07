@@ -56,6 +56,97 @@ fn search_plugin() -> PluginCandidate {
 }
 
 #[tokio::test]
+async fn one_search_returns_albums_artists_and_songs() {
+    let dir = tempfile::tempdir().expect("temp dir");
+    let store = Store::open(dir.path()).expect("store");
+    let candidate = search_plugin()
+        .with_env("PYXIS_LAB_ALBUM", "MPRE_album|Heroes|David Bowie")
+        .with_env("PYXIS_LAB_ARTIST", "UC1234567890123456789012|David Bowie");
+    let host = PluginHost::start(vec![candidate], HostPolicy::default()).expect("host");
+    let state = AppState::open_with_plugins(store, host).expect("state");
+    let app = router(state);
+    let token = claim(&app).await;
+
+    let result = rpc(
+        &app,
+        json!({
+            "_tag": "source.search.run",
+            "payload": { "query": "Bowie", "limit": 5 }
+        }),
+        Some(&token),
+    )
+    .await;
+
+    let value = &result["outcome"]["value"];
+    assert_eq!(result["outcome"]["status"], "ready");
+    assert_eq!(value["tracks"][0]["title"], "Heroes");
+    assert_eq!(value["albums"][0]["externalId"], "MPRE_album");
+    assert_eq!(value["albums"][0]["sourcePluginId"], "search-source");
+    assert_eq!(
+        value["artists"][0]["externalId"],
+        "UC1234567890123456789012"
+    );
+    assert_eq!(value["artists"][0]["name"], "David Bowie");
+    assert_eq!(value["artists"][0]["sourcePluginId"], "search-source");
+    assert_eq!(value["failures"].as_array().expect("failures").len(), 0);
+}
+
+#[tokio::test]
+async fn a_source_that_cannot_search_every_kind_is_not_a_failure() {
+    let dir = tempfile::tempdir().expect("temp dir");
+    let store = Store::open(dir.path()).expect("store");
+    let host = PluginHost::start(vec![search_plugin()], HostPolicy::default()).expect("host");
+    let state = AppState::open_with_plugins(store, host).expect("state");
+    let app = router(state);
+    let token = claim(&app).await;
+
+    let result = rpc(
+        &app,
+        json!({
+            "_tag": "source.search.run",
+            "payload": { "query": "Bowie", "limit": 5 }
+        }),
+        Some(&token),
+    )
+    .await;
+
+    let value = &result["outcome"]["value"];
+    assert_eq!(result["outcome"]["status"], "ready");
+    assert_eq!(value["tracks"].as_array().expect("tracks").len(), 1);
+    assert_eq!(value["artists"].as_array().expect("artists").len(), 0);
+    assert_eq!(value["failures"].as_array().expect("failures").len(), 0);
+}
+
+#[tokio::test]
+async fn every_result_kind_honours_the_requested_limit() {
+    let dir = tempfile::tempdir().expect("temp dir");
+    let store = Store::open(dir.path()).expect("store");
+    let candidate = search_plugin()
+        .with_env("PYXIS_LAB_ALBUM", "MPRE_album|Heroes|David Bowie")
+        .with_env("PYXIS_LAB_ARTIST", "UC1234567890123456789012|David Bowie")
+        .with_env("PYXIS_LAB_RESULT_COPIES", "4");
+    let host = PluginHost::start(vec![candidate], HostPolicy::default()).expect("host");
+    let state = AppState::open_with_plugins(store, host).expect("state");
+    let app = router(state);
+    let token = claim(&app).await;
+
+    let result = rpc(
+        &app,
+        json!({
+            "_tag": "source.search.run",
+            "payload": { "query": "Bowie", "limit": 2 }
+        }),
+        Some(&token),
+    )
+    .await;
+
+    let value = &result["outcome"]["value"];
+    assert_eq!(value["tracks"].as_array().expect("tracks").len(), 2);
+    assert_eq!(value["albums"].as_array().expect("albums").len(), 2);
+    assert_eq!(value["artists"].as_array().expect("artists").len(), 2);
+}
+
+#[tokio::test]
 async fn search_returns_canonical_tracks_and_registers_playable_candidates() {
     let dir = tempfile::tempdir().expect("temp dir");
     let store = Store::open(dir.path()).expect("store");

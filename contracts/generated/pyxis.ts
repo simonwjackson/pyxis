@@ -512,6 +512,11 @@ export interface RpcSearchTrack {
 	title: string;
 	artist: string;
 	album?: string;
+	/**
+	 * The source's reference for the album this recording belongs to, when it has one.
+	 * It addresses `source.album.get`, so a client can open the album behind a song.
+	 */
+	albumExternalId?: string;
 	durationMs?: number;
 	trackNumber?: number;
 	artworkUrl?: string;
@@ -594,13 +599,27 @@ export interface RpcSourceAlbumSummary {
 	sourcePluginId: string;
 }
 
+export interface RpcSourceArtistSummary {
+	externalId: string;
+	name: string;
+	artworkUrl?: string;
+	sourcePluginId: string;
+}
+
 export interface RpcSourceFailure {
 	pluginId: string;
 	failure: RpcFailure;
 }
 
+/**
+ * Every kind a discovery search can return. A source that cannot answer one kind
+ * contributes the kinds it can and appears in no failure, because an unimplemented
+ * operation is a capability boundary rather than a provider fault.
+ */
 export interface RpcSourceSearchResult {
 	tracks: RpcSearchTrack[];
+	albums: RpcSourceAlbumSummary[];
+	artists: RpcSourceArtistSummary[];
 	failures: RpcSourceFailure[];
 }
 

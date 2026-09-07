@@ -10,6 +10,8 @@ import type {
   RpcSearchTrack,
   RpcSession,
   RpcSessionCommand,
+  RpcSourceAlbumSummary,
+  RpcSourceArtistSummary,
 } from "../../../../contracts/generated/pyxis"
 import { RpcTransport } from "../../../../contracts/generated/pyxis"
 import type { WorkerClient } from "../worker/client.ts"
@@ -86,6 +88,8 @@ export function ReferenceApp({
   const [albums, setAlbums] = useState<readonly RpcLibraryAlbum[]>([])
   const [query, setQuery] = useState("")
   const [tracks, setTracks] = useState<readonly RpcSearchTrack[]>([])
+  const [sourceAlbums, setSourceAlbums] = useState<readonly RpcSourceAlbumSummary[]>([])
+  const [sourceArtists, setSourceArtists] = useState<readonly RpcSourceArtistSummary[]>([])
   const [searchHasNoSources, setSearchHasNoSources] = useState(false)
   const [sourceFailures, setSourceFailures] = useState<readonly string[]>([])
   const [session, setSession] = useState<RpcSession>()
@@ -867,6 +871,8 @@ export function ReferenceApp({
     await run(async () => {
       const result = await client.search(currentToken(), query)
       setTracks(result.tracks)
+      setSourceAlbums(result.albums)
+      setSourceArtists(result.artists)
       setSearchHasNoSources(result.noSources)
       setSourceFailures(result.failures)
     })
@@ -1224,6 +1230,8 @@ export function ReferenceApp({
       outputs,
       query,
       tracks,
+      sourceAlbums,
+      sourceArtists,
       searchHasNoSources,
       sourceFailures,
       ...(session === undefined ? {} : { session }),
@@ -1263,6 +1271,8 @@ export function ReferenceApp({
       outputs,
       query,
       tracks,
+      sourceAlbums,
+      sourceArtists,
       searchHasNoSources,
       sourceFailures,
       session,
