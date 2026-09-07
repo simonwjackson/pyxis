@@ -2471,6 +2471,7 @@ describe("reference client", () => {
             capabilities: ["source"],
             status: "live",
             configured: true,
+            stationSeedKinds: [],
           },
         ])}
       />,
@@ -2520,6 +2521,7 @@ describe("reference client", () => {
           capabilities: ["output"],
           status: "live",
           configured: true,
+          stationSeedKinds: [],
         },
       ]),
       listOutputTargets: async () => ({
@@ -2969,6 +2971,7 @@ describe("reference client", () => {
           capabilities: ["source"],
           status: "live",
           configured: true,
+          stationSeedKinds: [],
         },
       ],
       listAlbums: async () => [],

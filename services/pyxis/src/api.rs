@@ -33,6 +33,7 @@ use crate::rpc::transport;
 use crate::sessions::Sessions;
 use crate::settings::Settings;
 use crate::source_catalog::SourceCatalog;
+use crate::stations::Stations;
 use crate::stream::{self, OutputStreamTokens, StreamService};
 
 #[derive(Clone)]
@@ -51,6 +52,7 @@ pub struct AppState {
     pub realtime: Realtime,
     pub sessions: Sessions,
     pub(crate) sources: SourceCatalog,
+    pub(crate) stations: Stations,
     pub(crate) stream: StreamService,
 }
 
@@ -98,6 +100,7 @@ impl AppState {
         )?;
         let sources =
             SourceCatalog::new(plugins.clone(), media.clone(), plugin_credentials.clone());
+        let stations = Stations::new(plugins.clone(), media.clone(), plugin_credentials.clone());
         let outputs = OutputCatalog::new(
             plugins.clone(),
             plugin_credentials.clone(),
@@ -127,6 +130,7 @@ impl AppState {
             realtime: Realtime::new(),
             sessions,
             sources,
+            stations,
             stream,
         })
     }

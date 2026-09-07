@@ -94,18 +94,23 @@ struct PluginSearchOutput {
     tracks: Vec<PluginSearchTrack>,
 }
 
+/// One recording as a source plugin reports it.
+///
+/// Search results and station batches are the same wire shape on purpose: a track is a track
+/// whatever surface produced it, and sharing the shape is what stops radio from growing its
+/// own parallel notion of a recording.
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
-struct PluginSearchTrack {
+pub(crate) struct PluginSearchTrack {
     #[serde(rename = "source")]
     _source: String,
-    external_id: String,
-    title: String,
-    artist: String,
-    album: Option<String>,
-    album_external_id: Option<String>,
-    duration_ms: Option<u32>,
-    artwork_url: Option<String>,
+    pub(crate) external_id: String,
+    pub(crate) title: String,
+    pub(crate) artist: String,
+    pub(crate) album: Option<String>,
+    pub(crate) album_external_id: Option<String>,
+    pub(crate) duration_ms: Option<u32>,
+    pub(crate) artwork_url: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -218,34 +223,7 @@ impl SourceCatalog {
             );
             if let Some(songs) = songs {
                 for track in songs.tracks.into_iter().take(bound) {
-                    let id = track_id(auth.account_id.as_str(), &source.id, &track.external_id);
-                    self.media.ensure_plugin_candidate(
-                        &auth.account_id,
-                        &id,
-                        PluginCandidateInput {
-                            plugin_id: source.id.clone(),
-                            external_id: track.external_id,
-                            format: None,
-                            fidelity: Fidelity {
-                                lossless: false,
-                                bitrate_kbps: None,
-                                sample_rate_hz: None,
-                            },
-                            source_priority: 0,
-                        },
-                        auth.principal_id(),
-                    )?;
-                    tracks.push(SearchTrack {
-                        id,
-                        title: track.title,
-                        artist: track.artist,
-                        album: track.album,
-                        album_external_id: track.album_external_id,
-                        duration_ms: track.duration_ms,
-                        track_number: None,
-                        artwork_url: track.artwork_url,
-                        source_plugin_id: source.id.clone(),
-                    });
+                    tracks.push(register_source_track(&self.media, auth, &source.id, track)?);
                 }
             }
 
@@ -337,7 +315,7 @@ impl SourceCatalog {
             Ok(output) => output,
             Err(error) => {
                 if !unimplemented_operation(&error) {
-                    failures.push(call_failure(plugin_id, error));
+                    failures.push(call_failure(plugin_id, "plugin.search", error));
                 }
                 return None;
             }
@@ -504,7 +482,50 @@ fn validate_artist_summaries(artists: &[PluginArtistSummary]) -> Result<(), Sour
     Ok(())
 }
 
-fn unimplemented_operation(error: &PluginCallError) -> bool {
+/// Makes one source recording playable and returns its core identity.
+///
+/// Registering a candidate is not saving. A candidate says "this recording can be played from
+/// this source"; a placement is what entering the library means. Discovery and radio both need
+/// the first and must never do the second.
+pub(crate) fn register_source_track(
+    media: &Media,
+    auth: &AuthContext,
+    plugin_id: &str,
+    track: PluginSearchTrack,
+) -> Result<SearchTrack, SourceCatalogError> {
+    let id = track_id(auth.account_id.as_str(), plugin_id, &track.external_id);
+    media.ensure_plugin_candidate(
+        &auth.account_id,
+        &id,
+        PluginCandidateInput {
+            plugin_id: plugin_id.into(),
+            external_id: track.external_id,
+            format: None,
+            fidelity: Fidelity {
+                lossless: false,
+                bitrate_kbps: None,
+                sample_rate_hz: None,
+            },
+            source_priority: 0,
+        },
+        auth.principal_id(),
+    )?;
+    Ok(SearchTrack {
+        id,
+        title: track.title,
+        artist: track.artist,
+        album: track.album,
+        album_external_id: track.album_external_id,
+        duration_ms: track.duration_ms,
+        track_number: None,
+        artwork_url: track.artwork_url,
+        source_plugin_id: plugin_id.into(),
+    })
+}
+
+/// A plugin that does not implement an operation is stating a capability boundary, not
+/// failing. Reporting it as a failure would put an error beside every honest result.
+pub(crate) fn unimplemented_operation(error: &PluginCallError) -> bool {
     matches!(error, PluginCallError::Plugin { code, .. } if code == "capability.unknownOperation")
 }
 
@@ -556,22 +577,22 @@ fn validate_album(album: &PluginAlbum, requested_id: &str) -> Result<(), SourceC
     Ok(())
 }
 
-fn valid_text(value: &str) -> bool {
+pub(crate) fn valid_text(value: &str) -> bool {
     !value.trim().is_empty() && value.chars().count() <= MAX_METADATA_CHARS
 }
 
-fn valid_optional_text(value: &Option<String>) -> bool {
+pub(crate) fn valid_optional_text(value: &Option<String>) -> bool {
     value.as_deref().is_none_or(valid_text)
 }
 
-fn track_id(account_id: &str, plugin_id: &str, external_id: &str) -> String {
+pub(crate) fn track_id(account_id: &str, plugin_id: &str, external_id: &str) -> String {
     let digest = blake3::hash(format!("{account_id}\0{plugin_id}\0{external_id}").as_bytes())
         .to_hex()
         .to_string();
     digest[..26].to_string()
 }
 
-fn call_failure(plugin_id: &str, error: PluginCallError) -> SearchFailure {
+pub(crate) fn call_failure(plugin_id: &str, code: &str, error: PluginCallError) -> SearchFailure {
     let retryable = matches!(
         error,
         PluginCallError::Unavailable { .. }
@@ -584,7 +605,7 @@ fn call_failure(plugin_id: &str, error: PluginCallError) -> SearchFailure {
     );
     SearchFailure {
         plugin_id: plugin_id.into(),
-        code: "plugin.search".into(),
+        code: code.into(),
         message: error.to_string(),
         retryable,
     }

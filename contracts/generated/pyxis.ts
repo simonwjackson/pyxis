@@ -207,6 +207,35 @@ export interface PluginHandshakeRequest {
 	protocolVersion: number;
 }
 
+/**
+ * What a station can be started from.
+ *
+ * A source declares the kinds it accepts so a client can offer "start a station here" only
+ * where it works. `Album` is in the vocabulary because the library is album-centric, and no
+ * shipped plugin accepts it yet: declaring support is exactly how that stays visible instead
+ * of being discovered through a failed call.
+ */
+export enum StationSeedKind {
+	Track = "track",
+	Album = "album",
+	Artist = "artist",
+}
+
+/**
+ * Source abilities that an operation name alone cannot express.
+ *
+ * A plugin that implements `station.create` still cannot say which seeds it accepts.
+ * Probing every kind against every source on every render is the cost this removes, and
+ * `plugin.list` is the one place a third-party client has to look.
+ */
+export interface SourceFeatures {
+	/**
+	 * Seed kinds `station.create` accepts. Empty is honest for a provider whose stations are
+	 * all account-owned and cannot be derived from something you point at.
+	 */
+	stationSeedKinds?: StationSeedKind[];
+}
+
 export interface PluginManifest {
 	id: string;
 	name: string;
@@ -215,6 +244,11 @@ export interface PluginManifest {
 	capabilities: PluginCapability[];
 	/** JSON Schema for per-account plugin configuration and credentials. */
 	configSchema: PluginValue;
+	/**
+	 * Declared source abilities. Absent for a plugin that contributes no `source` capability,
+	 * and absent for an older source plugin that predates the declaration.
+	 */
+	source?: SourceFeatures;
 }
 
 export type PluginRequest =
@@ -501,6 +535,11 @@ export interface RpcPlugin {
 	status: string;
 	configured: boolean;
 	reason?: string;
+	/**
+	 * Seed kinds this source accepts for `source.station.create`. Empty for a plugin that is
+	 * not a source, and for a source whose stations cannot be derived from a seed.
+	 */
+	stationSeedKinds: StationSeedKind[];
 }
 
 export interface RpcRealtimeRemoval {
@@ -624,6 +663,55 @@ export interface RpcSourceSearchResult {
 }
 
 /**
+ * A radio object owned by a source.
+ *
+ * One shape covers a Pandora station token and a YouTube Music watch queue, which is the
+ * point: a client renders a station without knowing which provider produced it. Provider
+ * concepts that do not fit, such as Pandora's QuickMix flag, are deliberately absent until
+ * the model grows to hold them.
+ */
+export interface RpcStation {
+	/**
+	 * The source's own reference. Opaque to the core and to clients; only the owning plugin
+	 * interprets it.
+	 */
+	externalId: string;
+	name: string;
+	artworkUrl?: string;
+	sourcePluginId: string;
+}
+
+/**
+ * One bounded answer to "what comes next".
+ *
+ * `cursor` and `exhausted` are not redundant. A source with continuations returns a cursor;
+ * a source that simply issues a fresh playlist per call returns none and is not exhausted;
+ * a station with nothing left is exhausted. All three are real provider behaviors.
+ */
+export interface RpcStationBatch {
+	tracks: RpcSearchTrack[];
+	/**
+	 * Opaque continuation for the following batch. The core stores it and hands it back; it
+	 * never parses it.
+	 */
+	cursor?: string;
+	exhausted: boolean;
+}
+
+/** Stations gathered from every live source, with per-source failures beside them. */
+export interface RpcStationListResult {
+	stations: RpcStation[];
+	failures: RpcSourceFailure[];
+}
+
+/** What a station is started from. The kind must be one the source declared in `plugin.list`. */
+export interface RpcStationSeed {
+	kind: StationSeedKind;
+	/** The source's reference for the seed, as it appeared in a search result. */
+	externalId: string;
+}
+
+/**
  * Service health and capability summary.
  *
  * `pluginCount` and `capabilities` are part of status because the core is required to run
@@ -681,6 +769,24 @@ export interface SourceAlbumSearchRequest {
 }
 
 export interface SourceSearchRequest {
+	query: string;
+	limit?: number;
+}
+
+export interface SourceStationCreateRequest {
+	pluginId: string;
+	seed: RpcStationSeed;
+}
+
+export interface SourceStationNextRequest {
+	pluginId: string;
+	stationId: string;
+	/** The cursor from the previous batch. Absent asks for the first batch. */
+	cursor?: string;
+	limit?: number;
+}
+
+export interface SourceStationSearchRequest {
 	query: string;
 	limit?: number;
 }
@@ -860,7 +966,11 @@ export type RpcRequest =
 	| { _tag: "plugin.config.set", payload: PluginConfigSetRequest }
 	| { _tag: "plugin.config.remove", payload: PluginConfigRemoveRequest }
 	| { _tag: "source.album.search", payload: SourceAlbumSearchRequest }
-	| { _tag: "source.album.get", payload: SourceAlbumGetRequest };
+	| { _tag: "source.album.get", payload: SourceAlbumGetRequest }
+	| { _tag: "source.station.search", payload: SourceStationSearchRequest }
+	| { _tag: "source.station.list", payload: EmptyRequest }
+	| { _tag: "source.station.create", payload: SourceStationCreateRequest }
+	| { _tag: "source.station.next", payload: SourceStationNextRequest };
 
 export type RpcResponse =
 	| { _tag: "system.status.get", outcome: SystemStatusOutcome }
@@ -899,6 +1009,10 @@ export type RpcResponse =
 	| { _tag: "plugin.config.remove", outcome: CommandOutcome }
 	| { _tag: "source.album.search", outcome: SourceAlbumSearchOutcome }
 	| { _tag: "source.album.get", outcome: SourceAlbumGetOutcome }
+	| { _tag: "source.station.search", outcome: SourceStationListOutcome }
+	| { _tag: "source.station.list", outcome: SourceStationListOutcome }
+	| { _tag: "source.station.create", outcome: SourceStationCreateOutcome }
+	| { _tag: "source.station.next", outcome: SourceStationNextOutcome }
 	| { _tag: "rpc.failure", outcome: RpcProtocolFailureOutcome };
 
 export type SessionCommandOutcome =
@@ -978,6 +1092,26 @@ export type SourceAlbumSearchOutcome =
 export type SourceSearchOutcome =
 	| { status: "ready", value: RpcSourceSearchResult }
 	| { status: "noSources", value?: undefined }
+	| { status: "unavailable", value: RpcFailure };
+
+/**
+ * `unsupportedSeed` is a capability boundary, not a fault. A source that cannot build a
+ * station from this kind of seed said so in `plugin.list`, and answering with a failure
+ * would put an error beside an honest refusal.
+ */
+export type SourceStationCreateOutcome =
+	| { status: "ready", value: RpcStation }
+	| { status: "unsupportedSeed", value?: undefined }
+	| { status: "unavailable", value: RpcFailure };
+
+export type SourceStationListOutcome =
+	| { status: "ready", value: RpcStationListResult }
+	| { status: "noSources", value?: undefined }
+	| { status: "unavailable", value: RpcFailure };
+
+export type SourceStationNextOutcome =
+	| { status: "ready", value: RpcStationBatch }
+	| { status: "unknownStation", value?: undefined }
 	| { status: "unavailable", value: RpcFailure };
 
 export type SystemStatusOutcome =

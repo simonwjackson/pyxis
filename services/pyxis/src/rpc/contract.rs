@@ -21,7 +21,9 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use typeshare::typeshare;
 
-use crate::plugins::protocol::{PluginRequestEnvelope, PluginResponseEnvelope, PluginValue};
+use crate::plugins::protocol::{
+    PluginRequestEnvelope, PluginResponseEnvelope, PluginValue, StationSeedKind,
+};
 
 /// Wire identity. v2 shares no protocol lineage with v1, and a client that speaks the v1
 /// protocol must fail rather than half-work.
@@ -259,6 +261,9 @@ pub struct RpcPlugin {
     pub configured: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub reason: Option<String>,
+    /// Seed kinds this source accepts for `source.station.create`. Empty for a plugin that is
+    /// not a source, and for a source whose stations cannot be derived from a seed.
+    pub station_seed_kinds: Vec<StationSeedKind>,
 }
 
 #[typeshare]
@@ -439,6 +444,121 @@ pub enum SourceAlbumSearchOutcome {
 #[serde(tag = "status", content = "value", rename_all = "camelCase")]
 pub enum SourceAlbumGetOutcome {
     Ready(RpcSourceAlbum),
+    Unavailable(RpcFailure),
+}
+
+/// A radio object owned by a source.
+///
+/// One shape covers a Pandora station token and a YouTube Music watch queue, which is the
+/// point: a client renders a station without knowing which provider produced it. Provider
+/// concepts that do not fit, such as Pandora's QuickMix flag, are deliberately absent until
+/// the model grows to hold them.
+#[typeshare]
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct RpcStation {
+    /// The source's own reference. Opaque to the core and to clients; only the owning plugin
+    /// interprets it.
+    pub external_id: String,
+    pub name: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub artwork_url: Option<String>,
+    pub source_plugin_id: String,
+}
+
+/// What a station is started from. The kind must be one the source declared in `plugin.list`.
+#[typeshare]
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct RpcStationSeed {
+    pub kind: StationSeedKind,
+    /// The source's reference for the seed, as it appeared in a search result.
+    pub external_id: String,
+}
+
+/// One bounded answer to "what comes next".
+///
+/// `cursor` and `exhausted` are not redundant. A source with continuations returns a cursor;
+/// a source that simply issues a fresh playlist per call returns none and is not exhausted;
+/// a station with nothing left is exhausted. All three are real provider behaviors.
+#[typeshare]
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct RpcStationBatch {
+    pub tracks: Vec<RpcSearchTrack>,
+    /// Opaque continuation for the following batch. The core stores it and hands it back; it
+    /// never parses it.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cursor: Option<String>,
+    pub exhausted: bool,
+}
+
+/// Stations gathered from every live source, with per-source failures beside them.
+#[typeshare]
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct RpcStationListResult {
+    pub stations: Vec<RpcStation>,
+    pub failures: Vec<RpcSourceFailure>,
+}
+
+#[typeshare]
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct SourceStationSearchRequest {
+    pub query: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub limit: Option<u32>,
+}
+
+#[typeshare]
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct SourceStationCreateRequest {
+    pub plugin_id: String,
+    pub seed: RpcStationSeed,
+}
+
+#[typeshare]
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct SourceStationNextRequest {
+    pub plugin_id: String,
+    pub station_id: String,
+    /// The cursor from the previous batch. Absent asks for the first batch.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cursor: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub limit: Option<u32>,
+}
+
+#[typeshare]
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(tag = "status", content = "value", rename_all = "camelCase")]
+pub enum SourceStationListOutcome {
+    Ready(RpcStationListResult),
+    NoSources,
+    Unavailable(RpcFailure),
+}
+
+/// `unsupportedSeed` is a capability boundary, not a fault. A source that cannot build a
+/// station from this kind of seed said so in `plugin.list`, and answering with a failure
+/// would put an error beside an honest refusal.
+#[typeshare]
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(tag = "status", content = "value", rename_all = "camelCase")]
+pub enum SourceStationCreateOutcome {
+    Ready(RpcStation),
+    UnsupportedSeed,
+    Unavailable(RpcFailure),
+}
+
+#[typeshare]
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(tag = "status", content = "value", rename_all = "camelCase")]
+pub enum SourceStationNextOutcome {
+    Ready(RpcStationBatch),
+    UnknownStation,
     Unavailable(RpcFailure),
 }
 
@@ -1392,6 +1512,14 @@ pub enum RpcRequest {
     SourceAlbumSearch(SourceAlbumSearchRequest),
     #[serde(rename = "source.album.get")]
     SourceAlbumGet(SourceAlbumGetRequest),
+    #[serde(rename = "source.station.search")]
+    SourceStationSearch(SourceStationSearchRequest),
+    #[serde(rename = "source.station.list")]
+    SourceStationList(EmptyRequest),
+    #[serde(rename = "source.station.create")]
+    SourceStationCreate(SourceStationCreateRequest),
+    #[serde(rename = "source.station.next")]
+    SourceStationNext(SourceStationNextRequest),
 }
 
 /// A request that cannot enter operation dispatch. This is separate from an operation's
@@ -1479,12 +1607,20 @@ pub enum RpcResponse {
     SourceAlbumSearch(SourceAlbumSearchOutcome),
     #[serde(rename = "source.album.get")]
     SourceAlbumGet(SourceAlbumGetOutcome),
+    #[serde(rename = "source.station.search")]
+    SourceStationSearch(SourceStationListOutcome),
+    #[serde(rename = "source.station.list")]
+    SourceStationList(SourceStationListOutcome),
+    #[serde(rename = "source.station.create")]
+    SourceStationCreate(SourceStationCreateOutcome),
+    #[serde(rename = "source.station.next")]
+    SourceStationNext(SourceStationNextOutcome),
     #[serde(rename = "rpc.failure")]
     Failure(RpcProtocolFailureOutcome),
 }
 
 impl RpcRequest {
-    pub const KNOWN_TAGS: [&'static str; 36] = [
+    pub const KNOWN_TAGS: [&'static str; 40] = [
         "system.status.get",
         "auth.device.claim",
         "auth.device.pair",
@@ -1521,6 +1657,10 @@ impl RpcRequest {
         "plugin.config.remove",
         "source.album.search",
         "source.album.get",
+        "source.station.search",
+        "source.station.list",
+        "source.station.create",
+        "source.station.next",
     ];
 
     /// The operation tag as it appears on the wire. Used for logging and authorization.
@@ -1562,6 +1702,10 @@ impl RpcRequest {
             RpcRequest::PluginConfigRemove(_) => "plugin.config.remove",
             RpcRequest::SourceAlbumSearch(_) => "source.album.search",
             RpcRequest::SourceAlbumGet(_) => "source.album.get",
+            RpcRequest::SourceStationSearch(_) => "source.station.search",
+            RpcRequest::SourceStationList(_) => "source.station.list",
+            RpcRequest::SourceStationCreate(_) => "source.station.create",
+            RpcRequest::SourceStationNext(_) => "source.station.next",
         }
     }
 
@@ -1611,7 +1755,12 @@ impl RpcRequest {
             RpcRequest::PluginConfigSet(_) | RpcRequest::PluginConfigRemove(_) => {
                 Some("account:admin")
             }
-            RpcRequest::SourceAlbumSearch(_) | RpcRequest::SourceAlbumGet(_) => Some("source:read"),
+            RpcRequest::SourceAlbumSearch(_)
+            | RpcRequest::SourceAlbumGet(_)
+            | RpcRequest::SourceStationSearch(_)
+            | RpcRequest::SourceStationList(_)
+            | RpcRequest::SourceStationCreate(_)
+            | RpcRequest::SourceStationNext(_) => Some("source:read"),
             RpcRequest::AuthPairingCreate(_)
             | RpcRequest::AuthTokenCreate(_)
             | RpcRequest::AuthTokenRevoke(_)
@@ -1621,7 +1770,7 @@ impl RpcRequest {
 }
 
 impl RpcResponse {
-    pub const KNOWN_OPERATION_TAGS: [&'static str; 36] = RpcRequest::KNOWN_TAGS;
+    pub const KNOWN_OPERATION_TAGS: [&'static str; 40] = RpcRequest::KNOWN_TAGS;
 
     pub fn tag(&self) -> &'static str {
         match self {
@@ -1661,6 +1810,10 @@ impl RpcResponse {
             RpcResponse::PluginConfigRemove(_) => "plugin.config.remove",
             RpcResponse::SourceAlbumSearch(_) => "source.album.search",
             RpcResponse::SourceAlbumGet(_) => "source.album.get",
+            RpcResponse::SourceStationSearch(_) => "source.station.search",
+            RpcResponse::SourceStationList(_) => "source.station.list",
+            RpcResponse::SourceStationCreate(_) => "source.station.create",
+            RpcResponse::SourceStationNext(_) => "source.station.next",
             RpcResponse::Failure(_) => "rpc.failure",
         }
     }

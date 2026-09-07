@@ -609,6 +609,70 @@
             "_tag",
             "payload"
           ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "_tag": {
+              "type": "string",
+              "const": "source.station.search"
+            },
+            "payload": {
+              "$ref": "#/$defs/SourceStationSearchRequest"
+            }
+          },
+          "required": [
+            "_tag",
+            "payload"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "_tag": {
+              "type": "string",
+              "const": "source.station.list"
+            },
+            "payload": {
+              "$ref": "#/$defs/EmptyRequest"
+            }
+          },
+          "required": [
+            "_tag",
+            "payload"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "_tag": {
+              "type": "string",
+              "const": "source.station.create"
+            },
+            "payload": {
+              "$ref": "#/$defs/SourceStationCreateRequest"
+            }
+          },
+          "required": [
+            "_tag",
+            "payload"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "_tag": {
+              "type": "string",
+              "const": "source.station.next"
+            },
+            "payload": {
+              "$ref": "#/$defs/SourceStationNextRequest"
+            }
+          },
+          "required": [
+            "_tag",
+            "payload"
+          ]
         }
       ]
     },
@@ -1673,6 +1737,100 @@
         "externalId"
       ]
     },
+    "SourceStationSearchRequest": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "string"
+        },
+        "limit": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint32",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "query"
+      ]
+    },
+    "SourceStationCreateRequest": {
+      "type": "object",
+      "properties": {
+        "pluginId": {
+          "type": "string"
+        },
+        "seed": {
+          "$ref": "#/$defs/RpcStationSeed"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "pluginId",
+        "seed"
+      ]
+    },
+    "RpcStationSeed": {
+      "description": "What a station is started from. The kind must be one the source declared in `plugin.list`.",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "$ref": "#/$defs/StationSeedKind"
+        },
+        "externalId": {
+          "description": "The source's reference for the seed, as it appeared in a search result.",
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "externalId"
+      ]
+    },
+    "StationSeedKind": {
+      "description": "What a station can be started from.\n\nA source declares the kinds it accepts so a client can offer \"start a station here\" only\nwhere it works. `Album` is in the vocabulary because the library is album-centric, and no\nshipped plugin accepts it yet: declaring support is exactly how that stays visible instead\nof being discovered through a failed call.",
+      "type": "string",
+      "enum": [
+        "track",
+        "album",
+        "artist"
+      ]
+    },
+    "SourceStationNextRequest": {
+      "type": "object",
+      "properties": {
+        "pluginId": {
+          "type": "string"
+        },
+        "stationId": {
+          "type": "string"
+        },
+        "cursor": {
+          "description": "The cursor from the previous batch. Absent asks for the first batch.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "limit": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint32",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "pluginId",
+        "stationId"
+      ]
+    },
     "RpcResponse": {
       "oneOf": [
         {
@@ -2244,6 +2402,70 @@
             },
             "outcome": {
               "$ref": "#/$defs/SourceAlbumGetOutcome"
+            }
+          },
+          "required": [
+            "_tag",
+            "outcome"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "_tag": {
+              "type": "string",
+              "const": "source.station.search"
+            },
+            "outcome": {
+              "$ref": "#/$defs/SourceStationListOutcome"
+            }
+          },
+          "required": [
+            "_tag",
+            "outcome"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "_tag": {
+              "type": "string",
+              "const": "source.station.list"
+            },
+            "outcome": {
+              "$ref": "#/$defs/SourceStationListOutcome"
+            }
+          },
+          "required": [
+            "_tag",
+            "outcome"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "_tag": {
+              "type": "string",
+              "const": "source.station.create"
+            },
+            "outcome": {
+              "$ref": "#/$defs/SourceStationCreateOutcome"
+            }
+          },
+          "required": [
+            "_tag",
+            "outcome"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "_tag": {
+              "type": "string",
+              "const": "source.station.next"
+            },
+            "outcome": {
+              "$ref": "#/$defs/SourceStationNextOutcome"
             }
           },
           "required": [
@@ -2880,6 +3102,13 @@
             "string",
             "null"
           ]
+        },
+        "stationSeedKinds": {
+          "description": "Seed kinds this source accepts for `source.station.create`. Empty for a plugin that is\nnot a source, and for a source whose stations cannot be derived from a seed.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/StationSeedKind"
+          }
         }
       },
       "additionalProperties": false,
@@ -2889,7 +3118,8 @@
         "version",
         "capabilities",
         "status",
-        "configured"
+        "configured",
+        "stationSeedKinds"
       ]
     },
     "OutputTargetsListOutcome": {
@@ -4856,6 +5086,229 @@
         "tracks"
       ]
     },
+    "SourceStationListOutcome": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "const": "ready"
+            },
+            "value": {
+              "$ref": "#/$defs/RpcStationListResult"
+            }
+          },
+          "required": [
+            "status",
+            "value"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "const": "noSources"
+            }
+          },
+          "required": [
+            "status"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "const": "unavailable"
+            },
+            "value": {
+              "$ref": "#/$defs/RpcFailure"
+            }
+          },
+          "required": [
+            "status",
+            "value"
+          ]
+        }
+      ]
+    },
+    "RpcStationListResult": {
+      "description": "Stations gathered from every live source, with per-source failures beside them.",
+      "type": "object",
+      "properties": {
+        "stations": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/RpcStation"
+          }
+        },
+        "failures": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/RpcSourceFailure"
+          }
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "stations",
+        "failures"
+      ]
+    },
+    "RpcStation": {
+      "description": "A radio object owned by a source.\n\nOne shape covers a Pandora station token and a YouTube Music watch queue, which is the\npoint: a client renders a station without knowing which provider produced it. Provider\nconcepts that do not fit, such as Pandora's QuickMix flag, are deliberately absent until\nthe model grows to hold them.",
+      "type": "object",
+      "properties": {
+        "externalId": {
+          "description": "The source's own reference. Opaque to the core and to clients; only the owning plugin\ninterprets it.",
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "artworkUrl": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "sourcePluginId": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "externalId",
+        "name",
+        "sourcePluginId"
+      ]
+    },
+    "SourceStationCreateOutcome": {
+      "description": "`unsupportedSeed` is a capability boundary, not a fault. A source that cannot build a\nstation from this kind of seed said so in `plugin.list`, and answering with a failure\nwould put an error beside an honest refusal.",
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "const": "ready"
+            },
+            "value": {
+              "$ref": "#/$defs/RpcStation"
+            }
+          },
+          "required": [
+            "status",
+            "value"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "const": "unsupportedSeed"
+            }
+          },
+          "required": [
+            "status"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "const": "unavailable"
+            },
+            "value": {
+              "$ref": "#/$defs/RpcFailure"
+            }
+          },
+          "required": [
+            "status",
+            "value"
+          ]
+        }
+      ]
+    },
+    "SourceStationNextOutcome": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "const": "ready"
+            },
+            "value": {
+              "$ref": "#/$defs/RpcStationBatch"
+            }
+          },
+          "required": [
+            "status",
+            "value"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "const": "unknownStation"
+            }
+          },
+          "required": [
+            "status"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "const": "unavailable"
+            },
+            "value": {
+              "$ref": "#/$defs/RpcFailure"
+            }
+          },
+          "required": [
+            "status",
+            "value"
+          ]
+        }
+      ]
+    },
+    "RpcStationBatch": {
+      "description": "One bounded answer to \"what comes next\".\n\n`cursor` and `exhausted` are not redundant. A source with continuations returns a cursor;\na source that simply issues a fresh playlist per call returns none and is not exhausted;\na station with nothing left is exhausted. All three are real provider behaviors.",
+      "type": "object",
+      "properties": {
+        "tracks": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/RpcSearchTrack"
+          }
+        },
+        "cursor": {
+          "description": "Opaque continuation for the following batch. The core stores it and hands it back; it\nnever parses it.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "exhausted": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "tracks",
+        "exhausted"
+      ]
+    },
     "RpcProtocolFailureOutcome": {
       "description": "A request that cannot enter operation dispatch. This is separate from an operation's\n`unavailable` outcome: no operation exists yet to own the failure.",
       "oneOf": [
@@ -5442,6 +5895,17 @@
         "configSchema": {
           "description": "JSON Schema for per-account plugin configuration and credentials.",
           "$ref": "#/$defs/PluginValue"
+        },
+        "source": {
+          "description": "Declared source abilities. Absent for a plugin that contributes no `source` capability,\nand absent for an older source plugin that predates the declaration.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SourceFeatures"
+            },
+            {
+              "type": "null"
+            }
+          ]
         }
       },
       "additionalProperties": false,
@@ -5453,6 +5917,21 @@
         "capabilities",
         "configSchema"
       ]
+    },
+    "SourceFeatures": {
+      "description": "Source abilities that an operation name alone cannot express.\n\nA plugin that implements `station.create` still cannot say which seeds it accepts.\nProbing every kind against every source on every render is the cost this removes, and\n`plugin.list` is the one place a third-party client has to look.",
+      "type": "object",
+      "properties": {
+        "stationSeedKinds": {
+          "description": "Seed kinds `station.create` accepts. Empty is honest for a provider whose stations are\nall account-owned and cannot be derived from something you point at.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/StationSeedKind"
+          },
+          "default": []
+        }
+      },
+      "additionalProperties": false
     },
     "PluginFailure": {
       "type": "object",

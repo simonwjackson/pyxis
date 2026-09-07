@@ -1,5 +1,9 @@
 import { describe, expect, test } from "bun:test"
-import { PluginCapability, type PluginRequestEnvelope } from "../../../contracts/generated/pyxis"
+import {
+  PluginCapability,
+  type PluginRequestEnvelope,
+  StationSeedKind,
+} from "../../../contracts/generated/pyxis"
 import {
   createPluginRuntime,
   definePlugin,
@@ -238,6 +242,61 @@ describe("plugin runtime", () => {
         },
       },
     })
+  })
+})
+
+describe("declared source features", () => {
+  const stationPlugin = (
+    stationSeedKinds: StationSeedKind[],
+    operations: Readonly<Record<string, () => Promise<unknown>>>,
+  ) =>
+    definePlugin({
+      manifest: {
+        id: "stations",
+        name: "Stations",
+        version: "1.0.0",
+        capabilities: [PluginCapability.Source],
+        configSchema: {},
+        source: { stationSeedKinds },
+      },
+      capabilities: { source: operations },
+    })
+
+  const stationOperations = {
+    "station.create": async () => ({ station: {} }),
+    "station.next": async () => ({ tracks: [], exhausted: true }),
+  }
+
+  test("accepts a declaration its handlers can honor", () => {
+    const plugin = stationPlugin([StationSeedKind.Track], stationOperations)
+
+    expect(plugin.manifest.source?.stationSeedKinds).toEqual([StationSeedKind.Track])
+  })
+
+  test("refuses seed kinds when no station operation exists", () => {
+    expect(() => stationPlugin([StationSeedKind.Track], { search: async () => ({}) })).toThrow(
+      /implements no source 'station.create' operation/,
+    )
+  })
+
+  test("refuses seed kinds when the source cannot continue a station", () => {
+    expect(() =>
+      stationPlugin([StationSeedKind.Track], {
+        "station.create": stationOperations["station.create"],
+      }),
+    ).toThrow(/implements no source 'station.next' operation/)
+  })
+
+  test("refuses a duplicated seed kind", () => {
+    expect(() =>
+      stationPlugin([StationSeedKind.Track, StationSeedKind.Track], stationOperations),
+    ).toThrow(/duplicate station seed kinds/)
+  })
+
+  test("leaves a source that declares no seed kinds alone", () => {
+    const plugin = stationPlugin([], { search: async () => ({}) })
+
+    expect(plugin.manifest.source?.stationSeedKinds).toEqual([])
   })
 })
 

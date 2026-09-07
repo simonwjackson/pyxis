@@ -59,7 +59,30 @@ export function definePlugin(definition: PluginDefinition): PluginDefinition {
       throw new Error(`plugin implements undeclared capability '${capability}'`)
     }
   }
+  assertSourceFeatures(definition)
   return definition
+}
+
+/// A declaration a client trusts must be one the plugin can honor.
+///
+/// `plugin.list` publishes the declared seed kinds so a client can offer "start a station"
+/// without probing every source. That is only safe while the declaration cannot drift away from
+/// the handler table, so the drift is refused here, at definition time, rather than discovered
+/// by a user whose station never starts.
+function assertSourceFeatures(definition: PluginDefinition): void {
+  const seedKinds = definition.manifest.source?.stationSeedKinds ?? []
+  if (seedKinds.length === 0) return
+
+  if (new Set(seedKinds).size !== seedKinds.length) {
+    throw new Error("plugin manifest contains duplicate station seed kinds")
+  }
+  for (const operation of ["station.create", "station.next"]) {
+    if (definition.capabilities.source?.[operation] === undefined) {
+      throw new Error(
+        `plugin declares station seed kinds but implements no source '${operation}' operation`,
+      )
+    }
+  }
 }
 
 export async function dispatchCapability(

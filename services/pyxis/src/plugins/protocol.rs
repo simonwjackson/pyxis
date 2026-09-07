@@ -120,6 +120,36 @@ pub struct PluginHandshakeRequest {
     pub protocol_version: u32,
 }
 
+/// What a station can be started from.
+///
+/// A source declares the kinds it accepts so a client can offer "start a station here" only
+/// where it works. `Album` is in the vocabulary because the library is album-centric, and no
+/// shipped plugin accepts it yet: declaring support is exactly how that stays visible instead
+/// of being discovered through a failed call.
+#[typeshare]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub enum StationSeedKind {
+    Track,
+    Album,
+    Artist,
+}
+
+/// Source abilities that an operation name alone cannot express.
+///
+/// A plugin that implements `station.create` still cannot say which seeds it accepts.
+/// Probing every kind against every source on every render is the cost this removes, and
+/// `plugin.list` is the one place a third-party client has to look.
+#[typeshare]
+#[derive(Clone, Debug, Default, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct SourceFeatures {
+    /// Seed kinds `station.create` accepts. Empty is honest for a provider whose stations are
+    /// all account-owned and cannot be derived from something you point at.
+    #[serde(default)]
+    pub station_seed_kinds: Vec<StationSeedKind>,
+}
+
 #[typeshare]
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -131,6 +161,10 @@ pub struct PluginManifest {
     pub capabilities: Vec<PluginCapability>,
     /// JSON Schema for per-account plugin configuration and credentials.
     pub config_schema: PluginValue,
+    /// Declared source abilities. Absent for a plugin that contributes no `source` capability,
+    /// and absent for an older source plugin that predates the declaration.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source: Option<SourceFeatures>,
 }
 
 #[typeshare]

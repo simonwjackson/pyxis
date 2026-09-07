@@ -12,7 +12,7 @@ use std::time::Duration;
 use pyxis::plugins::protocol::{
     PluginCallOutcome, PluginCapability, PluginFailure, PluginHandshakeOutcome, PluginManifest,
     PluginRequest, PluginRequestEnvelope, PluginResponse, PluginResponseEnvelope, PluginValue,
-    PLUGIN_PROTOCOL_VERSION,
+    SourceFeatures, StationSeedKind, PLUGIN_PROTOCOL_VERSION,
 };
 
 fn main() -> anyhow::Result<()> {
@@ -41,6 +41,8 @@ fn main() -> anyhow::Result<()> {
         },
         capabilities: vec![capability],
         config_schema: PluginValue::Object(BTreeMap::new()),
+        source: declared_seed_kinds()
+            .map(|station_seed_kinds| SourceFeatures { station_seed_kinds }),
     };
     send(
         &mut stdout,
@@ -169,6 +171,12 @@ fn main() -> anyhow::Result<()> {
         let unimplemented = match call.operation.as_str() {
             "artist.search" => std::env::var("PYXIS_LAB_ARTIST").is_err(),
             "album.search" => std::env::var("PYXIS_LAB_ALBUM").is_err(),
+            // Station list is configured separately from the rest so a test can build the
+            // shape of a source whose stations are derived from a seed and never listed.
+            "station.list" => std::env::var("PYXIS_LAB_STATION_LIST").is_err(),
+            "station.search" | "station.create" | "station.next" => {
+                std::env::var("PYXIS_LAB_STATION").is_err()
+            }
             _ => false,
         };
         if unimplemented {
@@ -304,6 +312,99 @@ fn main() -> anyhow::Result<()> {
                 }
             }
         }
+        if call.operation.starts_with("station.") && behavior == "station-unavailable" {
+            send(
+                &mut stdout,
+                PluginResponseEnvelope {
+                    id: envelope.id,
+                    response: PluginResponse::CapabilityCall(PluginCallOutcome::Unavailable(
+                        PluginFailure {
+                            code: "station.unavailable".into(),
+                            message: "stations cannot be read".into(),
+                            retryable: true,
+                        },
+                    )),
+                },
+            )?;
+            continue;
+        }
+        if matches!(call.operation.as_str(), "station.list" | "station.search") {
+            let configured = if call.operation == "station.list" {
+                std::env::var("PYXIS_LAB_STATION_LIST").ok()
+            } else {
+                std::env::var("PYXIS_LAB_STATION").ok()
+            };
+            if let Some(station) = configured {
+                let fields: Vec<_> = station.split('|').collect();
+                if fields.len() == 2 {
+                    let stations = copies()
+                        .into_iter()
+                        .map(|copy| {
+                            let mut summary = BTreeMap::new();
+                            summary.insert(
+                                "externalId".into(),
+                                PluginValue::String(format!("{}{copy}", fields[0])),
+                            );
+                            summary.insert("name".into(), PluginValue::String(fields[1].into()));
+                            PluginValue::Object(summary)
+                        })
+                        .collect();
+                    value.insert("stations".into(), PluginValue::Array(stations));
+                }
+            }
+        }
+        if call.operation == "station.create" {
+            if let Ok(station) = std::env::var("PYXIS_LAB_STATION") {
+                let fields: Vec<_> = station.split('|').collect();
+                if fields.len() == 2 {
+                    let mut summary = BTreeMap::new();
+                    summary.insert("externalId".into(), PluginValue::String(fields[0].into()));
+                    summary.insert("name".into(), PluginValue::String(fields[1].into()));
+                    value.insert("station".into(), PluginValue::Object(summary));
+                }
+            }
+        }
+        if call.operation == "station.next" && std::env::var("PYXIS_LAB_STATION").is_ok() {
+            let incoming = match &call.input {
+                PluginValue::Object(input) => match input.get("cursor") {
+                    Some(PluginValue::String(cursor)) => Some(cursor.clone()),
+                    _ => None,
+                },
+                _ => None,
+            };
+            let tracks = copies()
+                .into_iter()
+                .map(|copy| {
+                    let mut track = BTreeMap::new();
+                    track.insert("source".into(), PluginValue::String(id.clone()));
+                    track.insert(
+                        "externalId".into(),
+                        PluginValue::String(format!("station-track{copy}")),
+                    );
+                    track.insert("title".into(), PluginValue::String("Station Song".into()));
+                    track.insert(
+                        "artist".into(),
+                        PluginValue::String("Station Artist".into()),
+                    );
+                    PluginValue::Object(track)
+                })
+                .collect();
+            value.insert("tracks".into(), PluginValue::Array(tracks));
+            // A first batch offers a continuation; continuing it exhausts the station. That is
+            // enough to prove the core issues, binds and retires a cursor.
+            match incoming {
+                None => {
+                    value.insert(
+                        "cursor".into(),
+                        PluginValue::String("laboratory-page-2".into()),
+                    );
+                    value.insert("exhausted".into(), PluginValue::Bool(false));
+                }
+                Some(_) => {
+                    value.insert("exhausted".into(), PluginValue::Bool(true));
+                }
+            }
+        }
         if call.operation == "stream.fetch" {
             if let (Ok(bytes), PluginValue::Object(input)) =
                 (std::env::var("PYXIS_LAB_FETCH_BYTES"), &call.input)
@@ -409,6 +510,23 @@ fn main() -> anyhow::Result<()> {
     }
 
     Ok(())
+}
+
+/// Seed kinds this laboratory source declares. Absent leaves the manifest silent, which is how
+/// a plugin that predates the declaration behaves.
+fn declared_seed_kinds() -> Option<Vec<StationSeedKind>> {
+    let declared = std::env::var("PYXIS_LAB_STATION_SEEDS").ok()?;
+    Some(
+        declared
+            .split(',')
+            .filter_map(|kind| match kind.trim() {
+                "track" => Some(StationSeedKind::Track),
+                "album" => Some(StationSeedKind::Album),
+                "artist" => Some(StationSeedKind::Artist),
+                _ => None,
+            })
+            .collect(),
+    )
 }
 
 /// Distinct suffixes for repeated search results. One unsuffixed result keeps every existing

@@ -32,10 +32,12 @@ use crate::rpc::contract::{
     RpcOverrideDecision, RpcPairingCode, RpcPlacement, RpcPlaylist, RpcPlugin, RpcRealtimeRemoval,
     RpcRealtimeState, RpcRealtimeTopic, RpcRequest, RpcResponse, RpcSearchTrack, RpcSession,
     RpcSessionCommand, RpcSessionDirective, RpcSourceAlbum, RpcSourceAlbumSummary,
-    RpcSourceArtistSummary, RpcSourceFailure, RpcSourceSearchResult, RpcSystemStatus, RpcTransport,
-    SessionCommandOutcome, SessionCommandRequest, SessionCommandSendOutcome, SessionCreateOutcome,
-    SessionHandoffOutcome, SessionListOutcome, SessionStateOutcome, SourceAlbumGetOutcome,
-    SourceAlbumSearchOutcome, SourceSearchOutcome, SystemStatusOutcome, CONTRACT_ID,
+    RpcSourceArtistSummary, RpcSourceFailure, RpcSourceSearchResult, RpcStation, RpcStationBatch,
+    RpcStationListResult, RpcSystemStatus, RpcTransport, SessionCommandOutcome,
+    SessionCommandRequest, SessionCommandSendOutcome, SessionCreateOutcome, SessionHandoffOutcome,
+    SessionListOutcome, SessionStateOutcome, SourceAlbumGetOutcome, SourceAlbumSearchOutcome,
+    SourceSearchOutcome, SourceStationCreateOutcome, SourceStationListOutcome,
+    SourceStationNextOutcome, SystemStatusOutcome, CONTRACT_ID,
 };
 use crate::rpc::realtime::Delivery;
 use crate::sessions::{
@@ -43,6 +45,7 @@ use crate::sessions::{
     SessionCommand as DomainSessionCommand, SessionError, Transport,
 };
 use crate::source_catalog::SearchOutcome;
+use crate::stations::{StationCreateOutcome, StationListOutcome, StationNextOutcome};
 
 pub fn dispatch(state: &AppState, request: RpcRequest, auth: Option<AuthContext>) -> RpcResponse {
     match request {
@@ -178,6 +181,7 @@ pub fn dispatch(state: &AppState, request: RpcRequest, auth: Option<AuthContext>
                     status: plugin.status.as_str().into(),
                     configured,
                     reason: plugin.reason,
+                    station_seed_kinds: plugin.station_seed_kinds,
                 });
             }
             RpcResponse::PluginList(PluginListOutcome::Ready(plugins))
@@ -711,17 +715,7 @@ pub fn dispatch(state: &AppState, request: RpcRequest, auth: Option<AuthContext>
                                 source_plugin_id: artist.source_plugin_id,
                             })
                             .collect(),
-                        failures: failures
-                            .into_iter()
-                            .map(|failure| RpcSourceFailure {
-                                plugin_id: failure.plugin_id,
-                                failure: RpcFailure {
-                                    code: failure.code,
-                                    message: failure.message,
-                                    retryable: failure.retryable,
-                                },
-                            })
-                            .collect(),
+                        failures: failures.into_iter().map(rpc_source_failure).collect(),
                     },
                 )),
                 Err(error) => RpcResponse::SourceSearchRun(SourceSearchOutcome::Unavailable(
@@ -1266,6 +1260,119 @@ pub fn dispatch(state: &AppState, request: RpcRequest, auth: Option<AuthContext>
                 )),
             }
         }
+        RpcRequest::SourceStationList(_) => {
+            let Some(auth) = auth else {
+                return auth_required();
+            };
+            RpcResponse::SourceStationList(station_list_outcome(state.stations.list(&auth)))
+        }
+        RpcRequest::SourceStationSearch(request) => {
+            let Some(auth) = auth else {
+                return auth_required();
+            };
+            let limit = request.limit.unwrap_or(20).clamp(1, 50);
+            RpcResponse::SourceStationSearch(station_list_outcome(state.stations.search(
+                &auth,
+                &request.query,
+                limit,
+            )))
+        }
+        RpcRequest::SourceStationCreate(request) => {
+            let Some(auth) = auth else {
+                return auth_required();
+            };
+            match state.stations.create(
+                &auth,
+                &request.plugin_id,
+                request.seed.kind,
+                &request.seed.external_id,
+            ) {
+                Ok(StationCreateOutcome::Ready(station)) => RpcResponse::SourceStationCreate(
+                    SourceStationCreateOutcome::Ready(rpc_station(station)),
+                ),
+                Ok(StationCreateOutcome::UnsupportedSeed) => {
+                    RpcResponse::SourceStationCreate(SourceStationCreateOutcome::UnsupportedSeed)
+                }
+                Err(error) => RpcResponse::SourceStationCreate(
+                    SourceStationCreateOutcome::Unavailable(source_album_failure(error)),
+                ),
+            }
+        }
+        RpcRequest::SourceStationNext(request) => {
+            let Some(auth) = auth else {
+                return auth_required();
+            };
+            match state.stations.next(
+                &auth,
+                &request.plugin_id,
+                &request.station_id,
+                request.cursor.as_deref(),
+                request.limit,
+            ) {
+                Ok(StationNextOutcome::Ready(batch)) => RpcResponse::SourceStationNext(
+                    SourceStationNextOutcome::Ready(RpcStationBatch {
+                        tracks: batch.tracks.into_iter().map(rpc_search_track).collect(),
+                        cursor: batch.cursor,
+                        exhausted: batch.exhausted,
+                    }),
+                ),
+                Ok(StationNextOutcome::UnknownStation) => {
+                    RpcResponse::SourceStationNext(SourceStationNextOutcome::UnknownStation)
+                }
+                Err(error) => RpcResponse::SourceStationNext(
+                    SourceStationNextOutcome::Unavailable(source_album_failure(error)),
+                ),
+            }
+        }
+    }
+}
+
+fn rpc_source_failure(failure: crate::source_catalog::SearchFailure) -> RpcSourceFailure {
+    RpcSourceFailure {
+        plugin_id: failure.plugin_id,
+        failure: RpcFailure {
+            code: failure.code,
+            message: failure.message,
+            retryable: failure.retryable,
+        },
+    }
+}
+
+fn rpc_station(station: crate::stations::Station) -> RpcStation {
+    RpcStation {
+        external_id: station.external_id,
+        name: station.name,
+        artwork_url: station.artwork_url,
+        source_plugin_id: station.source_plugin_id,
+    }
+}
+
+fn rpc_search_track(track: crate::source_catalog::SearchTrack) -> RpcSearchTrack {
+    RpcSearchTrack {
+        id: track.id,
+        title: track.title,
+        artist: track.artist,
+        album: track.album,
+        album_external_id: track.album_external_id,
+        duration_ms: track.duration_ms,
+        track_number: track.track_number,
+        artwork_url: track.artwork_url,
+        source_plugin_id: track.source_plugin_id,
+    }
+}
+
+fn station_list_outcome(
+    result: Result<StationListOutcome, crate::source_catalog::SourceCatalogError>,
+) -> SourceStationListOutcome {
+    match result {
+        Ok(StationListOutcome::NoSources) => SourceStationListOutcome::NoSources,
+        Ok(StationListOutcome::Ready { stations, failures }) => {
+            SourceStationListOutcome::Ready(RpcStationListResult {
+                stations: stations.into_iter().map(rpc_station).collect(),
+                failures: failures.into_iter().map(rpc_source_failure).collect(),
+            })
+        }
+        Err(error) => SourceStationListOutcome::Unavailable(source_album_failure(error)),
     }
 }
 

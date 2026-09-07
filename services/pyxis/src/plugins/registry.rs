@@ -8,7 +8,7 @@ use std::collections::{BTreeSet, HashMap};
 use std::sync::{Arc, Condvar, Mutex};
 use std::time::{Duration, Instant};
 
-use super::protocol::{PluginManifest, PluginValue};
+use super::protocol::{PluginManifest, PluginValue, StationSeedKind};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PluginStatus {
@@ -42,6 +42,10 @@ pub struct PluginInfo {
     pub requires_config: bool,
     pub status: PluginStatus,
     pub reason: Option<String>,
+    /// Seed kinds this source declared for `station.create`. Empty for a non-source plugin,
+    /// for a source whose stations are all account-owned, and for a plugin that predates the
+    /// declaration. A client reads this instead of probing each source with a call.
+    pub station_seed_kinds: Vec<StationSeedKind>,
 }
 
 impl PluginInfo {
@@ -58,6 +62,11 @@ impl PluginInfo {
             requires_config: requires_config(&manifest.config_schema),
             status,
             reason: None,
+            station_seed_kinds: manifest
+                .source
+                .as_ref()
+                .map(|source| source.station_seed_kinds.clone())
+                .unwrap_or_default(),
         }
     }
 }
@@ -193,6 +202,7 @@ mod tests {
                     protocol_version: PLUGIN_PROTOCOL_VERSION,
                     capabilities: vec![PluginCapability::Source],
                     config_schema: PluginValue::Object(Default::default()),
+                    source: None,
                 },
                 status,
             ));

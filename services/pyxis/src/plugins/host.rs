@@ -57,6 +57,7 @@ impl PluginCandidate {
             requires_config: false,
             status,
             reason: None,
+            station_seed_kinds: Vec::new(),
         }
     }
 }
