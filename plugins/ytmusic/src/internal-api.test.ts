@@ -546,3 +546,23 @@ test("an unreadable layout fails loudly instead of looking like an exhausted sta
     "no playlist panel",
   )
 })
+
+test("a continuation page is read, not mistaken for an unknown layout", () => {
+  // A live check found this: the first page nests `playlistPanelRenderer`, but a continuation
+  // returns `playlistPanelContinuation` at the top level. Reading only the first shape made
+  // every continued batch fail with ytmusic.unknownLayout.
+  const queue = parseWatchQueue(
+    {
+      continuationContents: {
+        playlistPanelContinuation: {
+          contents: [queueItem("videoTwo", "Everything In Its Right Place")],
+          continuations: [{ nextRadioContinuationData: { continuation: "page-three" } }],
+        },
+      },
+    },
+    10,
+  )
+
+  expect(queue.tracks.map((track) => track.externalId)).toEqual(["videoTwo"])
+  expect(queue.continuation).toBe("page-three")
+})

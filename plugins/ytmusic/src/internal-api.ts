@@ -191,11 +191,20 @@ export function createYtMusicInternalApi(fetcher: typeof fetch = fetch): YtMusic
 /// returned an empty array for an unknown layout, which would make a broken parse look exactly
 /// like an exhausted station and hide the breakage behind "radio just stopped".
 export function parseWatchQueue(value: unknown, limit: number): YtMusicWatchQueue {
+  // A first page wraps its queue in `playlistPanelRenderer`. A continuation returns
+  // `playlistPanelContinuation` at the top level instead, with the same contents inside.
+  // Accepting only the first shape made every continued batch fail, which is how the live
+  // check found this.
   let panel: Record<string, unknown> | undefined
   walk(value, (record) => {
     if (panel !== undefined) return
-    const candidate = record.playlistPanelRenderer
-    if (isRecord(candidate)) panel = candidate
+    for (const key of ["playlistPanelRenderer", "playlistPanelContinuation"]) {
+      const candidate = record[key]
+      if (isRecord(candidate)) {
+        panel = candidate
+        return
+      }
+    }
   })
   if (panel === undefined) {
     throw new YtMusicProviderError(

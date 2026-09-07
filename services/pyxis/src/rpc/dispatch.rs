@@ -1294,7 +1294,7 @@ pub fn dispatch(state: &AppState, request: RpcRequest, auth: Option<AuthContext>
                     RpcResponse::SourceStationCreate(SourceStationCreateOutcome::UnsupportedSeed)
                 }
                 Err(error) => RpcResponse::SourceStationCreate(
-                    SourceStationCreateOutcome::Unavailable(source_album_failure(error)),
+                    SourceStationCreateOutcome::Unavailable(source_station_failure(error)),
                 ),
             }
         }
@@ -1320,7 +1320,7 @@ pub fn dispatch(state: &AppState, request: RpcRequest, auth: Option<AuthContext>
                     RpcResponse::SourceStationNext(SourceStationNextOutcome::UnknownStation)
                 }
                 Err(error) => RpcResponse::SourceStationNext(
-                    SourceStationNextOutcome::Unavailable(source_album_failure(error)),
+                    SourceStationNextOutcome::Unavailable(source_station_failure(error)),
                 ),
             }
         }
@@ -1372,7 +1372,7 @@ fn station_list_outcome(
                 failures: failures.into_iter().map(rpc_source_failure).collect(),
             })
         }
-        Err(error) => SourceStationListOutcome::Unavailable(source_album_failure(error)),
+        Err(error) => SourceStationListOutcome::Unavailable(source_station_failure(error)),
     }
 }
 
@@ -1808,49 +1808,66 @@ fn output_failure(error: OutputError) -> RpcFailure {
 }
 
 fn source_album_failure(error: crate::source_catalog::SourceCatalogError) -> RpcFailure {
+    source_failure("album", error)
+}
+
+fn source_station_failure(error: crate::source_catalog::SourceCatalogError) -> RpcFailure {
+    source_failure("station", error)
+}
+
+/// Builds a source failure code for one subject, so a station error never claims to be an
+/// album error. A client routes on the code, and a wrong subject sends it to the wrong
+/// recovery path.
+fn source_failure(subject: &str, error: crate::source_catalog::SourceCatalogError) -> RpcFailure {
     use crate::db::store::StoreError;
     use crate::plugin_credentials::CredentialError;
     use crate::plugins::host::PluginCallError;
     use crate::source_catalog::SourceCatalogError;
+
+    let unavailable = format!("source.{subject}Unavailable");
+    let invalid_output = format!("source.{subject}InvalidOutput");
+    let media_unavailable = format!("source.{subject}MediaUnavailable");
+    let credentials_invalid = format!("source.{subject}CredentialsInvalid");
+    let credentials_unavailable = format!("source.{subject}CredentialsUnavailable");
 
     match error {
         SourceCatalogError::Plugin(plugin_error) => match plugin_error {
             PluginCallError::Unavailable { ref reason, .. }
                 if reason == "plugin is not installed" =>
             {
-                RpcFailure::permanent("source.albumUnavailable", plugin_error.to_string())
+                RpcFailure::permanent(unavailable, plugin_error.to_string())
             }
             PluginCallError::Unavailable { .. }
             | PluginCallError::ProcessExited { .. }
             | PluginCallError::Timeout { .. }
             | PluginCallError::Plugin {
                 retryable: true, ..
-            } => RpcFailure::retryable("source.albumUnavailable", plugin_error.to_string()),
+            } => RpcFailure::retryable(unavailable, plugin_error.to_string()),
             PluginCallError::CapabilityUnavailable { .. }
             | PluginCallError::Protocol { .. }
             | PluginCallError::Plugin {
                 retryable: false, ..
-            } => RpcFailure::permanent("source.albumUnavailable", plugin_error.to_string()),
+            } => RpcFailure::permanent(unavailable, plugin_error.to_string()),
         },
         SourceCatalogError::InvalidOutput(message) => {
-            RpcFailure::permanent("source.albumInvalidOutput", message)
+            RpcFailure::permanent(invalid_output, message)
         }
         SourceCatalogError::Media(error) => {
-            RpcFailure::retryable("source.albumMediaUnavailable", error.to_string())
+            RpcFailure::retryable(media_unavailable, error.to_string())
         }
         SourceCatalogError::Credentials(error) => match error {
             CredentialError::Store(StoreError::Decode { .. } | StoreError::NotAnObject { .. }) => {
-                RpcFailure::permanent("source.albumCredentialsInvalid", error.to_string())
+                RpcFailure::permanent(credentials_invalid, error.to_string())
             }
             CredentialError::Store(StoreError::Engine(_)) | CredentialError::Io(_) => {
-                RpcFailure::retryable("source.albumCredentialsUnavailable", error.to_string())
+                RpcFailure::retryable(credentials_unavailable, error.to_string())
             }
             CredentialError::InvalidKey
             | CredentialError::Encode(_)
             | CredentialError::Encrypt
             | CredentialError::Decrypt
             | CredentialError::InvalidEncoding => {
-                RpcFailure::permanent("source.albumCredentialsInvalid", error.to_string())
+                RpcFailure::permanent(credentials_invalid, error.to_string())
             }
         },
     }
