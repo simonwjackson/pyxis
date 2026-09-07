@@ -1,5 +1,9 @@
 # M3 handoff correction and renewed Sonos investigation
 
+**Later browser-only follow-up:** `560b530` supersedes this deployment with a correction for
+clicks cancelled by realtime device-row reordering. See
+[the silent-click report](2026-09-06-m3-handoff-click-stability.md). Sonos remains paused.
+
 ## User acceptance and remaining reports
 
 Following the requested phone/desktop check, the user reported:

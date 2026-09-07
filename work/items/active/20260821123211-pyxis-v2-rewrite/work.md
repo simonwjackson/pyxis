@@ -84,6 +84,17 @@ used a new durable diagnostic outside /tmp; first full-library startup still too
 All diagnostics are stopped/unreachable. Details, exact scope and exceptions are in
 `docs/operations/2026-09-06-m3-handoff-sonos-follow-up.md`.
 
+The next browser-only retry still moved nothing and showed no error. The target's server
+revision stayed unchanged. A real Chromium reproduction then found that realtime replacement
+could reorder Other devices between mouse-down and mouse-up, silently cancelling the click.
+`560b530` orders a copied view array by immutable session ID. The native repro changes from a
+21-pixel jump/zero callbacks to a stationary button/one correct handoff. Independent review,
+242 client/71 plugin tests, and scoped build/Nix gates pass; the known default verify exception
+remains. The exact deployment passed guarded live playing handoffs both ways using 120-ms
+presses. Diagnostic profiles are now outside /tmp, stopped/unreachable; user queues remain
+four/empty. See `docs/operations/2026-09-06-m3-handoff-click-stability.md`. This reproduces a
+matching failure class, not a capture or acceptance of the user's own gesture.
+
 U26 documents the whole public API, with a worked example that `tools/verify-api-example`
 extracts from the document and runs, so a claim that stops matching the server fails there.
 
@@ -163,8 +174,8 @@ fully accounted: 370 albums are in Discovery, 16 remain unresolved after manual 
 and no import request failed. The durable audit is
 `docs/operations/2026-08-21-v1-album-import.md`.
 
-The current 2026-09-06 deployment is locked to `a54ec1a` through the `pyxis-1` Nix profile entry,
-at `/nix/store/mc44awmc9mb347srb04xaz42fhi1b835-pyxis-2.0.0`. The `pyxis.service`,
+The current 2026-09-06 deployment is locked to `560b530` through the `pyxis` Nix profile entry,
+at `/nix/store/nincvcxiafmgli0y5ihspapvgks6n97d-pyxis-2.0.0`. The `pyxis.service`,
 `pyxis-tsnet.service`, and `pyxis-ytdlp-update.timer` user units are active; local and tailnet
 health return 200.
 
@@ -245,15 +256,14 @@ suite/clippy, passed an exact-commit Nix build and flake check, and is deployed 
 repaired to `.flac`. The temporary credentials were removed afterward, so the scheduler is safely
 idle while the verified local upgrade remains available.
 
-Current user direction: **focus only on browser-to-browser handoff**, which still appears to
-have no effect after the restart correction. Sonos investigation is paused. A read-only snapshot
-shows one reachable browser paused with four tracks and the other stopped with an empty queue.
-The current button sends the clicking window's own queue; paused transport stays paused.
-Next establish the exact direction, visible queue movement, and any error from a controlled
-user retry. Do not assume either wrong direction or autoplay is the cause, and do not command
-user sessions automatically. The restart fix is not acceptance of the remaining symptom.
-Bidirectional transport and responsiveness remain accepted; handoff, autoplay, and reconnect
-acceptance remain open.
+Current user direction: **focus only on browser-to-browser handoff**. Sonos investigation is
+paused. The silent-click correction is deployed as `560b530`, bundle `index-EelMZonK.js`.
+Next ask the user to reload both windows and repeat playing handoff from the four-track source
+to the empty browser. Record queue movement separately from sound. The latest public reads
+show user revisions 71/18 and queues four/empty; no automated user-session command was sent.
+Do not assume the reproduced click loss was their exact cause, or treat automated muted
+handoff as physical acceptance. Bidirectional transport and responsiveness remain accepted;
+handoff, autoplay, and reconnect acceptance remain open.
 
 Album removal is no longer deferred. D17 records your decision: server removal wins,
 queued local placement intent is discarded, and the client reports the conflict.
