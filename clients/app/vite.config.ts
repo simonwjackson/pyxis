@@ -2,7 +2,7 @@ import { existsSync } from "node:fs"
 import { resolve } from "node:path"
 import react from "@vitejs/plugin-react"
 import type { Plugin } from "vite"
-import { defineConfig } from "vitest/config"
+import { configDefaults, defineConfig } from "vitest/config"
 
 const cwd = process.cwd()
 const root = existsSync(resolve(cwd, "src/main.tsx")) ? cwd : resolve(cwd, "clients/app")
@@ -79,5 +79,10 @@ export default defineConfig({
   },
   test: {
     environment: "jsdom",
+    // `.cache/proseql` is a symlink into the Nix store holding the dependency's own suite.
+    // Vitest followed it and loaded 172 files it cannot resolve, which inflated environment
+    // setup to minutes and starved the real tests until they hit the one-second waitFor
+    // timeout. A dependency's tests are never ours to run.
+    exclude: [...configDefaults.exclude, "**/.cache/**"],
   },
 })

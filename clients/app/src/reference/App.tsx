@@ -12,6 +12,7 @@ import type {
   RpcSessionCommand,
   RpcSourceAlbumSummary,
   RpcSourceArtistSummary,
+  RpcStation,
 } from "../../../../contracts/generated/pyxis"
 import { RpcTransport } from "../../../../contracts/generated/pyxis"
 import type { WorkerClient } from "../worker/client.ts"
@@ -31,6 +32,7 @@ import { type ConsoleCommand, type LocalState, ReferenceContext } from "./Refere
 import { ReferenceAudio } from "./ReferenceAudio.tsx"
 import { ReferenceRemote } from "./Remote.tsx"
 import { ReferenceSessions } from "./Sessions.tsx"
+import { ReferenceStations } from "./Stations.tsx"
 import { ReferenceUpdate } from "./Update.tsx"
 import { createUpdateWatcher, type UpdateWatcher } from "./updates.ts"
 
@@ -92,6 +94,9 @@ export function ReferenceApp({
   const [sourceArtists, setSourceArtists] = useState<readonly RpcSourceArtistSummary[]>([])
   const [searchHasNoSources, setSearchHasNoSources] = useState(false)
   const [sourceFailures, setSourceFailures] = useState<readonly string[]>([])
+  const [stations, setStations] = useState<readonly RpcStation[]>([])
+  const [stationsHaveNoSources, setStationsHaveNoSources] = useState(false)
+  const [stationFailures, setStationFailures] = useState<readonly string[]>([])
   const [session, setSession] = useState<RpcSession>()
   const [remoteSessions, setRemoteSessions] = useState<readonly RpcSession[]>([])
   const [local, setLocal] = useState<LocalState>()
@@ -893,6 +898,34 @@ export function ReferenceApp({
     [ensureSession, run, runHostCommand],
   )
 
+  const loadStations = useCallback(async () => {
+    await run(async () => {
+      const result = await client.listStations(currentToken())
+      setStations(result.stations)
+      setStationsHaveNoSources(result.noSources)
+      setStationFailures(result.failures)
+    })
+  }, [client, currentToken, run])
+
+  const startStation = useCallback(
+    async (pluginId: string, stationId: string) => {
+      await run(async () => {
+        const batch = await client.nextStationBatch(currentToken(), pluginId, stationId)
+        if (batch.tracks.length === 0) return
+        const target = await ensureSession()
+        // The batch is queued and nothing else. Play stays a separate, explicit command, so
+        // asking a source what comes next can never start audio on its own.
+        setSession(
+          await runHostCommand(target, {
+            _tag: "queue.add",
+            payload: { trackIds: batch.tracks.map((track) => track.id) },
+          }),
+        )
+      })
+    },
+    [client, currentToken, ensureSession, run, runHostCommand],
+  )
+
   const enqueueAlbum = useCallback(
     async (albumId: string) => {
       await run(async () => {
@@ -1234,6 +1267,9 @@ export function ReferenceApp({
       sourceArtists,
       searchHasNoSources,
       sourceFailures,
+      stations,
+      stationsHaveNoSources,
+      stationFailures,
       ...(session === undefined ? {} : { session }),
       remoteSessions,
       ...(local === undefined ? {} : { local }),
@@ -1244,6 +1280,8 @@ export function ReferenceApp({
       ...(runtimeError === undefined ? {} : { error: runtimeError }),
       setQuery,
       search,
+      loadStations,
+      startStation,
       enqueue,
       enqueueAlbum,
       enqueueAlbumOnSession,
@@ -1275,6 +1313,9 @@ export function ReferenceApp({
       sourceArtists,
       searchHasNoSources,
       sourceFailures,
+      stations,
+      stationsHaveNoSources,
+      stationFailures,
       session,
       remoteSessions,
       local,
@@ -1284,6 +1325,8 @@ export function ReferenceApp({
       audioUrl,
       runtimeError,
       search,
+      loadStations,
+      startStation,
       enqueue,
       enqueueAlbum,
       enqueueAlbumOnSession,
@@ -1315,6 +1358,7 @@ export function ReferenceApp({
           <ReferencePlugins />
           <ReferenceOutputs />
           <ReferenceLibrary />
+          <ReferenceStations />
           <ReferenceSessions />
           <ReferenceOffline />
           <ReferenceRemote />

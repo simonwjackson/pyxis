@@ -9,6 +9,7 @@ import type {
   RpcSession,
   RpcSourceAlbumSummary,
   RpcSourceArtistSummary,
+  RpcStation,
 } from "../../../../contracts/generated/pyxis"
 import type { OfflineOverview, WorkerOpenReport, WorkerSyncNotice } from "../worker/contract.ts"
 import type { SyncReport } from "../worker/sync.ts"
@@ -38,6 +39,11 @@ export interface ReferenceContextValue {
   readonly sourceArtists: readonly RpcSourceArtistSummary[]
   readonly searchHasNoSources: boolean
   readonly sourceFailures: readonly string[]
+  /// Stations from every source in one list. Each row carries its source label; nothing in
+  /// this contract says which provider is behind a station.
+  readonly stations: readonly RpcStation[]
+  readonly stationsHaveNoSources: boolean
+  readonly stationFailures: readonly string[]
   readonly session?: RpcSession
   /// Live browser hosts and known output sessions on this account. Output rows can remain
   /// visible while unavailable; consumers must check reachable before enabling commands.
@@ -50,6 +56,10 @@ export interface ReferenceContextValue {
   readonly error?: string
   setQuery(value: string): void
   search(): Promise<void>
+  loadStations(): Promise<void>
+  /// Queues one bounded batch from a station. It never starts playback: asking a source what
+  /// comes next and deciding to play are separate actions.
+  startStation(pluginId: string, stationId: string): Promise<void>
   enqueue(trackId: string): Promise<void>
   /// Queue every track of a library album, in album order.
   enqueueAlbum(albumId: string): Promise<void>

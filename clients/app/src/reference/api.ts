@@ -15,6 +15,7 @@ import type {
   RpcSessionDirective,
   RpcSourceAlbumSummary,
   RpcSourceArtistSummary,
+  RpcStation,
 } from "../../../../contracts/generated/pyxis"
 import { assertRpcRequest, assertRpcResponse } from "../rpc/validation"
 
@@ -42,9 +43,33 @@ export interface SearchResult {
   readonly failures: readonly string[]
 }
 
+/// Stations gathered from every source, with a source label already attached to each row.
+///
+/// `noSources` is not an error. A core with no source plugin installed still answers, and the
+/// client says so rather than showing an empty list that looks like a fault.
+export interface StationsResult {
+  readonly stations: readonly RpcStation[]
+  readonly noSources: boolean
+  readonly failures: readonly string[]
+}
+
+/// One bounded answer to "what comes next" on a station.
+export interface StationBatchResult {
+  readonly tracks: readonly RpcSearchTrack[]
+  readonly cursor?: string
+  readonly exhausted: boolean
+}
+
 export interface ReferenceClient {
   claimDevice(name: string): Promise<RpcAuthGrant>
   listPlugins(token: string): Promise<readonly RpcPlugin[]>
+  listStations(token: string): Promise<StationsResult>
+  nextStationBatch(
+    token: string,
+    pluginId: string,
+    stationId: string,
+    limit?: number,
+  ): Promise<StationBatchResult>
   listAlbums(token: string): Promise<readonly RpcLibraryAlbum[]>
   listOutputTargets(token: string, pluginId: string): Promise<RpcOutputTopology>
   createOutputSession(
@@ -243,6 +268,41 @@ export function createReferenceClient(config: ReferenceClientConfig = {}): Refer
         failures: response.outcome.value.failures.map(
           (failure) => `${failure.pluginId}: ${failure.failure.message}`,
         ),
+      }
+    },
+
+    async listStations(token) {
+      const response = await rpc({ _tag: "source.station.list", payload: {} }, token)
+      if (response._tag !== "source.station.list") throw new Error("invalid station response")
+      if (response.outcome.status === "noSources") {
+        return { stations: [], noSources: true, failures: [] }
+      }
+      if (response.outcome.status !== "ready") throw new Error("station list is unavailable")
+      return {
+        stations: response.outcome.value.stations,
+        noSources: false,
+        failures: response.outcome.value.failures.map(
+          (failure) => `${failure.pluginId}: ${failure.failure.message}`,
+        ),
+      }
+    },
+
+    async nextStationBatch(token, pluginId, stationId, limit = 10) {
+      const response = await rpc(
+        { _tag: "source.station.next", payload: { pluginId, stationId, limit } },
+        token,
+      )
+      if (response._tag !== "source.station.next") throw new Error("invalid station response")
+      if (response.outcome.status === "unknownStation") {
+        throw new Error("that station is no longer available")
+      }
+      if (response.outcome.status !== "ready") throw new Error("station batch is unavailable")
+      return {
+        tracks: response.outcome.value.tracks,
+        ...(response.outcome.value.cursor === undefined
+          ? {}
+          : { cursor: response.outcome.value.cursor }),
+        exhausted: response.outcome.value.exhausted,
       }
     },
 

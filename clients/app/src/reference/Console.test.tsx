@@ -23,6 +23,7 @@ import { ReferencePlugins } from "./Plugins.tsx"
 import { ReferenceAudio } from "./ReferenceAudio.tsx"
 import { ReferenceRemote } from "./Remote.tsx"
 import { ReferenceSessions } from "./Sessions.tsx"
+import { ReferenceStations } from "./Stations.tsx"
 import { ReferenceUpdate } from "./Update.tsx"
 
 function album(overrides: Partial<RpcLibraryAlbum> = {}): RpcLibraryAlbum {
@@ -88,6 +89,8 @@ function client(plugins: Awaited<ReturnType<ReferenceClient["listPlugins"]>>): R
       bearerToken: "token",
     }),
     listPlugins: async () => plugins,
+    listStations: async () => ({ stations: [], noSources: false, failures: [] }),
+    nextStationBatch: async () => ({ tracks: [], exhausted: true }),
     listAlbums: async () => [],
     listOutputTargets: async () => ({
       pluginId: "sonos",
@@ -530,7 +533,7 @@ describe("console mode", () => {
     }
 
     render(
-      <ReferenceApp client={configured}>
+      <ReferenceApp client={configured} worker={createDirectWorkerClient()}>
         <ReferenceRemote />
       </ReferenceApp>,
     )
@@ -547,7 +550,7 @@ describe("console mode", () => {
     }
 
     render(
-      <ReferenceApp client={configured}>
+      <ReferenceApp client={configured} worker={createDirectWorkerClient()}>
         <ReferenceRemote />
       </ReferenceApp>,
     )
@@ -2450,7 +2453,7 @@ describe("console mode", () => {
 
 describe("reference client", () => {
   test("explains the valid zero-plugin product state", async () => {
-    render(<ReferenceApp client={client([])} />)
+    render(<ReferenceApp client={client([])} worker={createDirectWorkerClient()} />)
 
     await waitFor(() => expect(screen.getByText("Status: ready")).toBeTruthy())
     expect(
@@ -2463,6 +2466,7 @@ describe("reference client", () => {
   test("lists a live source plugin without adding visual interpretation", async () => {
     render(
       <ReferenceApp
+        worker={createDirectWorkerClient()}
         client={client([
           {
             id: "ytmusic",
@@ -3064,5 +3068,145 @@ describe("reference client", () => {
     fireEvent.click(screen.getByRole("button", { name: "Play" }))
 
     await waitFor(() => expect(loadedTrack).toBe("track-1"))
+  })
+})
+
+describe("one station surface for every source", () => {
+  test("stations from two sources appear in one labelled list", async () => {
+    const stationClient: ReferenceClient = {
+      ...client([]),
+      listStations: async () => ({
+        stations: [
+          { externalId: "station-1", name: "Bowie Radio", sourcePluginId: "pandora" },
+          { externalId: "RDAMVMvideoOne", name: "YouTube Music radio", sourcePluginId: "ytmusic" },
+        ],
+        noSources: false,
+        failures: [],
+      }),
+    }
+
+    render(
+      <ReferenceApp client={stationClient} worker={createDirectWorkerClient()}>
+        <ReferenceStations />
+      </ReferenceApp>,
+    )
+    // Boot has to produce the device grant before any station call can carry a token.
+    await waitFor(() =>
+      expect(
+        (screen.getByRole("button", { name: "Load stations" }) as HTMLButtonElement).disabled,
+      ).toBe(false),
+    )
+
+    fireEvent.click(screen.getByRole("button", { name: "Load stations" }))
+
+    await waitFor(() => expect(screen.getByText(/Bowie Radio \(pandora\)/)).toBeTruthy())
+    expect(screen.getByText(/YouTube Music radio \(ytmusic\)/)).toBeTruthy()
+  })
+
+  test("a partial source failure still shows the working source's stations", async () => {
+    const stationClient: ReferenceClient = {
+      ...client([]),
+      listStations: async () => ({
+        stations: [{ externalId: "station-1", name: "Bowie Radio", sourcePluginId: "pandora" }],
+        noSources: false,
+        failures: ["ytmusic: plugin.station"],
+      }),
+    }
+
+    render(
+      <ReferenceApp client={stationClient} worker={createDirectWorkerClient()}>
+        <ReferenceStations />
+      </ReferenceApp>,
+    )
+    // Boot has to produce the device grant before any station call can carry a token.
+    await waitFor(() =>
+      expect(
+        (screen.getByRole("button", { name: "Load stations" }) as HTMLButtonElement).disabled,
+      ).toBe(false),
+    )
+
+    fireEvent.click(screen.getByRole("button", { name: "Load stations" }))
+
+    await waitFor(() => expect(screen.getByText(/Bowie Radio \(pandora\)/)).toBeTruthy())
+    expect(screen.getByText("ytmusic: plugin.station")).toBeTruthy()
+  })
+
+  test("with no source installed the surface says so instead of showing an error", async () => {
+    const stationClient: ReferenceClient = {
+      ...client([]),
+      listStations: async () => ({ stations: [], noSources: true, failures: [] }),
+    }
+
+    render(<ReferenceApp client={stationClient} worker={createDirectWorkerClient()} />)
+    // Boot has to produce the device grant before any station call can carry a token.
+    await waitFor(() =>
+      expect(
+        (screen.getByRole("button", { name: "Load stations" }) as HTMLButtonElement).disabled,
+      ).toBe(false),
+    )
+
+    fireEvent.click(screen.getByRole("button", { name: "Load stations" }))
+
+    await waitFor(() => expect(screen.getByText("No source plugins are installed.")).toBeTruthy())
+  })
+
+  test("queueing a batch puts the whole batch in the session queue, and plays nothing", async () => {
+    let played = false
+    const database = await openWorkerDatabase({ engine: createMemoryEngine() })
+    const store = persistent(createDirectWorkerClient(async () => database))
+    const stationClient: ReferenceClient = {
+      ...client([]),
+      listStations: async () => ({
+        stations: [{ externalId: "station-1", name: "Bowie Radio", sourcePluginId: "pandora" }],
+        noSources: false,
+        failures: [],
+      }),
+      nextStationBatch: async () => ({
+        tracks: [
+          { id: "station-track-1", title: "Heroes", artist: "Bowie", sourcePluginId: "pandora" },
+          { id: "station-track-2", title: "Fame", artist: "Bowie", sourcePluginId: "pandora" },
+        ],
+        exhausted: false,
+      }),
+      createSession: async () => session({ id: "mine", hostDeviceId: "device-1" }),
+      loadStream: async () => {
+        played = true
+        return "blob:stream"
+      },
+    }
+
+    render(
+      <ReferenceApp client={stationClient} worker={store}>
+        <ReferenceStations />
+      </ReferenceApp>,
+    )
+    await waitFor(() =>
+      expect(
+        (screen.getByRole("button", { name: "Load stations" }) as HTMLButtonElement).disabled,
+      ).toBe(false),
+    )
+
+    fireEvent.click(screen.getByRole("button", { name: "Load stations" }))
+    await waitFor(() => expect(screen.getByText(/Bowie Radio \(pandora\)/)).toBeTruthy())
+    fireEvent.click(screen.getByRole("button", { name: "Queue next" }))
+
+    await waitFor(async () =>
+      expect((await database.session("mine"))?.queue).toEqual([
+        "station-track-1",
+        "station-track-2",
+      ]),
+    )
+    // One command carries the whole batch, and nothing loaded audio. Asking a source what
+    // comes next must never start playback.
+    expect(await database.outbox()).toMatchObject([
+      {
+        kind: "session.command",
+        command: {
+          _tag: "queue.add",
+          payload: { trackIds: ["station-track-1", "station-track-2"] },
+        },
+      },
+    ])
+    expect(played).toBe(false)
   })
 })

@@ -108,21 +108,27 @@ everything provider-shaped lives at the edge behind a plugin protocol.
   disconnect and account switch each need defined cancellation. Prefetch depth is bounded by a
   provider fact recorded in U30: a Pandora batch is perishable and process-bound. The session
   acknowledgement fix in `9c0efb7` was the stated precondition and has landed.
+- **A dependency's test suite was being run as ours.** `clients/app/.cache/proseql` is a symlink
+  into the Nix store, and the vitest config had no `exclude`, so 172 unresolvable ProseQL test
+  files were collected on every run. Environment setup took 166 seconds. U33 excludes `.cache`,
+  which brings it to 13 seconds. Check whether the same hole exists in other packages.
 - **Typecheck every `.tsx` file, not only `.ts`.** The root `tsconfig.json` includes
   `clients/**/*.ts`, which excludes the entire React reference client and its tests. Found while
   building U30: three `RpcPlugin` fixtures in `clients/app/src/reference/Console.test.tsx` were
   missing a required contract field and `just typecheck` stayed green. Widening `include` is not
   a one-line change, because it turns the gate on for code that has never faced it, so it does
   not belong inside a feature unit.
-- **Four reference-client tests fail on `main` and predate this work.** At `c45f0de`, `bun run
-  --cwd clients/app test` reports 4 failed / 263 passed of 267, all in
-  `clients/app/src/reference/Console.test.tsx`, all timing out at about 1,006 ms: "drives a
-  session hosted by another device", "explains the valid zero-plugin product state", "lists a
-  live source plugin without adding visual interpretation", and "searches, queues, and loads
-  audio through the reference binding". `work.md` records M8 landing with 267 passing, so this
-  regressed after that measurement. `a63036e` is the likely origin because it is the only recent
-  commit that touched both `Console.test.tsx` and the reference client, but that is inference,
-  not a bisect. The M8 milestone is deployed with these tests red.
+- **One reference-client test still fails, down from four.** At `c45f0de` the client suite
+  reported 4 failed / 263 passed, all in `clients/app/src/reference/Console.test.tsx` and all
+  timing out near 1,006 ms. U33 found the cause for three of them: those tests rendered
+  `ReferenceApp` with no `worker` prop, so the app called `spawnWorkerClient()`, which cannot
+  start under vitest, and boot never completed. Passing a worker fixes them. The suite is now
+  270 passed / 1 failed.
+  The survivor is **"searches, queues, and loads audio through the reference binding"**. It
+  reaches the queue path through `client.command` rather than the worker outbox, and that path
+  does not complete under test. U33's own queue coverage goes through the worker outbox instead,
+  which is how every other passing queue test in the file works. Fixing the survivor is a
+  reference-client concern, not a station concern, and is left for its owner.
 - **The browse space: charts, moods, genres and provider playlists.** Deliberately unnamed under
   D21 until it is built, so the guess does not reach the generated contract. It reuses the station
   contract's opaque-cursor and declared-support rules.
