@@ -5,6 +5,9 @@ import { useReference } from "./Reference.context.tsx"
 /// those can actually answer a command.
 export function ReferenceRemote() {
   const { remoteSessions, session, driveRemote, handOffTo } = useReference()
+  // Realtime replacement can change array order even when the visible state is unchanged.
+  // Keep existing controls stationary during a pointer press; names and revisions can change.
+  const orderedSessions = [...remoteSessions].sort((left, right) => left.id.localeCompare(right.id))
 
   return (
     <section>
@@ -13,8 +16,8 @@ export function ReferenceRemote() {
         <p>No other device is connected. Open this page on a second device to control it.</p>
       ) : (
         <ul>
-          {remoteSessions.map((remote) => (
-            <li key={remote.id}>
+          {orderedSessions.map((remote) => (
+            <li key={remote.id} data-session-id={remote.id}>
               {remote.name}
               {remote.output === undefined
                 ? ""

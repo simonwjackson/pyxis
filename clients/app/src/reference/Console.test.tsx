@@ -1,4 +1,4 @@
-import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react"
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import { afterEach, describe, expect, test, vi } from "vitest"
 import {
   type RealtimeEvent,
@@ -1270,6 +1270,75 @@ describe("console mode", () => {
       expect((await database.session("mine"))?.transport).toBe(RpcTransport.Paused),
     )
     expect(play).not.toHaveBeenCalled()
+  })
+
+  test("keeps handoff controls in stable order across events and resync", async () => {
+    let handlers: RealtimeHandlers | undefined
+    let reverseSnapshot = false
+    const database = await openWorkerDatabase({ engine: createMemoryEngine() })
+    const own = session({ id: "mine", hostDeviceId: "device-1", queue: ["track-1"] })
+    const other = session({ id: "a-other", name: "Updating browser", hostDeviceId: "device-2" })
+    const target = session({
+      id: "z-target",
+      name: "Destination browser",
+      hostDeviceId: "device-3",
+    })
+    for (const row of [own, other, target]) await database.putSession(row)
+    const base = persistent(createDirectWorkerClient(async () => database))
+    const handoff = vi.fn(async () => target)
+    render(
+      <ReferenceApp
+        client={{
+          ...client([]),
+          handoff,
+          connectRealtime: (_token, next) => {
+            handlers = next
+            return () => {}
+          },
+        }}
+        worker={{
+          ...base,
+          sessions: async () => {
+            const rows = await base.sessions()
+            return reverseSnapshot ? [...rows].reverse() : rows
+          },
+        }}
+      >
+        <ReferenceRemote />
+      </ReferenceApp>,
+    )
+    const section = screen.getByRole("heading", { name: "Other devices" }).closest("section")
+    if (section === null) throw new Error("missing other devices section")
+    const rows = () => Array.from(section.querySelectorAll<HTMLLIElement>("li[data-session-id]"))
+    await waitFor(() => expect(rows()).toHaveLength(2))
+    const original = rows()
+    const targetRow = original.find((row) => row.dataset.sessionId === "z-target")
+    if (targetRow === undefined) throw new Error("missing destination row")
+    const button = within(targetRow).getByRole("button", { name: "hand off to this device" })
+    button.focus()
+    await waitFor(() => expect(handlers).toBeDefined())
+    const realtime = handlers
+    if (realtime === undefined) throw new Error("missing realtime handlers")
+    for (const revision of [1, 2]) {
+      await act(async () => {
+        await realtime.onEvent({
+          topic: RpcRealtimeTopic.Sessions,
+          resumeToken: `stable-${revision}`,
+          state: { _tag: "session.state", payload: { ...other, revision } },
+        })
+      })
+      expect(rows()).toEqual(original)
+      expect(document.activeElement).toBe(button)
+    }
+    reverseSnapshot = true
+    await act(async () => {
+      await realtime.onResync()
+    })
+    expect(rows()).toEqual(original)
+    expect(document.activeElement).toBe(button)
+    fireEvent.click(button)
+    await waitFor(() => expect(handoff).toHaveBeenCalledWith("token", "mine", "z-target"))
+    expect(handoff).toHaveBeenCalledTimes(1)
   })
 
   test.each(["before", "after"] as const)(
