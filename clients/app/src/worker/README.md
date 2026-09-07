@@ -50,6 +50,12 @@ queued. Network requests run outside this lock. `deferred` counts all writes rem
 the final locked outbox read, including writes added during sync and excluded domains.
 It does not promise that no new write can arrive after that read.
 
+Full album pulls batch storage writes under the existing refreshed, account-fenced Web Lock.
+Albums commit first, then offline pins and media relationships. Both batches finish before
+sync acknowledges them. Separate files are not crash-atomic together. A retry repairs offline
+relationships from retained album state, even when album revisions already match. Queued
+placements and newer local revisions remain protected. This does not change the worker schema.
+
 - `queuePlacement(album, placement)`
 - `queueListen(event)`
 - `previewSessionCommand(sessionId, command, commandId)`

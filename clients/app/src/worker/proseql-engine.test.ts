@@ -45,13 +45,30 @@ function storageBackedBy(cells: Map<string, string>, writes?: string[]): Storage
   } as unknown as Storage
 }
 
-async function open(cells: Map<string, string>, writes?: string[]) {
+interface PersistenceBehavior {
+  readonly beforeWrite?: (path: string) => Promise<void>
+  readonly afterWrite?: (path: string) => void
+}
+
+async function open(
+  cells: Map<string, string>,
+  writes?: string[],
+  behavior: PersistenceBehavior = {},
+) {
+  const host = createWebStorageEngineStorageHost({
+    storage: storageBackedBy(cells, writes),
+    keyPrefix: "pyxis-test:",
+  })
   const handle = await createProseqlEngine({
     wasm,
-    storageHost: createWebStorageEngineStorageHost({
-      storage: storageBackedBy(cells, writes),
-      keyPrefix: "pyxis-test:",
-    }),
+    storageHost: {
+      ...host,
+      async write(path: string, data: string) {
+        await behavior.beforeWrite?.(path)
+        await host.write(path, data)
+        behavior.afterWrite?.(path)
+      },
+    },
   })
   return openWorkerDatabase({ engine: handle.engine, clear: handle.clear })
 }
@@ -69,7 +86,263 @@ function album(id: string, revision = 1, title = "Heroes"): WorkerAlbum {
   }
 }
 
+function signal() {
+  let resolve = () => {}
+  const promise = new Promise<void>((done) => {
+    resolve = done
+  })
+  return { promise, resolve }
+}
+
+const sharedTrack = { id: "track-1", title: "Track", artist: "Artist", revision: 1 }
+
+function sharedMedium(albumIds: readonly string[]) {
+  return {
+    id: sharedTrack.id,
+    trackId: sharedTrack.id,
+    albumIds,
+    candidateId: "candidate-1",
+    candidateUrl: "https://pyxis.test/candidate-1",
+    bytes: 100,
+    contentType: "audio/flac",
+    cachedAt: 1,
+  }
+}
+
 describe("the real ProseQL engine", () => {
+  test("a fresh library snapshot writes albums once and survives reopen", async () => {
+    const cells = new Map<string, string>()
+    const first = await open(cells)
+    const identity = await first.settings()
+    await first.close()
+    const writes: string[] = []
+    const database = await open(cells, writes)
+    const albums = Array.from({ length: 370 }, (_, index) => album(`album-${index}`))
+
+    expect(await database.applyRemoteAlbums(albums)).toBe(370)
+    expect(writes.filter((key) => key.endsWith("albums.json"))).toHaveLength(1)
+    await database.close()
+    const reopened = await open(cells, writes)
+    expect(new Map((await reopened.albums()).map((row) => [row.id, row]))).toEqual(
+      new Map(albums.map((row) => [row.id, row])),
+    )
+    expect(await reopened.settings()).toEqual(identity)
+    writes.length = 0
+    expect(await reopened.applyRemoteAlbums(albums)).toBe(0)
+    expect(writes).toEqual([])
+    const refreshed = albums.map((row) => ({ ...row, revision: 2, title: "Refreshed" }))
+    expect(await reopened.applyRemoteAlbums(refreshed)).toBe(370)
+    expect(writes.filter((key) => key.endsWith("albums.json"))).toHaveLength(1)
+    await reopened.close()
+    const final = await open(cells)
+    expect(new Map((await final.albums()).map((row) => [row.id, row]))).toEqual(
+      new Map(refreshed.map((row) => [row.id, row])),
+    )
+    await final.close()
+  }, 30_000)
+
+  test("a snapshot does not acknowledge before its durable write completes", async () => {
+    const cells = new Map<string, string>()
+    const writing = signal()
+    const release = signal()
+    const database = await open(cells, [], {
+      beforeWrite: async (path) => {
+        if (!path.endsWith("albums.json")) return
+        writing.resolve()
+        await release.promise
+      },
+    })
+    let acknowledged = false
+    const pending = database.applyRemoteAlbums([album("album-1"), album("album-2")]).then(() => {
+      acknowledged = true
+    })
+    try {
+      await writing.promise
+      expect(acknowledged).toBe(false)
+      expect([...cells.keys()].some((key) => key.endsWith("albums.json"))).toBe(false)
+    } finally {
+      release.resolve()
+    }
+    await pending
+    await database.close()
+    const reopened = await open(cells)
+    expect(await reopened.albums()).toHaveLength(2)
+    await reopened.close()
+  })
+
+  test("a snapshot waits for offline relationship persistence too", async () => {
+    const cells = new Map<string, string>()
+    const initial = await open(cells)
+    const retained = { ...album("album-1"), tracks: [sharedTrack] }
+    await initial.putAlbum(retained)
+    await initial.putOfflineMedium(sharedMedium([retained.id]))
+    await initial.close()
+    const writing = signal()
+    const release = signal()
+    const database = await open(cells, [], {
+      beforeWrite: async (path) => {
+        if (!path.endsWith("offline-media.json")) return
+        writing.resolve()
+        await release.promise
+      },
+    })
+    let acknowledged = false
+    const pending = database
+      .applyRemoteAlbums([{ ...retained, revision: 2, tracks: [] }])
+      .then(() => {
+        acknowledged = true
+      })
+    try {
+      await writing.promise
+      expect(acknowledged).toBe(false)
+    } finally {
+      release.resolve()
+    }
+    await pending
+    await database.close()
+    const reopened = await open(cells)
+    expect(await reopened.offlineMedium(sharedTrack.id)).toEqual(sharedMedium([]))
+    await reopened.close()
+  })
+
+  test("a snapshot preserves queued intent, newer revisions and duplicate order", async () => {
+    const cells = new Map<string, string>()
+    const initial = await open(cells)
+    const queued = { ...album("queued"), tracks: [sharedTrack] }
+    const absentQueued = album("absent-queued")
+    const newer = { ...album("newer", 5), tracks: [sharedTrack] }
+    const unchanged = album("unchanged", 2)
+    const updated = { ...album("updated"), artworkUrl: "https://pyxis.test/old.jpg" }
+    for (const row of [queued, absentQueued, newer, unchanged, updated]) await initial.putAlbum(row)
+    await initial.queuePlacement(queued, RpcPlacement.Collection)
+    await initial.queuePlacement(absentQueued, RpcPlacement.Archive)
+    await initial.putOfflineMedium(sharedMedium([queued.id, newer.id]))
+    await initial.close()
+    const writes: string[] = []
+    const database = await open(cells, writes)
+    const pending = await database.outbox()
+    expect(pending).toHaveLength(2)
+    const snapshot = [
+      { ...queued, revision: 10, placement: RpcPlacement.Dismissed, tracks: [] },
+      album(newer.id, 2, "Stale"),
+      album(unchanged.id, 2, "Same revision cannot replace it"),
+      album(updated.id, 2, "Updated"),
+      album("duplicate", 3, "First"),
+      album("duplicate", 2, "Older"),
+      album("duplicate", 3, "Last"),
+    ]
+    expect(await database.applyRemoteAlbums(snapshot)).toBe(4)
+    expect(writes.filter((key) => key.endsWith("albums.json"))).toHaveLength(1)
+    await database.close()
+    const final = await open(cells)
+    expect(await final.album(queued.id)).toEqual({ ...queued, placement: RpcPlacement.Collection })
+    expect(await final.album(absentQueued.id)).toEqual({
+      ...absentQueued,
+      placement: RpcPlacement.Archive,
+    })
+    expect(await final.album(newer.id)).toEqual(newer)
+    expect(await final.album(unchanged.id)).toEqual(unchanged)
+    expect(await final.album(updated.id)).toEqual(album(updated.id, 2, "Updated"))
+    expect(await final.album("duplicate")).toEqual(album("duplicate", 3, "Last"))
+    expect(await final.offlineMedium(sharedTrack.id)).toEqual(sharedMedium([queued.id, newer.id]))
+    expect(await final.outbox()).toEqual(pending)
+    await final.close()
+  })
+
+  test("a rejected album snapshot leaves pins and media unchanged", async () => {
+    const cells = new Map<string, string>()
+    const initial = await open(cells)
+    const removed = { ...album("removed"), tracks: [sharedTrack] }
+    const pin = { id: removed.id, albumId: removed.id, pinnedAt: 1, generation: 4 }
+    const media = sharedMedium([removed.id])
+    await initial.putAlbum(removed)
+    await initial.putOfflinePin(pin)
+    await initial.putOfflineMedium(media)
+    await initial.queueListen({
+      id: "01M00000000000000000000000",
+      trackId: sharedTrack.id,
+      deviceId: "device-1",
+      completed: true,
+      context: "library",
+      listenedAt: "2026-09-07T00:00:00Z",
+    })
+    await initial.close()
+    const interrupted = await open(cells, [], {
+      beforeWrite: async (path) => {
+        if (path.endsWith("albums.json")) throw new Error("album write rejected")
+      },
+    })
+    const pending = await interrupted.outbox()
+    expect(pending).toHaveLength(1)
+    await expect(interrupted.applyRemoteAlbums([])).rejects.toThrow("album write rejected")
+    await expect(interrupted.putAlbum(album("later"))).rejects.toThrow("quarantined")
+    await interrupted.close().catch(() => undefined)
+    const final = await open(cells)
+    expect(await final.album(removed.id)).toEqual(removed)
+    expect(await final.offlinePin(removed.id)).toEqual(pin)
+    expect(await final.offlineMedium(sharedTrack.id)).toEqual(media)
+    expect(await final.outbox()).toEqual(pending)
+    await final.close()
+  })
+
+  test.each([
+    { name: "media", failedFiles: ["offline-media.json"] },
+    { name: "pins", failedFiles: ["offline-pins.json"] },
+    { name: "media and pins", failedFiles: ["offline-media.json", "offline-pins.json"] },
+  ])("snapshot retry repairs $name after albums already committed", async ({ failedFiles }) => {
+    const cells = new Map<string, string>()
+    const initial = await open(cells)
+    const changed = { ...album("changed"), tracks: [sharedTrack] }
+    const removed = { ...album("removed"), tracks: [sharedTrack] }
+    const shared = { ...album("shared"), tracks: [sharedTrack] }
+    await initial.putAlbum(changed)
+    await initial.putAlbum(removed)
+    await initial.putAlbum(shared)
+    await initial.putOfflinePin({
+      id: removed.id,
+      albumId: removed.id,
+      pinnedAt: 1,
+      generation: 4,
+      lastError: "old failure",
+    })
+    await initial.putOfflineMedium(sharedMedium([changed.id, removed.id, shared.id]))
+    await initial.close()
+
+    const albumsCommitted = signal()
+    const interrupted = await open(cells, [], {
+      beforeWrite: async (path) => {
+        if (!failedFiles.some((file) => path.endsWith(file))) return
+        await albumsCommitted.promise
+        throw new Error("interrupted relationship write")
+      },
+      afterWrite: (path) => {
+        if (path.endsWith("albums.json")) albumsCommitted.resolve()
+      },
+    })
+    const snapshot = [{ ...changed, revision: 2, tracks: [] }, shared]
+    await expect(interrupted.applyRemoteAlbums(snapshot)).rejects.toThrow(
+      "interrupted relationship write",
+    )
+    await interrupted.close().catch(() => undefined)
+    const retry = await open(cells)
+    expect(await retry.album(changed.id)).toEqual(snapshot[0])
+    expect(await retry.album(removed.id)).toBeUndefined()
+    expect(await retry.applyRemoteAlbums(snapshot)).toBe(0)
+    await retry.close()
+    const final = await open(cells)
+    expect(await final.offlineMedium(sharedTrack.id)).toEqual(sharedMedium([shared.id]))
+    expect(await final.offlinePin(removed.id)).toEqual({
+      id: removed.id,
+      albumId: removed.id,
+      pinnedAt: 1,
+      generation: 5,
+      pinned: false,
+    })
+    await final.applyRemoteAlbums(snapshot)
+    expect((await final.offlinePin(removed.id))?.generation).toBe(5)
+    await final.close()
+  })
+
   test("opens cleanly rather than falling back to a store that keeps nothing", async () => {
     const database = await open(new Map())
 

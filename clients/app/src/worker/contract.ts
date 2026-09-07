@@ -301,7 +301,7 @@ export interface WorkerCollection<T extends { readonly id: string }> {
   delete(id: string): Promise<boolean>
 }
 
-export interface WorkerEngine {
+export interface WorkerCollections {
   readonly meta: WorkerCollection<WorkerSchemaRow>
   readonly settings: WorkerCollection<WorkerSettings>
   readonly albums: WorkerCollection<WorkerAlbum>
@@ -310,6 +310,12 @@ export interface WorkerEngine {
   readonly offlineMedia: WorkerCollection<OfflineMedia>
   readonly commandReceipts: WorkerCollection<WorkerCommandReceipt>
   readonly outbox: WorkerCollection<WorkerOutboxEntry>
+}
+
+export interface WorkerEngine extends WorkerCollections {
+  /// Group writes and acknowledge only after persistence completes. Files are not
+  /// crash-atomic together; after failure, reopen and retry from the durable state.
+  batch<T>(operation: (collections: WorkerCollections) => Promise<T>): Promise<T>
   close(): Promise<void>
 }
 

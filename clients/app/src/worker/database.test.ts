@@ -279,6 +279,7 @@ describe("storage that cannot even be repaired", () => {
       offlineMedia: createMemoryEngine().offlineMedia,
       commandReceipts: createMemoryEngine().commandReceipts,
       outbox: createMemoryEngine().outbox,
+      batch: createMemoryEngine().batch,
       close: async () => undefined,
     }
 

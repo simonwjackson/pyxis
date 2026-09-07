@@ -21,6 +21,7 @@ import {
   WORKER_SCHEMA_VERSION,
   type WorkerAlbum,
   type WorkerCollection,
+  type WorkerCollections,
   type WorkerDatabase,
   type WorkerEngine,
   type WorkerMigrations,
@@ -268,32 +269,47 @@ class LocalWorkerDatabase implements WorkerDatabase {
   }
 
   async applyRemoteAlbums(albums: readonly WorkerAlbum[]): Promise<number> {
-    const [outbox, existing] = await Promise.all([
-      this.engine.outbox.all(),
-      this.engine.albums.all(),
-    ])
-    const queued = new Set(
-      outbox
-        .filter((entry) => entry.kind === "album.placement")
-        .map((entry) => (entry.kind === "album.placement" ? entry.albumId : "")),
-    )
-    const localById = new Map(existing.map((album) => [album.id, album]))
-    const remoteIds = new Set(albums.map((album) => album.id))
-    let count = 0
+    const applied = await this.engine.batch(async (engine) => {
+      const [outbox, existing] = await Promise.all([engine.outbox.all(), engine.albums.all()])
+      const queued = new Set(
+        outbox
+          .filter((entry) => entry.kind === "album.placement")
+          .map((entry) => (entry.kind === "album.placement" ? entry.albumId : "")),
+      )
+      const localById = new Map(existing.map((album) => [album.id, album]))
+      const remoteIds = new Set(albums.map((album) => album.id))
+      const changed: WorkerAlbum[] = []
+      let count = 0
 
-    for (const album of albums) {
-      if (queued.has(album.id)) continue
-      const local = localById.get(album.id)
-      if (local !== undefined && !acceptsRemoteRevision(local.revision, album.revision)) continue
-      await this.putAlbum(album)
-      count += 1
-    }
-    for (const local of existing) {
-      if (remoteIds.has(local.id) || queued.has(local.id)) continue
-      await this.removeAlbum(local.id)
-      count += 1
-    }
-    return count
+      for (const album of albums) {
+        if (queued.has(album.id)) continue
+        const local = localById.get(album.id)
+        if (local !== undefined && !acceptsRemoteRevision(local.revision, album.revision)) continue
+        // Preserve sequential duplicate-ID handling: a later older row cannot undo an
+        // earlier newer row, while equal-revision duplicates keep their original order.
+        const current = await engine.albums.findById(album.id)
+        changed.push(
+          current !== undefined && current.revision > album.revision
+            ? current
+            : await engine.albums.upsert(album),
+        )
+        count += 1
+      }
+      for (const local of existing) {
+        if (remoteIds.has(local.id) || queued.has(local.id)) continue
+        await engine.albums.delete(local.id)
+        count += 1
+      }
+      return { count, changed, queued }
+    })
+    // The outer worker Web Lock still spans both batches. Commit albums first: a rejected
+    // album file must not unpin the old library. Separate relationship files can still fail
+    // afterward, so repair retained truth on retries even when revisions are unchanged.
+    await this.engine.batch(async (engine) => {
+      for (const album of applied.changed) await this.reconcileOfflineAlbumTracks(engine, album)
+      await this.reconcileOfflineAlbums(engine, applied.queued)
+    })
+    return applied.count
   }
 
   async replaceAlbums(albums: readonly WorkerAlbum[]): Promise<void> {
@@ -305,11 +321,46 @@ class LocalWorkerDatabase implements WorkerDatabase {
     for (const album of albums) await this.replaceAlbum(album)
   }
 
-  private async reconcileOfflineAlbumTracks(album: WorkerAlbum): Promise<void> {
+  private async reconcileOfflineAlbums(
+    engine: WorkerCollections,
+    queued: ReadonlySet<string>,
+  ): Promise<void> {
+    const [albums, pins, media] = await Promise.all([
+      engine.albums.all(),
+      engine.offlinePins.all(),
+      engine.offlineMedia.all(),
+    ])
+    const tracksByAlbum = new Map(
+      albums.map((album) => [album.id, new Set(album.tracks.map((track) => track.id))]),
+    )
+    for (const pin of pins) {
+      if (tracksByAlbum.has(pin.albumId) || queued.has(pin.albumId)) continue
+      if (pin.pinned === false && pin.lastError === undefined) continue
+      const { lastError: _lastError, ...withoutError } = pin
+      await engine.offlinePins.upsert({
+        ...withoutError,
+        generation: pin.generation + (pin.pinned === false ? 0 : 1),
+        pinned: false,
+      })
+    }
+    for (const entry of media) {
+      const albumIds = entry.albumIds.filter(
+        (id) => queued.has(id) || tracksByAlbum.get(id)?.has(entry.trackId),
+      )
+      if (albumIds.length !== entry.albumIds.length) {
+        await engine.offlineMedia.upsert({ ...entry, albumIds })
+      }
+    }
+  }
+
+  private async reconcileOfflineAlbumTracks(
+    engine: WorkerCollections,
+    album: WorkerAlbum,
+  ): Promise<void> {
     const trackIds = new Set(album.tracks.map((track) => track.id))
-    for (const media of await this.engine.offlineMedia.all()) {
+    for (const media of await engine.offlineMedia.all()) {
       if (!media.albumIds.includes(album.id) || trackIds.has(media.trackId)) continue
-      await this.engine.offlineMedia.upsert({
+      await engine.offlineMedia.upsert({
         ...media,
         albumIds: media.albumIds.filter((albumId) => albumId !== album.id),
       })
@@ -322,13 +373,13 @@ class LocalWorkerDatabase implements WorkerDatabase {
     // them, so the revision decides rather than arrival.
     if (existing !== undefined && existing.revision > album.revision) return existing
     const stored = await this.engine.albums.upsert(album)
-    await this.reconcileOfflineAlbumTracks(stored)
+    await this.reconcileOfflineAlbumTracks(this.engine, stored)
     return stored
   }
 
   async replaceAlbum(album: WorkerAlbum): Promise<WorkerAlbum> {
     const stored = await this.engine.albums.upsert(album)
-    await this.reconcileOfflineAlbumTracks(stored)
+    await this.reconcileOfflineAlbumTracks(this.engine, stored)
     return stored
   }
 
@@ -732,6 +783,11 @@ export function createMemoryEngine(): WorkerEngine {
     offlineMedia: new MemoryCollection(),
     commandReceipts: new MemoryCollection(),
     outbox: new MemoryCollection(),
+    // There is no persistence to coalesce. Like a failed multi-file durable batch,
+    // a failed in-memory operation may leave a prefix for the caller to reconcile.
+    batch: async function (operation) {
+      return operation(this)
+    },
     close: async () => undefined,
   }
 }

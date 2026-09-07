@@ -16,6 +16,7 @@ import {
   WORKER_DATABASE_NAME,
   type WorkerAlbum,
   type WorkerCollection,
+  type WorkerCollections,
   type WorkerCommandReceipt,
   type WorkerEngine,
   type WorkerOutboxEntry,
@@ -166,29 +167,11 @@ export async function createProseqlEngine(
   const raw = database as unknown as RawEngine
 
   const engine: WorkerEngine = {
-    meta: adapt<WorkerSchemaRow>(raw.meta),
-    settings: adapt<WorkerSettings>(raw.settings),
-    albums: wrapped<WorkerAlbum>(raw.albums, (album) => ({
-      id: album.id,
-      revision: album.revision,
-    })),
-    sessions: wrapped<WorkerSession>(raw.sessions, (session) => ({
-      id: session.id,
-      revision: session.revision,
-    })),
-    offlinePins: wrapped<OfflinePin>(raw.offlinePins, (pin) => ({
-      id: pin.id,
-      albumId: pin.albumId,
-    })),
-    offlineMedia: wrapped<OfflineMedia>(raw.offlineMedia, (media) => ({
-      id: media.id,
-      trackId: media.trackId,
-    })),
-    commandReceipts: adapt<WorkerCommandReceipt>(raw.commandReceipts),
-    outbox: wrapped<WorkerOutboxEntry>(raw.outbox, (entry) => ({
-      id: entry.id,
-      kind: entry.kind,
-    })),
+    ...adaptCollections(raw),
+    // Use the transaction's own collections. Calling the outer FIFO facade from its
+    // transaction callback would deadlock. The worker facade flushes before resolving.
+    batch: (operation) =>
+      raw.$transaction((transaction) => operation(adaptCollections(transaction))),
     close: async () => {
       await raw.close?.()
     },
@@ -248,7 +231,7 @@ function isNotFound(cause: unknown): boolean {
   )
 }
 
-interface RawEngine {
+interface RawCollections {
   readonly meta: RawCollection
   readonly settings: RawCollection
   readonly albums: RawCollection
@@ -257,7 +240,39 @@ interface RawEngine {
   readonly offlineMedia: RawCollection
   readonly commandReceipts: RawCollection
   readonly outbox: RawCollection
+}
+
+interface RawEngine extends RawCollections {
+  $transaction<T>(operation: (collections: RawCollections) => Promise<T>): Promise<T>
   close?(): Promise<void>
+}
+
+function adaptCollections(raw: RawCollections): WorkerCollections {
+  return {
+    meta: adapt<WorkerSchemaRow>(raw.meta),
+    settings: adapt<WorkerSettings>(raw.settings),
+    albums: wrapped<WorkerAlbum>(raw.albums, (album) => ({
+      id: album.id,
+      revision: album.revision,
+    })),
+    sessions: wrapped<WorkerSession>(raw.sessions, (session) => ({
+      id: session.id,
+      revision: session.revision,
+    })),
+    offlinePins: wrapped<OfflinePin>(raw.offlinePins, (pin) => ({
+      id: pin.id,
+      albumId: pin.albumId,
+    })),
+    offlineMedia: wrapped<OfflineMedia>(raw.offlineMedia, (media) => ({
+      id: media.id,
+      trackId: media.trackId,
+    })),
+    commandReceipts: adapt<WorkerCommandReceipt>(raw.commandReceipts),
+    outbox: wrapped<WorkerOutboxEntry>(raw.outbox, (entry) => ({
+      id: entry.id,
+      kind: entry.kind,
+    })),
+  }
 }
 
 function adapt<T extends { readonly id: string }>(collection: RawCollection): WorkerCollection<T> {
