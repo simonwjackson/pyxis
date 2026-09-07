@@ -17,6 +17,34 @@
   --heat: #d2431e;
   --scrim: rgb(16 16 16 / 0.42);
   --sans: "Archivo", "Helvetica Neue", Arial, sans-serif;
+
+  /* ---- Type scale ---------------------------------------------------------------------
+     Six sizes with gaps between them. The old set had 10, 11, 12, 13, 13.5, 14, 15 and 16:
+     the eye cannot tell 13 from 14, so everything read as one size and nothing led. A scale
+     is defined by what it leaves out. 16px is the body size partly because anything smaller
+     in an input makes iOS zoom the page on focus and never zoom back. */
+  --t-micro: 11px;
+  --t-small: 13px;
+  --t-body: 16px;
+  --t-head: 20px;
+  --t-title: 26px;
+  --t-huge: 36px;
+  --t-giant: 52px;
+
+  /* ---- Spacing scale ------------------------------------------------------------------
+     Doubling, then widening. There were 23 distinct values before this, including 7, 9, 13
+     and 18; each was reasonable alone, and together they meant no two surfaces breathed the
+     same way. --s-hair exists for optical nudges that are not spacing decisions. */
+  --s-hair: 2px;
+  --s1: 4px;
+  --s2: 8px;
+  --s3: 12px;
+  --s4: 16px;
+  --s5: 24px;
+  --s6: 32px;
+  --s7: 48px;
+  --s8: 64px;
+  --s9: 96px;
   color-scheme: light;
 }
 
@@ -64,8 +92,8 @@ body {
 
 /* The only chrome that is not product: a way back to the reference index. */
 footer.ref {
-  padding: 26px 24px calc(96px + env(safe-area-inset-bottom));
-  font-size: 11px;
+  padding: var(--s5) var(--s5) calc(var(--s9) + env(safe-area-inset-bottom));
+  font-size: var(--t-small);
   font-weight: 600;
   letter-spacing: 0.14em;
   text-transform: uppercase;
@@ -81,7 +109,7 @@ footer.ref a:hover {
 }
 
 .label {
-  font-size: 10px;
+  font-size: var(--t-micro);
   font-weight: 700;
   letter-spacing: 0.16em;
   text-transform: uppercase;
@@ -91,9 +119,9 @@ footer.ref a:hover {
 /* Product navigation. Four destinations; playback and rooms are layers, not tabs. */
 nav.tabs {
   display: flex;
-  gap: 20px;
+  gap: var(--s5);
   align-items: center;
-  padding: 14px 0 12px;
+  padding: var(--s4) 0 var(--s3);
   overflow-x: auto;
   white-space: nowrap;
   border-bottom: 1px solid var(--ink);
@@ -106,7 +134,7 @@ nav.tabs::-webkit-scrollbar {
 
 nav.tabs a {
   flex: none;
-  font-size: 13px;
+  font-size: var(--t-small);
   font-weight: 700;
   color: var(--soft);
   text-decoration: none;
@@ -122,7 +150,7 @@ nav.tabs a {
   place-items: center;
   width: 44px;
   height: 44px;
-  font-size: 13px;
+  font-size: var(--t-small);
   font-weight: 700;
   letter-spacing: 0.04em;
   color: var(--soft);
@@ -139,7 +167,7 @@ nav.tabs a {
   width: 28px;
   height: 28px;
   margin-left: auto;
-  font-size: 12px;
+  font-size: var(--t-small);
 }
 
 /* Something is wrong, stated on the row where the fix is rather than in a banner elsewhere.
@@ -180,7 +208,7 @@ nav.tabs.bare {
 }
 
 nav.tabs .badge {
-  font-size: 11px;
+  font-size: var(--t-small);
   font-style: normal;
   font-weight: 700;
   color: var(--heat);
@@ -235,12 +263,12 @@ nav.tabs .badge {
   display: flex;
   flex-direction: column;
   justify-content: flex-end;
-  padding: 12px;
+  padding: var(--s3);
   border: 1px solid var(--rule);
 }
 
 .sleeve.blank em {
-  font-size: 10px;
+  font-size: var(--t-micro);
   font-style: normal;
   font-weight: 600;
   letter-spacing: 0.1em;
@@ -249,8 +277,8 @@ nav.tabs .badge {
 }
 
 .sleeve.blank b {
-  margin-top: 5px;
-  font-size: 15px;
+  margin-top: var(--s1);
+  font-size: var(--t-body);
   font-weight: 600;
   line-height: 1.15;
 }
@@ -264,28 +292,21 @@ nav.tabs .badge {
 
 /* The album as the subject of its own screen, rather than one entry among many. */
 .album-title.big {
-  font-size: clamp(24px, 4vw, 34px);
-}
-
-.album-artist {
-  margin: 9px 0 0;
-  font-size: 15px;
-  font-weight: 600;
-  color: var(--soft);
+  font-size: clamp(var(--t-title), 4vw, var(--t-huge));
 }
 
 /* Micro type: uppercase, letterspaced, secondary. Album facts and field labels are the same
    voice at the same size, so they are the same decision written once. */
 .facts,
 .field > span {
-  font-size: 12px;
+  font-size: var(--t-small);
   font-weight: 600;
   letter-spacing: 0.09em;
   text-transform: uppercase;
   color: var(--soft);
 }
 .facts {
-  margin: 10px 0 0;
+  margin: var(--s3) 0 0;
 }
 
 button {
@@ -300,16 +321,16 @@ button {
    rather than heading it. This variant was unnamed, so three places restated it instead. */
 .act.inline {
   flex: none;
-  padding: 10px 14px;
-  font-size: 13px;
+  padding: var(--s3) var(--s4);
+  font-size: var(--t-small);
   font-weight: 600;
   letter-spacing: 0;
   text-transform: none;
 }
 
 .act {
-  padding: 13px 16px;
-  font-size: 11px;
+  padding: var(--s3) var(--s4);
+  font-size: var(--t-small);
   font-weight: 700;
   letter-spacing: 0.14em;
   text-transform: uppercase;
@@ -352,9 +373,9 @@ button {
   left: 0;
   z-index: 30;
   display: flex;
-  gap: 12px;
+  gap: var(--s3);
   align-items: center;
-  padding: 10px 16px calc(10px + env(safe-area-inset-bottom));
+  padding: var(--s3) var(--s4) calc(var(--s3) + env(safe-area-inset-bottom));
   color: inherit;
   text-decoration: none;
   background: var(--raised);
@@ -363,7 +384,7 @@ button {
 
 .nowbar-open {
   display: flex;
-  gap: 12px;
+  gap: var(--s3);
   align-items: center;
   min-width: 0;
   flex: 1;
@@ -398,7 +419,7 @@ button {
 .nowbar-text {
   min-width: 0;
   flex: 1;
-  font-size: 13px;
+  font-size: var(--t-small);
   font-weight: 600;
 }
 
@@ -410,9 +431,9 @@ button {
 
 .nowbar-room {
   display: flex;
-  gap: 7px;
+  gap: var(--s2);
   align-items: center;
-  font-size: 10px;
+  font-size: var(--t-micro);
   font-weight: 700;
   letter-spacing: 0.14em;
   text-transform: uppercase;
@@ -460,13 +481,6 @@ button {
   color: var(--soft);
 }
 
-.rooms-sheet .note {
-  padding: 16px 0 4px;
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--soft);
-}
-
 /* Offline recedes what genuinely cannot be played, rather than describing it in words. */
 .offline .item .frame:not(.available) .sleeve {
   opacity: 0.26;
@@ -479,10 +493,10 @@ button {
 
 .strip {
   display: flex;
-  gap: 10px;
+  gap: var(--s3);
   align-items: center;
-  padding: 9px 24px;
-  font-size: 12px;
+  padding: var(--s2) var(--s5);
+  font-size: var(--t-small);
   font-weight: 600;
   color: var(--ground);
   background: var(--ink);
@@ -507,14 +521,14 @@ button {
 
 .strip.failed .right {
   display: flex;
-  gap: 10px;
+  gap: var(--s3);
   align-items: center;
   opacity: 1;
 }
 
 .strip.failed button {
-  padding: 3px 9px;
-  font-size: 11px;
+  padding: var(--s-hair) var(--s2);
+  font-size: var(--t-small);
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -525,34 +539,28 @@ button {
 /* First run and no-sources both land on an empty wall, so the recovery has to be the
    thing that differs. */
 .blank-state {
-  padding: 64px 0 40px;
+  padding: var(--s8) 0 var(--s6);
   max-width: 42ch;
 }
 
 .blank-state h2 {
-  margin: 10px 0 0;
-  font-size: 22px;
+  margin: var(--s3) 0 0;
+  font-size: var(--t-head);
   font-weight: 700;
   letter-spacing: -0.02em;
 }
 
-.blank-state p {
-  margin: 10px 0 0;
-  font-size: 14px;
-  font-weight: 500;
-  line-height: 1.5;
-  color: var(--soft);
-}
-
-.blank-state .acts {
+/* A wrapped row of choices. Was two copies: the empty state's recovery actions and the
+   album sheet's placement moves are the same shape doing the same job. */
+.acts {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
-  margin-top: 20px;
+  gap: var(--s2);
+  margin-top: var(--s5);
 }
 
 .blank-state .act {
-  font-size: 13px;
+  font-size: var(--t-small);
   letter-spacing: 0;
   text-transform: none;
 }
@@ -587,7 +595,7 @@ button {
 }
 
 body.has-nowbar main {
-  padding-bottom: 92px;
+  padding-bottom: var(--s9);
 }
 
 /* The bar at full size. Not a destination — no navigation, no page chrome. */
@@ -597,9 +605,9 @@ body.has-nowbar main {
    offsets. Nobody chose those differences. */
 .row {
   display: flex;
-  gap: 14px;
+  gap: var(--s4);
   align-items: center;
-  padding: 12px 0;
+  padding: var(--s3) 0;
   border-bottom: 1px solid var(--rule);
 }
 
@@ -615,17 +623,17 @@ body.has-nowbar main {
 
 .row .t b {
   display: flex;
-  gap: 8px;
+  gap: var(--s2);
   align-items: center;
-  font-size: 15px;
+  font-size: var(--t-body);
   font-weight: 700;
   letter-spacing: -0.01em;
 }
 
 .row .t span {
   display: block;
-  margin-top: 3px;
-  font-size: 13px;
+  margin-top: var(--s-hair);
+  font-size: var(--t-small);
   font-weight: 500;
   color: var(--row-sub, var(--soft));
 }
@@ -640,7 +648,7 @@ body.has-nowbar main {
    Was restated six times — as .label, as dt, as two different <i> rules, as .have, as
    .when. */
 .meta {
-  font-size: 12px;
+  font-size: var(--t-small);
   font-weight: 600;
   color: var(--soft);
 }
@@ -656,23 +664,23 @@ body.has-nowbar main {
    albums.js emits it, and a shared unit that depends on one page's styling is broken
    everywhere else — which is how the rooms sheet reached a designer looking wrong. */
 .shelf {
-  padding-top: 34px;
+  padding-top: var(--s6);
 }
 
 .shelf h2 {
   display: flex;
-  gap: 9px;
+  gap: var(--s2);
   align-items: baseline;
   margin: 0;
-  padding-bottom: 14px;
-  font-size: 19px;
+  padding-bottom: var(--s4);
+  font-size: var(--t-head);
   font-weight: 700;
   letter-spacing: -0.015em;
   color: var(--ink);
 }
 
 .shelf h2 i {
-  font-size: 14px;
+  font-size: var(--t-small);
   font-style: normal;
   font-weight: 600;
   color: var(--soft);
@@ -689,8 +697,8 @@ body.has-nowbar main {
   grid-auto-columns: 156px;
   grid-auto-flow: column;
   gap: 0;
-  padding-top: 4px;
-  padding-bottom: 8px;
+  padding-top: var(--s1);
+  padding-bottom: var(--s2);
   overflow-x: auto;
   overflow-y: hidden;
   overscroll-behavior-x: contain;
@@ -703,7 +711,7 @@ body.has-nowbar main {
 }
 
 .rail > * {
-  margin-right: -16px;
+  margin-right: calc(var(--s4) * -1);
   transition:
     transform 0.16s ease,
     margin 0.16s ease;
@@ -728,7 +736,7 @@ body.has-nowbar main {
 .rail > *:hover,
 .rail > *:focus-visible,
 .rail > *:focus-within {
-  margin-right: -4px;
+  margin-right: calc(var(--s1) * -1);
   transform: translateY(-4px);
 }
 @media (prefers-reduced-motion: reduce) {
@@ -742,21 +750,21 @@ body.has-nowbar main {
 .grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(124px, 1fr));
-  gap: 14px;
-  padding-top: 26px;
+  gap: var(--s4);
+  padding-top: var(--s5);
 }
 
 /* Chip: a bordered, selectable option. One decision, previously three drifted copies. */
 .chip-set {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: var(--s2);
   align-items: center;
 }
 
 .chip {
-  padding: 9px 12px;
-  font-size: 13px;
+  padding: var(--s2) var(--s3);
+  font-size: var(--t-small);
   font-weight: 600;
   color: var(--soft);
   text-decoration: none;
@@ -785,10 +793,10 @@ body.has-nowbar main {
 /* Smaller, and carries its own dismissal: an active filter rather than an offered one. */
 .chip.removable {
   display: flex;
-  gap: 7px;
+  gap: var(--s2);
   align-items: center;
-  padding: 5px 10px;
-  font-size: 12px;
+  padding: var(--s1) var(--s3);
+  font-size: var(--t-small);
 }
 
 /* Modal surfaces. One decision, three uses: rooms, filters, album detail.
@@ -797,7 +805,7 @@ body.has-nowbar main {
 dialog.sheet {
   width: min(520px, 100%);
   max-height: 88svh;
-  padding: 0 20px 20px;
+  padding: 0 var(--s5) var(--s5);
   color: var(--ink);
   background: var(--ground);
   border: 1px solid var(--ink);
@@ -819,12 +827,12 @@ dialog.sheet::backdrop {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 14px 0 10px;
+  padding: var(--s4) 0 var(--s3);
   background: var(--ground);
 }
 
 .sheet-head button {
-  font-size: 13px;
+  font-size: var(--t-small);
   font-weight: 600;
   color: var(--soft);
 }
@@ -841,16 +849,16 @@ dialog.sheet::backdrop {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 14px 0 12px;
+  padding: var(--s4) 0 var(--s3);
 }
 
 /* A related aside, divided off by a rule above it rather than boxed. */
 .aside {
   display: flex;
-  gap: 12px;
+  gap: var(--s3);
   align-items: center;
-  margin-top: 20px;
-  padding-top: 14px;
+  margin-top: var(--s5);
+  padding-top: var(--s4);
   border-top: 1px solid var(--rule);
 }
 
@@ -874,17 +882,17 @@ dialog.sheet::backdrop {
 
 .field {
   display: block;
-  padding: 16px 0 0;
+  padding: var(--s4) 0 0;
 }
 .field > span {
   display: block;
-  padding-bottom: 7px;
+  padding-bottom: var(--s2);
 }
 .field input {
   width: 100%;
-  padding: 12px 13px;
+  padding: var(--s3) var(--s3);
   font: inherit;
-  font-size: 16px; /* Under 16px, iOS zooms the page on focus and never zooms back. */
+  font-size: var(--t-body); /* Under var(--t-body), iOS zooms the page on focus and never zooms back. */
   font-weight: 500;
   color: var(--ink);
   background: var(--sink);
@@ -899,22 +907,14 @@ dialog.sheet::backdrop {
   border-color: var(--heat);
 }
 .field-error {
-  margin: 8px 0 0;
-  font-size: 13px;
+  margin: var(--s2) 0 0;
+  font-size: var(--t-small);
   font-weight: 600;
-}
-.field-note {
-  max-width: 44ch;
-  margin: 18px 0 0;
-  font-size: 13px;
-  font-weight: 500;
-  line-height: 1.5;
-  color: var(--soft);
 }
 .field-actions {
   display: flex;
   justify-content: flex-end;
-  padding: 20px 0 4px;
+  padding: var(--s5) 0 var(--s1);
 }
 /* Setting up is a single column: the action belongs under the field it completes, not pushed
    to the far edge of a screen that has nothing else on it. */
@@ -941,34 +941,16 @@ dialog.sheet::backdrop {
    same question at the same size, so they are one decision. */
 
 .setup {
-  padding: 40px 0 26px;
+  padding: var(--s6) 0 var(--s5);
 }
 .setup h1 {
   margin: 0;
-  font-size: clamp(26px, 5.5vw, 38px);
+  font-size: clamp(var(--t-title), 5.5vw, var(--t-huge));
   font-weight: 700;
   line-height: 1.06;
   letter-spacing: -0.03em;
 }
-.setup p {
-  max-width: 46ch;
-  margin: 14px 0 0;
-  font-size: 15px;
-  font-weight: 500;
-  line-height: 1.55;
-  color: var(--soft);
-}
 
-/* An aside that is true but not urgent: how sources work, where to go if this is the wrong
-   screen. Quiet enough to skip, present enough to answer the question if it is asked. */
-.footnote {
-  max-width: 48ch;
-  margin: 22px 0 0;
-  font-size: 13px;
-  font-weight: 500;
-  line-height: 1.55;
-  color: var(--soft);
-}
 
 /* The reference is showing a recording rather than the live library. Pinned above everything
    so it cannot be mistaken for part of the design being reviewed. */
@@ -1070,7 +1052,7 @@ dialog.sheet::backdrop {
   max-width: 100%;
   height: 100svh;
   max-height: 100svh;
-  padding: 0 24px calc(28px + env(safe-area-inset-bottom));
+  padding: 0 var(--s5) calc(var(--s6) + env(safe-area-inset-bottom));
   margin: 0 auto;
   overflow-y: auto;
   color: var(--ink);
@@ -1087,18 +1069,18 @@ dialog.sheet::backdrop {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 10px 0 0;
-  margin-inline: -8px;
+  padding: var(--s3) 0 0;
+  margin-inline: calc(var(--s2) * -1);
 }
 .player-close {
   color: var(--on-pool);
 }
 .player-room {
   display: flex;
-  gap: 8px;
+  gap: var(--s2);
   align-items: center;
-  padding: 8px 10px;
-  font-size: 13px;
+  padding: var(--s2) var(--s3);
+  font-size: var(--t-small);
   font-weight: 600;
   color: var(--on-pool);
   border-radius: 20px;
@@ -1115,7 +1097,7 @@ dialog.sheet::backdrop {
 /* The stage gives the shadow room. A cover flush to the edges is a background; a cover with
    margin around it is a thing lying on a surface. */
 .player-stage {
-  padding: 22px 8px 0;
+  padding: var(--s5) var(--s2) 0;
 }
 .player-art {
   width: 100%;
@@ -1123,15 +1105,15 @@ dialog.sheet::backdrop {
 }
 
 .player-title {
-  margin: 30px 0 0;
-  font-size: clamp(24px, 7vw, 30px);
+  margin: var(--s6) 0 0;
+  font-size: clamp(var(--t-title), 7vw, var(--t-huge));
   font-weight: 700;
   line-height: 1.08;
   letter-spacing: -0.025em;
 }
 .player-artist {
-  margin: 8px 0 0;
-  font-size: 16px;
+  margin: var(--s2) 0 0;
+  font-size: var(--t-body);
   font-weight: 600;
   color: var(--ink);
 }
@@ -1142,7 +1124,7 @@ dialog.sheet::backdrop {
 
 .player-bar {
   height: 3px;
-  margin-top: 22px;
+  margin-top: var(--s5);
   overflow: hidden;
   background: color-mix(in oklab, var(--ink) 16%, transparent);
   border-radius: 2px;
@@ -1155,10 +1137,10 @@ dialog.sheet::backdrop {
 }
 .player-position {
   display: flex;
-  gap: 14px;
+  gap: var(--s4);
   justify-content: space-between;
-  margin: 10px 0 0;
-  font-size: 13px;
+  margin: var(--s3) 0 0;
+  font-size: var(--t-small);
   font-weight: 500;
   color: var(--on-pool);
   font-variant-numeric: tabular-nums;
@@ -1177,17 +1159,17 @@ dialog.sheet::backdrop {
 
 .player-controls {
   display: flex;
-  gap: 22px;
+  gap: var(--s5);
   align-items: center;
   justify-content: center;
-  margin-top: 26px;
+  margin-top: var(--s5);
 }
 
 .player-volume {
   display: flex;
-  gap: 12px;
+  gap: var(--s3);
   align-items: center;
-  margin-top: 22px;
+  margin-top: var(--s5);
 }
 .player-volume input {
   flex: 1;
@@ -1199,23 +1181,23 @@ dialog.sheet::backdrop {
 /* What happens when the album ends, stated before it ends. Silence is the default;
    continuing is a choice someone makes, not one the product makes on their behalf. */
 .player-ends {
-  padding-top: 22px;
-  margin-top: 26px;
+  padding-top: var(--s5);
+  margin-top: var(--s5);
   border-top: 1px solid color-mix(in oklab, var(--ink) 12%, transparent);
 }
 .player-then {
   display: flex;
   flex-wrap: wrap;
-  gap: 4px 14px;
+  gap: var(--s1) var(--s4);
   align-items: baseline;
   margin: 0;
-  font-size: 14px;
+  font-size: var(--t-small);
   font-weight: 500;
   color: var(--on-pool);
 }
 .player-next {
   display: flex;
-  gap: 14px;
+  gap: var(--s4);
   align-items: center;
 }
 .player-next .frame {
@@ -1225,7 +1207,7 @@ dialog.sheet::backdrop {
 .player-next .t {
   min-width: 0;
   flex: 1;
-  font-size: 14px;
+  font-size: var(--t-small);
   font-weight: 700;
   line-height: 1.3;
 }
@@ -1271,7 +1253,7 @@ dialog.sheet::backdrop {
    texture and a texture has no lead; this is the record on the turntable. */
 
 .lead {
-  padding: 20px 0 10px;
+  padding: var(--s5) 0 var(--s3);
 }
 .lead-art {
   display: block;
@@ -1280,29 +1262,23 @@ dialog.sheet::backdrop {
   border-radius: 3px;
 }
 .lead-say {
-  padding-top: 20px;
+  padding-top: var(--s5);
 }
 .lead-context {
   margin: 0;
-  font-size: 14px;
+  font-size: var(--t-small);
   font-weight: 600;
   color: color-mix(in oklab, var(--tint, var(--soft)) 55%, var(--soft));
 }
 .lead-title {
-  margin: 6px 0 0;
-  font-size: clamp(26px, 8vw, 36px);
+  margin: var(--s2) 0 0;
+  font-size: clamp(var(--t-title), 8vw, var(--t-huge));
   font-weight: 700;
   line-height: 1.04;
   letter-spacing: -0.03em;
 }
-.lead-artist {
-  margin: 7px 0 0;
-  font-size: 16px;
-  font-weight: 600;
-  color: var(--soft);
-}
 .lead-play {
-  margin-top: 18px;
+  margin-top: var(--s4);
   color: var(--ground);
   background: var(--tint, var(--ink));
   border-color: transparent;
@@ -1318,10 +1294,39 @@ dialog.sheet::backdrop {
    are the same voice, and were 13px/600 and 14px/500 until they were the same rule. */
 .tally {
   margin: 0;
-  font-size: 14px;
+  font-size: var(--t-small);
   font-weight: 600;
   color: var(--soft);
 }
 .lead + .tally {
-  padding-top: 24px;
+  padding-top: var(--s5);
+}
+
+/* ---- Prose and credit ---------------------------------------------------------------
+   Two atoms that were seven copies. The scale found them: once sizes stopped drifting by a
+   pixel the rules became identical, and the duplication gate could finally see them.
+
+   Prose is the sentence that explains something, never the thing being explained — why a
+   source is off, what a pairing code does, why a shelf is empty. `intro` is the same voice at
+   the size a first-run screen needs. */
+.prose {
+  max-width: 46ch;
+  margin: var(--s4) 0 0;
+  font-size: var(--t-small);
+  font-weight: 500;
+  line-height: 1.5;
+  color: var(--soft);
+}
+.prose.intro {
+  font-size: var(--t-body);
+  line-height: 1.55;
+}
+
+/* A credit: who made the thing whose title is directly above. Never the title's size, always
+   its weight, because it is the same sentence continued. */
+.credit {
+  margin: var(--s2) 0 0;
+  font-size: var(--t-body);
+  font-weight: 600;
+  color: var(--soft);
 }

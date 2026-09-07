@@ -20,14 +20,12 @@
       main {
         max-width: 560px;
         margin: 0 auto;
-        padding: 0 20px 32px;
+        padding: 0 var(--s5) var(--s6);
       }
       .why {
-        padding: 18px 0 4px;
-        font-size: 13px;
-        font-weight: 500;
-        line-height: 1.5;
-        color: var(--soft);
+        max-width: none;
+        margin: 0;
+        padding: var(--s4) 0 var(--s1);
       }
       .why b {
         color: var(--ink);
@@ -53,7 +51,7 @@
       // exists only so the same panel can be reviewed on its own.
       root.append(
         element(`
-          <p class="why">
+          <p class="prose why">
             <b>Rooms is a sheet, not a destination.</b> In the product this opens from the room
             control in the now-playing bar. Shown here on its own for review.
           </p>

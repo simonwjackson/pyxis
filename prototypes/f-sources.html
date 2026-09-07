@@ -20,10 +20,10 @@
       main {
         max-width: 720px;
         margin: 0 auto;
-        padding: 0 20px calc(120px + env(safe-area-inset-bottom));
+        padding: 0 var(--s5) calc(var(--s9) + env(safe-area-inset-bottom));
       }
       .install {
-        padding: 22px 0 0;
+        padding: var(--s5) 0 0;
       }
     </style>
   </head>
@@ -140,7 +140,7 @@
         if (firstRun) {
           root.append(
             element(`
-              <p class="footnote">
+              <p class="prose">
                 Already running Pyxis somewhere else?
                 <a href="./g-devices.html?state=firstrun">Enter a code from that device</a>
                 and this one joins it.
@@ -152,7 +152,7 @@
         if (!firstRun) {
           root.append(
             element(`
-              <p class="footnote">
+              <p class="prose">
                 Sources are plugins. Pyxis runs with none installed — it simply has nothing to
                 play.
               </p>

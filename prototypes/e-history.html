@@ -20,14 +20,14 @@
       main {
         max-width: 720px;
         margin: 0 auto;
-        padding: 0 20px 40px;
+        padding: 0 var(--s5) var(--s6);
       }
       .day {
         display: flex;
         align-items: baseline;
         justify-content: space-between;
-        padding: 26px 0 10px;
-        font-size: 12px;
+        padding: var(--s5) 0 var(--s3);
+        font-size: var(--t-small);
         font-weight: 700;
         letter-spacing: 0.12em;
         text-transform: uppercase;
@@ -42,11 +42,9 @@
       }
       /* Stats serve insight, not vanity: one line, no charts, no streaks. */
       .insight {
-        padding: 18px 0 4px;
-        font-size: 14px;
-        font-weight: 500;
-        line-height: 1.5;
-        color: var(--soft);
+        max-width: none;
+        margin: 0;
+        padding: var(--s4) 0 var(--s1);
         border-bottom: 1px solid var(--rule);
       }
       .insight b {
@@ -56,9 +54,9 @@
       .more {
         display: block;
         width: 100%;
-        margin-top: 22px;
-        padding: 13px;
-        font-size: 13px;
+        margin-top: var(--s5);
+        padding: var(--s3);
+        font-size: var(--t-small);
         font-weight: 600;
         letter-spacing: 0;
         text-transform: none;
@@ -122,7 +120,7 @@
         const rooms = new Set(week.map((event) => event.room))
         root.append(
           element(`
-            <p class="insight">
+            <p class="prose insight">
               <b>${week.length} plays</b> this week, across <b>${artists.size} artists</b> and
               ${rooms.size} rooms.
             </p>

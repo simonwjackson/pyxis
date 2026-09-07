@@ -20,7 +20,7 @@
       main {
         max-width: 1240px;
         margin: 0 auto;
-        padding: 0 24px 120px;
+        padding: 0 var(--s5) var(--s9);
       }
       /* A bar, not a masthead. Counts are state, not a headline. */
       .tally a {
@@ -64,18 +64,18 @@
         top: 0;
         z-index: 20;
         display: flex;
-        gap: 8px;
-        padding: 12px 0;
-        margin-top: 40px;
+        gap: var(--s2);
+        padding: var(--s3) 0;
+        margin-top: var(--s6);
         background: var(--ground);
         border-top: 1px solid var(--ink);
       }
       .tools .find {
         min-width: 0;
         flex: 1;
-        padding: 11px 12px;
+        padding: var(--s3) var(--s3);
         font: inherit;
-        font-size: 14px;
+        font-size: var(--t-small);
         color: var(--ink);
         background: var(--raised);
         border: 1px solid var(--rule);
@@ -87,9 +87,9 @@
         color: var(--soft);
       }
       .tools select {
-        padding: 11px 8px;
+        padding: var(--s3) var(--s2);
         font: inherit;
-        font-size: 13px;
+        font-size: var(--t-small);
         font-weight: 600;
         color: var(--ink);
         background: var(--raised);
@@ -98,10 +98,10 @@
       }
       .tools .more {
         display: flex;
-        gap: 7px;
+        gap: var(--s2);
         align-items: center;
-        padding: 11px 13px;
-        font-size: 13px;
+        padding: var(--s3) var(--s3);
+        font-size: var(--t-small);
         font-weight: 600;
         border: 1px solid var(--rule);
         white-space: nowrap;
@@ -123,66 +123,60 @@
         opacity: 0.7;
       }
       .count {
-        padding: 12px 0 0;
-        font-size: 12px;
+        padding: var(--s3) 0 0;
+        font-size: var(--t-small);
         font-weight: 600;
         letter-spacing: 0.12em;
         text-transform: uppercase;
         color: var(--soft);
       }
       .none {
-        padding: 40px 0;
-        font-size: 14px;
+        padding: var(--s6) 0;
+        font-size: var(--t-small);
         color: var(--soft);
       }
 
       /* dialog.sheet and .sheet-head are system components; see system.css. */
       .group {
-        padding: 14px 0 4px;
+        padding: var(--s4) 0 var(--s1);
         border-top: 1px solid var(--rule);
       }
       .group .label {
         display: block;
-        padding-bottom: 9px;
+        padding-bottom: var(--s2);
       }
       /* No captions: the wall is covers only, so it can sit tight. */
       .detail {
-        padding: 26px;
+        padding: var(--s5);
       }
       .detail .top {
         display: grid;
         grid-template-columns: 168px 1fr;
-        gap: 22px;
+        gap: var(--s5);
       }
       .detail .who {
-        margin-top: 8px;
-        font-size: 14px;
+        margin-top: var(--s2);
+        font-size: var(--t-small);
         font-weight: 600;
         color: var(--soft);
       }
       dl.signals {
         display: grid;
         grid-template-columns: repeat(2, 1fr);
-        gap: 12px 18px;
-        margin: 20px 0 0;
-        padding-top: 16px;
+        gap: var(--s3) var(--s4);
+        margin: var(--s5) 0 0;
+        padding-top: var(--s4);
         border-top: 1px solid var(--rule);
       }
       dl.signals dd {
-        margin: 3px 0 0;
-        font-size: 15px;
+        margin: var(--s-hair) 0 0;
+        font-size: var(--t-body);
         font-weight: 600;
       }
-      .move {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 8px;
-        margin-top: 22px;
-      }
       .move button {
-        padding: 9px 14px;
+        padding: var(--s2) var(--s4);
         font: inherit;
-        font-size: 11px;
+        font-size: var(--t-small);
         font-weight: 600;
         letter-spacing: 0.1em;
         text-transform: uppercase;
@@ -199,7 +193,7 @@
         min-width: 0;
         flex: 1;
         margin: 0;
-        font-size: 13px;
+        font-size: var(--t-small);
       }
       .device-state b {
         display: block;
@@ -210,20 +204,20 @@
       }
       .device .act {
         flex: none;
-        padding: 10px 13px;
-        font-size: 12px;
+        padding: var(--s3) var(--s3);
+        font-size: var(--t-small);
         letter-spacing: 0;
         text-transform: none;
       }
       .play {
         display: flex;
-        gap: 8px;
-        margin-top: 20px;
+        gap: var(--s2);
+        margin-top: var(--s5);
       }
       .play button {
-        padding: 12px 18px;
+        padding: var(--s3) var(--s4);
         font: inherit;
-        font-size: 11px;
+        font-size: var(--t-small);
         font-weight: 700;
         letter-spacing: 0.14em;
         text-transform: uppercase;
@@ -252,12 +246,12 @@
         top: 0;
         display: flex;
         justify-content: flex-end;
-        padding: 10px 12px 0;
+        padding: var(--s3) var(--s3) 0;
         background: var(--ground);
       }
       .close button {
         font: inherit;
-        font-size: 11px;
+        font-size: var(--t-small);
         font-weight: 700;
         letter-spacing: 0.12em;
         text-transform: uppercase;
@@ -443,7 +437,7 @@
                   <div><dt class="label">Depth</dt><dd>${album.completeness < 0.5 ? "singles only" : "heard in full"}</dd></div>
                 </dl>
                 <div class="play"></div>
-                <div class="move"></div>
+                <div class="acts move"></div>
                 <div class="aside device"></div>
               </div>
             </div>

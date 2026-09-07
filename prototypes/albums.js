@@ -42,7 +42,7 @@ export function albumLead(album, { context, onOpen, onPlay } = {}) {
       <div class="lead-say">
         <p class="lead-context">${escape(context ?? "")}</p>
         <h1 class="lead-title">${escape(album.title)}</h1>
-        <p class="lead-artist">${escape(album.artist)}${
+        <p class="credit">${escape(album.artist)}${
           album.year ? ` \u00b7 ${album.year}` : ""
         }</p>
       </div>

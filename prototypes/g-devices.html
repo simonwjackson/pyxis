@@ -20,12 +20,12 @@
       main {
         max-width: 720px;
         margin: 0 auto;
-        padding: 0 20px calc(120px + env(safe-area-inset-bottom));
+        padding: 0 var(--s5) calc(var(--s9) + env(safe-area-inset-bottom));
       }
       .pairing p {
         max-width: 44ch;
         margin: 0;
-        font-size: 14px;
+        font-size: var(--t-small);
         font-weight: 500;
         line-height: 1.5;
         color: var(--soft);
@@ -35,22 +35,22 @@
       }
       /* Read aloud across a room, typed by someone not looking at the screen. */
       .code-input {
-        font-size: 30px;
+        font-size: var(--t-title);
         font-weight: 700;
         letter-spacing: 0.32em;
         text-align: center;
         font-variant-numeric: tabular-nums;
       }
       .pairing {
-        padding: 8px 0 26px;
+        padding: var(--s2) 0 var(--s5);
         border-bottom: 1px solid var(--rule);
       }
       /* The code is the whole point of the screen while it is on screen: large enough to read
          from the doorway, spaced enough to say aloud. Scoped past `.pairing p`, which would
          otherwise outrank it and quietly return it to body size. */
       .pairing .code {
-        padding: 22px 0 10px;
-        font-size: clamp(34px, 11vw, 56px);
+        padding: var(--s5) 0 var(--s3);
+        font-size: clamp(var(--t-huge), 11vw, var(--t-giant));
         font-weight: 700;
         letter-spacing: 0.18em;
         line-height: 1;
@@ -138,7 +138,7 @@
             <div class="field-actions">
               <button class="act primary" disabled>Join</button>
             </div>
-            <p class="footnote">
+            <p class="prose">
               First device? <a href="./f-sources.html?state=firstrun">Set this one up instead.</a>
             </p>
           </section>

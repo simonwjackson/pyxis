@@ -45,7 +45,7 @@ export function openAddAccount(accounts = ACCOUNTS) {
           <span>Name</span>
           <input name="name" autocomplete="off" spellcheck="false" />
         </label>
-        <p class="field-note">A separate library, with its own sources and history. Nothing is
+        <p class="prose">A separate library, with its own sources and history. Nothing is
         shared between accounts unless you play it in the same room.</p>
         <div class="field-actions"><button class="act primary" disabled>Add</button></div>
       </form>

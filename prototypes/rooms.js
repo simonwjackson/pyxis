@@ -101,7 +101,7 @@ export function roomsPanel(rooms, { onChange, moving = null } = {}) {
 
 export function openRooms(rooms, { onChange } = {}) {
   const sheet = element(`
-    <dialog class="sheet rooms-sheet">
+    <dialog class="sheet">
       <div class="sheet-head"><span class="label">Rooms</span><button>Done</button></div>
     </dialog>
   `)
@@ -140,7 +140,7 @@ export function openRooms(rooms, { onChange } = {}) {
     )
     sheet.append(
       element(
-        `<p class="note">Audio plays in one room at a time. Moving it hands the session to that device.</p>`,
+        `<p class="prose">Audio plays in one room at a time. Moving it hands the session to that device.</p>`,
       ),
     )
   }

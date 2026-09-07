@@ -20,10 +20,10 @@
       main {
         max-width: 520px;
         margin: 0 auto;
-        padding: 0 20px 32px;
+        padding: 0 var(--s5) var(--s6);
       }
       article {
-        padding-top: 22px;
+        padding-top: var(--s5);
         animation: rise 0.42s cubic-bezier(0.2, 0.85, 0.3, 1) both;
       }
       @keyframes rise {
@@ -44,41 +44,41 @@
       /* The art is the screen, not an illustration above the copy. */
       .cover {
         width: calc(100% + 40px);
-        margin-inline: -20px;
+        margin-inline: calc(var(--s5) * -1);
       }
       .card .album-title {
-        margin-top: 18px;
-        font-size: 20px;
+        margin-top: var(--s4);
+        font-size: var(--t-head);
         font-weight: 700;
         letter-spacing: -0.01em;
       }
       .card .album-artist {
-        margin-top: 4px;
-        font-size: 15px;
+        margin-top: var(--s1);
+        font-size: var(--t-body);
       }
       .origin {
-        margin: 8px 0 0;
-        font-size: 13px;
+        margin: var(--s2) 0 0;
+        font-size: var(--t-small);
         font-weight: 500;
         color: var(--soft);
       }
       .verdict {
         display: grid;
         grid-template-columns: 1fr 1fr 1fr;
-        gap: 8px;
-        margin-top: 22px;
+        gap: var(--s2);
+        margin-top: var(--s5);
       }
       .verdict button {
-        padding: 17px 8px;
-        font-size: 14px;
+        padding: var(--s4) var(--s2);
+        font-size: var(--t-small);
         font-weight: 600;
         letter-spacing: 0;
         text-align: center;
         text-transform: none;
       }
       .undo {
-        margin-top: 14px;
-        font-size: 13px;
+        margin-top: var(--s4);
+        font-size: var(--t-small);
         font-weight: 500;
         color: var(--soft);
         text-align: center;
@@ -89,17 +89,17 @@
         text-underline-offset: 3px;
       }
       .cleared {
-        padding: 96px 0;
+        padding: var(--s9) 0;
         text-align: center;
       }
       .cleared h2 {
-        margin: 12px 0 0;
-        font-size: 22px;
+        margin: var(--s3) 0 0;
+        font-size: var(--t-head);
         font-weight: 700;
       }
       .cleared p {
-        margin-top: 12px;
-        font-size: 14px;
+        margin-top: var(--s3);
+        font-size: var(--t-small);
         font-weight: 500;
         color: var(--soft);
       }
@@ -169,7 +169,7 @@
             <article>
               <span class="frame cover">${sleeve(album)}</span>
               <h1 class="album-title">${escape(album.title)}</h1>
-              <p class="album-artist">${escape(album.artist)} · ${album.year ?? "—"} · ${runtime(album)}</p>
+              <p class="credit">${escape(album.artist)} · ${album.year ?? "—"} · ${runtime(album)}</p>
               <p class="origin">
                 ${escape(album.capturedFrom)} · ${album.capturedDaysAgo}d ago${
                   album.hook ? ` · ${escape(album.hook.title)}` : ""

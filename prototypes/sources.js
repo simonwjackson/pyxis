@@ -89,7 +89,7 @@ export function openConnect(source, { onDone } = {}) {
   // costs one line and answers the question a password box always raises.
   form.append(
     element(`
-      <p class="field-note">Stored encrypted on this device. Pyxis signs in as you; it never
+      <p class="prose">Stored encrypted on this device. Pyxis signs in as you; it never
       re-shares your account.</p>
     `),
   )
