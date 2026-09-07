@@ -310,9 +310,13 @@ The library remains 370, diagnostic browsers are stopped/unreachable, services a
 healthy. See `docs/operations/2026-09-06-m4-discovery-deadline.md` and
 `docs/operations/2026-09-07-m4-position-deadline.md`.
 
-Next isolate the stage/typed failure behind the remaining brief availability loss and verify the
-user's current controls without playback. The user explicitly said **not to play anything on
-Sonos**; continue with reads only, never playback, queue, grouping or volume commands. Physical
+The user then selected **"Both rooms enabled"** when asked to inspect Kitchen and Living Room
+without starting playback. This confirms the controls are enabled, not that physical commands
+or playback work. The disabled-controls retest is closed; do not repeat it.
+
+Next isolate the stage/typed failure behind the remaining brief availability loss. The user
+explicitly said **not to play anything on Sonos**; continue with reads only, never playback,
+queue, grouping or volume commands. Physical
 acceptance remains open. Do not reopen the user-closed handoff report or accepted latency tuning.
 
 Album removal is no longer deferred. D17 records your decision: server removal wins,

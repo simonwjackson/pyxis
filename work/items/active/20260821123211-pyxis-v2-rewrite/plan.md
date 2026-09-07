@@ -877,8 +877,10 @@ of eight seconds and the existing request budget), preserving full-body waiting,
 outcomes and ownership checks. Twelve new regressions, independent review, 248 client/86 plugin
 tests and scoped gates pass; the exact revision is deployed. A three-minute read-only watch found
 both rooms reachable in 88/90 samples, with a brief two-room failure and recovery. Reliability
-remains open; no physical playback was attempted or accepted. The user explicitly prohibited
-Sonos playback in this investigation. See `docs/operations/2026-09-06-m4-discovery-deadline.md`
+remains open; no physical playback was attempted or accepted. The user subsequently confirmed
+**"Both rooms enabled"** after inspecting Kitchen and Living Room without playback. This closes
+the disabled-controls retest, not physical command or continuous-availability acceptance. The
+user explicitly prohibited Sonos playback in this investigation. See `docs/operations/2026-09-06-m4-discovery-deadline.md`
 and `docs/operations/2026-09-07-m4-position-deadline.md` for deployment, retained failures and
 verification exceptions.
 

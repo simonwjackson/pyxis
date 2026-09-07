@@ -15,6 +15,10 @@ are not explained by these observations. Sonos reliability and physical playback
 The preceding 60-second watch on `f95ed25` found both reachable in 22/30 samples; different windows
 are not a controlled reliability benchmark.
 
+The user then selected **"Both rooms enabled"** when asked to inspect Kitchen and Living Room
+without starting playback. This confirms that both rooms' controls are enabled after deployment.
+It does not establish successful commands, physical playback, or continuous availability.
+
 The user explicitly said to continue without playing anything on Sonos. All live diagnostics in
 this follow-up are reads. No playback, queue, grouping, or volume command was issued; no production
 plugin configuration was read/decrypted or changed. The historical failed unintended Clear queue
@@ -120,8 +124,8 @@ restart 0/0/1% samples. No second shared-service restart was performed.
 
 Identify the stage and typed failure behind the brief two-room availability loss. Do not infer
 that the three-second Kitchen deadline explains every dropout, invent cached authority, or
-keep widening deadlines without evidence. Check the user's current controls without asking
-for playback. Physical Sonos playback and M3 autoplay/background/reconnect checks remain
+keep widening deadlines without evidence. The user confirmed both rooms' controls are enabled;
+do not repeat that check. Physical Sonos playback and M3 autoplay/background/reconnect checks remain
 separate and unauthorized in this investigation. Accepted browser latency and the user-closed
 handoff report stay closed.
 
