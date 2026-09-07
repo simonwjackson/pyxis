@@ -341,6 +341,46 @@ for (const file of [...pages, ...modules, "system.css", "reference.css"].filter(
 }
 
 // ---------------------------------------------------------------------------
+// 7. A shared module reaching for a state source.
+//
+// The page is the composition root: it reads the edge once and passes plain values down.
+// Anything below it that reaches for the URL, storage or the network cannot be rendered in a
+// different state without mutating the world first — which is why a component that reads its
+// own state cannot be previewed, tested, or shown in two states on one screen.
+//
+// states.js is the declared edge reader and common.js owns the data seam. Both are named here
+// rather than exempted silently, because an exemption nobody can see is just a hole.
+
+const EDGE_READERS = new Map([
+  ["states.js", "the declared URL reader: currentState(), isLive(), currentQuery()"],
+  ["common.js", "the data seam: loadLibrary() and rpc() are the network edge"],
+])
+
+const STATE_SOURCES = /location\.(search|href|hash)|URLSearchParams|localStorage|sessionStorage/
+
+for (const file of modules) {
+  if (EDGE_READERS.has(file)) continue
+  const text = stripComments(read(file))
+  for (const [index, line] of text.split("\n").entries()) {
+    if (!STATE_SOURCES.test(line)) continue
+    failures.push(
+      `${file}:${index + 1} reads a state source directly. A shared unit is told its state by ` +
+        `the page; only ${[...EDGE_READERS.keys()].join(" and ")} may read the edge.`,
+    )
+  }
+}
+
+// The data seam may fetch, but it must not also decide *what* to fetch by consulting the URL.
+// Being handed the mode and then secretly reading another half of it is the worst of both.
+const seam = stripComments(read("common.js"))
+if (/URLSearchParams|location\.search/.test(seam)) {
+  failures.push(
+    `common.js reads the URL. loadLibrary() is handed its state by the page; reading the rest ` +
+      `of it here makes the same call behave differently depending on the address bar.`,
+  )
+}
+
+// ---------------------------------------------------------------------------
 
 if (failures.length > 0) {
   console.error(`\n${failures.length} failure(s):\n`)
