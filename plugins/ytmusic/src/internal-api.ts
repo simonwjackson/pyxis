@@ -34,11 +34,32 @@ export interface YtMusicArtistSummary {
   readonly artworkUrl?: string
 }
 
+/// One page of a YouTube Music radio queue.
+///
+/// `continuation` absent means the queue offered no further page. That is different from an
+/// unreadable response, which throws instead, so an upstream layout change can never be
+/// mistaken for a station that ran out.
+export interface YtMusicWatchQueue {
+  readonly tracks: readonly YtMusicSong[]
+  readonly continuation?: string
+}
+
 export interface YtMusicInternalApi {
   searchSongs(query: string, limit: number): Promise<readonly YtMusicSong[]>
   searchAlbums(query: string): Promise<readonly YtMusicAlbumSummary[]>
   searchArtists(query: string, limit: number): Promise<readonly YtMusicArtistSummary[]>
   getAlbum(externalId: string): Promise<YtMusicAlbum>
+  watchQueue(
+    seedVideoId: string,
+    continuation: string | undefined,
+    limit: number,
+  ): Promise<YtMusicWatchQueue>
+}
+
+/// A YouTube Music radio playlist derived from one recording. Deriving it is a local string
+/// operation, so starting a station makes no upstream write and needs no account.
+export function radioPlaylistId(seedVideoId: string): string {
+  return `RDAMVM${seedVideoId}`
 }
 
 const CLIENT_VERSION = "1.20241023.01.00"
@@ -149,7 +170,107 @@ export function createYtMusicInternalApi(fetcher: typeof fetch = fetch): YtMusic
       const browseId = externalId.startsWith("OLAK") ? `VL${externalId}` : externalId
       return parseAlbum(await request("browse", { browseId }), externalId)
     },
+
+    async watchQueue(seedVideoId, continuation, limit) {
+      const body =
+        continuation === undefined
+          ? {
+              videoId: seedVideoId,
+              playlistId: radioPlaylistId(seedVideoId),
+              isAudioOnly: true,
+            }
+          : { continuation }
+      return parseWatchQueue(await request("next", body), limit)
+    },
   }
+}
+
+/// Reads one page of a radio queue.
+///
+/// The panel is located first and its absence is a typed failure. The recovered Raziel parser
+/// returned an empty array for an unknown layout, which would make a broken parse look exactly
+/// like an exhausted station and hide the breakage behind "radio just stopped".
+export function parseWatchQueue(value: unknown, limit: number): YtMusicWatchQueue {
+  let panel: Record<string, unknown> | undefined
+  walk(value, (record) => {
+    if (panel !== undefined) return
+    const candidate = record.playlistPanelRenderer
+    if (isRecord(candidate)) panel = candidate
+  })
+  if (panel === undefined) {
+    throw new YtMusicProviderError(
+      "ytmusic.unknownLayout",
+      "YouTube Music watch response contained no playlist panel",
+      false,
+    )
+  }
+
+  const songs = new Map<string, YtMusicSong>()
+  walk(panel, (record) => {
+    const renderer = record.playlistPanelVideoRenderer
+    if (!isRecord(renderer)) return
+    // D18 keeps general uploads out of anything that reaches the queue, and a radio page can
+    // carry them. Only a catalog recording is accepted. The cost is a smaller batch when a
+    // station leans on official music videos; a visibly short batch is better than widening
+    // what enters the library path.
+    if (musicVideoType(renderer) !== SONG_VIDEO_TYPE) return
+    const externalId = videoId(renderer)
+    if (externalId === undefined || songs.has(externalId)) return
+    const title = plainRunTexts(renderer.title)[0]
+    if (title === undefined) return
+    const details = plainRuns(renderer.longBylineText)
+    const album = details.find((run) => pageType(run) === ALBUM_PAGE_TYPE)
+    const albumTitle = typeof album?.text === "string" ? album.text : undefined
+    const artist = songArtist(details, albumTitle)
+    if (artist === undefined) return
+    const albumExternalId = album === undefined ? undefined : browseId(album)
+    const duration = durationMs(plainRunTexts(renderer.lengthText)[0])
+    const artworkUrl = largestThumbnail(renderer)
+    songs.set(externalId, {
+      externalId,
+      title,
+      artist,
+      ...(albumTitle === undefined ? {} : { album: albumTitle }),
+      ...(albumExternalId === undefined ? {} : { albumExternalId }),
+      ...(duration === undefined ? {} : { durationMs: duration }),
+      ...(artworkUrl === undefined ? {} : { artworkUrl }),
+    })
+  })
+
+  const continuation = watchContinuation(panel)
+  return {
+    tracks: [...songs.values()].slice(0, limit),
+    ...(continuation === undefined ? {} : { continuation }),
+  }
+}
+
+/// A radio page advertises its next page under one of two continuation shapes.
+function watchContinuation(panel: Record<string, unknown>): string | undefined {
+  let found: string | undefined
+  walk(panel, (record) => {
+    if (found !== undefined) return
+    for (const key of ["nextRadioContinuationData", "nextContinuationData"]) {
+      const data = record[key]
+      if (!isRecord(data)) continue
+      const continuation = data.continuation
+      if (typeof continuation === "string" && continuation.length > 0) {
+        found = continuation
+        return
+      }
+    }
+  })
+  return found
+}
+
+/// A watch-queue renderer holds its runs directly, unlike a search result, which wraps them in
+/// a flex-column renderer first.
+function plainRuns(value: unknown): readonly Record<string, unknown>[] {
+  if (!isRecord(value) || !Array.isArray(value.runs)) return []
+  return value.runs.filter(isRecord)
+}
+
+function plainRunTexts(value: unknown): readonly string[] {
+  return plainRuns(value).flatMap((run) => (typeof run.text === "string" ? [run.text] : []))
 }
 
 export function parseSongSearch(value: unknown, limit: number): readonly YtMusicSong[] {

@@ -1,5 +1,12 @@
 import { expect, test } from "bun:test"
-import { parseAlbum, parseAlbumSearch, parseArtistSearch, parseSongSearch } from "./internal-api"
+import {
+  parseAlbum,
+  parseAlbumSearch,
+  parseArtistSearch,
+  parseSongSearch,
+  parseWatchQueue,
+  radioPlaylistId,
+} from "./internal-api"
 
 const artistRun = (name: string, browseId = "UC1234567890123456789012") => ({
   text: name,
@@ -421,4 +428,121 @@ test("album browse parsing refuses tracks without real header identity", () => {
       "MPRE_album",
     ),
   ).toThrow("did not contain album metadata and tracks")
+})
+
+const queueItem = (
+  videoId: string,
+  title: string,
+  musicVideoType = "MUSIC_VIDEO_TYPE_ATV",
+  extra: Record<string, unknown> = {},
+) => ({
+  playlistPanelVideoRenderer: {
+    title: { runs: [{ text: title }] },
+    longBylineText: { runs: [{ text: "David Bowie" }] },
+    lengthText: { runs: [{ text: "3:45" }] },
+    navigationEndpoint: {
+      watchEndpoint: {
+        videoId,
+        watchEndpointMusicSupportedConfigs: {
+          watchEndpointMusicConfig: { musicVideoType },
+        },
+      },
+    },
+    ...extra,
+  },
+})
+
+const watchResponse = (contents: readonly unknown[], continuations?: readonly unknown[]) => ({
+  contents: {
+    singleColumnMusicWatchNextResultsRenderer: {
+      tabbedRenderer: {
+        watchNextTabbedResultsRenderer: {
+          tabs: [
+            {
+              tabRenderer: {
+                content: {
+                  musicQueueRenderer: {
+                    content: {
+                      playlistPanelRenderer: {
+                        contents,
+                        ...(continuations === undefined ? {} : { continuations }),
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          ],
+        },
+      },
+    },
+  },
+})
+
+test("a radio playlist id is derived from the seed recording", () => {
+  expect(radioPlaylistId("videoOne")).toBe("RDAMVMvideoOne")
+})
+
+test("a watch queue reads catalog recordings with duration and artist", () => {
+  const queue = parseWatchQueue(
+    watchResponse(
+      [queueItem("videoOne", "Heroes")],
+      [{ nextRadioContinuationData: { continuation: "page-two" } }],
+    ),
+    10,
+  )
+
+  expect(queue.tracks).toEqual([
+    expect.objectContaining({
+      externalId: "videoOne",
+      title: "Heroes",
+      artist: "David Bowie",
+      durationMs: 225000,
+    }),
+  ])
+  expect(queue.continuation).toBe("page-two")
+})
+
+test("an ordinary upload in a radio queue is dropped, keeping D18 honest", () => {
+  const queue = parseWatchQueue(
+    watchResponse([
+      queueItem("videoOne", "Heroes"),
+      queueItem("upload", "Live Bootleg", "MUSIC_VIDEO_TYPE_UGC"),
+    ]),
+    10,
+  )
+
+  expect(queue.tracks.map((track) => track.externalId)).toEqual(["videoOne"])
+})
+
+test("a repeated recording appears once and the limit is honoured", () => {
+  const queue = parseWatchQueue(
+    watchResponse([
+      queueItem("videoOne", "Heroes"),
+      queueItem("videoOne", "Heroes"),
+      queueItem("videoTwo", "Fame"),
+      queueItem("videoThree", "Fashion"),
+    ]),
+    2,
+  )
+
+  expect(queue.tracks.map((track) => track.externalId)).toEqual(["videoOne", "videoTwo"])
+})
+
+test("a queue with no continuation reports none rather than inventing one", () => {
+  const queue = parseWatchQueue(watchResponse([queueItem("videoOne", "Heroes")]), 10)
+
+  expect(queue.continuation).toBeUndefined()
+})
+
+test("an empty but well-formed panel is an empty queue, not a failure", () => {
+  const queue = parseWatchQueue(watchResponse([]), 10)
+
+  expect(queue.tracks).toEqual([])
+})
+
+test("an unreadable layout fails loudly instead of looking like an exhausted station", () => {
+  expect(() => parseWatchQueue({ contents: { somethingElse: {} } }, 10)).toThrow(
+    "no playlist panel",
+  )
 })

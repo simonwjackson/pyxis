@@ -1111,6 +1111,14 @@ the mapping; a live check needs the user to supply an account.
 
 **Verification:** `bun test` in `plugins/ytmusic`, repo typecheck, Biome.
 
+**Limit, recorded 2026-09-07: no live YouTube Music `next` request has been made.** The request
+body and the response paths come from the recovered Raziel parser and the documented watch
+response, and every test runs against synthetic fixtures shaped like that response. Fixtures prove
+the parser's rules, not that the upstream shape is still what we think. The research report asks
+for a live metadata check before claiming radio works, and that check is still owed. Until it
+happens, treat YouTube Music radio as implemented but unproven; `ytmusic.unknownLayout` exists so
+that a wrong guess fails loudly on the first real call instead of returning an empty batch.
+
 ---
 
 ### U33. One station surface in the reference client

@@ -4,7 +4,7 @@ export type {
   PluginRequestEnvelope,
   PluginResponseEnvelope,
 } from "../../../contracts/generated/pyxis"
-export { PluginCapability } from "../../../contracts/generated/pyxis"
+export { PluginCapability, StationSeedKind } from "../../../contracts/generated/pyxis"
 export type {
   CapabilityContext,
   CapabilityHandler,

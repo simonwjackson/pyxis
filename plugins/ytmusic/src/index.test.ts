@@ -39,6 +39,13 @@ const internal: YtMusicInternalApi = {
       },
     ],
   }),
+  watchQueue: async (seedVideoId, continuation) =>
+    continuation === undefined
+      ? {
+          tracks: [{ externalId: `${seedVideoId}-next`, title: "Fame", artist: "David Bowie" }],
+          continuation: "page-two",
+        }
+      : { tracks: [{ externalId: "videoThree", title: "Fashion", artist: "David Bowie" }] },
 }
 
 const working: YtDlp = {
@@ -53,6 +60,105 @@ const working: YtDlp = {
     await Bun.write(targetPath, "audio")
   },
 }
+
+async function call(
+  runtime: ReturnType<typeof createPluginRuntime>,
+  operation: string,
+  input: unknown,
+) {
+  return runtime.handleLine(
+    JSON.stringify({
+      id: operation,
+      request: {
+        _tag: "capability.call",
+        payload: { capability: "source", operation, input },
+      },
+    }),
+  )
+}
+
+function outcomeValue(result: unknown): Record<string, unknown> {
+  return (result as { envelope: { response: { outcome: { value: Record<string, unknown> } } } })
+    .envelope.response.outcome.value
+}
+
+describe("YouTube Music stations", () => {
+  test("a track seed derives a radio station without an upstream write", async () => {
+    const runtime = createPluginRuntime(
+      createYtMusicPlugin(working, {
+        ...internal,
+        watchQueue: async () => {
+          throw new Error("station.create must not call upstream")
+        },
+      }),
+    )
+
+    const created = await call(runtime, "station.create", {
+      seed: { kind: "track", externalId: "videoOne" },
+    })
+
+    expect(outcomeValue(created)).toMatchObject({
+      station: { externalId: "RDAMVMvideoOne" },
+    })
+  })
+
+  test("a first batch carries a cursor and is not exhausted", async () => {
+    const runtime = createPluginRuntime(createYtMusicPlugin(working, internal))
+
+    const batch = await call(runtime, "station.next", { stationId: "RDAMVMvideoOne" })
+
+    expect(outcomeValue(batch)).toMatchObject({
+      tracks: [{ externalId: "videoOne-next", title: "Fame" }],
+      cursor: "page-two",
+      exhausted: false,
+    })
+  })
+
+  test("a continued batch without a further page reports exhaustion", async () => {
+    const runtime = createPluginRuntime(createYtMusicPlugin(working, internal))
+
+    const batch = await call(runtime, "station.next", {
+      stationId: "RDAMVMvideoOne",
+      cursor: "page-two",
+    })
+
+    const value = outcomeValue(batch)
+    expect(value.exhausted).toBe(true)
+    expect(value.cursor).toBeUndefined()
+  })
+
+  test("a seed kind this source cannot start is refused as invalid input", async () => {
+    const runtime = createPluginRuntime(createYtMusicPlugin(working, internal))
+
+    const result = await call(runtime, "station.create", {
+      seed: { kind: "artist", externalId: "UC1234567890123456789012" },
+    })
+
+    expect(result).toMatchObject({
+      _tag: "response",
+      envelope: {
+        response: {
+          outcome: { status: "unavailable", value: { code: "capability.invalidInput" } },
+        },
+      },
+    })
+  })
+
+  test("listing stations is absent, because this source owns none", async () => {
+    const runtime = createPluginRuntime(createYtMusicPlugin(working, internal))
+
+    const result = await call(runtime, "station.list", {})
+
+    expect(result).toMatchObject({
+      _tag: "response",
+      envelope: {
+        response: {
+          outcome: { status: "unavailable", value: { code: "capability.unknownOperation" } },
+        },
+      },
+    })
+  })
+})
 
 describe("YouTube Music plugin", () => {
   test("search, album, and stream operations dispatch through the source capability", async () => {
