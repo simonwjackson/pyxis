@@ -378,14 +378,6 @@ button {
   flex: none;
 }
 
-.nowbar-toggle {
-  flex: none;
-  width: 40px;
-  height: 40px;
-  font-size: 13px;
-  border: 1px solid var(--rule);
-}
-
 /* Resting keeps the bar's exact footprint so nothing below it shifts when audio stops. */
 .nowbar.resting .nowbar-text b {
   color: var(--soft);
@@ -397,11 +389,6 @@ button {
   height: 42px;
   background: var(--frame);
   box-shadow: inset 0 0 0 1px var(--edge);
-}
-
-.nowbar-toggle:hover,
-.nowbar-toggle:focus-visible {
-  border-color: var(--ink);
 }
 
 .nowbar.paused .nowbar-room i {
@@ -604,22 +591,6 @@ body.has-nowbar main {
 }
 
 /* The bar at full size. Not a destination — no navigation, no page chrome. */
-.player {
-  width: min(520px, 100%);
-  max-width: 100%;
-  max-height: 100svh;
-  height: 100svh;
-  padding: 0 20px 24px;
-  margin: 0 auto;
-  color: var(--ink);
-  background: var(--ground);
-  border: none;
-}
-
-.player::backdrop {
-  background: var(--scrim);
-}
-
 /* A row: a cover, a title with its subtitle, and something trailing — an action, a time, a
    state. Rooms, search results and listening history are all this shape. They were three
    copies of it, drifting on every axis: 15/15/14px titles, 13/13/12.5px subtitles, 3/3/2px
@@ -843,101 +814,6 @@ dialog.sheet::backdrop {
   border-top: 1px solid var(--rule);
 }
 
-.player-close {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--soft);
-}
-
-.player-room {
-  display: flex;
-  gap: 7px;
-  align-items: center;
-  font-size: 13px;
-  font-weight: 700;
-  color: inherit;
-  text-decoration: none;
-}
-
-.player-art {
-  width: calc(100% + 40px);
-  margin-inline: -20px;
-}
-
-.player-title {
-  margin: 18px 0 0;
-  font-size: 20px;
-  font-weight: 700;
-  letter-spacing: -0.01em;
-}
-
-.player-artist {
-  margin: 4px 0 0;
-  font-size: 15px;
-  font-weight: 600;
-  color: var(--soft);
-}
-
-.player-position {
-  margin: 10px 0 0;
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--soft);
-}
-
-.player-bar {
-  height: 2px;
-  margin-top: 10px;
-  background: var(--rule);
-}
-
-.player-bar div {
-  width: 38%;
-  height: 100%;
-  background: var(--ink);
-}
-
-.player-controls {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  margin-top: 18px;
-}
-
-.player-controls .act {
-  min-width: 58px;
-  padding: 16px 8px;
-  font-size: 14px;
-  letter-spacing: 0;
-  text-align: center;
-  text-transform: none;
-}
-
-.player-controls input {
-  flex: 1;
-  min-width: 60px;
-  margin-left: 8px;
-  accent-color: var(--heat);
-}
-
-.player-next .frame {
-  width: 40px;
-  flex: none;
-}
-
-.player-next .t {
-  min-width: 0;
-  flex: 1;
-  font-size: 13px;
-  font-weight: 700;
-}
-
-.player-next .t span {
-  display: block;
-  font-weight: 500;
-  color: var(--soft);
-}
-
 .truncate {
   display: -webkit-box;
   overflow: hidden;
@@ -1019,23 +895,6 @@ dialog.sheet::backdrop {
 /* What happens when the album ends, stated before it ends.
    Silence is the default: continuing is a choice someone makes, not one the product makes on
    their behalf while they are in another room. */
-.player-ends {
-  padding: 20px 0 2px;
-  margin-top: 20px;
-  border-top: 1px solid var(--rule);
-}
-.player-ends .split {
-  align-items: center;
-  gap: 14px;
-}
-.player-ends .t b {
-  display: block;
-  margin-top: 5px;
-  font-size: 15px;
-  font-weight: 600;
-  color: var(--ink);
-}
-
 /* ---- Setting up ---------------------------------------------------------------------
    The voice used before there is anything to listen to. Two surfaces ask a first-run
    question — connect a source, or join a device that already has one — and they are the
@@ -1078,4 +937,291 @@ dialog.sheet::backdrop {
   top: 0;
   z-index: 40;
   margin: 0;
+}
+
+/* ---- Objects ------------------------------------------------------------------------
+   A sleeve is a thing. It has an edge, it casts a shadow, and it sits on something. The
+   flat tile is right for the wall, where two hundred of them are a texture; anywhere one
+   cover is on its own it should read as an object, not a thumbnail. */
+
+.frame.object {
+  border-radius: 2px;
+  box-shadow:
+    inset 0 0 0 1px rgb(255 255 255 / 0.06),
+    0 1px 2px rgb(0 0 0 / 0.35),
+    0 10px 28px -6px rgb(0 0 0 / 0.55);
+}
+:root:not([data-theme="dark"]) .frame.object {
+  box-shadow:
+    inset 0 0 0 1px rgb(0 0 0 / 0.06),
+    0 1px 2px rgb(0 0 0 / 0.18),
+    0 10px 28px -8px rgb(0 0 0 / 0.35);
+}
+
+/* ---- Transport ----------------------------------------------------------------------
+   Drawn controls with weight. A circle for the one that matters, bare icons for the pair
+   that flank it; the icon takes the album's tint when there is one. */
+
+.transport {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  color: var(--ink);
+  border-radius: 50%;
+  transition:
+    background 0.14s ease,
+    color 0.14s ease,
+    transform 0.1s ease;
+}
+.transport svg {
+  width: 24px;
+  height: 24px;
+  fill: currentColor;
+}
+.transport:hover,
+.transport:focus-visible {
+  background: color-mix(in oklab, var(--tint, var(--ink)) 14%, transparent);
+}
+.transport:active {
+  transform: scale(0.94);
+}
+.transport:focus-visible {
+  outline-color: var(--tint, var(--heat));
+}
+.transport.big {
+  width: 68px;
+  height: 68px;
+  color: var(--ground);
+  background: var(--tint, var(--ink));
+  box-shadow: 0 8px 22px -6px color-mix(in oklab, var(--tint, var(--ink)) 70%, transparent);
+}
+.transport.big svg {
+  width: 30px;
+  height: 30px;
+}
+.transport.big:hover,
+.transport.big:focus-visible {
+  background: color-mix(in oklab, var(--tint, var(--ink)) 88%, var(--ink));
+}
+.transport.small {
+  width: 28px;
+  height: 28px;
+  color: var(--soft);
+}
+.transport.small svg {
+  width: 18px;
+  height: 18px;
+}
+
+/* ---- The player ---------------------------------------------------------------------
+   The one screen that is about a single album, so the one screen that is allowed to look
+   like it. It sits in a pool of the cover's own colour, dark enough to stay a surface; the
+   cover is the largest thing and everything else steps back from it by size and weight.
+   Nothing here is uppercase. */
+
+.player {
+  --pool: color-mix(in oklab, var(--tint, var(--ground)) 12%, var(--ground));
+  --wash: color-mix(in oklab, var(--tint, var(--ground)) 30%, var(--ground));
+  --on-pool: color-mix(in oklab, var(--tint, var(--soft)) 40%, var(--soft));
+  width: min(520px, 100%);
+  max-width: 100%;
+  height: 100svh;
+  max-height: 100svh;
+  padding: 0 24px calc(28px + env(safe-area-inset-bottom));
+  margin: 0 auto;
+  overflow-y: auto;
+  color: var(--ink);
+  background:
+    radial-gradient(120% 70% at 50% 24%, var(--wash) 0%, transparent 62%),
+    var(--pool);
+  border: none;
+}
+.player::backdrop {
+  background: var(--scrim);
+}
+
+.player-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 0 0;
+  margin-inline: -8px;
+}
+.player-close {
+  color: var(--on-pool);
+}
+.player-room {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding: 8px 10px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--on-pool);
+  border-radius: 20px;
+}
+.player-room:hover,
+.player-room:focus-visible {
+  color: var(--ink);
+  background: color-mix(in oklab, var(--tint, var(--ink)) 12%, transparent);
+}
+.player-room i {
+  background: var(--tint, var(--heat));
+}
+
+/* The stage gives the shadow room. A cover flush to the edges is a background; a cover with
+   margin around it is a thing lying on a surface. */
+.player-stage {
+  padding: 22px 8px 0;
+}
+.player-art {
+  width: 100%;
+  border-radius: 3px;
+}
+
+.player-title {
+  margin: 30px 0 0;
+  font-size: clamp(24px, 7vw, 30px);
+  font-weight: 700;
+  line-height: 1.08;
+  letter-spacing: -0.025em;
+}
+.player-artist {
+  margin: 8px 0 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--ink);
+}
+.player-artist span {
+  font-weight: 500;
+  color: var(--on-pool);
+}
+
+.player-bar {
+  height: 3px;
+  margin-top: 22px;
+  overflow: hidden;
+  background: color-mix(in oklab, var(--ink) 16%, transparent);
+  border-radius: 2px;
+}
+.player-bar div {
+  width: 38%;
+  height: 100%;
+  background: var(--tint, var(--ink));
+  border-radius: 2px;
+}
+.player-position {
+  display: flex;
+  gap: 14px;
+  justify-content: space-between;
+  margin: 10px 0 0;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--on-pool);
+  font-variant-numeric: tabular-nums;
+}
+.player-position .truncate-1 {
+  flex: 1;
+  min-width: 0;
+}
+.player-position span:not(.truncate-1) {
+  flex: none;
+}
+.player-position em {
+  font-style: normal;
+  opacity: 0.6;
+}
+
+.player-controls {
+  display: flex;
+  gap: 22px;
+  align-items: center;
+  justify-content: center;
+  margin-top: 26px;
+}
+
+.player-volume {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  margin-top: 22px;
+}
+.player-volume input {
+  flex: 1;
+  height: 3px;
+  margin: 0;
+  accent-color: var(--tint, var(--ink));
+}
+
+/* What happens when the album ends, stated before it ends. Silence is the default;
+   continuing is a choice someone makes, not one the product makes on their behalf. */
+.player-ends {
+  padding-top: 22px;
+  margin-top: 26px;
+  border-top: 1px solid color-mix(in oklab, var(--ink) 12%, transparent);
+}
+.player-then {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  align-items: baseline;
+  margin: 0;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--on-pool);
+}
+.player-next {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+}
+.player-next .frame {
+  width: 44px;
+  flex: none;
+}
+.player-next .t {
+  min-width: 0;
+  flex: 1;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.3;
+}
+.player-next .t span {
+  display: block;
+  font-weight: 500;
+  color: var(--on-pool);
+}
+
+/* A verb said quietly: underlined, in the ink, no box. For choices that are real but not the
+   point of the screen. */
+.quiet-link {
+  padding: 0;
+  font-size: inherit;
+  font-weight: 600;
+  color: var(--ink);
+  text-decoration: underline;
+  text-decoration-color: color-mix(in oklab, var(--ink) 35%, transparent);
+  text-underline-offset: 3px;
+}
+.quiet-link:hover,
+.quiet-link:focus-visible {
+  text-decoration-color: var(--tint, var(--ink));
+}
+
+/* The bar takes the same colour as the player, faintly, so the album is present even when
+   the player is closed; the toggle is the same drawn control, small. */
+.nowbar {
+  background: color-mix(in oklab, var(--tint, var(--raised)) 9%, var(--raised));
+}
+.nowbar-toggle {
+  flex: none;
+  width: 40px;
+  height: 40px;
+}
+.nowbar-toggle svg {
+  width: 20px;
+  height: 20px;
 }

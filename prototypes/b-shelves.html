@@ -485,7 +485,8 @@
         // cannot play, the button says the thing that would fix it instead of failing on tap.
         const kept = availability(album) === "available"
         const playable = !strandedIds.has(album.id) || kept
-        body.querySelector(".play").append(
+        const play = body.querySelector(".play")
+        play.append(
           element(
             playable
               ? `<button>Play album</button><button class="quiet">Shuffle</button>`
@@ -493,6 +494,13 @@
                  <span class="meta trouble">${escape(out?.name ?? "Source")} signed out</span>`,
           ),
         )
+        // Playing closes the sheet: the album is now in the bar, which is where it lives.
+        for (const button of play.querySelectorAll("button")) {
+          button.onclick = () => {
+            document.dispatchEvent(new CustomEvent("pyxis:play", { detail: { album } }))
+            dialog.close()
+          }
+        }
 
         // Hybrid offline policy: placement decides by default, this overrides it.
         const device = body.querySelector(".device")

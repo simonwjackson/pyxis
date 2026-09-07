@@ -4,7 +4,8 @@
 // absence: it keeps its footprint so nothing below it moves, drops to a resting form, and
 // offers the one action that resolves it.
 
-import { duration, element, escape, runtime, sleeve } from "./common.js"
+import { duration, element, escape, runtime, sleeve, tintFrom } from "./common.js"
+import { icon } from "./icons.js"
 import { liveRoom, makeRooms, openRooms, playingCount } from "./rooms.js"
 
 export function currentSession(library, state = "live") {
@@ -34,6 +35,32 @@ export function mountNowPlaying(library, { state = "live" } = {}) {
   const holder = element(`<div class="js-nowbar-holder"></div>`)
   document.body.append(holder)
   document.body.classList.add("has-nowbar")
+
+  // Surfaces ask the bar to play something; the bar owns what is playing. One album sheet
+  // and one search result and one history row all need the same verb, and none of them
+  // should have to know how a session is shaped.
+  document.addEventListener("pyxis:play", (event) => {
+    const album = event.detail?.album
+    if (!album) return
+    const rooms = session?.rooms ?? makeRooms(library, state)
+    const room = liveRoom(rooms) ?? rooms.find((entry) => entry.reachable) ?? rooms[0]
+    if (room) {
+      room.album = album
+      room.playing = true
+      room.touchedAt = Date.now()
+    }
+    const played = library.filter((entry) => entry.playCount > 0 && entry.id !== album.id)
+    session = {
+      album,
+      room: room?.name ?? "This phone",
+      rooms,
+      others: playingCount(rooms) - 1,
+      trackIndex: 0,
+      next: played[(38 * 37) % Math.max(1, played.length)] ?? album,
+    }
+    playing = true
+    draw()
+  })
 
   function resting() {
     const resume = lastPlayed(library)
@@ -71,46 +98,75 @@ export function mountNowPlaying(library, { state = "live" } = {}) {
     const bar = element(`
       <div class="nowbar">
         <button class="nowbar-open" aria-label="Open player">
-          <span class="frame">${sleeve(album)}</span>
+          <span class="frame object">${sleeve(album)}</span>
           <span class="nowbar-text">
             <b class="truncate-1">${escape(album.title)}</b>
             <span class="truncate-1">${escape(album.artist)}</span>
           </span>
         </button>
         <button class="nowbar-room" aria-label="Rooms"><i></i>${roomLabel}</button>
-        <button class="nowbar-toggle" aria-label="Pause">❚❚</button>
+        <button class="nowbar-toggle transport" aria-label="Pause"></button>
       </div>
     `)
 
+    // The sheet: one large thing and everything else stepping back from it. The cover is an
+    // object with an edge and a shadow, sitting in a pool of its own colour; the type does
+    // hierarchy by size and weight, and nothing here is uppercase.
     const sheet = element(`
       <dialog class="player">
-        <div class="split js-player-head">
-          <button class="player-close" aria-label="Close player">Close</button>
+        <div class="player-head">
+          <button class="player-close transport" aria-label="Close player">${icon.down}</button>
           <button class="player-room"><i></i>${roomLabel}</button>
         </div>
-        <span class="frame player-art">${sleeve(album)}</span>
-        <h2 class="player-title">${escape(album.title)}</h2>
-        <p class="player-artist">${escape(album.artist)} · ${album.year ?? "—"} · ${runtime(album)}</p>
-        <p class="player-position">
-          ${escape(track.title)} · ${trackIndex + 1} of ${album.tracks.length} · 1:12 / ${duration(track.durationMs)}
-        </p>
-        <div class="player-bar"><div></div></div>
-        <div class="player-controls">
-          <button class="act" aria-label="Previous track">◀◀</button>
-          <button class="act primary js-player-toggle">Pause</button>
-          <button class="act" aria-label="Next track">▶▶</button>
-          <input type="range" value="62" aria-label="Volume" />
+        <div class="player-stage">
+          <span class="frame object player-art">${sleeve(album)}</span>
         </div>
+        <h2 class="player-title">${escape(album.title)}</h2>
+        <p class="player-artist">${escape(album.artist)}<span> · ${album.year ?? "—"} · ${runtime(album)}</span></p>
+        <div class="player-bar"><div></div></div>
+        <p class="player-position">
+          <span class="truncate-1">${escape(track.title)}</span>
+          <span>${trackIndex + 1} of ${album.tracks.length}</span>
+          <span>1:12 <em>/ ${duration(track.durationMs)}</em></span>
+        </p>
+        <div class="player-controls">
+          <button class="transport" aria-label="Previous track">${icon.prev}</button>
+          <button class="transport big js-player-toggle" aria-label="Pause"></button>
+          <button class="transport" aria-label="Next track">${icon.next}</button>
+        </div>
+        <label class="player-volume">
+          <span class="transport small">${icon.sound}</span>
+          <input type="range" value="62" aria-label="Volume" />
+        </label>
         <div class="player-ends"></div>
       </dialog>
     `)
 
     const paint = () => {
-      const toggle = bar.querySelector(".nowbar-toggle")
-      toggle.textContent = playing ? "❚❚" : "▶"
-      toggle.setAttribute("aria-label", playing ? "Pause" : "Play")
+      const state = playing ? icon.pause : icon.play
+      const label = playing ? "Pause" : "Play"
+      for (const toggle of [bar.querySelector(".nowbar-toggle"), sheet.querySelector(".js-player-toggle")]) {
+        toggle.innerHTML = state
+        toggle.setAttribute("aria-label", label)
+      }
       bar.classList.toggle("paused", !playing)
-      sheet.querySelector(".js-player-toggle").textContent = playing ? "Pause" : "Play"
+    }
+
+    // Colour from the cover, once it has arrived. The bar and the sheet share one album, so
+    // they share one tint; when the cover cannot be read the properties are simply absent and
+    // the stylesheet's fallbacks apply.
+    const art = sheet.querySelector(".player-art img")
+    const tint = () => {
+      if (!art || !art.complete || art.naturalWidth === 0) return
+      tintFrom(sheet, art)
+      tintFrom(bar, art)
+    }
+    if (art) {
+      art.loading = "eager"
+      // Tint when the cover arrives, and again when the sheet is opened: the cover may have
+      // been decoded before this handler attached, and `complete` alone does not say so.
+      art.addEventListener("load", tint, { once: true })
+      if (art.complete) art.decode().then(tint, () => {})
     }
     const flip = () => {
       playing = !playing
@@ -129,13 +185,10 @@ export function mountNowPlaying(library, { state = "live" } = {}) {
       if (!following) {
         ends.append(
           element(`
-            <div class="split">
-              <span class="t">
-                <span class="label">When this ends</span>
-                <b>Silence</b>
-              </span>
-              <button class="act inline">Continue in rotation</button>
-            </div>
+            <p class="player-then">
+              <span>When this ends, silence.</span>
+              <button class="quiet-link">Continue in rotation</button>
+            </p>
           `),
         )
         ends.querySelector("button").onclick = () => {
@@ -146,14 +199,14 @@ export function mountNowPlaying(library, { state = "live" } = {}) {
       }
       ends.append(
         element(`
-          <div class="aside player-next">
-            <span class="frame">${sleeve(following)}</span>
+          <div class="player-next">
+            <span class="frame object">${sleeve(following)}</span>
             <span class="t">
-              <span class="label">Then</span>
+              <span>Then</span>
               <b class="truncate-1">${escape(following.title)}</b>
               <span class="truncate-1">${escape(following.artist)}</span>
             </span>
-            <button class="act inline">Stop after this</button>
+            <button class="quiet-link">Stop after this</button>
           </div>
         `),
       )
@@ -169,7 +222,11 @@ export function mountNowPlaying(library, { state = "live" } = {}) {
     sheet.querySelector(".player-room").onclick = showRooms
     bar.querySelector(".nowbar-toggle").onclick = flip
     sheet.querySelector(".js-player-toggle").onclick = flip
-    bar.querySelector(".nowbar-open").onclick = () => sheet.showModal()
+    bar.querySelector(".nowbar-open").onclick = () => {
+      sheet.showModal()
+      sheet.querySelector(".js-player-toggle").focus({ preventScroll: true })
+      tint()
+    }
     sheet.querySelector(".player-close").onclick = () => sheet.close()
     paint()
 

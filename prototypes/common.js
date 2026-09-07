@@ -266,3 +266,87 @@ export function reveal(nodes) {
   )
   for (const node of nodes) observer.observe(node)
 }
+
+/// The colour an album brings with it.
+///
+/// Chrome around music has no reason to be grey. The player and the bar take a tint from the
+/// cover, so the app looks slightly different for every album — which is what "art dominates"
+/// means visually, and not only in area.
+///
+/// Returns an `{h, s, l}` for the most saturated mid-lightness pixel, or the average when the
+/// cover is monochrome, or null when the image cannot be read. A cross-origin cover taints the
+/// canvas and throws; that is a fact about the network, not a defect, so it degrades to neutral.
+const PALETTE = new Map()
+
+export function palette(img) {
+  if (!img?.complete || img.naturalWidth === 0) return null
+  const key = img.currentSrc || img.src
+  if (PALETTE.has(key)) return PALETTE.get(key)
+
+  let result = null
+  try {
+    const size = 24
+    const canvas = document.createElement("canvas")
+    canvas.width = size
+    canvas.height = size
+    const context = canvas.getContext("2d", { willReadFrequently: true })
+    context.drawImage(img, 0, 0, size, size)
+    const { data } = context.getImageData(0, 0, size, size)
+
+    let best = null
+    let bestScore = 0
+    let sum = [0, 0, 0]
+    for (let index = 0; index < data.length; index += 4) {
+      const [r, g, b] = [data[index] / 255, data[index + 1] / 255, data[index + 2] / 255]
+      sum = [sum[0] + r, sum[1] + g, sum[2] + b]
+      const max = Math.max(r, g, b)
+      const min = Math.min(r, g, b)
+      const l = (max + min) / 2
+      const s = max === min ? 0 : (max - min) / (1 - Math.abs(2 * l - 1))
+      // Saturation matters most; lightness near the middle keeps the result usable as a tint
+      // rather than a highlight or a shadow.
+      const score = s * (1 - Math.abs(l - 0.5) * 1.4)
+      if (score > bestScore) {
+        bestScore = score
+        best = [r, g, b]
+      }
+    }
+    const count = data.length / 4
+    const picked = bestScore > 0.12 ? best : sum.map((value) => value / count)
+    result = hsl(...picked)
+  } catch {
+    result = null
+  }
+  PALETTE.set(key, result)
+  return result
+}
+
+function hsl(r, g, b) {
+  const max = Math.max(r, g, b)
+  const min = Math.min(r, g, b)
+  const l = (max + min) / 2
+  if (max === min) return { h: 0, s: 0, l }
+  const d = max - min
+  const s = d / (1 - Math.abs(2 * l - 1))
+  let h
+  if (max === r) h = ((g - b) / d) % 6
+  else if (max === g) h = (b - r) / d + 2
+  else h = (r - g) / d + 4
+  return { h: Math.round(((h * 60) + 360) % 360), s, l }
+}
+
+/// Apply an album's colour to an element as custom properties the stylesheet composes from.
+/// Lightness is clamped so a near-black or near-white cover still yields a usable tint.
+export function tintFrom(node, img) {
+  const colour = palette(img)
+  // A monochrome cover gets monochrome chrome. Flooring saturation would hand a grey sleeve
+  // a hue it never had, which is a lie told in the album's name.
+  if (!colour || colour.s < 0.08) {
+    node.style.removeProperty("--tint")
+    return false
+  }
+  const s = Math.round(Math.min(0.75, colour.s) * 100)
+  const l = Math.round(Math.min(0.62, Math.max(0.4, colour.l)) * 100)
+  node.style.setProperty("--tint", `hsl(${colour.h} ${s}% ${l}%)`)
+  return true
+}
