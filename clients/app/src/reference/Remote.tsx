@@ -1,8 +1,7 @@
 import { useReference } from "./Reference.context.tsx"
 
-/// Console surface: drive a session hosted by another device, or hand this device's
-/// queue to one. Only devices holding a live realtime socket appear here, because only
-/// those can actually answer a command.
+/// Console surface: live browser hosts and known output sessions. An unavailable output
+/// remains visible, but cannot be driven until a fresh observation confirms reachability.
 export function ReferenceRemote() {
   const { remoteSessions, session, driveRemote, handOffTo } = useReference()
   // Realtime replacement can change array order even when the visible state is unchanged.
@@ -22,18 +21,35 @@ export function ReferenceRemote() {
               {remote.output === undefined
                 ? ""
                 : ` — ${remote.output.pluginId}:${remote.output.targetId}`}{" "}
-              — {remote.transport} — {remote.queue.length} queued
-              <button type="button" onClick={() => void driveRemote(remote.id, "play")}>
+              — {remote.transport} — {remote.queue.length} queued —{" "}
+              {remote.reachable ? "available" : "unavailable"}
+              <button
+                type="button"
+                disabled={!remote.reachable}
+                onClick={() => void driveRemote(remote.id, "play")}
+              >
                 play
               </button>
-              <button type="button" onClick={() => void driveRemote(remote.id, "pause")}>
+              <button
+                type="button"
+                disabled={!remote.reachable}
+                onClick={() => void driveRemote(remote.id, "pause")}
+              >
                 pause
               </button>
-              <button type="button" onClick={() => void driveRemote(remote.id, "stop")}>
+              <button
+                type="button"
+                disabled={!remote.reachable}
+                onClick={() => void driveRemote(remote.id, "stop")}
+              >
                 stop
               </button>
               {session === undefined ? null : (
-                <button type="button" onClick={() => void handOffTo(remote.id)}>
+                <button
+                  type="button"
+                  disabled={!remote.reachable}
+                  onClick={() => void handOffTo(remote.id)}
+                >
                   hand off to this device
                 </button>
               )}

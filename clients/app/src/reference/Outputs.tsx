@@ -15,6 +15,9 @@ export function ReferenceOutputs() {
     clearOutputQueue,
   } = useReference()
   const [selectedAlbums, setSelectedAlbums] = useState<Record<string, string>>({})
+  const outputSessions = remoteSessions
+    .filter((session) => session.output !== undefined)
+    .sort((left, right) => left.id.localeCompare(right.id))
   const outputPlugins = plugins.filter((plugin) =>
     plugin.capabilities.includes(PluginCapability.Output),
   )
@@ -78,50 +81,49 @@ export function ReferenceOutputs() {
         })
       )}
       <h3>Output sessions</h3>
-      {remoteSessions.filter((session) => session.output !== undefined).length === 0 ? (
+      {outputSessions.length === 0 ? (
         <p>No output session exists.</p>
       ) : (
         <ul>
-          {remoteSessions
-            .filter((session) => session.output !== undefined)
-            .map((session) => {
-              const albumId = selectedAlbums[session.id] ?? albums[0]?.id ?? ""
-              return (
-                <li key={session.id}>
-                  {session.name} — {session.transport} — {session.queue.length} queued{" "}
-                  <select
-                    aria-label={`Album for ${session.name}`}
-                    value={albumId}
-                    onChange={(event) =>
-                      setSelectedAlbums((current) => ({
-                        ...current,
-                        [session.id]: event.currentTarget.value,
-                      }))
-                    }
-                  >
-                    {albums.map((album) => (
-                      <option key={album.id} value={album.id}>
-                        {album.artist} — {album.title}
-                      </option>
-                    ))}
-                  </select>{" "}
-                  <button
-                    type="button"
-                    disabled={albumId.length === 0}
-                    onClick={() => void enqueueAlbumOnSession(session.id, albumId)}
-                  >
-                    Queue album here
-                  </button>{" "}
-                  <button
-                    type="button"
-                    disabled={session.queue.length === 0}
-                    onClick={() => void clearOutputQueue(session.id)}
-                  >
-                    Clear queue
-                  </button>
-                </li>
-              )
-            })}
+          {outputSessions.map((session) => {
+            const albumId = selectedAlbums[session.id] ?? albums[0]?.id ?? ""
+            return (
+              <li key={session.id} data-session-id={session.id}>
+                {session.name} — {session.transport} — {session.queue.length} queued —{" "}
+                {session.reachable ? "available" : "unavailable"}{" "}
+                <select
+                  aria-label={`Album for ${session.name}`}
+                  value={albumId}
+                  onChange={(event) =>
+                    setSelectedAlbums((current) => ({
+                      ...current,
+                      [session.id]: event.currentTarget.value,
+                    }))
+                  }
+                >
+                  {albums.map((album) => (
+                    <option key={album.id} value={album.id}>
+                      {album.artist} — {album.title}
+                    </option>
+                  ))}
+                </select>{" "}
+                <button
+                  type="button"
+                  disabled={!session.reachable || albumId.length === 0}
+                  onClick={() => void enqueueAlbumOnSession(session.id, albumId)}
+                >
+                  Queue album here
+                </button>{" "}
+                <button
+                  type="button"
+                  disabled={!session.reachable || session.queue.length === 0}
+                  onClick={() => void clearOutputQueue(session.id)}
+                >
+                  Clear queue
+                </button>
+              </li>
+            )
+          })}
         </ul>
       )}
     </section>

@@ -1272,6 +1272,234 @@ describe("console mode", () => {
     expect(play).not.toHaveBeenCalled()
   })
 
+  test("keeps known output rows through reachability changes with unavailable controls disabled", async () => {
+    let handlers: RealtimeHandlers | undefined
+    const database = await openWorkerDatabase({ engine: createMemoryEngine() })
+    const own = session({ id: "mine", hostDeviceId: "device-1" })
+    const output = session({
+      id: "a-output",
+      hostDeviceId: "output-kitchen",
+      queue: ["track-1"],
+      output: { pluginId: "sonos", targetId: "kitchen" },
+    })
+    const second = session({
+      id: "z-output",
+      name: "Living Room",
+      hostDeviceId: "output-living",
+      output: { pluginId: "sonos", targetId: "living" },
+    })
+    const browser = session({ id: "browser", name: "Other browser", hostDeviceId: "device-3" })
+    for (const row of [own, output, second, browser]) await database.putSession(row)
+    const base = persistent(createDirectWorkerClient(async () => database))
+    await base.replaceAlbums([album()])
+    const sendCommand = vi.fn(async () => {})
+    render(
+      <ReferenceApp
+        worker={base}
+        client={{
+          ...client([]),
+          sendCommand,
+          connectRealtime: (_token, next) => {
+            handlers = next
+            return () => {}
+          },
+        }}
+      >
+        <ReferenceOutputs />
+        <ReferenceRemote />
+      </ReferenceApp>,
+    )
+    await waitFor(() => expect(handlers).toBeDefined())
+    const realtime = handlers
+    if (realtime === undefined) throw new Error("missing realtime handlers")
+    const outputs = screen.getByRole("heading", { name: "Outputs" }).closest("section")
+    const remotes = screen.getByRole("heading", { name: "Other devices" }).closest("section")
+    if (outputs === null || remotes === null) throw new Error("missing reference sections")
+    const outputRows = () =>
+      within(outputs)
+        .getAllByRole("combobox")
+        .map((el) => el.closest("li"))
+    const original = outputRows()
+    const kitchen = original[0]
+    const remote = remotes.querySelector<HTMLLIElement>('[data-session-id="a-output"]')
+    if (kitchen === null || kitchen === undefined || remote === null)
+      throw new Error("missing kitchen rows")
+    expect(kitchen.querySelector<HTMLButtonElement>("button")?.disabled).toBe(false)
+    for (const [index, reachable] of [false, true, false, true].entries()) {
+      await act(async () => {
+        await realtime.onEvent({
+          topic: RpcRealtimeTopic.Sessions,
+          resumeToken: `availability-${index}`,
+          state: { _tag: "session.state", payload: { ...output, reachable } },
+        })
+      })
+      expect(kitchen.isConnected).toBe(true)
+      expect(remote.isConnected).toBe(true)
+      expect(outputRows()).toEqual(original)
+      for (const row of [kitchen, remote])
+        for (const button of row.querySelectorAll("button")) {
+          expect(button.disabled).toBe(!reachable)
+          if (!reachable) fireEvent.click(button)
+        }
+      if (!reachable) expect(kitchen.textContent).toContain("unavailable")
+    }
+    const onFailure = realtime.onFailure
+    if (onFailure === undefined) throw new Error("missing realtime failure handler")
+    act(() => onFailure(new Error("connection lost")))
+    expect(kitchen.isConnected).toBe(true)
+    expect(remote.isConnected).toBe(true)
+    for (const row of [kitchen, remote])
+      for (const button of row.querySelectorAll("button")) expect(button.disabled).toBe(true)
+    expect(remotes.querySelector('[data-session-id="browser"]')).toBeNull()
+    expect((await database.session(output.id))?.reachable).toBe(true)
+    expect(sendCommand).not.toHaveBeenCalled()
+  })
+
+  test.each([
+    ["resync", "sync"],
+    ["resync", "snapshot"],
+    ["library event", "sync"],
+    ["library event", "snapshot"],
+  ] as const)("fences %s authority held at %s across connection failure", async (origin, stage) => {
+    const database = await openWorkerDatabase({ engine: createMemoryEngine() })
+    const output = session({
+      id: "output",
+      hostDeviceId: "output-kitchen",
+      output: { pluginId: "sonos", targetId: "kitchen" },
+    })
+    await database.putSession(output)
+    await database.putSession(session({ id: "browser", name: "Other browser" }))
+    const base = persistent(createDirectWorkerClient(async () => database))
+    let holding = false
+    let release: (() => void) | undefined
+    let handlers: RealtimeHandlers | undefined
+    const pause = async (at: string) => {
+      if (holding && at === stage)
+        await new Promise<void>((resolve) => {
+          release = resolve
+        })
+    }
+    render(
+      <ReferenceApp
+        client={{
+          ...client([]),
+          connectRealtime: (_token, next) => {
+            handlers = next
+            return () => {}
+          },
+        }}
+        worker={{
+          ...base,
+          sync: async () => {
+            const report = await base.sync()
+            await pause("sync")
+            return report
+          },
+          sessions: async () => {
+            const rows = await base.sessions()
+            await pause("snapshot")
+            return rows
+          },
+        }}
+      >
+        <ReferenceRemote />
+        <ReferencePlugins />
+      </ReferenceApp>,
+    )
+    await screen.findByText("Status: ready")
+    const realtime = handlers
+    const onFailure = realtime?.onFailure
+    if (realtime === undefined || onFailure === undefined)
+      throw new Error("missing realtime handlers")
+    const row = document.querySelector<HTMLLIElement>('[data-session-id="output"]')
+    const button = row?.querySelector("button")
+    if (row === null || button === undefined || button === null)
+      throw new Error("missing output control")
+    for (const freshBeforeRelease of [false, true]) {
+      holding = true
+      release = undefined
+      let pending: void | Promise<void>
+      await act(async () => {
+        pending =
+          origin === "resync"
+            ? realtime.onResync()
+            : realtime.onEvent({
+                topic: RpcRealtimeTopic.Library,
+                resumeToken: "library-test",
+                state: { _tag: "library.album.state", payload: album() },
+              })
+        await Promise.resolve()
+      })
+      await waitFor(() => expect(release).toBeTypeOf("function"))
+      act(() => onFailure(new Error("socket lost")))
+      expect(button.disabled).toBe(true)
+      expect(document.querySelector('[data-session-id="browser"]')).toBeNull()
+      if (freshBeforeRelease)
+        await act(async () => {
+          await realtime.onEvent({
+            topic: RpcRealtimeTopic.Sessions,
+            resumeToken: "fresh-output",
+            state: {
+              _tag: "session.state",
+              payload: { ...output, name: "Kitchen fresh", revision: 2 },
+            },
+          })
+        })
+      await act(async () => {
+        release?.()
+        await pending
+      })
+      expect(button.disabled).toBe(!freshBeforeRelease)
+      expect(document.querySelector('[data-session-id="browser"]')).toBeNull()
+      if (freshBeforeRelease) expect(row.textContent).toContain("Kitchen fresh")
+      holding = false
+      await act(async () => {
+        await realtime.onResync()
+      })
+      expect(button.disabled).toBe(false)
+      expect(document.querySelector('[data-session-id="browser"]')).not.toBeNull()
+    }
+  })
+
+  test("shows cached output sessions as unavailable before any live pull", async () => {
+    const database = await openWorkerDatabase({ engine: createMemoryEngine() })
+    await database.writeSettings({
+      accountId: "default",
+      accountName: "default",
+      accountIsDefault: true,
+      accountCreatedAt: "now",
+      bearerToken: "token",
+      deviceId: "device-1",
+      deviceName: "reference browser",
+    })
+    const output = session({
+      id: "output",
+      hostDeviceId: "output-kitchen",
+      queue: ["track-1"],
+      output: { pluginId: "sonos", targetId: "kitchen" },
+    })
+    await database.putSession(output)
+    await database.putSession(session({ id: "browser", name: "Other browser" }))
+    const base = persistent(createDirectWorkerClient(async () => database))
+    const waitingSync = new Promise<Awaited<ReturnType<WorkerClient["sync"]>>>(() => undefined)
+    render(
+      <ReferenceApp client={client([])} worker={{ ...base, sync: () => waitingSync }}>
+        <ReferenceOutputs />
+        <ReferenceRemote />
+      </ReferenceApp>,
+    )
+    const selector = await screen.findByRole("combobox", { name: "Album for Kitchen" })
+    const kitchen = selector.closest("li")
+    const remote = document.querySelector<HTMLLIElement>('[data-session-id="output"]')
+    if (kitchen === null || remote === null) throw new Error("missing cached output rows")
+    for (const row of [kitchen, remote]) {
+      expect(row.textContent).toContain("unavailable")
+      for (const button of row.querySelectorAll("button")) expect(button.disabled).toBe(true)
+    }
+    expect(screen.queryByText(/Other browser/)).toBeNull()
+    expect((await database.session(output.id))?.reachable).toBe(true)
+  })
+
   test("keeps handoff controls in stable order across events and resync", async () => {
     let handlers: RealtimeHandlers | undefined
     let reverseSnapshot = false

@@ -33,7 +33,8 @@ export interface ReferenceContextValue {
   readonly searchHasNoSources: boolean
   readonly sourceFailures: readonly string[]
   readonly session?: RpcSession
-  /// Other devices on this account that can be driven right now.
+  /// Live browser hosts and known output sessions on this account. Output rows can remain
+  /// visible while unavailable; consumers must check reachable before enabling commands.
   readonly remoteSessions: readonly RpcSession[]
   readonly local?: LocalState
   readonly offline?: OfflineOverview

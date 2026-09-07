@@ -103,6 +103,7 @@ export function ReferenceApp({
   const appliedDirectives = useRef<string[]>([])
   const inFlightDirectives = useRef(new Set<string>())
   const offlinePollGeneration = useRef(0)
+  const sessionPublicationGeneration = useRef(0)
 
   const applyWorkerAlbums = useCallback(async (): Promise<readonly RpcLibraryAlbum[]> => {
     const next = await store.albums()
@@ -118,22 +119,30 @@ export function ReferenceApp({
     async (
       remoteReachabilityIsLive: boolean,
       knownSettings?: WorkerSettings,
+      publicationGeneration = sessionPublicationGeneration.current,
     ): Promise<readonly RpcSession[]> => {
       const [settings, next] = await Promise.all([
         knownSettings ?? store.settings(),
         store.sessions(),
       ])
+      // Let durable work settle, but never let an older observation undo a failure clamp
+      // or supersede authority received on the replacement connection.
+      if (publicationGeneration !== sessionPublicationGeneration.current) return next
       const hosted = next.find((candidate) => candidate.hostDeviceId === settings.deviceId)
       sessionRef.current = hosted
       setSession(hosted)
-      // Reachability means a socket exists now. It is useful in the durable session shape
-      // for reconciliation, but a cached `true` must never resurrect a disconnected host.
+      // Keep known outputs visible without treating cached reachability as live. Browser
+      // hosts still require a current reachability observation before appearing here.
       setRemoteSessions(
-        remoteReachabilityIsLive
-          ? next.filter(
-              (candidate) => candidate.hostDeviceId !== settings.deviceId && candidate.reachable,
-            )
-          : [],
+        next
+          .filter(
+            (candidate) =>
+              candidate.hostDeviceId !== settings.deviceId &&
+              (candidate.output !== undefined || (remoteReachabilityIsLive && candidate.reachable)),
+          )
+          .map((candidate) =>
+            remoteReachabilityIsLive ? candidate : { ...candidate, reachable: false },
+          ),
       )
       return next
     },
@@ -166,6 +175,7 @@ export function ReferenceApp({
 
   const reconcileWorker = useCallback(
     async (scope: "all" | "sessions" = "all") => {
+      const publicationGeneration = sessionPublicationGeneration.current
       const request = syncQueue.current
         .catch(() => undefined)
         .then(async () => {
@@ -173,7 +183,7 @@ export function ReferenceApp({
           const settings = await store.settings()
           await Promise.all([
             scope === "all" ? applyWorkerAlbums() : undefined,
-            applyWorkerSessions(report.sessionPullFailed !== true, settings),
+            applyWorkerSessions(report.sessionPullFailed !== true, settings, publicationGeneration),
           ])
           setLocal((current) =>
             current === undefined
@@ -475,6 +485,7 @@ export function ReferenceApp({
           if (syncReport.authRequired) throw new Error("This device must be paired again.")
           const needsPageFallback =
             (await store.open()).ephemeral === true && syncReport.pageFallbackRequired === true
+          const publicationGeneration = sessionPublicationGeneration.current
           const [nextPlugins, fallbackAlbums, fallbackSessions] = await Promise.all([
             client.listPlugins(nextGrant.bearerToken),
             needsPageFallback
@@ -492,7 +503,7 @@ export function ReferenceApp({
           }
           if (fallbackSessions !== undefined) {
             for (const session of fallbackSessions) await store.putSession(session)
-            await applyWorkerSessions(true)
+            await applyWorkerSessions(true, undefined, publicationGeneration)
           }
           setPlugins(nextPlugins)
           setStatus("ready")
@@ -592,7 +603,13 @@ export function ReferenceApp({
         onConnected: () => setRealtimeError(undefined),
         onFailure: (cause) => {
           generation += 1
+          sessionPublicationGeneration.current += 1
           setRealtimeError(`Realtime connection failed: ${message(cause)}`)
+          setRemoteSessions((current) =>
+            current
+              .filter((candidate) => candidate.output !== undefined)
+              .map((candidate) => ({ ...candidate, reachable: false })),
+          )
         },
         onEvent: async (event) => {
           const state = event.state
@@ -643,7 +660,9 @@ export function ReferenceApp({
               const existing = current.find((candidate) => candidate.id === updated.id)
               if (existing !== undefined && existing.revision > updated.revision) return current
               const others = current.filter((candidate) => candidate.id !== updated.id)
-              return updated.reachable ? [...others, updated] : others
+              return updated.output !== undefined || updated.reachable
+                ? [...others, updated]
+                : others
             })
             return
           }
@@ -699,6 +718,7 @@ export function ReferenceApp({
     )
     return () => {
       generation += 1
+      sessionPublicationGeneration.current += 1
       disconnect()
     }
   }, [client, grant, persistConfirmedHostCommand, reconcileWorker, store])
@@ -936,9 +956,10 @@ export function ReferenceApp({
   const createOutputSession = useCallback(
     async (pluginId: string, targetId: string, name: string) => {
       await run(async () => {
+        const publicationGeneration = sessionPublicationGeneration.current
         const created = await client.createOutputSession(currentToken(), pluginId, targetId, name)
         await store.putSession(created)
-        await applyWorkerSessions(true)
+        await applyWorkerSessions(true, undefined, publicationGeneration)
       })
     },
     [applyWorkerSessions, client, currentToken, run, store],
