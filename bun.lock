@@ -28,6 +28,23 @@
         "vitest": "4.1.10",
       },
     },
+    "clients/player": {
+      "name": "@pyxis/player",
+      "version": "2.0.0",
+      "dependencies": {
+        "react": "19.2.8",
+        "react-dom": "19.2.8",
+      },
+      "devDependencies": {
+        "@testing-library/react": "16.3.2",
+        "@types/react": "19.2.18",
+        "@types/react-dom": "19.2.4",
+        "@vitejs/plugin-react": "6.0.5",
+        "jsdom": "30.0.1",
+        "vite": "8.2.0",
+        "vitest": "4.1.10",
+      },
+    },
     "packages/plugin-sdk": {
       "name": "@pyxis/plugin-sdk",
       "version": "1.0.0",
@@ -95,6 +112,8 @@
     "@jridgewell/sourcemap-codec": ["@jridgewell/sourcemap-codec@1.5.5", "", {}, "sha512-cYQ9310grqxueWbl+WuIUIaiUaDcj7WOq5fVhEljNVgRfOUhY9fy2zTvfoqWsnebh8Sl70VScFbICvJnLKB0Og=="],
 
     "@oxc-project/types": ["@oxc-project/types@0.146.0", "", {}, "sha512-XC0QsnnhVe7sLIWmYmdPw7x5P0h4W8vUU3Nv1ySgWXtvCz8NizoAEpGXA0sOYoJQV2Rl13LgURAHQ5cI5ILCSA=="],
+
+    "@pyxis/player": ["@pyxis/player@workspace:clients/player"],
 
     "@pyxis/plugin-pandora": ["@pyxis/plugin-pandora@workspace:plugins/pandora"],
 

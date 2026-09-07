@@ -1,0 +1,75 @@
+/* Approved prototype palette/scales, now owned by the next renderer. No old UI imports.
+   Tunable base type is an accessibility input, not a fixed-width canvas zoom. */
+@property --px-type-base {
+  syntax: "<length>";
+  inherits: true;
+  initial-value: 16px;
+}
+:root,
+.px-scope {
+  --px-ground: #faf9f7;
+  --px-raised: #f4f2ee;
+  --px-ink: #101010;
+  --px-soft: #706b63;
+  --px-rule: #e2dfd9;
+  --px-frame: #efece6;
+  --px-edge: #d3cfc7;
+  --px-heat: #bd3515;
+  --px-on-heat: #fff;
+  --px-sans: "Archivo", "Helvetica Neue", Arial, sans-serif;
+  /* A shallow, bounded anchor. Small containers retain legible type and tap targets.
+     Content reflows; only spacing grows slightly in wider containers. */
+  --px-unit: clamp(4px, calc(3.8px + 0.05cqw), 4.5px);
+  --px-s-hair: calc(var(--px-unit) / 2);
+  --px-s1: var(--px-unit);
+  --px-s2: calc(var(--px-unit) * 2);
+  --px-s3: calc(var(--px-unit) * 3);
+  --px-s4: calc(var(--px-unit) * 4);
+  --px-s5: calc(var(--px-unit) * 6);
+  --px-s6: calc(var(--px-unit) * 8);
+  --px-s7: calc(var(--px-unit) * 12);
+  --px-t-micro: calc(var(--px-type-base) * 0.6875);
+  --px-t-small: calc(var(--px-type-base) * 0.8125);
+  --px-t-body: max(16px, var(--px-type-base));
+  --px-t-head: calc(var(--px-type-base) * 1.25);
+  --px-t-title: calc(var(--px-type-base) * 1.625);
+  --px-t-huge: calc(var(--px-type-base) * 2.25);
+  --px-t-giant: calc(var(--px-type-base) * 3.25);
+  --px-line: 1px;
+  --px-focus: 2px;
+  --px-focus-offset: 3px;
+  --px-radius: 3px;
+  --px-target: 44px;
+  --px-target-primary: 68px;
+  --px-icon-small: 18px;
+  --px-icon: 24px;
+  --px-icon-large: 30px;
+  --px-mark: 9px;
+  --px-cover: 156px;
+  --px-measure: 46ch;
+  --px-duration: 140ms;
+  --px-object-shadow:
+    inset 0 0 0 1px rgb(0 0 0 / 0.06), 0 1px 2px rgb(0 0 0 / 0.18),
+    0 10px 28px -8px rgb(0 0 0 / 0.35);
+}
+.px-scope {
+  container-type: inline-size;
+}
+.px-scope[data-theme="dark"] {
+  --px-ground: #131210;
+  --px-raised: #1b1917;
+  --px-ink: #f2efe8;
+  --px-soft: #aaa295;
+  --px-rule: #36312b;
+  --px-frame: #211f1c;
+  --px-edge: #34302b;
+  --px-heat: #f0603a;
+  --px-on-heat: #101010;
+  --px-object-shadow:
+    inset 0 0 0 1px rgb(255 255 255 / 0.06), 0 1px 2px rgb(0 0 0 / 0.35),
+    0 10px 28px -6px rgb(0 0 0 / 0.55);
+  color-scheme: dark;
+}
+.px-scope[data-theme="light"] {
+  color-scheme: light;
+}

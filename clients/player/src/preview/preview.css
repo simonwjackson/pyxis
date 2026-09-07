@@ -1,0 +1,7 @@
+/* Preview scope: paint belongs to the whole composition, not isolated atom imports. */
+.px-specimen {
+  padding: var(--px-s5);
+  min-block-size: 100svh;
+  background: var(--px-ground);
+  color: var(--px-ink);
+}
