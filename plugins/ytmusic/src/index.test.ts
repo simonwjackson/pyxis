@@ -5,6 +5,22 @@ import { createYtMusicInternalApi, type YtMusicInternalApi } from "./internal-ap
 import type { YtDlp } from "./ytdlp"
 
 const internal: YtMusicInternalApi = {
+  searchSongs: async (_query, limit) =>
+    [
+      {
+        externalId: "videoOne",
+        title: "Heroes",
+        artist: "David Bowie",
+        album: "Heroes",
+        albumExternalId: "MPRE_album",
+        durationMs: 372000,
+        artworkUrl: "large",
+      },
+      { externalId: "videoTwo", title: "Blackstar", artist: "David Bowie" },
+    ].slice(0, limit),
+  searchArtists: async () => [
+    { externalId: "UC1234567890123456789012", name: "David Bowie", artworkUrl: "large" },
+  ],
   searchAlbums: async () => [
     { externalId: "MPRE_album", title: "Heroes", artist: "David Bowie", year: 1977 },
   ],
@@ -27,14 +43,6 @@ const internal: YtMusicInternalApi = {
 
 const working: YtDlp = {
   check: async () => "2026.08.21",
-  search: async () => [
-    {
-      source: "ytmusic",
-      externalId: "one",
-      title: "Heroes",
-      artist: "David Bowie",
-    },
-  ],
   resolveStream: async () => ({
     kind: "remote",
     url: "https://audio.example/stream",
@@ -56,6 +64,19 @@ describe("YouTube Music plugin", () => {
         request: {
           _tag: "capability.call",
           payload: { capability: "source", operation: "search", input: { query: "Bowie" } },
+        },
+      }),
+    )
+    const artistSearch = await runtime.handleLine(
+      JSON.stringify({
+        id: "artist-search",
+        request: {
+          _tag: "capability.call",
+          payload: {
+            capability: "source",
+            operation: "artist.search",
+            input: { query: "Bowie" },
+          },
         },
       }),
     )
@@ -102,7 +123,44 @@ describe("YouTube Music plugin", () => {
     expect(search).toMatchObject({
       _tag: "response",
       envelope: {
-        response: { outcome: { status: "ready", value: { tracks: [{ title: "Heroes" }] } } },
+        response: {
+          outcome: {
+            status: "ready",
+            value: {
+              tracks: [
+                {
+                  source: "ytmusic",
+                  externalId: "videoOne",
+                  title: "Heroes",
+                  artist: "David Bowie",
+                  album: "Heroes",
+                  durationMs: 372000,
+                  artworkUrl: "large",
+                },
+                { externalId: "videoTwo", title: "Blackstar", artist: "David Bowie" },
+              ],
+            },
+          },
+        },
+      },
+    })
+    expect(artistSearch).toMatchObject({
+      _tag: "response",
+      envelope: {
+        response: {
+          outcome: {
+            status: "ready",
+            value: {
+              artists: [
+                {
+                  externalId: "UC1234567890123456789012",
+                  name: "David Bowie",
+                  artworkUrl: "large",
+                },
+              ],
+            },
+          },
+        },
       },
     })
     expect(albumSearch).toMatchObject({
@@ -128,6 +186,34 @@ describe("YouTube Music plugin", () => {
       _tag: "response",
       envelope: { response: { outcome: { status: "ready", value: { kind: "remote" } } } },
     })
+  })
+
+  test("search reports only catalog songs, never general uploads", async () => {
+    const runtime = createPluginRuntime(createYtMusicPlugin(working, internal))
+
+    const response = await runtime.handleLine(
+      JSON.stringify({
+        id: "search-limit",
+        request: {
+          _tag: "capability.call",
+          payload: {
+            capability: "source",
+            operation: "search",
+            input: { query: "Bowie", limit: 1 },
+          },
+        },
+      }),
+    )
+
+    const outcome = (
+      response as {
+        envelope: {
+          response: { outcome: { value: { tracks: readonly { externalId: string }[] } } }
+        }
+      }
+    ).envelope.response.outcome
+    expect(outcome.value.tracks.map((track) => track.externalId)).toEqual(["videoOne"])
+    expect("search" in working).toBe(false)
   })
 
   test("album operations preserve invalid-input and provider failure types", async () => {

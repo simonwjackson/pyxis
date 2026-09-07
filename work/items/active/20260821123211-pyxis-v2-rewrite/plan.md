@@ -140,6 +140,8 @@ Settled. Do not re-open without the user asking.
 | D15 | The core owns a local media store and local-file playback | Soulseek downloads are local files, so local playback is a core capability rather than a plugin concern |
 | D16 | The client worker data plane is in scope; the UI above it is not | Offline correctness is a distributed-systems problem, not a design problem. The design model consumes a documented worker API |
 | D17 | Server album removal wins over queued offline placement intent, with an explicit conflict report | A placement cannot recreate a removed album. Keeping a stale copy wedges convergence; dropping the local change silently hides data loss |
+| D18 | Track search asks the music catalog, and no general-video search remains | User decision, 2026-09-07: "i dont think i want this. not yet anyway". Catalog search returns real artist and album identity instead of uploader names. Cost: recordings that exist only as ordinary uploads, such as live sets and rare versions, stop being findable. Results must never mix catalog songs with general videos |
+| D19 | Discovery search covers albums, artists and songs in one fan-out operation | User requirement, 2026-09-07. One search box asks once and shows three sections. Per-plugin partial failure already exists in the search result, so a source that answers only some kinds degrades honestly. Cost: one slow source delays every kind in that response |
 
 ---
 
@@ -295,6 +297,7 @@ milestone below answers a question the user can only answer by using the thing.
 | M5 | **It works with no network** | U20, U21, U22, U23 | Does offline survive real use, or only tests? |
 | M6 | **Audio quietly improves** | U19 | Does no-upload Soulseek actually upgrade anything? |
 | M7 | **Someone else could build a client** | U26 | Can a third party integrate from documentation alone? |
+| M8 | **Search finds albums, artists and songs** | U28, U29 | Does discovery return real catalog identity instead of general video results? |
 
 Notes on sequencing:
 
@@ -308,6 +311,11 @@ Notes on sequencing:
   tailnet to validate against a phone. M1 validates from a dev shell.
 - **M6 is the honest cut line.** If the project needs to stop early, M6 and M5 are the two
   milestones that remove the most work while breaking the least.
+- **M8 was added on 2026-09-07**, after the Raziel assessment in
+  `docs/research/2026-09-07-raziel-youtube-music-opportunities.md`. It is the assessment's
+  first slice widened by the user from songs alone to albums, artists and songs. Radio,
+  playlists, moods and personalization stay out; they need queue refill and authentication
+  work that this milestone does not build.
 
 ## Implementation Units
 
@@ -826,6 +834,76 @@ a manual split cannot be undone by the automatic matcher.
 - Integration: the timer unit updates the binary and the plugin picks up the new version.
 
 **Verification:** The timer runs on schedule under `systemctl --user`.
+
+---
+
+### U28. YouTube Music catalog song and artist search
+
+**Goal:** The plugin answers song and artist queries from the music catalog, not from general
+YouTube.
+
+**Requirements:** R4
+
+**Dependencies:** U17
+
+**Files:**
+- Modify: `plugins/ytmusic/src/internal-api.ts`, `plugins/ytmusic/src/index.ts`,
+  `plugins/ytmusic/src/ytdlp.ts`, and their tests
+
+**Approach:**
+- The existing innertube request wrapper already serves album search. Song and artist search
+  are two more `search` filters through the same wrapper, so no new transport is introduced.
+- Only `MUSIC_VIDEO_TYPE_ATV` entries are songs. Ordinary music videos and user uploads carry
+  other types and are rejected, which is what keeps D18 honest.
+- Artist references must match `UC` plus 22 characters. An album or playlist reference in the
+  same shelf is not an artist.
+- yt-dlp keeps stream resolution and fetch. Its general search is deleted rather than left
+  unused, because a dormant general-search path invites D18 being reopened by accident.
+- Duration parsing is hardened here because song search depends on it: every component must be
+  digits, and the result must fit the core's u32 millisecond field.
+
+**Test scenarios:**
+- Happy path: song search reads video id, title, artist, album, duration and artwork.
+- Happy path: artist search reads channel reference, name and artwork.
+- Edge case: a song without a linked artist page still reports its leading detail run.
+- Edge case: repeated recordings collapse, and the requested limit is honored.
+- Error path: non-catalog recordings and non-artist references produce no results.
+- Error path: `:`, `1:`, `4:70`, `999999999:00` and `LIVE` omit duration instead of inventing one.
+
+**Verification:** `bun test` in `plugins/ytmusic`, repo typecheck, Biome.
+
+**Closes:** `01M1W0J02HD295KB4SCDV074MN`.
+
+---
+
+### U29. Three-kind source discovery through one operation
+
+**Goal:** One search request returns albums, artists and songs from every live source.
+
+**Requirements:** R4, R10
+
+**Dependencies:** U28
+
+**Files:**
+- Modify: `services/pyxis/src/rpc/contract.rs`, `services/pyxis/src/source_catalog.rs`,
+  `services/pyxis/src/rpc/dispatch.rs`, `clients/app/src/reference/*`, generated contracts
+
+**Approach:**
+- `source.search.run` gains albums and artists beside its existing tracks and per-plugin
+  failures. `source.album.search` and `source.album.get` keep their plugin-scoped role in the
+  library-add flow.
+- A source that does not implement a kind is not a failure. The core records it as unsupported
+  so a songs-only plugin does not produce an error on every query.
+- Each kind is bounded by the request limit, so one talkative source cannot flood a result.
+- Discovery still registers playable candidates only for songs, and never writes the library.
+
+**Test scenarios:**
+- Happy path: a source implementing all three kinds returns all three.
+- Edge case: a source implementing only songs contributes songs and reports no failure.
+- Edge case: each kind is truncated to the requested limit.
+- Error path: one failing source does not remove another source's results.
+
+**Verification:** `just verify`, plus a reference-client search that shows the three sections.
 
 ---
 

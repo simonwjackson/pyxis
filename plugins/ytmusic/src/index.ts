@@ -1,6 +1,6 @@
 import { definePlugin, PluginCapability, PluginOperationError, runPlugin } from "@pyxis/plugin-sdk"
-import { searchInput, streamFetchInput, streamResolveInput } from "./api"
-import { createYtMusicInternalApi, type YtMusicInternalApi } from "./internal-api"
+import { type SourceTrack, searchInput, streamFetchInput, streamResolveInput } from "./api"
+import { createYtMusicInternalApi, type YtMusicInternalApi, type YtMusicSong } from "./internal-api"
 import { createYtDlp, type YtDlp } from "./ytdlp"
 
 export function createYtMusicPlugin(
@@ -23,8 +23,18 @@ export function createYtMusicPlugin(
         search: async (input) => {
           const request = validInput(() => searchInput(input))
           return providerCall(async () => ({
-            tracks: await ytdlp.search(request.query, request.limit ?? 10),
+            tracks: (await internalApi.searchSongs(request.query, request.limit ?? 10)).map(
+              sourceTrack,
+            ),
           }))
+        },
+        "artist.search": async (input) => {
+          const request = validInput(() => searchInput(input))
+          return {
+            artists: await providerCall(() =>
+              internalApi.searchArtists(request.query, request.limit ?? 10),
+            ),
+          }
         },
         "album.search": async (input) => {
           const request = validInput(() => searchInput(input))
@@ -52,6 +62,20 @@ export function createYtMusicPlugin(
 
 if (import.meta.main) {
   await runPlugin(createYtMusicPlugin(createYtDlp()))
+}
+
+/// The album reference a song belongs to is parsed but not published yet: the core's search
+/// track contract has no field for it. It arrives with the three-kind search operation.
+function sourceTrack(song: YtMusicSong): SourceTrack {
+  return {
+    source: "ytmusic",
+    externalId: song.externalId,
+    title: song.title,
+    artist: song.artist,
+    ...(song.album === undefined ? {} : { album: song.album }),
+    ...(song.durationMs === undefined ? {} : { durationMs: song.durationMs }),
+    ...(song.artworkUrl === undefined ? {} : { artworkUrl: song.artworkUrl }),
+  }
 }
 
 function externalIdOf(input: unknown): string {

@@ -35,38 +35,6 @@ describe("yt-dlp adapter", () => {
     expect(formatSelector(["not-a-real-format"])).toBe("bestaudio/best[acodec!=none]")
   })
 
-  test("search maps valid lines into canonical tracks and skips unavailable entries", async () => {
-    const binary = await executable(`${header}
-cat <<'JSON'
-{"id":"one","title":"Heroes","uploader":"David Bowie","album":"Heroes","duration":372,"thumbnail":"https://img/one"}
-{"id":"two","title":"Life on Mars?","channel":"David Bowie","duration":240}
-{"title":"Private video"}
-JSON
-`)
-    const ytdlp = createYtDlp({ fallbackBinary: binary })
-
-    const tracks = await ytdlp.search("David Bowie", 10)
-
-    expect(tracks).toEqual([
-      {
-        source: "ytmusic",
-        externalId: "one",
-        title: "Heroes",
-        artist: "David Bowie",
-        album: "Heroes",
-        durationMs: 372000,
-        artworkUrl: "https://img/one",
-      },
-      {
-        source: "ytmusic",
-        externalId: "two",
-        title: "Life on Mars?",
-        artist: "David Bowie",
-        durationMs: 240000,
-      },
-    ])
-  })
-
   test("stream resolution returns the direct URL, required headers, and fidelity facts", async () => {
     const binary = await executable(`${header}
 cat <<'JSON'
@@ -141,18 +109,18 @@ exit 7
 
   test("a mutable nightly becomes active on the next call without a restart", async () => {
     const fallback = await executable(`${header}
-echo '{"id":"old","title":"Old","uploader":"Fallback"}'
+echo '{"url":"https://audio.example/old","ext":"m4a"}'
 `)
     const mutableRoot = await mkdtemp(join(tmpdir(), "pyxis-ytdlp-nightly-"))
     roots.push(mutableRoot)
     const ytdlp = createYtDlp({ fallbackBinary: fallback, mutableRoot })
 
-    expect((await ytdlp.search("x", 1))[0]?.externalId).toBe("old")
+    expect((await ytdlp.resolveStream("x")).url).toBe("https://audio.example/old")
 
     const nightly = join(mutableRoot, "yt-dlp")
-    await writeFile(nightly, `${header}\necho '{"id":"new","title":"New","uploader":"Nightly"}'\n`)
+    await writeFile(nightly, `${header}\necho '{"url":"https://audio.example/new","ext":"m4a"}'\n`)
     await chmod(nightly, 0o755)
 
-    expect((await ytdlp.search("x", 1))[0]?.externalId).toBe("new")
+    expect((await ytdlp.resolveStream("x")).url).toBe("https://audio.example/new")
   })
 })

@@ -1,7 +1,7 @@
 import { constants } from "node:fs"
 import { access, stat } from "node:fs/promises"
 import { join } from "node:path"
-import type { RemoteStream, SourceTrack } from "./api"
+import type { RemoteStream } from "./api"
 
 export class YtDlpError extends Error {
   readonly code: string
@@ -17,7 +17,6 @@ export class YtDlpError extends Error {
 
 export interface YtDlp {
   check(): Promise<string>
-  search(query: string, limit: number): Promise<readonly SourceTrack[]>
   resolveStream(trackId: string, preferredFormats?: readonly string[]): Promise<RemoteStream>
   fetchStream(
     trackId: string,
@@ -83,40 +82,6 @@ export function createYtDlp(config: YtDlpConfig = {}): YtDlp {
 
   return {
     check: () => run(["--version"]),
-
-    async search(query, limit) {
-      const output = await run([
-        "--dump-json",
-        "--flat-playlist",
-        "--no-download",
-        "--no-warnings",
-        `ytsearch${limit}:${query}`,
-      ])
-      return output
-        .split("\n")
-        .filter((line) => line.trim().length > 0)
-        .flatMap((line) => {
-          const value: unknown = JSON.parse(line)
-          if (!isRecord(value) || typeof value.id !== "string" || typeof value.title !== "string") {
-            return []
-          }
-          const artist = firstString(value.artist, value.uploader, value.channel) ?? "Unknown"
-          const track: SourceTrack = {
-            source: "ytmusic",
-            externalId: value.id,
-            title: value.title,
-            artist,
-            ...(typeof value.album === "string" && value.album.length > 0
-              ? { album: value.album }
-              : {}),
-            ...(typeof value.duration === "number" && Number.isFinite(value.duration)
-              ? { durationMs: Math.round(value.duration * 1000) }
-              : {}),
-            ...(typeof value.thumbnail === "string" ? { artworkUrl: value.thumbnail } : {}),
-          }
-          return [track]
-        })
-    },
 
     async resolveStream(trackId, preferredFormats = []) {
       const output = await run([
@@ -249,10 +214,6 @@ function isLossless(ext: string | undefined, codec: string | undefined): boolean
   return [ext, codec].some(
     (value) => value !== undefined && /^(flac|alac|wav|ape|tta)$/i.test(value),
   )
-}
-
-function firstString(...values: unknown[]): string | undefined {
-  return values.find((value) => typeof value === "string" && value.length > 0) as string | undefined
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

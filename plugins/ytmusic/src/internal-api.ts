@@ -18,13 +18,44 @@ export interface YtMusicAlbum extends YtMusicAlbumSummary {
   readonly tracks: readonly YtMusicAlbumTrack[]
 }
 
+export interface YtMusicSong {
+  readonly externalId: string
+  readonly title: string
+  readonly artist: string
+  readonly album?: string
+  readonly albumExternalId?: string
+  readonly durationMs?: number
+  readonly artworkUrl?: string
+}
+
+export interface YtMusicArtistSummary {
+  readonly externalId: string
+  readonly name: string
+  readonly artworkUrl?: string
+}
+
 export interface YtMusicInternalApi {
+  searchSongs(query: string, limit: number): Promise<readonly YtMusicSong[]>
   searchAlbums(query: string): Promise<readonly YtMusicAlbumSummary[]>
+  searchArtists(query: string, limit: number): Promise<readonly YtMusicArtistSummary[]>
   getAlbum(externalId: string): Promise<YtMusicAlbum>
 }
 
 const CLIENT_VERSION = "1.20241023.01.00"
+/// Opaque WEB_REMIX search filters. Each restricts `/search` to one catalog result type,
+/// which is why a song query never returns ordinary uploads.
+const SONG_FILTER = "EgWKAQIIAWoQEAMQBBAJEAoQBRAREBAQFQ%3D%3D"
 const ALBUM_FILTER = "EgWKAQIYAWoOEAMQBBAJEAoQERAQEBU%3D"
+const ARTIST_FILTER = "EgWKAQIgAWoQEAMQBBAJEAoQBRAREBAQFQ%3D%3D"
+/// Only this recording type is a catalog song. Ordinary music videos and user uploads
+/// carry other types and are deliberately excluded from search results.
+const SONG_VIDEO_TYPE = "MUSIC_VIDEO_TYPE_ATV"
+const ARTIST_PAGE_TYPE = "MUSIC_PAGE_TYPE_ARTIST"
+const ALBUM_PAGE_TYPE = "MUSIC_PAGE_TYPE_ALBUM"
+const ARTIST_REFERENCE = /^UC[A-Za-z0-9_-]{22}$/u
+/// The core carries durations in a u32 millisecond field, so a larger value cannot be
+/// reported. Omitting it keeps otherwise valid metadata usable.
+const MAX_DURATION_MS = 4_294_967_295
 class YtMusicProviderError extends Error {
   readonly code: string
   readonly retryable: boolean
@@ -97,6 +128,10 @@ export function createYtMusicInternalApi(fetcher: typeof fetch = fetch): YtMusic
   }
 
   return {
+    async searchSongs(query, limit) {
+      return parseSongSearch(await request("search", { query, params: SONG_FILTER }), limit)
+    },
+
     async searchAlbums(query) {
       return parseAlbumSearch(
         await request("search", {
@@ -106,11 +141,114 @@ export function createYtMusicInternalApi(fetcher: typeof fetch = fetch): YtMusic
       )
     },
 
+    async searchArtists(query, limit) {
+      return parseArtistSearch(await request("search", { query, params: ARTIST_FILTER }), limit)
+    },
+
     async getAlbum(externalId) {
       const browseId = externalId.startsWith("OLAK") ? `VL${externalId}` : externalId
       return parseAlbum(await request("browse", { browseId }), externalId)
     },
   }
+}
+
+export function parseSongSearch(value: unknown, limit: number): readonly YtMusicSong[] {
+  const songs = new Map<string, YtMusicSong>()
+  walk(value, (record) => {
+    const renderer = record.musicResponsiveListItemRenderer
+    if (!isRecord(renderer)) return
+    const columns = arrayAt(renderer, ["flexColumns"])
+    const title = runs(columns?.[0]).find(
+      (run) => musicVideoType(run) === SONG_VIDEO_TYPE && videoId(run) !== undefined,
+    )
+    if (title === undefined || typeof title.text !== "string") return
+    const externalId = videoId(title)
+    if (externalId === undefined || songs.has(externalId)) return
+    const details = runs(columns?.[1])
+    const album = details.find((run) => pageType(run) === ALBUM_PAGE_TYPE)
+    const albumTitle = typeof album?.text === "string" ? album.text : undefined
+    const artist = songArtist(details, albumTitle)
+    if (artist === undefined) return
+    const albumExternalId = album === undefined ? undefined : browseId(album)
+    const duration = details.flatMap((run) => {
+      const parsed = typeof run.text === "string" ? durationMs(run.text) : undefined
+      return parsed === undefined ? [] : [parsed]
+    })[0]
+    const artworkUrl = largestThumbnail(renderer)
+    songs.set(externalId, {
+      externalId,
+      title: title.text,
+      artist,
+      ...(albumTitle === undefined ? {} : { album: albumTitle }),
+      ...(albumExternalId === undefined ? {} : { albumExternalId }),
+      ...(duration === undefined ? {} : { durationMs: duration }),
+      ...(artworkUrl === undefined ? {} : { artworkUrl }),
+    })
+  })
+  return [...songs.values()].slice(0, limit)
+}
+
+export function parseArtistSearch(value: unknown, limit: number): readonly YtMusicArtistSummary[] {
+  const artists = new Map<string, YtMusicArtistSummary>()
+  walk(value, (record) => {
+    const renderer = record.musicResponsiveListItemRenderer
+    if (!isRecord(renderer)) return
+    const externalId = stringAt(renderer, ["navigationEndpoint", "browseEndpoint", "browseId"])
+    if (externalId === undefined || !ARTIST_REFERENCE.test(externalId) || artists.has(externalId))
+      return
+    const name = runTexts(arrayAt(renderer, ["flexColumns"])?.[0])[0]
+    if (name === undefined) return
+    const artworkUrl = largestThumbnail(renderer)
+    artists.set(externalId, {
+      externalId,
+      name,
+      ...(artworkUrl === undefined ? {} : { artworkUrl }),
+    })
+  })
+  return [...artists.values()].slice(0, limit)
+}
+
+/// A catalog song usually links its artist to a channel page. When it does not, the
+/// leading detail run still names the artist, so the entry is kept rather than dropped.
+/// Separators, the album title and the duration are never the artist.
+function songArtist(
+  details: readonly Record<string, unknown>[],
+  albumTitle: string | undefined,
+): string | undefined {
+  const linked = details.find((run) => pageType(run) === ARTIST_PAGE_TYPE)?.text
+  if (typeof linked === "string" && linked.length > 0) return linked
+  for (const run of details) {
+    if (typeof run.text !== "string") continue
+    const text = run.text.trim()
+    if (text.length === 0 || text === "\u2022") continue
+    if (text === albumTitle || durationMs(text) !== undefined) continue
+    return text
+  }
+  return undefined
+}
+
+function pageType(run: Record<string, unknown>): string | undefined {
+  return stringAt(run, [
+    "navigationEndpoint",
+    "browseEndpoint",
+    "browseEndpointContextSupportedConfigs",
+    "browseEndpointContextMusicConfig",
+    "pageType",
+  ])
+}
+
+function musicVideoType(run: Record<string, unknown>): string | undefined {
+  return stringAt(run, [
+    "navigationEndpoint",
+    "watchEndpoint",
+    "watchEndpointMusicSupportedConfigs",
+    "watchEndpointMusicConfig",
+    "musicVideoType",
+  ])
+}
+
+function videoId(run: Record<string, unknown>): string | undefined {
+  return stringAt(run, ["navigationEndpoint", "watchEndpoint", "videoId"])
 }
 
 export function parseAlbumSearch(value: unknown): readonly YtMusicAlbumSummary[] {
@@ -317,17 +455,20 @@ function largestThumbnail(value: Record<string, unknown>): string | undefined {
   return largest?.url
 }
 
+/// Every component must be digits only, because `Number` reads an empty component as zero
+/// and would turn ':' into a real duration. The result must also fit the core's u32
+/// millisecond field, so an implausible hour count is omitted instead of overflowing it.
 function durationMs(value: string | undefined): number | undefined {
   if (value === undefined) return undefined
-  const parts = value.split(":").map(Number)
-  if (
-    parts.length < 2 ||
-    parts.length > 3 ||
-    parts.some((part) => !Number.isInteger(part) || part < 0) ||
-    parts.slice(1).some((part) => part >= 60)
-  )
-    return undefined
-  return parts.reduce((seconds, part) => seconds * 60 + part, 0) * 1000
+  const components = value.split(":")
+  if (components.length < 2 || components.length > 3) return undefined
+  if (!components.every((component) => /^\d+$/u.test(component))) return undefined
+  const parts = components.map(Number)
+  if (parts.slice(1).some((part) => part >= 60)) return undefined
+  const milliseconds = parts.reduce((seconds, part) => seconds * 60 + part, 0) * 1000
+  return Number.isSafeInteger(milliseconds) && milliseconds <= MAX_DURATION_MS
+    ? milliseconds
+    : undefined
 }
 
 function stringAt(value: unknown, path: readonly string[]): string | undefined {
