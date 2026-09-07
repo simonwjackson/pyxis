@@ -1,6 +1,7 @@
 import { Input, type InputProps } from "./Input.tsx"
 import { Text } from "./Text.tsx"
-import "./components.css"
+import "./base.css"
+import "./Field.css"
 export interface FieldProps extends Omit<InputProps, "invalid" | "describedBy"> {
   readonly error?: string
   readonly hint?: string

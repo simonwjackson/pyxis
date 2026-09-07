@@ -1,0 +1,21 @@
+.px-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--px-s4);
+  padding: var(--px-s3) 0;
+  border-bottom: var(--px-line) solid var(--px-rule);
+  inline-size: 100%;
+}
+.px-row-copy {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 12ch;
+  min-inline-size: 0;
+}
+.px-row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--px-s2);
+  max-inline-size: 100%;
+}

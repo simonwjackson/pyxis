@@ -1,0 +1,18 @@
+.px-text {
+  color: var(--px-ink);
+  font-size: var(--px-t-body);
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.px-text[data-tone="muted"] {
+  color: var(--px-soft);
+}
+.px-text[data-tone="danger"] {
+  color: var(--px-heat);
+}
+.px-text[data-size="small"] {
+  font-size: var(--px-t-small);
+}
+.px-text[data-weight="strong"] {
+  font-weight: 600;
+}

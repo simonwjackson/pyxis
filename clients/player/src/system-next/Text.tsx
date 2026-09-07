@@ -1,4 +1,5 @@
-import "./components.css"
+import "./base.css"
+import "./Text.css"
 export interface TextProps {
   readonly text: string
   readonly tone?: "normal" | "muted" | "danger"

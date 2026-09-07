@@ -1,0 +1,18 @@
+.px-flow {
+  display: flex;
+  gap: var(--px-s4);
+  min-inline-size: 0;
+}
+.px-flow[data-direction="column"] {
+  flex-direction: column;
+}
+.px-flow[data-direction="row"] {
+  flex-wrap: wrap;
+  align-items: center;
+}
+.px-flow[data-gap="small"] {
+  gap: var(--px-s2);
+}
+.px-flow[data-gap="large"] {
+  gap: var(--px-s6);
+}

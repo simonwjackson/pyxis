@@ -1,4 +1,5 @@
-import "./components.css"
+import "./base.css"
+import "./Heading.css"
 export interface HeadingProps {
   readonly text: string
   readonly level?: 1 | 2 | 3

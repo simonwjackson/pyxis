@@ -1,5 +1,6 @@
 import { Badge } from "./Badge.tsx"
-import "./components.css"
+import "./base.css"
+import "./ChoiceChip.css"
 export interface ChoiceChipProps {
   readonly label: string
   readonly count?: number

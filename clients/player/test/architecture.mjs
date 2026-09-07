@@ -6,6 +6,7 @@ import ts from "typescript"
 const player = resolve(dirname(fileURLToPath(import.meta.url)), "..")
 const repository = resolve(player, "../..")
 const partPattern = /\.(atom|molecule|organism|template|page)\.part\.tsx$/
+const TOKEN_SOURCE = "src/system-next/tokens.css"
 export function walk(root) {
   if (!existsSync(root)) return []
   return readdirSync(root, { withFileTypes: true }).flatMap((entry) => {
@@ -180,7 +181,11 @@ export function audit({ root = player, partsRoot = repository, product = false }
     if (!existsSync(file.replace(partPattern, ".tsx")))
       failures.push(`orphan-part:${relative(partsRoot, file)}`)
   }
-  for (const file of files.filter((f) => f.endsWith(".css") && !f.endsWith("tokens.css"))) {
+  // One file may hold raw design values, because defining them is its job. The exemption is an
+  // exact path, not a suffix: a component cannot opt out by naming its stylesheet *tokens.css.
+  for (const file of files.filter(
+    (f) => f.endsWith(".css") && relative(root, f).replaceAll("\\", "/") !== TOKEN_SOURCE,
+  )) {
     const text = readFileSync(file, "utf8").replace(/\/\*[\s\S]*?\*\//g, "")
     if (/(?:#[\da-f]{3,8}\b|\b(?:rgb|hsl|oklch)a?\(|\b\d+(?:\.\d+)?(?:px|rem)\b)/i.test(text))
       failures.push(`raw-design-value:${relative(root, file)}`)

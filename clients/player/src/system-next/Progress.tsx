@@ -1,5 +1,6 @@
 import type { NumericRange } from "./numeric-range.ts"
-import "./components.css"
+import "./base.css"
+import "./Progress.css"
 export interface ProgressProps {
   readonly label: string
   readonly percentage: NumericRange<0, 100, 1>

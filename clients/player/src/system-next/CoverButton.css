@@ -1,0 +1,18 @@
+.px-cover-button {
+  position: relative;
+  inline-size: min(100%, var(--px-cover));
+  flex: 0 1 var(--px-cover);
+  padding: 0;
+  border: 0;
+}
+.px-cover-button[data-sounding="true"] {
+  outline: var(--px-focus) solid var(--px-heat);
+  outline-offset: var(--px-focus-offset);
+}
+.px-cover-mark {
+  position: absolute;
+  inset-inline-end: var(--px-s2);
+  inset-block-end: var(--px-s2);
+  z-index: 2;
+  line-height: 1;
+}

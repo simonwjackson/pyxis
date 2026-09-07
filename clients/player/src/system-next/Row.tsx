@@ -1,6 +1,7 @@
 import type { ReactNode } from "react"
 import { Text } from "./Text.tsx"
-import "./components.css"
+import "./base.css"
+import "./Row.css"
 export interface RowProps {
   readonly title: string
   readonly detail: string

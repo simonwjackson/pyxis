@@ -1,0 +1,32 @@
+.px-artwork {
+  position: relative;
+  display: grid;
+  inline-size: 100%;
+  aspect-ratio: 1;
+  background: var(--px-frame);
+  box-shadow: inset 0 0 0 var(--px-line) var(--px-edge);
+}
+.px-artwork[data-treatment="object"] {
+  border-radius: var(--px-radius);
+  box-shadow: var(--px-object-shadow);
+}
+.px-artwork img,
+.px-artwork-fallback {
+  grid-area: 1 / 1;
+  inline-size: 100%;
+  block-size: 100%;
+  min-inline-size: 0;
+}
+.px-artwork img {
+  position: relative;
+  z-index: 1;
+  object-fit: cover;
+}
+.px-artwork-fallback {
+  display: grid;
+  align-items: end;
+  text-align: start;
+  padding: var(--px-s3);
+  font-size: var(--px-t-small);
+  color: var(--px-soft);
+}

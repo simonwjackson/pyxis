@@ -1,0 +1,18 @@
+.px-input {
+  display: block;
+  inline-size: 100%;
+  min-inline-size: 0;
+  min-block-size: var(--px-target);
+  padding: var(--px-s3);
+  border: var(--px-line) solid var(--px-rule);
+  border-radius: var(--px-radius);
+  color: var(--px-ink);
+  background: var(--px-raised);
+  font-size: var(--px-t-body);
+}
+.px-input[aria-invalid="true"] {
+  border-color: var(--px-heat);
+}
+.px-input:disabled {
+  opacity: 0.6;
+}

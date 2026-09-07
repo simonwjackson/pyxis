@@ -1,4 +1,5 @@
-import "./components.css"
+import "./base.css"
+import "./Icon.css"
 export interface IconProps {
   readonly name: "play" | "pause" | "previous" | "next" | "down" | "sound"
   readonly size?: "small" | "regular" | "large"

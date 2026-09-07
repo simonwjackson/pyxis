@@ -1,0 +1,24 @@
+.px-icon-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 50%;
+  padding: 0;
+  flex: none;
+  inline-size: var(--px-target);
+  block-size: var(--px-target);
+}
+.px-icon-button:enabled:hover {
+  background: var(--px-raised);
+}
+.px-icon-button[data-emphasis="primary"] {
+  inline-size: var(--px-target-primary);
+  block-size: var(--px-target-primary);
+  background: var(--px-ink);
+  color: var(--px-ground);
+}
+.px-icon-button[data-emphasis="primary"]:enabled:hover {
+  background: var(--px-heat);
+  color: var(--px-on-heat);
+}

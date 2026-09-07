@@ -1,5 +1,6 @@
 import type { ReactNode } from "react"
-import "./components.css"
+import "./base.css"
+import "./Flow.css"
 export interface FlowProps {
   readonly children: ReactNode
   readonly direction?: "row" | "column"

@@ -1,0 +1,33 @@
+/* Cross-component decisions only. A rule belongs here when one declaration block is shared by
+   several components and splitting it would write the same decision more than once. Anything a
+   single component owns lives beside that component, so parallel authors do not meet in a file. */
+@import "./tokens.css";
+:where([class^="px-"]) {
+  box-sizing: border-box;
+  font-family: var(--px-sans);
+  font-variant-numeric: tabular-nums;
+}
+:where(.px-action, .px-icon-button, .px-chip, .px-cover-button) {
+  font: inherit;
+  color: var(--px-ink);
+  cursor: pointer;
+  background: transparent;
+  border: var(--px-line) solid var(--px-rule);
+  min-block-size: var(--px-target);
+}
+:where(.px-action, .px-icon-button, .px-chip, .px-cover-button, .px-input):focus-visible {
+  outline: var(--px-focus) solid var(--px-ink);
+  outline-offset: var(--px-focus-offset);
+}
+:where(.px-action, .px-icon-button, .px-chip):disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .px-action,
+  .px-icon-button {
+    transition:
+      background var(--px-duration),
+      color var(--px-duration);
+  }
+}

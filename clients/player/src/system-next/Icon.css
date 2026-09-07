@@ -1,0 +1,15 @@
+.px-icon {
+  display: inline-block;
+  flex: none;
+  inline-size: var(--px-icon);
+  block-size: var(--px-icon);
+  fill: currentColor;
+}
+.px-icon[data-size="small"] {
+  inline-size: var(--px-icon-small);
+  block-size: var(--px-icon-small);
+}
+.px-icon[data-size="large"] {
+  inline-size: var(--px-icon-large);
+  block-size: var(--px-icon-large);
+}

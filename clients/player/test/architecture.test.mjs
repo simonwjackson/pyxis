@@ -106,3 +106,22 @@ test("filesystem coverage catches added units and reports every missing product 
     rmSync(root, { recursive: true, force: true })
   }
 })
+test("only the token source may hold raw design values", () => {
+  const root = mkdtempSync(join(tmpdir(), "pyxis-architecture-"))
+  try {
+    mkdirSync(join(root, "src/system-next"), { recursive: true })
+    const raw = ".x { padding: 7px; color: #fff; }"
+    // Splitting one stylesheet into many must not become a way to opt out of the check. The
+    // exemption names one path, so a lookalike suffix and a copy in another directory both fail.
+    writeFileSync(join(root, "src/system-next/tokens.css"), raw)
+    writeFileSync(join(root, "src/system-next/Action.tokens.css"), raw)
+    mkdirSync(join(root, "src/shapes"), { recursive: true })
+    writeFileSync(join(root, "src/shapes/tokens.css"), raw)
+    const failures = audit({ root, partsRoot: root })
+    assert.ok(!failures.includes("raw-design-value:src/system-next/tokens.css"))
+    assert.ok(failures.includes("raw-design-value:src/system-next/Action.tokens.css"))
+    assert.ok(failures.includes("raw-design-value:src/shapes/tokens.css"))
+  } finally {
+    rmSync(root, { recursive: true, force: true })
+  }
+})

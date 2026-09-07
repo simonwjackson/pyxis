@@ -1,0 +1,12 @@
+.px-notice {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--px-s3);
+  padding: var(--px-s3) var(--px-s4);
+  background: var(--px-raised);
+  border-inline-start: var(--px-focus) solid var(--px-soft);
+}
+.px-notice[data-tone="failure"] {
+  border-color: var(--px-heat);
+}

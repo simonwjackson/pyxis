@@ -2,7 +2,6 @@ import { createElement } from "react"
 import { createRoot } from "react-dom/client"
 import { FoundationsBinding } from "../bindings/Foundations.binding.tsx"
 import artworkUrl from "./assets/get-color.jpg"
-import "../system-next/components.css"
 import "./preview.css"
 
 // Consumer-owned mount API. No Caliper imports, globals, data overrides or special renderer.

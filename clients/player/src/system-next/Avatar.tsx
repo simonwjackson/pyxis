@@ -1,4 +1,5 @@
-import "./components.css"
+import "./base.css"
+import "./Avatar.css"
 export interface AvatarProps {
   readonly label: string
   readonly initials: string

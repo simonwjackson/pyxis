@@ -1,5 +1,6 @@
 import { Icon, type IconProps } from "./Icon.tsx"
-import "./components.css"
+import "./base.css"
+import "./IconButton.css"
 export interface IconButtonProps {
   readonly label: string
   readonly icon: IconProps["name"]

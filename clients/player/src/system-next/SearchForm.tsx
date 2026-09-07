@@ -1,6 +1,7 @@
 import { Action } from "./Action.tsx"
 import { Field } from "./Field.tsx"
-import "./components.css"
+import "./base.css"
+import "./SearchForm.css"
 export interface SearchFormProps {
   readonly id: string
   readonly label: string

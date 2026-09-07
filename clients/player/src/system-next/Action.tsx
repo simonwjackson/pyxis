@@ -1,5 +1,6 @@
 import type { ReactNode } from "react"
-import "./components.css"
+import "./base.css"
+import "./Action.css"
 export interface ActionProps {
   readonly label: string
   readonly children?: ReactNode

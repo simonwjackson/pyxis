@@ -55,6 +55,14 @@ signatures, not from its exported utility functions — an exported helper is no
 Tokens and palette originate in the approved prototype design; muted text contrast was raised
 and touch targets given a 44px floor while porting.
 
+Styling is co-located: each component owns `<Component>.css` beside its `.tsx`, so parallel
+authors never meet in one stylesheet. `base.css` keeps only the rules whose declaration block is
+genuinely shared — the `px-` reset and the control surface behind `Action`, `IconButton`,
+`ChoiceChip` and `CoverButton` — because splitting those would write one decision four times.
+`tokens.css` stays the single source of raw values and is the only file the raw-design-value
+check exempts; that exemption is now an exact path rather than a filename suffix, so a component
+cannot opt out by calling its stylesheet `*.tokens.css`. An eighth meta-test proves it.
+
 `mountFoundations` is the consumer's public mount API. Production and Caliper mount the same
 components through it. It performs no RPC and no worker call, and says so on screen.
 
@@ -66,8 +74,17 @@ after, zero failures both, identical failure sets by name.** An earlier baseline
 as untrustworthy: it was taken outside the devshell, where the ProseQL closure is unlinked, and
 reported 253 tests because eight real-WASM cases silently skipped.
 
-Repo typecheck, player typecheck, 10 component tests, 7 gate meta-tests, the architecture gate,
+Repo typecheck, player typecheck, 10 component tests, 8 gate meta-tests, the architecture gate,
 the prototype style gate and `biome check` on the new tree all pass.
+
+The CSS split was verified as a rewrite, not a rewrite plus a silent edit: the 60 rule blocks in
+the old stylesheet appear exactly once across the 19 new files, with none lost, added or
+duplicated, compared after normalising selector and declaration order. HMR was measured on
+Vite's own update socket, before and after the split, over the same module graph Caliper serves.
+Editing `Action.css`, `base.css`, `tokens.css` or `preview.css` produces a hot update and never a
+full reload — the same result the single stylesheet gave, so a live session still survives a CSS
+edit. This measured the Vite mechanism, not a browser session; the earlier sentinel evidence
+remains the only end-to-end proof.
 
 A real Caliper session (external profile at `~/.config/caliper/profiles/9f4f090d31e196f7/`,
 nothing added to the checkout) confirmed:

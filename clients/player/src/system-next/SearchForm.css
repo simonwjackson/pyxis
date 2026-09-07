@@ -1,0 +1,10 @@
+.px-search-form {
+  display: flex;
+  align-items: end;
+  flex-wrap: wrap;
+  gap: var(--px-s3);
+}
+/* The composer sets the field's flex behaviour; Field itself stays layout-neutral. */
+.px-search-form > .px-field {
+  flex: 1 1 22ch;
+}

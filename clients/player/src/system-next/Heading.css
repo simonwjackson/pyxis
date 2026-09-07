@@ -1,0 +1,15 @@
+.px-heading {
+  margin: 0;
+  color: var(--px-ink);
+  line-height: 1.08;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  font-size: var(--px-t-head);
+  overflow-wrap: anywhere;
+}
+.px-heading[data-scale="title"] {
+  font-size: var(--px-t-title);
+}
+.px-heading[data-scale="display"] {
+  font-size: clamp(var(--px-t-title), 5cqw, var(--px-t-giant));
+}

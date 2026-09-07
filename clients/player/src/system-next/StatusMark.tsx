@@ -1,4 +1,5 @@
-import "./components.css"
+import "./base.css"
+import "./StatusMark.css"
 export interface StatusMarkProps {
   readonly label: string
   readonly state: "ready" | "pending" | "active" | "unavailable"

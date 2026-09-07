@@ -1,0 +1,6 @@
+.px-field {
+  display: grid;
+  gap: var(--px-s2);
+  inline-size: 100%;
+  min-inline-size: 0;
+}

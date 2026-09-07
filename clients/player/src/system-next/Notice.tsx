@@ -1,6 +1,7 @@
 import type { ReactNode } from "react"
 import { Text } from "./Text.tsx"
-import "./components.css"
+import "./base.css"
+import "./Notice.css"
 export interface NoticeProps {
   readonly message: string
   readonly tone?: "quiet" | "failure"

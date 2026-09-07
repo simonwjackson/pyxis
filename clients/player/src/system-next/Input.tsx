@@ -1,5 +1,6 @@
 import type { ChangeEventHandler } from "react"
-import "./components.css"
+import "./base.css"
+import "./Input.css"
 export interface InputProps {
   readonly id: string
   readonly name?: string

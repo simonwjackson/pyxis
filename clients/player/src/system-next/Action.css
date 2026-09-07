@@ -1,0 +1,20 @@
+.px-action {
+  padding: var(--px-s3) var(--px-s4);
+  font-family: var(--px-sans);
+  font-size: var(--px-t-small);
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.px-action[data-emphasis="primary"] {
+  color: var(--px-ground);
+  background: var(--px-ink);
+  border-color: var(--px-ink);
+}
+.px-action:enabled:hover {
+  border-color: var(--px-ink);
+}
+.px-action[data-emphasis="primary"]:enabled:hover {
+  color: var(--px-on-heat);
+  background: var(--px-heat);
+  border-color: var(--px-heat);
+}

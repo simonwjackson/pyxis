@@ -1,0 +1,18 @@
+.px-status-mark {
+  display: inline-block;
+  inline-size: var(--px-mark);
+  block-size: var(--px-mark);
+  box-shadow: 0 0 0 var(--px-focus) var(--px-ground);
+  background: var(--px-ink);
+}
+.px-status-mark[data-state="pending"] {
+  background: var(--px-ground);
+  border: var(--px-focus) solid var(--px-ink);
+}
+.px-status-mark[data-state="active"] {
+  background: var(--px-heat);
+  border-radius: 50%;
+}
+.px-status-mark[data-state="unavailable"] {
+  background: var(--px-rule);
+}

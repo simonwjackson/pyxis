@@ -1,0 +1,11 @@
+.px-badge {
+  color: inherit;
+  font-size: var(--px-t-small);
+  font-weight: 600;
+}
+.px-badge[data-tone="muted"] {
+  opacity: 0.7;
+}
+.px-badge[data-tone="signal"] {
+  color: var(--px-heat);
+}

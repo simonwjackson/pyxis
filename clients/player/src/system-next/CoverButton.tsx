@@ -1,6 +1,7 @@
 import { Artwork } from "./Artwork.tsx"
 import { StatusMark } from "./StatusMark.tsx"
-import "./components.css"
+import "./base.css"
+import "./CoverButton.css"
 export interface CoverButtonProps {
   readonly label: string
   readonly src?: string

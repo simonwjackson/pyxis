@@ -1,0 +1,15 @@
+.px-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--px-s2);
+  padding: var(--px-s2) var(--px-s3);
+  font-family: var(--px-sans);
+  font-size: var(--px-t-small);
+  font-weight: 600;
+  color: var(--px-soft);
+}
+.px-chip[aria-pressed="true"] {
+  color: var(--px-ground);
+  background: var(--px-ink);
+  border-color: var(--px-ink);
+}

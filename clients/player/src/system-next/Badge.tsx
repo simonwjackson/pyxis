@@ -1,4 +1,5 @@
-import "./components.css"
+import "./base.css"
+import "./Badge.css"
 export interface BadgeProps {
   readonly count: number
   readonly tone?: "muted" | "signal"

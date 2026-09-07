@@ -1,0 +1,6 @@
+.px-progress {
+  display: block;
+  inline-size: 100%;
+  accent-color: var(--px-ink);
+  block-size: var(--px-s2);
+}

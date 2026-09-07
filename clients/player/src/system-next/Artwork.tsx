@@ -1,4 +1,5 @@
-import "./components.css"
+import "./base.css"
+import "./Artwork.css"
 export interface ArtworkProps {
   readonly src?: string
   readonly label: string
