@@ -23,7 +23,30 @@ requirements and decisions were captured directly into `plan.md` sections
 
 ## Current position
 
-**Current focus is M9: a station plays, whatever the source is behind it.** On 2026-09-07 the user
+**M9 is built, deployed and live-verified on 2026-09-07.** `436becb` is the installed revision at
+`/nix/store/wgnp3k03h62x0gbl2waq3z5pxfqv2ws6-pyxis-2.0.0`. Pandora is configured and returns **37
+real stations** with artwork and no failures; its batches carry no cursor and are never exhausted,
+matching the shape the contract predicted for a fresh-playlist provider. YouTube Music derives
+`RDAMVM` stations from a track seed and now serves **continuous radio across pages**. A cursor
+replayed against a different station is refused as `unknownStation`. `plugin.list` publishes
+Pandora with no seed kinds and YouTube Music with `track`, so the honest capability declaration is
+visible to clients.
+
+The live check paid for itself: YouTube Music continuations failed on the first real attempt,
+because a continued page uses `playlistPanelContinuation` instead of a nested
+`playlistPanelRenderer`. Radio worked for exactly one page. `436becb` fixes it and adds a fixture
+regression. The typed layout failure is what surfaced it rather than letting it look like an
+exhausted station.
+
+**The user has not used the station surface in a browser yet.** Nothing above proves the reference
+client feels right, only that the operations answer correctly.
+
+**Next gap:** a search result cannot seed a station, because `RpcSearchTrack` never carries the
+recording's provider id. See `Deferred to Follow-Up Work`.
+
+Earlier record, retained:
+
+**Original focus was M9: a station plays, whatever the source is behind it.** On 2026-09-07 the user
 required that YouTube Music and Pandora discovery/radio be source abstractions under a generic
 Pyxis model, not two provider features, and then said to build it. D20, D21 and D22 record the
 model, the naming call and the declared-support rule. U30 to U33 are the units. This replaces the

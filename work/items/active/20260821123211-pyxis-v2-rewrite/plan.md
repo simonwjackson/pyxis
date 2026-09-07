@@ -108,6 +108,12 @@ everything provider-shaped lives at the edge behind a plugin protocol.
   disconnect and account switch each need defined cancellation. Prefetch depth is bounded by a
   provider fact recorded in U30: a Pandora batch is perishable and process-bound. The session
   acknowledgement fix in `9c0efb7` was the stated precondition and has landed.
+- **A search result cannot seed a station.** `RpcSearchTrack` carries the core's derived track id
+  and an `albumExternalId`, but never the recording's own provider id. `source.station.create`
+  needs that provider id, so a client can list stations and play them, yet cannot start a station
+  from a song it just found. The live check had to read a video id out of `yt-dlp` to test at all.
+  Adding the field is small; deciding whether a provider id belongs in a public search result is
+  the actual question, since the rest of the contract deliberately keeps provider ids opaque.
 - **A dependency's test suite was being run as ours.** `clients/app/.cache/proseql` is a symlink
   into the Nix store, and the vitest config had no `exclude`, so 172 unresolvable ProseQL test
   files were collected on every run. Environment setup took 166 seconds. U33 excludes `.cache`,
@@ -1075,8 +1081,13 @@ a provider branch is the real test of D20.
 
 **Verification:** `bun test` in `plugins/pandora`, plus `just test-pandora-fixtures`.
 
-**Note:** Pandora has no credentials configured on the deployed service. Fixture coverage proves
-the mapping; a live check needs the user to supply an account.
+**Live-verified 2026-09-07.** The user supplied an account and `tools/configure-plugin` stored it
+through the public `plugin.config.set`, which returned `succeeded`. `source.station.list` then
+returned **37 real stations** with artwork and no failures, and `station.next` returned real
+recommendations from two different stations. Every batch reported no cursor and `exhausted: false`,
+which is exactly the shape U30 predicted for a provider that issues a fresh playlist per call.
+`plugin.list` reports Pandora with an empty `stationSeedKinds`, so the honest "cannot create a
+station" declaration is visible to clients.
 
 ---
 
@@ -1117,13 +1128,17 @@ the mapping; a live check needs the user to supply an account.
 
 **Verification:** `bun test` in `plugins/ytmusic`, repo typecheck, Biome.
 
-**Limit, recorded 2026-09-07: no live YouTube Music `next` request has been made.** The request
-body and the response paths come from the recovered Raziel parser and the documented watch
-response, and every test runs against synthetic fixtures shaped like that response. Fixtures prove
-the parser's rules, not that the upstream shape is still what we think. The research report asks
-for a live metadata check before claiming radio works, and that check is still owed. Until it
-happens, treat YouTube Music radio as implemented but unproven; `ytmusic.unknownLayout` exists so
-that a wrong guess fails loudly on the first real call instead of returning an empty batch.
+**Live-verified 2026-09-07.** A real seed produced `RDAMVMsvwJTnZOaco`, and two consecutive pages
+returned genuine recommendations with parsed durations and a working continuation: page one gave
+Idioteque, Everything In Its Right Place and Hearing Damage; page two gave Jigsaw Falling Into
+Place, End of Small Sanctuary and Where Is My Mind?. The earlier "implemented but unproven" note
+is retired.
+
+The live check earned its keep immediately. Continuations failed on the first real attempt because
+a continued page returns `playlistPanelContinuation` at the top level rather than a nested
+`playlistPanelRenderer`, so radio worked for exactly one page. `436becb` reads both shapes and adds
+a fixture regression. The typed `ytmusic.unknownLayout` failure is what made this visible instead
+of letting a continued batch look like a station that politely ran out.
 
 ---
 

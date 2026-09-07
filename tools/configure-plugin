@@ -1,0 +1,61 @@
+#!/usr/bin/env bash
+# Configure one source plugin for the caller's account through the public RPC API.
+#
+# Credentials are read from stdin as two lines, username then password. They never appear in
+# command arguments, environment, or any file this script writes, because process arguments
+# are world-readable on a shared machine and shell history outlives the session.
+#
+# Usage:  printf '%s\n%s\n' "$user" "$pass" | tools/configure-plugin pandora
+set -euo pipefail
+
+plugin="${1:-}"
+origin="${PYXIS_ORIGIN:-http://127.0.0.1:4488}"
+
+if [ -z "$plugin" ]; then
+  echo "configure-plugin: usage: configure-plugin <plugin-id> < credentials" >&2
+  echo "  stdin: line 1 username, line 2 password" >&2
+  exit 1
+fi
+
+IFS= read -r username || true
+IFS= read -r password || true
+if [ -z "${username:-}" ] || [ -z "${password:-}" ]; then
+  echo "configure-plugin: stdin must supply a username line and a password line" >&2
+  exit 1
+fi
+
+rpc() {
+  # The body arrives on stdin so a credential never becomes a curl argument.
+  curl -sS -m 30 -X POST "$origin/rpc" \
+    -H 'content-type: application/json' \
+    ${BEARER:+-H "authorization: Bearer $BEARER"} \
+    --data-binary @-
+}
+
+claim="$(printf '{"_tag":"auth.device.claim","payload":{"name":"configure-plugin"}}' | rpc)"
+BEARER="$(printf '%s' "$claim" | jq -r '.outcome.value.bearerToken // empty')"
+if [ -z "$BEARER" ]; then
+  echo "configure-plugin: device claim failed" >&2
+  printf '%s\n' "$claim" >&2
+  exit 1
+fi
+export BEARER
+
+account="$(printf '{"_tag":"account.list","payload":{}}' | rpc | jq -r '.outcome.value[0].name // empty')"
+echo "configure-plugin: authenticated against account '$account' at $origin"
+
+# jq builds the payload so the password is escaped correctly and is passed by variable
+# rather than interpolated into a template.
+result="$(jq -n --arg p "$plugin" --arg u "$username" --arg w "$password" \
+  '{_tag:"plugin.config.set",payload:{pluginId:$p,config:{username:$u,password:$w}}}' | rpc)"
+unset username password
+
+status="$(printf '%s' "$result" | jq -r '.outcome.status // "unknown"')"
+echo "configure-plugin: plugin.config.set for '$plugin' returned $status"
+if [ "$status" != "succeeded" ] && [ "$status" != "applied" ]; then
+  printf '%s\n' "$result" | jq '.' >&2
+  exit 1
+fi
+
+printf '{"_tag":"plugin.list","payload":{}}' | rpc |
+  jq --arg p "$plugin" '.outcome.value[] | select(.id == $p)'

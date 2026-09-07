@@ -1,0 +1,60 @@
+#!/usr/bin/env bash
+# Deploy the current committed HEAD to this machine's nix profile and restart the services.
+#
+# The profile entry is pinned to an exact revision, so `nix profile upgrade` refuses to move
+# it. Removing and re-adding at the new revision is the only way to advance a pinned entry,
+# and pinning is worth keeping: the deployed bytes stay reproducible from git alone rather
+# than from whatever the working tree happened to contain.
+#
+# It refuses to claim success unless the profile store path actually changed.
+set -euo pipefail
+
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$root"
+
+priority="${PYXIS_PROFILE_PRIORITY:-11}"
+
+if [ -n "$(git status --porcelain --untracked-files=no)" ]; then
+  echo "deploy-revision: refusing to deploy from a dirty tree" >&2
+  exit 1
+fi
+rev="$(git rev-parse HEAD)"
+flake="git+file://$root?ref=refs/heads/main&rev=$rev#pyxis"
+
+store_path() {
+  nix profile list 2>/dev/null |
+    sed 's/\x1b\[[0-9;]*m//g' |
+    awk '/^Name: *pyxis$/ {found=1} found && /^Store paths:/ {print $3; exit}'
+}
+
+before="$(store_path)"
+echo "deploy-revision: revision $rev"
+echo "deploy-revision: current store path ${before:-<none>}"
+
+# Build first. A failed build must never leave the profile without an entry.
+built="$(nix build --no-link --print-out-paths "$flake")"
+echo "deploy-revision: built $built"
+
+if [ "$built" = "$before" ]; then
+  echo "deploy-revision: already deployed; nothing to do"
+  exit 0
+fi
+
+nix profile remove pyxis >/dev/null
+if ! nix profile add --priority "$priority" "$flake"; then
+  echo "deploy-revision: add failed; the profile no longer has a pyxis entry" >&2
+  exit 1
+fi
+
+after="$(store_path)"
+echo "deploy-revision: new store path ${after:-<none>}"
+if [ "$after" != "$built" ]; then
+  echo "deploy-revision: profile store path is not the revision just built" >&2
+  exit 1
+fi
+
+systemctl --user daemon-reload
+systemctl --user restart pyxis.service pyxis-tsnet.service
+sleep 8
+systemctl --user is-active pyxis.service pyxis-tsnet.service
+echo "deploy-revision: deployed $rev"
