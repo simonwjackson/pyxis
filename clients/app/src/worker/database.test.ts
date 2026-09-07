@@ -5,8 +5,10 @@ import {
   type RpcSession,
   RpcTransport,
 } from "../../../../contracts/generated/pyxis"
+import { accountFencedDatabase } from "./account-fenced-database"
 import { SCHEMA_ROW_ID, type WorkerAlbum, type WorkerEngine } from "./contract"
 import { createMemoryEngine, openWorkerDatabase } from "./database"
+import { browserOfflineExclusive } from "./downloads"
 
 function session(overrides: Partial<RpcSession> = {}): RpcSession {
   return {
@@ -63,6 +65,84 @@ describe("opening the local database", () => {
     expect((await reopened.settings()).deviceId).toBe(deviceId)
     expect((await reopened.settings()).bearerToken).toBe("token")
     expect(await reopened.albums()).toHaveLength(1)
+  })
+})
+
+describe("placement verdicts", () => {
+  test("keeps the latest matching intent in creation order without settling the outbox", async () => {
+    const store = await openWorkerDatabase({ engine: createMemoryEngine() })
+    const initial = album("album-1")
+    await store.putAlbum(initial)
+    // Storage insertion order is not replay order. Other albums and the settled write
+    // must not choose this album's visible placement.
+    for (const [id, albumId, placement] of [
+      ["03", initial.id, RpcPlacement.Archive],
+      ["02", initial.id, RpcPlacement.Dismissed],
+      ["04", "other", RpcPlacement.Collection],
+      ["05", initial.id, RpcPlacement.Collection],
+    ] as const) {
+      await store.enqueue({
+        id,
+        kind: "album.placement",
+        albumId,
+        placement,
+        createdAt: "2026-06-01",
+        attempts: 0,
+        baseRevision: 1,
+        basePlacement: RpcPlacement.Discovery,
+      })
+    }
+    const before = await store.outbox()
+    const verdict = {
+      ...initial,
+      title: "Updated metadata",
+      revision: 2,
+      placement: RpcPlacement.Collection,
+    }
+
+    expect(await store.applyPlacementVerdict(verdict, "05")).toEqual({
+      ...verdict,
+      placement: RpcPlacement.Archive,
+    })
+    expect(await store.outbox()).toEqual(before)
+    await store.close()
+  })
+
+  test("uses the server verdict when only the settled placement remains", async () => {
+    const store = await openWorkerDatabase({ engine: createMemoryEngine() })
+    const initial = album("album-1")
+    await store.putAlbum(initial)
+    await store.queuePlacement(initial, RpcPlacement.Archive)
+    const [entry] = await store.outbox()
+    if (entry === undefined) throw new Error("missing placement")
+
+    expect(await store.applyPlacementVerdict(initial, entry.id)).toEqual(initial)
+    expect(await store.outbox()).toEqual([entry])
+    await store.close()
+  })
+
+  test("checks the refreshed account inside the lock before applying a late verdict", async () => {
+    const original = await openWorkerDatabase({ engine: createMemoryEngine() })
+    await original.writeSettings({ accountId: "first" })
+    const replacement = await openWorkerDatabase({ engine: createMemoryEngine() })
+    await replacement.writeSettings({ accountId: "second" })
+    const secondAlbum = { ...album("album-1"), title: "Second account" }
+    await replacement.putAlbum(secondAlbum)
+    const exclusive = browserOfflineExclusive(undefined)
+    let current = original
+    const fenced = accountFencedDatabase(original, "first", (operation) =>
+      exclusive(() => operation(current)),
+    )
+    // The operation was issued for the old account, but another tab switches accounts
+    // before its lock is granted. It must inspect the refreshed owner, not the old handle.
+    const pending = fenced.applyPlacementVerdict(album("album-1", 2), "acknowledged")
+    current = replacement
+    await expect(pending).rejects.toThrow("account changed while sync was in flight")
+    expect(await replacement.albums()).toEqual([secondAlbum])
+    expect(await replacement.outbox()).toEqual([])
+    expect(await original.albums()).toEqual([])
+    await original.close()
+    await replacement.close()
   })
 })
 

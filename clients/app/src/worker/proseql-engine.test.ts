@@ -139,6 +139,42 @@ describe("the real ProseQL engine", () => {
     expect(cells).toEqual(before)
   })
 
+  test("placement verdicts preserve later intent and metadata through a real engine reopen", async () => {
+    const cells = new Map<string, string>()
+    const first = await open(cells)
+    const initial = await first.putAlbum(album("album-1"))
+    await first.queuePlacement(initial, RpcPlacement.Collection)
+    await first.close()
+
+    // Match production's refreshed handle for each public database operation. ProseQL
+    // can retain a prior empty query result on the handle that enqueued the first write.
+    const second = await open(cells)
+    const [entry] = await second.outbox()
+    const collection = await second.album(initial.id)
+    if (entry === undefined || collection === undefined) throw new Error("missing placement")
+    await second.queuePlacement(collection, RpcPlacement.Archive)
+    await second.close()
+
+    const reopened = await open(cells)
+    const verdict = {
+      ...initial,
+      title: "Server metadata",
+      revision: 2,
+      placement: RpcPlacement.Collection,
+    }
+    await reopened.applyPlacementVerdict(verdict, entry.id)
+    await reopened.dequeue(entry.id)
+    await reopened.close()
+
+    const final = await open(cells)
+    expect(final.report.ephemeral).toBeUndefined()
+    expect(await final.album(initial.id)).toEqual({ ...verdict, placement: RpcPlacement.Archive })
+    expect(await final.outbox()).toMatchObject([
+      { kind: "album.placement", placement: RpcPlacement.Archive },
+    ])
+    await final.close()
+  })
+
   test("a session mutation does not rewrite unrelated collections on reopen", async () => {
     const cells = new Map<string, string>()
     const first = await open(cells)

@@ -332,6 +332,19 @@ class LocalWorkerDatabase implements WorkerDatabase {
     return stored
   }
 
+  async applyPlacementVerdict(album: WorkerAlbum, writeId: string): Promise<WorkerAlbum> {
+    // Both reads and replacement stay inside the caller's account-fenced lock. A local
+    // placement must run wholly before or after this operation, never between them.
+    const pending = (await this.outbox()).filter(
+      (entry): entry is Extract<WorkerOutboxEntry, { kind: "album.placement" }> =>
+        entry.kind === "album.placement" && entry.albumId === album.id && entry.id !== writeId,
+    )
+    return this.replaceAlbum({
+      ...album,
+      placement: pending.at(-1)?.placement ?? album.placement,
+    })
+  }
+
   async removeAlbum(id: string): Promise<boolean> {
     const removed = await this.engine.albums.delete(id)
     const pin = await this.engine.offlinePins.findById(id)

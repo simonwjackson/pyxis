@@ -44,6 +44,12 @@ continue to use full `sync()`. It is not a replacement for general offline recov
 before they become visible. Retryable, auth, malformed, and uncertain failures preserve the
 outbox. Permanent rejection is explicit and produces a durable notice.
 
+A placement verdict reads pending intent and replaces the album under one refreshed,
+account-fenced storage lock. A later local placement stays visible while its write remains
+queued. Network requests run outside this lock. `deferred` counts all writes remaining at
+the final locked outbox read, including writes added during sync and excluded domains.
+It does not promise that no new write can arrive after that read.
+
 - `queuePlacement(album, placement)`
 - `queueListen(event)`
 - `previewSessionCommand(sessionId, command, commandId)`

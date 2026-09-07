@@ -93,6 +93,13 @@ everything provider-shaped lives at the edge behind a plugin protocol.
 
 ### Deferred to Follow-Up Work
 
+- Apply session-command acknowledgements and pending commands under one account-fenced
+  operation (`01M1Y7QS1QWPHXN5JY8P14RXRT`). A September 7 probe independently reproduced
+  a later queue.add becoming invisible while its outbox entry survives. The album-placement
+  correction does not change this session path. Preserve renderer confirmation and receipts.
+- Verify ProseQL query-cache invalidation before reducing refresh-under-lock
+  (`01M1VZZYSRGB8C8G4Y0WMS2MXS`). A real-WASM placement probe again found a persisted
+  outbox row missing from a same-handle query. Production reopen boundaries remain required.
 - NixOS module, replacing the `nix profile` install.
 - Soulseek optimistic pre-fetch for Pandora and YouTube Music playlist tracks (R8 "eventually").
 - Metadata enricher plugins (MusicBrainz, Discogs). The enricher capability class is
@@ -997,6 +1004,9 @@ An ambiguous match entered retry. Sustained throughput and physical playback wer
   response cannot duplicate `queue.add`.
 - Realtime cursors persist only after the worker has stored the state they cover.
 - Server album removal follows D17. Conflict and rejected-write notices persist locally.
+- Placement verdicts read pending intent and replace the album within one account-fenced
+  database operation. Network I/O stays outside the lock. Sync reports all writes remaining
+  at its final locked outbox read, including writes queued during the pass.
 
 **Test scenarios:**
 - Happy path: an offline placement change replays on reconnect.

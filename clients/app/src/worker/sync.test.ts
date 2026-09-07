@@ -8,9 +8,11 @@ import {
   RpcTransport,
 } from "../../../../contracts/generated/pyxis"
 import { createWorkerRpc, RpcError, type WorkerRpc } from "../rpc/client"
+import { accountFencedDatabase } from "./account-fenced-database"
 import { resolvePlacement } from "./conflict"
 import type { WorkerAlbum, WorkerDatabase, WorkerOutboxEntry } from "./contract"
 import { createMemoryEngine, openWorkerDatabase } from "./database"
+import { browserOfflineExclusive } from "./downloads"
 import { LISTEN_BATCH_SIZE } from "./listen-sync"
 import { sync } from "./sync"
 
@@ -534,6 +536,60 @@ describe("replay", () => {
       placement: RpcPlacement.Archive,
       revision: 2,
     })
+  })
+
+  test("a placement queued during acknowledgement stays visible and reported until replay", async () => {
+    const initial = album("album-1", RpcPlacement.Discovery, 1)
+    const remote = server([initial])
+    const engine = createMemoryEngine()
+    const store = await openWorkerDatabase({ engine })
+    await store.putAlbum(initial)
+    await store.queuePlacement(initial, RpcPlacement.Collection)
+    const exclusive = browserOfflineExclusive(undefined)
+    let acknowledged = false
+    let laterWrite: Promise<void> | undefined
+    const setPlacement = remote.rpc.setPlacement
+    remote.rpc.setPlacement = async (...args) => {
+      const updated = await setPlacement(...args)
+      acknowledged = true
+      return updated
+    }
+    const readOutbox = engine.outbox.all.bind(engine.outbox)
+    engine.outbox.all = async () => {
+      const entries = await readOutbox()
+      if (acknowledged && laterWrite === undefined) {
+        // A local request becomes ready while the acknowledgement reads pending intent.
+        // It waits for the current database operation, not for the whole network sync.
+        laterWrite = exclusive(async () => {
+          const current = await store.album(initial.id)
+          if (current === undefined) throw new Error("album disappeared")
+          await store.queuePlacement(current, RpcPlacement.Archive)
+        })
+      }
+      return entries
+    }
+    const locked = accountFencedDatabase(store, undefined, (operation) =>
+      exclusive(() => operation(store)),
+    )
+
+    const report = await sync(locked, remote.rpc)
+    expect(laterWrite).toBeDefined()
+    await laterWrite
+
+    expect.soft(await store.album(initial.id)).toMatchObject({
+      placement: RpcPlacement.Archive,
+      revision: 2,
+    })
+    expect(await store.outbox()).toMatchObject([
+      { kind: "album.placement", placement: RpcPlacement.Archive },
+    ])
+    expect.soft(report).toMatchObject({ pushed: 1, deferred: 1, offline: false })
+    const replay = await sync(locked, remote.rpc)
+    expect(replay).toMatchObject({ pushed: 1, deferred: 0, conflicts: [] })
+    expect(remote.albums.get(initial.id)?.placement).toBe(RpcPlacement.Archive)
+    expect((await store.album(initial.id))?.placement).toBe(RpcPlacement.Archive)
+    expect(await store.outbox()).toEqual([])
+    await store.close()
   })
 
   test("a second change to the same album is sent, not mistaken for a replay", async () => {

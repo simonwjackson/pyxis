@@ -4,6 +4,7 @@
 /// and downloads, cannot block rendering. The page talks to it through `client.ts`.
 
 import { createWorkerRpc } from "../rpc/client"
+import { accountFencedDatabase } from "./account-fenced-database"
 import type { WorkerRequest, WorkerResponse } from "./client"
 import type { WorkerDatabase } from "./contract"
 import { openWorkerDatabase } from "./database"
@@ -76,27 +77,6 @@ const offline = createOfflineDownloadManager(database, {
   available: globalThis.navigator.locks !== undefined,
   exclusive: refreshingExclusive,
 })
-
-function accountFencedDatabase(
-  initial: WorkerDatabase,
-  expectedAccountId: string | undefined,
-): WorkerDatabase {
-  return new Proxy(initial, {
-    get(target, property, receiver) {
-      const initialValue = Reflect.get(target, property, receiver)
-      if (typeof initialValue !== "function") return initialValue
-      return (...args: unknown[]) =>
-        offline.exclusive(async () => {
-          const current = await database()
-          if ((await current.settings()).accountId !== expectedAccountId) {
-            throw new Error("account changed while sync was in flight")
-          }
-          const value = Reflect.get(current, property)
-          return value.apply(current, args)
-        })
-    },
-  })
-}
 
 async function readCurrentAccount<T>(
   expectedAccountId: string | undefined,
@@ -243,7 +223,9 @@ async function handle(request: WorkerRequest): Promise<unknown> {
         return report
       }
       const report = await sync(
-        accountFencedDatabase(await database(), settings.accountId),
+        accountFencedDatabase(await database(), settings.accountId, (operation) =>
+          offline.exclusive(async () => operation(await database())),
+        ),
         createWorkerRpc({
           token: settings.bearerToken,
           ...(request.payload.origin === undefined ? {} : { origin: request.payload.origin }),

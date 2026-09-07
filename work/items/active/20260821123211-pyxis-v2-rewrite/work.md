@@ -191,13 +191,24 @@ it is not evidence of unfinished implementation.
 
 The 2026-09-06 independent review rechecked all eight historical cards. Six are fixed within
 their original scope: header-first parsing, malformed album rejection, retryability mapping,
-pre-U8 descriptors, plugin album-handler coverage, and batched relationship listing. Two are
-still partly unresolved: empty/overflowing provider durations can be emitted, and a placement
-queued between acknowledgement lookup and replacement can be temporarily hidden despite its
-outbox entry surviving. Follow-ups `01M1W0J02HD295KB4SCDV074MN` and
-`01M1W0HN5JXHGDWCHV269DQZ40` capture the reproductions. The harness still shows all eight
-cards because its residual-resolution tool is unavailable; earlier claims that all eight
-were merely stale were too broad.
+pre-U8 descriptors, plugin album-handler coverage, and batched relationship listing. Two
+remained partly unresolved at that review: provider duration validation and placement
+acknowledgements hiding newer queued intent. Earlier claims that all eight cards were stale
+were too broad. The duration follow-up `01M1W0J02HD295KB4SCDV074MN` remains open.
+
+The September 7 placement correction applies pending-intent lookup and the server verdict
+under one account-fenced database lock. It reports remaining outbox entries at sync completion.
+Five added regressions cover the race, ordered intent, verdict rollback, account fencing,
+and real-WASM persistence. All 253 client and 84 plugin/SDK tests pass, with Rust tests,
+contract checks, typecheck, owned-source lint, and PWA build verification. The user approved
+local integration with the inherited prototype lint exception: 29 errors and 17 warnings,
+also present on clean baseline `69432ce`. This closes placement follow-up
+`01M1W0HN5JXHGDWCHV269DQZ40` locally, not in production. No deployment occurred.
+See `docs/operations/2026-09-07-placement-sync-race.md` for evidence and limits.
+
+The analogous session-command race was reproduced independently and remains separate in
+`01M1Y7QS1QWPHXN5JY8P14RXRT`. The existing ProseQL query-cache follow-up
+`01M1VZZYSRGB8C8G4Y0WMS2MXS` also remains open. Refresh-under-lock is still required.
 
 **M4/U18 was product-accepted on real Sonos hardware on 2026-08-24.** The current Sonos
 regression requires revalidation, as recorded above. The TypeScript output plugin

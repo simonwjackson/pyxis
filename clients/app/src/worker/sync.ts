@@ -38,6 +38,7 @@ export interface SyncReport {
   readonly pushed: number
   readonly converged: number
   readonly dropped: readonly { readonly id: string; readonly reason: string }[]
+  /// Writes remaining at the final account-fenced outbox read, including newly queued work.
   readonly deferred: number
   readonly conflicts: readonly ConflictReport[]
   /// True when the network stopped answering partway. The queue is intact.
@@ -173,8 +174,6 @@ async function drain(
   const dropped: { id: string; reason: string }[] = []
   let pushed = 0
   let converged = 0
-  // Count retained intent even in domains deliberately not synchronized by this request.
-  let deferred = allEntries.length - entries.length
   let offline = false
   let authRequired = false
 
@@ -191,15 +190,12 @@ async function drain(
       entry.kind === "session.command",
   )
 
-  if (remote === undefined) {
-    deferred += placements.length
-  } else {
-    for (const [index, entry] of placements.entries()) {
+  if (remote !== undefined) {
+    for (const entry of placements) {
       const result = await pushPlacement(database, rpc, entry, remote, conflicts)
       if (result.outcome === "pushed") pushed += 1
       if (result.outcome === "converged" || result.outcome === "conflicted") converged += 1
       if (result.outcome === "deferred") {
-        deferred += placements.length - index
         if (result.reason === "auth") authRequired = true
         else offline = true
         // Stop at the first unreachable write. Later writes for the same album must not be
@@ -212,13 +208,11 @@ async function drain(
     }
   }
 
-  if (remoteSessions === undefined) deferred += sessionCommands.length
   if (!authRequired && remoteSessions !== undefined) {
-    for (const [index, entry] of sessionCommands.entries()) {
+    for (const entry of sessionCommands) {
       const result = await pushSessionCommand(database, rpc, entry, remoteSessions)
       if (result.outcome === "pushed" || result.outcome === "converged") pushed += 1
       if (result.outcome === "deferred") {
-        deferred += sessionCommands.length - index
         if (result.reason === "auth") authRequired = true
         else offline = true
         break
@@ -227,8 +221,6 @@ async function drain(
         dropped.push({ id: entry.id, reason: result.reason ?? "rejected by the server" })
       }
     }
-  } else if (authRequired) {
-    deferred += sessionCommands.length
   }
 
   if (listens.length > 0 && !authRequired) {
@@ -250,13 +242,13 @@ async function drain(
       await database.dequeue(rejection.id)
       dropped.push(rejection)
     }
-    deferred += submission.deferred.length
     if (submission.authRequired) authRequired = true
     else if (submission.deferred.length > 0) offline = true
-  } else if (listens.length > 0) {
-    deferred += listens.length
   }
 
+  // Local requests continue during network sync. Report the queue at completion, including
+  // writes added during this pass and domains intentionally excluded by a scoped sync.
+  const deferred = (await database.outbox()).length
   return { pushed, converged, dropped, deferred, conflicts, offline, authRequired }
 }
 
@@ -359,7 +351,7 @@ async function pushPlacement(
   )
 
   if (decision.action === "converged") {
-    if (remote !== undefined) await putServerAlbum(database, remote, entry.id)
+    if (remote !== undefined) await database.applyPlacementVerdict(remote, entry.id)
     await database.dequeue(entry.id)
     return { outcome: "converged" }
   }
@@ -386,7 +378,7 @@ async function pushPlacement(
     // The local row still shows the intent that just lost. Put the server's answer back so
     // the person sees what actually happened rather than a change that never landed.
     if (remote !== undefined) {
-      await putServerAlbum(database, remote, entry.id)
+      await database.applyPlacementVerdict(remote, entry.id)
       albums.set(remote.id, remote)
     }
     await persistNotice(database, {
@@ -425,7 +417,7 @@ async function pushPlacement(
       })
       return { outcome: "conflicted" }
     }
-    await putServerAlbum(database, updated, entry.id)
+    await database.applyPlacementVerdict(updated, entry.id)
     if (decision.conflict) {
       await persistNotice(database, {
         id: `conflict:${entry.id}`,
@@ -466,7 +458,7 @@ async function pushPlacement(
       // The server refused this change, so the local row still shows an intent that never
       // landed. Put the server's answer back rather than leaving the device diverged with
       // no way to notice.
-      if (remote !== undefined) await putServerAlbum(database, remote, entry.id)
+      if (remote !== undefined) await database.applyPlacementVerdict(remote, entry.id)
       await database.dequeue(entry.id)
       return { outcome: "dropped", reason: error.message }
     }
@@ -474,7 +466,6 @@ async function pushPlacement(
   }
 }
 
-/// Store server metadata without hiding a later local placement that is still queued.
 async function persistNotice(database: WorkerDatabase, notice: WorkerSyncNotice): Promise<void> {
   const settings = await database.settings()
   const current = settings.syncNotices ?? []
@@ -502,20 +493,4 @@ async function putServerSession(
     }
   }
   await database.replaceSession(visible)
-}
-
-async function putServerAlbum(
-  database: WorkerDatabase,
-  album: RpcLibraryAlbum,
-  excludeId?: string,
-): Promise<void> {
-  const pending = (await database.outbox()).filter(
-    (entry): entry is Extract<WorkerOutboxEntry, { kind: "album.placement" }> =>
-      entry.kind === "album.placement" && entry.albumId === album.id && entry.id !== excludeId,
-  )
-  await database.replaceAlbum({
-    ...album,
-    id: album.id,
-    placement: pending.at(-1)?.placement ?? album.placement,
-  })
 }

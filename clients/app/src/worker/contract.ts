@@ -235,6 +235,9 @@ export interface WorkerDatabase {
   putAlbum(album: WorkerAlbum): Promise<WorkerAlbum>
   /// Store a server verdict even when it rolls back optimistic local state.
   replaceAlbum(album: WorkerAlbum): Promise<WorkerAlbum>
+  /// Apply a placement verdict and overlay pending intent in one account-fenced operation.
+  /// Exclude the settled write without removing any outbox entry.
+  applyPlacementVerdict(album: WorkerAlbum, writeId: string): Promise<WorkerAlbum>
   removeAlbum(id: string): Promise<boolean>
   sessions(): Promise<readonly WorkerSession[]>
   session(id: string): Promise<WorkerSession | undefined>
