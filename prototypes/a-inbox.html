@@ -112,12 +112,13 @@
       import { element, escape, loadLibrary, runtime, sleeve } from "./common.js"
       import { productNav } from "./nav.js"
       import { mountNowPlaying } from "./nowplaying.js"
-      import { currentState } from "./states.js"
+      import { currentQuery, currentState, isLive } from "./states.js"
 
       const mode = currentState()
+      const hrefQuery = currentQuery()
 
       const root = document.getElementById("root")
-      const library = await loadLibrary(mode)
+      const library = await loadLibrary(mode, { live: isLive() })
       const queue = library.filter((album) => album.placement === "discovery")
       const total = queue.length
       let index = 0
@@ -141,7 +142,7 @@
       function render() {
         const album = queue[index]
         root.innerHTML = ""
-        root.append(productNav("discovery", { waiting: queue.length - index }))
+        root.append(productNav("discovery", { waiting: queue.length - index , query: hrefQuery }))
 
         if (!album) {
           root.append(

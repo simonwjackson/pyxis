@@ -27,9 +27,7 @@ export async function rpc(tag, payload = {}) {
   return result.outcome.value
 }
 
-export const isLive = () => new URLSearchParams(location.search).get("live") === "1"
-
-export async function loadLibrary(state = "live") {
+export async function loadLibrary(state = "live", { live = false } = {}) {
   // A library with no albums and a library with no sources look identical to this loader;
   // the surfaces tell them apart, because the recovery differs.
   if (state === "empty" || state === "nosources" || state === "firstrun") return []
@@ -48,7 +46,7 @@ export async function loadLibrary(state = "live") {
   // while showing a snapshot from some other day. So it falls back and says so.
   let albums
   let covers
-  if (isLive()) {
+  if (live) {
     try {
       albums = await rpc("library.albums.list")
       covers = {}

@@ -18,6 +18,17 @@ export const STATES = {
   loading: "Loading",
 }
 
+/// The address bar is the prototype's only real state source, so it is read in exactly one
+/// module. Everything else is told. A unit that reads its own state cannot be shown in two
+/// states on one screen, which is the whole reason previews exist.
+export function currentQuery() {
+  return location.search
+}
+
+export function isLive() {
+  return new URLSearchParams(location.search).get("live") === "1"
+}
+
 export function currentState() {
   const requested = new URLSearchParams(location.search).get("state")
   return requested in STATES ? requested : "live"

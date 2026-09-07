@@ -77,12 +77,13 @@
       } from "./common.js"
       import { productNav } from "./nav.js"
       import { mountNowPlaying } from "./nowplaying.js"
-      import { currentState } from "./states.js"
+      import { currentQuery, currentState, isLive } from "./states.js"
 
       const mode = currentState()
+      const hrefQuery = currentQuery()
 
       const root = document.getElementById("root")
-      const library = await loadLibrary(mode)
+      const library = await loadLibrary(mode, { live: isLive() })
       const events = listeningHistory(library)
       let shown = 60
 
@@ -90,6 +91,7 @@
         root.innerHTML = ""
         root.append(
           productNav("history", {
+            query: hrefQuery,
             waiting: library.filter((album) => album.placement === "discovery").length,
           }),
         )

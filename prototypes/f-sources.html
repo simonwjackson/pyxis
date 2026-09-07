@@ -34,12 +34,13 @@
       import { element, escape, loadLibrary } from "./common.js"
       import { productNav } from "./nav.js"
       import { mountNowPlaying } from "./nowplaying.js"
-      import { currentState } from "./states.js"
+      import { currentQuery, currentState, isLive } from "./states.js"
       import { openConnect, sourceStates } from "./sources.js"
 
       const root = document.getElementById("root")
       const mode = currentState()
-      const library = await loadLibrary(mode)
+      const hrefQuery = currentQuery()
+      const library = await loadLibrary(mode, { live: isLive() })
       const firstRun = mode === "firstrun" || mode === "nosources"
 
       const sources = sourceStates(mode).map((source) => ({
@@ -109,7 +110,7 @@
 
       function render() {
         root.innerHTML = ""
-        if (!firstRun) root.append(productNav("sources"))
+        if (!firstRun) root.append(productNav("sources", { query: hrefQuery }))
 
         if (firstRun) {
           // First run says what the product needs and why, then gets out of the way. No tour,

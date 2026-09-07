@@ -22,18 +22,18 @@ export function initial(account) {
 
 // The control itself: an initial, not a photograph. There is no person to picture here, and a
 // letter says "this is whose library you are looking at" without pretending otherwise.
-export function accountControl(accounts = ACCOUNTS) {
+export function accountControl(accounts = ACCOUNTS, { query = "" } = {}) {
   const account = currentAccount(accounts)
   const button = element(`
     <button class="avatar self tabs-account" aria-label="Account: ${account.name}" title="${account.name}">
       ${initial(account)}
     </button>
   `)
-  button.onclick = () => openAccount(accounts)
+  button.onclick = () => openAccount(accounts, { query })
   return button
 }
 
-export function openAddAccount(accounts = ACCOUNTS) {
+export function openAddAccount(accounts = ACCOUNTS, { query = "" } = {}) {
   const sheet = element(`
     <dialog class="sheet">
       <div class="sheet-head">
@@ -63,7 +63,7 @@ export function openAddAccount(accounts = ACCOUNTS) {
     if (!name) return
     accounts.push({ id: name.toLowerCase(), name, sources: 0, albums: 0 })
     sheet.close()
-    openAccount(accounts)
+    openAccount(accounts, { query })
   })
 
   sheet.querySelector(".js-cancel").onclick = () => sheet.close()
@@ -73,8 +73,7 @@ export function openAddAccount(accounts = ACCOUNTS) {
   return sheet
 }
 
-export function openAccount(accounts = ACCOUNTS) {
-  const query = location.search
+export function openAccount(accounts = ACCOUNTS, { query = "" } = {}) {
   const sheet = element(`
     <dialog class="sheet">
       <div class="sheet-head"><span class="label">Account</span><button>Done</button></div>
@@ -116,7 +115,7 @@ export function openAccount(accounts = ACCOUNTS) {
   // account, so asking for anything more here would be asking before there is a reason.
   sheet.querySelector(".settings button").onclick = () => {
     sheet.close()
-    openAddAccount(accounts)
+    openAddAccount(accounts, { query })
   }
 
   sheet.querySelector(".sheet-head button").onclick = () => sheet.close()

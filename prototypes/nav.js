@@ -4,7 +4,7 @@
 // deliberately absent: it is reached from the player's room control, not from navigation,
 // because it is consulted rarely and the slot is worth more to Search and History.
 
-import { accountControl } from "./account.js"
+import { ACCOUNTS, accountControl } from "./account.js"
 import { element } from "./common.js"
 
 const DESTINATIONS = [
@@ -14,9 +14,8 @@ const DESTINATIONS = [
   { id: "history", label: "History", href: "./e-history.html" },
 ]
 
-export function productNav(current, { waiting = 0 } = {}) {
+export function productNav(current, { waiting = 0, query = "" } = {}) {
   const nav = element(`<nav class="tabs"></nav>`)
-  const query = location.search
   for (const destination of DESTINATIONS) {
     const badge =
       destination.id === "discovery" && waiting > 0 ? ` <i class="badge">${waiting}</i>` : ""
@@ -29,6 +28,6 @@ export function productNav(current, { waiting = 0 } = {}) {
     )
   }
   // Configuration hangs off the account control rather than taking a fifth slot.
-  nav.append(accountControl())
+  nav.append(accountControl(ACCOUNTS, { query }))
   return nav
 }

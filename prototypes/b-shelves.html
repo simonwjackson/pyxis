@@ -268,12 +268,13 @@
       import { mountWindow } from "./parts.js"
       import { currentSession, mountNowPlaying } from "./nowplaying.js"
       import { expiredSource } from "./sources.js"
-      import { currentState } from "./states.js"
+      import { currentQuery, currentState, isLive } from "./states.js"
 
 
       const root = document.getElementById("root")
       const dialog = document.getElementById("detail")
       const mode = currentState()
+      const hrefQuery = currentQuery()
       const offline = mode === "offline"
       if (offline) document.body.classList.add("offline")
 
@@ -315,7 +316,7 @@
         document.getElementById("strip").append(failed)
       }
 
-      const library = await loadLibrary(mode)
+      const library = await loadLibrary(mode, { live: isLive() })
 
       // A source that has signed itself out is not a fact about a settings screen. It is a
       // fact about the album someone is about to tap, so it is said on the wall and counted:
@@ -710,7 +711,7 @@
       function render() {
         if (library.length === 0) return blankState()
         root.innerHTML = ""
-        root.append(productNav("stacks", { waiting: where("discovery").length }))
+        root.append(productNav("stacks", { waiting: where("discovery").length , query: hrefQuery }))
         const collection = where("collection")
         const waiting = where("discovery").length
 

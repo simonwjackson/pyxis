@@ -67,11 +67,12 @@
       import { productNav } from "./nav.js"
       import { mountNowPlaying } from "./nowplaying.js"
       import { makeRooms } from "./rooms.js"
-      import { currentState } from "./states.js"
+      import { currentQuery, currentState, isLive } from "./states.js"
 
       const root = document.getElementById("root")
       const mode = currentState()
-      const library = await loadLibrary(mode)
+      const hrefQuery = currentQuery()
+      const library = await loadLibrary(mode, { live: isLive() })
       const firstRun = mode === "firstrun" || mode === "nosources"
 
       // A device is somewhere sound can come out, and "this phone" is one of them: the thing
@@ -179,7 +180,7 @@
           return
         }
 
-        root.append(productNav("devices"))
+        root.append(productNav("devices", { query: hrefQuery }))
         root.append(
           element(`<header class="split"><h1 class="page-title">Devices</h1></header>`),
         )

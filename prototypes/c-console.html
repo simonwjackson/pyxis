@@ -39,12 +39,13 @@
       import { element, loadLibrary } from "./common.js"
       import { mountNowPlaying } from "./nowplaying.js"
       import { makeRooms, roomsPanel } from "./rooms.js"
-      import { currentState } from "./states.js"
+      import { currentQuery, currentState, isLive } from "./states.js"
 
       const mode = currentState()
+      const hrefQuery = currentQuery()
 
       const root = document.getElementById("root")
-      const library = await loadLibrary(mode)
+      const library = await loadLibrary(mode, { live: isLive() })
       const rooms = makeRooms(library, mode)
 
       // Rooms is a sheet in the product, reached from the player's room control. This page
