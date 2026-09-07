@@ -1007,6 +1007,9 @@ An ambiguous match entered retry. Sustained throughput and physical playback wer
 - Placement verdicts read pending intent and replace the album within one account-fenced
   database operation. Network I/O stays outside the lock. Sync reports all writes remaining
   at its final locked outbox read, including writes queued during the pass.
+- Full album pulls batch durable writes under that same refreshed account lock. Commit
+  albums before offline relationships. Retry repairs partially persisted relationships even
+  when album revisions already match. Separate files are not crash-atomic together.
 
 **Test scenarios:**
 - Happy path: an offline placement change replays on reconnect.
@@ -1020,6 +1023,13 @@ An ambiguous match entered retry. Sustained throughput and physical playback wer
 - Integration: a full offline session of queue edits and listens reconciles correctly.
 
 **Verification:** Property test proves offline replay is idempotent.
+
+**Startup follow-up (2026-09-07):** `dcf702e` replaces 370 growing collection saves with one.
+The deployed 370-album Chromium startup measured 2.542 seconds versus 82.857 seconds before;
+warm reload retained identity and all albums. Real-WASM tests cover first/full replacement,
+queued and newer records, durable completion, and retry after partial relationship-file writes.
+Public contracts, schema 8, lock/account guards, and startup-only fallback remain unchanged.
+See `docs/operations/2026-09-07-full-library-startup.md` for exact scope and verification limits.
 
 ---
 

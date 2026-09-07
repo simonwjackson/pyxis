@@ -28,6 +28,18 @@ report requires diagnosis and revalidation. Bidirectional Play/Pause/Stop and cu
 responsiveness are accepted. The user resolved the handoff report by identifying the wrong
 initiating device. M3 retains physical autoplay/background/reconnect checks.**
 
+**First/full-library startup is corrected and deployed in `dcf702e`.** The same 370-album
+Chromium startup measured 2.542 seconds, down from 82.857 seconds. Warm reload measured
+1.700 seconds and retained all albums and the same identity. A separate profiled fresh run
+confirmed one library-file write instead of 370. Eight added real-WASM regressions cover
+fresh and full-update batches, queued/newer records, durable acknowledgement, and partial-save
+recovery. The combined tree passes 261 client and 84 plugin/SDK tests, with two private-fixture
+skips, scoped checks, exact Nix build, and host flake check. `just verify` retains 29 prototype
+errors plus three errors from an auto-loaded skill checkout, and 17 warnings. Independent
+change/integration reviews found no blocker. See `docs/operations/2026-09-07-full-library-startup.md`.
+This closes performance follow-up `01M1VZ456T3R9EWQ1367WAFTWY` for the measured library, not
+physical-device M3 acceptance or severe-I/O-pressure behavior. No Sonos commands were issued.
+
 The 2026-09-06 autonomous pass fixed two more realtime lifecycle races in `ecbb285`, with
 seven regression cases and a successful independent follow-up review. `423ce52` then fixed
 complete worker snapshots retaining omitted playback fields, with three real-WASM regression
@@ -175,8 +187,8 @@ fully accounted: 370 albums are in Discovery, 16 remain unresolved after manual 
 and no import request failed. The durable audit is
 `docs/operations/2026-08-21-v1-album-import.md`.
 
-The current 2026-09-07 deployment is locked to `c1d0e6e` through the `pyxis-1` Nix profile entry,
-priority 10, at `/nix/store/nbhaarswfzi6cg6bzr704ymk8jxx3cr7-pyxis-2.0.0`. The `pyxis.service`,
+The current 2026-09-07 deployment is locked to `dcf702e` through the `pyxis` Nix profile entry,
+priority 11, at `/nix/store/6jfrc5wlad9m7gjw5y1xgq1snn0az69p-pyxis-2.0.0`. The `pyxis.service`,
 `pyxis-tsnet.service`, and `pyxis-ytdlp-update.timer` user units are active; local and tailnet
 health return 200.
 
@@ -203,8 +215,9 @@ and real-WASM persistence. All 253 client and 84 plugin/SDK tests pass, with Rus
 contract checks, typecheck, owned-source lint, and PWA build verification. The user approved
 local integration with the inherited prototype lint exception: 29 errors and 17 warnings,
 also present on clean baseline `69432ce`. This closes placement follow-up
-`01M1W0HN5JXHGDWCHV269DQZ40` locally, not in production. No deployment occurred.
-See `docs/operations/2026-09-07-placement-sync-race.md` for evidence and limits.
+`01M1W0HN5JXHGDWCHV269DQZ40` locally. The later authorized startup deployment `dcf702e`
+also includes this correction. Combined tests pass; no new live placement mutation test was
+performed. See `docs/operations/2026-09-07-placement-sync-race.md` for evidence and limits.
 
 The analogous session-command race was reproduced independently and remains separate in
 `01M1Y7QS1QWPHXN5JY8P14RXRT`. The existing ProseQL query-cache follow-up

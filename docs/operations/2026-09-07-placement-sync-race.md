@@ -1,8 +1,10 @@
 # Album-placement acknowledgement race
 
-The local correction preserves newer placement intent and reports remaining queued writes.
-It is not deployed. The user approved local integration with the inherited lint exception below.
-Nothing was pushed, and no deployment was authorized.
+The correction preserves newer placement intent and reports remaining queued writes.
+The user first approved local integration with the inherited lint exception below. The later
+user-authorized startup rollout deployed `dcf702e`, which includes this correction and passes
+261 combined client tests. No new live placement mutation test was performed in that rollout.
+See `2026-09-07-full-library-startup.md` for deployment evidence. Nothing was pushed.
 
 ## Reproduction and correction
 
