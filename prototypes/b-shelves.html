@@ -126,8 +126,6 @@
         padding: var(--s3) 0 0;
         font-size: var(--t-small);
         font-weight: 600;
-        letter-spacing: 0.12em;
-        text-transform: uppercase;
         color: var(--soft);
       }
       .none {
@@ -168,8 +166,13 @@
         padding-top: var(--s4);
         border-top: 1px solid var(--rule);
       }
+      dl.signals dt {
+        font-size: var(--t-small);
+        font-weight: 500;
+        color: var(--soft);
+      }
       dl.signals dd {
-        margin: var(--s-hair) 0 0;
+        margin: var(--s1) 0 0;
         font-size: var(--t-body);
         font-weight: 600;
       }
@@ -178,8 +181,6 @@
         font: inherit;
         font-size: var(--t-small);
         font-weight: 600;
-        letter-spacing: 0.1em;
-        text-transform: uppercase;
         background: none;
         border: 1px solid var(--rule);
         cursor: pointer;
@@ -215,21 +216,19 @@
         margin-top: var(--s5);
       }
       .play button {
-        padding: var(--s3) var(--s4);
+        padding: var(--s3) var(--s5);
         font: inherit;
         font-size: var(--t-small);
         font-weight: 700;
-        letter-spacing: 0.14em;
-        text-transform: uppercase;
         color: var(--ground);
-        background: var(--ink);
+        background: var(--tint, var(--ink));
         border: 1px solid var(--ink);
         cursor: pointer;
       }
       .play button:hover,
       .play button:focus-visible {
-        background: var(--heat);
-        border-color: var(--heat);
+        background: color-mix(in oklab, var(--tint, var(--ink)) 85%, var(--ink));
+        border-color: transparent;
       }
       .play .quiet {
         color: var(--ink);
@@ -244,20 +243,10 @@
       .close {
         position: sticky;
         top: 0;
+        z-index: 2;
         display: flex;
-        justify-content: flex-end;
         padding: var(--s3) var(--s3) 0;
-        background: var(--ground);
-      }
-      .close button {
-        font: inherit;
-        font-size: var(--t-small);
-        font-weight: 700;
-        letter-spacing: 0.12em;
-        text-transform: uppercase;
-        background: none;
-        border: none;
-        cursor: pointer;
+        background: var(--pool, var(--ground));
       }
       @media (max-width: 620px) {
         .detail .top {
@@ -272,19 +261,9 @@
     <dialog id="detail" class="sheet wide"></dialog>
 
     <script type="module">
-      import {
-        ago,
-        availability,
-        element,
-        escape,
-        loadLibrary,
-        policyLabel,
-        reveal,
-        runtime,
-        sleeve,
-        wantedOffline,
-      } from "./common.js"
+      import { ago, availability, element, escape, loadLibrary, policyLabel, reveal, runtime, sleeve, tintFrom, wantedOffline } from "./common.js"
       import { albumLead, albumShelf, albumTile } from "./albums.js"
+      import { icon } from "./icons.js"
       import { productNav } from "./nav.js"
       import { mountWindow } from "./parts.js"
       import { currentSession, mountNowPlaying } from "./nowplaying.js"
@@ -420,21 +399,23 @@
 
       function open(album) {
         dialog.innerHTML = ""
-        const close = element(`<div class="close"><button>close</button></div>`)
+        const close = element(
+          `<div class="close"><button class="transport" aria-label="Close">${icon.down}</button></div>`,
+        )
         close.querySelector("button").onclick = () => dialog.close()
 
         const body = element(`
           <div class="detail">
             <div class="top">
-              <span class="frame">${sleeve(album)}</span>
+              <span class="frame object">${sleeve(album)}</span>
               <div>
                 <h3 class="album-title big">${escape(album.title)}</h3>
-                <div class="who">${escape(album.artist)} · ${album.year ?? "—"}</div>
+                <div class="credit">${escape(album.artist)} · ${album.year ?? "—"}</div>
                 <dl class="signals">
-                  <div><dt class="label">Plays</dt><dd>${album.playCount}</dd></div>
-                  <div><dt class="label">Last heard</dt><dd>${ago(album.lastPlayedAt)}</dd></div>
-                  <div><dt class="label">Runtime</dt><dd>${runtime(album)}</dd></div>
-                  <div><dt class="label">Depth</dt><dd>${album.completeness < 0.5 ? "singles only" : "heard in full"}</dd></div>
+                  <div><dt>Plays</dt><dd>${album.playCount}</dd></div>
+                  <div><dt>Last heard</dt><dd>${ago(album.lastPlayedAt)}</dd></div>
+                  <div><dt>Runtime</dt><dd>${runtime(album)}</dd></div>
+                  <div><dt>Depth</dt><dd>${album.completeness < 0.5 ? "singles only" : "heard in full"}</dd></div>
                 </dl>
                 <div class="play"></div>
                 <div class="acts move"></div>
@@ -443,6 +424,14 @@
             </div>
           </div>
         `)
+
+        // The sheet wears the album's colour, the same as the player and the lead.
+        const art = body.querySelector("img.sleeve")
+        if (art) {
+          const paint = () => tintFrom(dialog, art)
+          if (art.complete && art.naturalWidth > 0) art.decode().then(paint, paint)
+          else art.addEventListener("load", paint, { once: true })
+        }
 
         // An album from a signed-out source can still be played if it is already on the
         // device, so the offer depends on where the bytes are, not only on the source. When it
@@ -496,7 +485,9 @@
         const move = body.querySelector(".move")
         for (const placement of ["discovery", "collection", "archive", "dismissed"]) {
           const button = element(
-            `<button aria-pressed="${album.placement === placement}">${placement}</button>`,
+            `<button aria-pressed="${album.placement === placement}">${
+              placement.slice(0, 1).toUpperCase() + placement.slice(1)
+            }</button>`,
           )
           button.onclick = () => {
             album.placement = placement

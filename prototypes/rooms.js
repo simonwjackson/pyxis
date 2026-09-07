@@ -7,7 +7,7 @@
 // deliberate trade: one line can only carry one session, and recency is the cheapest
 // honest guess.
 
-import { element, escape, sleeve } from "./common.js"
+import { element, escape, sleeve, tintFrom } from "./common.js"
 
 export function makeRooms(library, mode = "live") {
   const played = library.filter((album) => album.playCount > 0)
@@ -59,7 +59,7 @@ export function roomsPanel(rooms, { onChange, moving = null } = {}) {
 
   for (const room of rooms) {
     const art = room.album
-      ? `<span class="frame">${sleeve(room.album)}</span>`
+      ? `<span class="frame object">${sleeve(room.album)}</span>`
       : `<span class="blank-slot"></span>`
     const status = room.failed
       ? "Could not move here — still playing in Kitchen"
@@ -107,8 +107,16 @@ export function openRooms(rooms, { onChange } = {}) {
   `)
   sheet.querySelector("button").onclick = () => sheet.close()
 
+  // The sheet is about where one album is playing, so it takes that album's colour. With
+  // nothing playing there is nothing to take it from, and it stays neutral.
+  const tint = () => {
+    const art = sheet.querySelector(".room .frame img")
+    if (art?.complete && art.naturalWidth > 0) tintFrom(sheet, art)
+    else art?.addEventListener("load", () => tintFrom(sheet, art), { once: true })
+  }
+
   const draw = (moving = null) => {
-    for (const old of sheet.querySelectorAll(".rooms-panel, .note")) old.remove()
+    for (const old of sheet.querySelectorAll(".rooms-panel, .prose")) old.remove()
     sheet.append(
       roomsPanel(rooms, {
         moving,
@@ -146,6 +154,7 @@ export function openRooms(rooms, { onChange } = {}) {
   }
 
   draw()
+  tint()
   sheet.addEventListener("close", () => sheet.remove())
   document.body.append(sheet)
   sheet.showModal()

@@ -297,12 +297,9 @@ nav.tabs .badge {
 
 /* Micro type: uppercase, letterspaced, secondary. Album facts and field labels are the same
    voice at the same size, so they are the same decision written once. */
-.facts,
-.field > span {
+.facts {
   font-size: var(--t-small);
-  font-weight: 600;
-  letter-spacing: 0.09em;
-  text-transform: uppercase;
+  font-weight: 500;
   color: var(--soft);
 }
 .facts {
@@ -331,9 +328,7 @@ button {
 .act {
   padding: var(--s3) var(--s4);
   font-size: var(--t-small);
-  font-weight: 700;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
+  font-weight: 600;
   border: 1px solid var(--rule);
   transition:
     background 0.14s ease,
@@ -361,7 +356,7 @@ button {
 }
 
 :focus-visible {
-  outline: 2px solid var(--heat);
+  outline: 2px solid var(--tint, var(--ink));
   outline-offset: 3px;
 }
 
@@ -530,8 +525,6 @@ button {
   padding: var(--s-hair) var(--s2);
   font-size: var(--t-small);
   font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
   color: var(--ground);
   border: 1px solid var(--ground);
 }
@@ -803,12 +796,15 @@ body.has-nowbar main {
    Docks to the bottom edge on narrow screens, where a centred box is a reach.
    This must stay shared: the rooms sheet opens from the bar on every surface. */
 dialog.sheet {
+  --pool: color-mix(in oklab, var(--tint, var(--raised)) 10%, var(--raised));
   width: min(520px, 100%);
   max-height: 88svh;
   padding: 0 var(--s5) var(--s5);
   color: var(--ink);
-  background: var(--ground);
-  border: 1px solid var(--ink);
+  background: var(--pool);
+  border: none;
+  border-radius: 4px;
+  box-shadow: 0 24px 60px -12px rgb(0 0 0 / 0.7);
 }
 
 /* Wider measure, for content that carries its own padding. */
@@ -828,7 +824,19 @@ dialog.sheet::backdrop {
   align-items: center;
   justify-content: space-between;
   padding: var(--s4) 0 var(--s3);
-  background: var(--ground);
+  background: var(--pool, var(--ground));
+}
+
+/* A surface says what it is at the size of a heading, whether it is a page or a sheet. The
+   tracked uppercase eyebrow made every one of them announce itself in the same small shout. */
+.sheet-head .label,
+.page-title {
+  margin: 0;
+  font-size: var(--t-head);
+  font-weight: 700;
+  letter-spacing: -0.015em;
+  text-transform: none;
+  color: var(--ink);
 }
 
 .sheet-head button {
@@ -887,6 +895,9 @@ dialog.sheet::backdrop {
 .field > span {
   display: block;
   padding-bottom: var(--s2);
+  font-size: var(--t-small);
+  font-weight: 600;
+  color: var(--soft);
 }
 .field input {
   width: 100%;
