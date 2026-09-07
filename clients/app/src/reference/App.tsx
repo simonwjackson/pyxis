@@ -728,6 +728,12 @@ export function ReferenceApp({
 
   useEffect(() => {
     if (rendererResetOwner.current !== undefined) return
+    if (session?.transport === "stopped" && session.currentTrackId === undefined) {
+      // Cleared source truth must tear down old audio even if its Stop directive is lost.
+      // Unlike the handoff HTTP reply, this cannot race the old Playing snapshot.
+      stopRenderer(true)
+      return
+    }
     const audio = audioElement.current
     if (audio === null) return
     if (session?.transport === "playing" && audioUrl !== undefined) {
@@ -751,7 +757,7 @@ export function ReferenceApp({
       audio.pause()
       if (session?.transport === "stopped") audio.currentTime = 0
     }
-  }, [audioUrl, session?.currentTrackId, session?.transport])
+  }, [audioUrl, session?.currentTrackId, session?.transport, stopRenderer])
 
   const run = useCallback(async <T,>(operation: () => Promise<T>): Promise<T | undefined> => {
     setStatus("busy")
@@ -1154,7 +1160,8 @@ export function ReferenceApp({
       if (source === undefined) return
       await run(async () => {
         await client.handoff(currentToken(), source.id, targetSessionId)
-        setAudioUrl(undefined)
+        // The addressed Stop directive owns renderer teardown. Clearing the source here
+        // can beat its durable state update and reload the still-Playing snapshot.
       })
     },
     [client, currentToken, run, session],

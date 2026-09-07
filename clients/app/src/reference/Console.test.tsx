@@ -1272,6 +1272,167 @@ describe("console mode", () => {
     expect(play).not.toHaveBeenCalled()
   })
 
+  test.each(["before", "after"] as const)(
+    "a cleared source event %s the handoff reply tears down audio without a directive",
+    async (order) => {
+      let handlers: RealtimeHandlers | undefined
+      let finish: (() => void) | undefined
+      const play = vi.spyOn(HTMLMediaElement.prototype, "play").mockResolvedValue()
+      const database = await openWorkerDatabase({ engine: createMemoryEngine() })
+      const source = session({
+        id: "mine",
+        hostDeviceId: "device-1",
+        queue: ["track-1"],
+        cursor: 0,
+        currentTrackId: "track-1",
+        transport: RpcTransport.Playing,
+      })
+      const target = session({ id: "target", name: "Other browser" })
+      await database.putSession(source)
+      await database.putSession(target)
+      const loadStream = vi.fn(async () => "blob:track-1")
+      const handoff = vi.fn(
+        () =>
+          new Promise<RpcSession>((resolve) => {
+            finish = () =>
+              resolve({
+                ...target,
+                queue: source.queue,
+                cursor: 0,
+                currentTrackId: "track-1",
+                transport: RpcTransport.Playing,
+              })
+          }),
+      )
+      render(
+        <ReferenceApp
+          client={{
+            ...client([]),
+            loadStream,
+            handoff,
+            connectRealtime: (_token, next) => {
+              handlers = next
+              return () => {}
+            },
+          }}
+          worker={persistent(createDirectWorkerClient(async () => database))}
+        >
+          <ReferenceAudio />
+          <ReferenceRemote />
+          <ReferencePlugins />
+        </ReferenceApp>,
+      )
+      await waitFor(() => expect(play).toHaveBeenCalled())
+      play.mockClear()
+      loadStream.mockClear()
+      fireEvent.click(await screen.findByRole("button", { name: "hand off to this device" }))
+      await waitFor(() => expect(finish).toBeTypeOf("function"))
+      const cleared = session({ id: "mine", hostDeviceId: "device-1", revision: 2 })
+      const publish = () =>
+        handlers?.onEvent({
+          topic: RpcRealtimeTopic.Sessions,
+          resumeToken: "after-handoff",
+          state: { _tag: "session.state", payload: cleared },
+        })
+      if (order === "before") {
+        await act(async () => {
+          await publish()
+        })
+        await act(async () => {
+          finish?.()
+        })
+      } else {
+        await act(async () => {
+          finish?.()
+        })
+        await act(async () => {
+          await publish()
+        })
+      }
+      await waitFor(() => expect(screen.getByText("No audio loaded.")).toBeTruthy())
+      expect((await database.session("mine"))?.queue).toEqual([])
+      expect(loadStream).not.toHaveBeenCalled()
+      expect(play).not.toHaveBeenCalled()
+    },
+  )
+
+  test.each(["accepted", "refused"] as const)(
+    "an %s handoff does not independently reset the source renderer",
+    async (result) => {
+      let handlers: RealtimeHandlers | undefined
+      const play = vi.spyOn(HTMLMediaElement.prototype, "play").mockResolvedValue()
+      const database = await openWorkerDatabase({ engine: createMemoryEngine() })
+      const source = session({
+        id: "mine",
+        hostDeviceId: "device-1",
+        queue: ["track-1"],
+        cursor: 0,
+        currentTrackId: "track-1",
+        transport: RpcTransport.Playing,
+      })
+      const target = session({ id: "target", name: "Other browser" })
+      await database.putSession(source)
+      await database.putSession(target)
+      const loadStream = vi.fn(async () => "blob:track-1")
+      const handoff = vi.fn(async () => {
+        if (result === "refused") throw new Error("handoff was refused: targetBusy")
+        return {
+          ...target,
+          queue: source.queue,
+          currentTrackId: "track-1",
+          transport: RpcTransport.Playing,
+        }
+      })
+      render(
+        <ReferenceApp
+          client={{
+            ...client([]),
+            loadStream,
+            handoff,
+            connectRealtime: (_token, next) => {
+              handlers = next
+              return () => {}
+            },
+          }}
+          worker={persistent(createDirectWorkerClient(async () => database))}
+        >
+          <ReferenceAudio />
+          <ReferenceRemote />
+          <ReferencePlugins />
+        </ReferenceApp>,
+      )
+      await waitFor(() => expect(play).toHaveBeenCalled())
+      play.mockClear()
+      loadStream.mockClear()
+      fireEvent.click(await screen.findByRole("button", { name: "hand off to this device" }))
+      await waitFor(() => expect(handoff).toHaveBeenCalledWith("token", "mine", "target"))
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 30))
+      })
+      // The handoff HTTP reply may beat the source's durable event/directive. The old
+      // Playing snapshot must not cause another load/play in that interval.
+      expect(loadStream).not.toHaveBeenCalled()
+      expect(play).not.toHaveBeenCalled()
+      if (result === "refused") {
+        expect(screen.getByRole("alert").textContent).toContain("targetBusy")
+        expect((await database.session("mine"))?.transport).toBe(RpcTransport.Playing)
+        return
+      }
+      // The existing confirmed Stop path, not the handoff caller, owns teardown.
+      act(() =>
+        handlers?.onDirective({
+          sessionId: "mine",
+          directiveId: "handoff-stop",
+          issuedBy: "device-1",
+          command: { _tag: "transport.stop", payload: {} },
+        }),
+      )
+      await waitFor(() => expect(screen.getByText("No audio loaded.")).toBeTruthy())
+      expect(loadStream).not.toHaveBeenCalled()
+      expect(play).not.toHaveBeenCalled()
+    },
+  )
+
   describe.each([
     { _tag: "transport.stop", payload: {} },
     { _tag: "queue.clear", payload: {} },
