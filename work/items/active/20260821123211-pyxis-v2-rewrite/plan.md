@@ -870,9 +870,17 @@ read-only browser check pass; underlying Sonos connection failures remain unreso
 new physical playback acceptance is claimed. See
 `docs/operations/2026-09-06-m4-output-visibility.md` for evidence and scope. The user subsequently
 confirmed no blinking but disabled controls. `f95ed25` bounds a reproduced Avahi helper deadline
-overrun; it is reviewed, verified, and not yet deployed. The host's shared discovery daemon is
-using a full CPU core; its restart needs permission. Kitchen also has an unresolved intermittent
-position-read timeout. See `docs/operations/2026-09-06-m4-discovery-deadline.md`.
+overrun and was deployed after the user-approved shared Avahi restart completed. The restart
+restored fast discovery-service replies, but Kitchen's three-second position deadline still
+rejected legitimate five-second replies. `c1d0e6e` adds a position-only deadline (default greater
+of eight seconds and the existing request budget), preserving full-body waiting, genuine failure
+outcomes and ownership checks. Twelve new regressions, independent review, 248 client/86 plugin
+tests and scoped gates pass; the exact revision is deployed. A three-minute read-only watch found
+both rooms reachable in 88/90 samples, with a brief two-room failure and recovery. Reliability
+remains open; no physical playback was attempted or accepted. The user explicitly prohibited
+Sonos playback in this investigation. See `docs/operations/2026-09-06-m4-discovery-deadline.md`
+and `docs/operations/2026-09-07-m4-position-deadline.md` for deployment, retained failures and
+verification exceptions.
 
 ---
 

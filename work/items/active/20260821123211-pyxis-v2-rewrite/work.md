@@ -175,8 +175,8 @@ fully accounted: 370 albums are in Discovery, 16 remain unresolved after manual 
 and no import request failed. The durable audit is
 `docs/operations/2026-08-21-v1-album-import.md`.
 
-The current 2026-09-06 deployment is locked to `6334018` through the `pyxis-1` Nix profile entry,
-at `/nix/store/rwsd0i7c24wcl8i9fmkp30lxszaixb5j-pyxis-2.0.0`. The `pyxis.service`,
+The current 2026-09-07 deployment is locked to `c1d0e6e` through the `pyxis-1` Nix profile entry,
+priority 10, at `/nix/store/nbhaarswfzi6cg6bzr704ymk8jxx3cr7-pyxis-2.0.0`. The `pyxis.service`,
 `pyxis-tsnet.service`, and `pyxis-ytdlp-update.timer` user units are active; local and tailnet
 health return 200.
 
@@ -277,19 +277,43 @@ recovery. Diagnostics are stopped/unreachable; Kitchen retains 42 tracks/revisio
 Room is empty/revision 33. No speaker playback/queue/group/volume command was issued.
 See `docs/operations/2026-09-06-m4-output-visibility.md` and the preceding discovery report.
 
-The user confirmed the entries no longer blink, but the controls remain disabled. Visibility
-is accepted; Sonos reliability is not. Read-only stage traces then proved the Avahi helper can
-outlive its 2500ms discovery deadline by seconds (up to27391ms). Reviewed `f95ed25` enforces
-that ephemeral helper's deadline and drops interrupted final records; it passes248 client/74
-plugin tests and scoped gates, but is **not deployed**. Production remains6334018.
+The user confirmed the entries no longer blink, but the controls remained disabled. Visibility
+is accepted; Sonos reliability is not. Read-only traces proved the Avahi helper could outlive its
+2500ms deadline by seconds (up to 27391ms). Reviewed `f95ed25` bounds that ephemeral helper and
+drops interrupted records; 248 client/74 plugin tests and scoped gates pass. It was deployed on
+September 7 at 07:19 MDT, after checking no reachable session was playing.
 
-The corrected-source probe bounds discovery to2501–2505ms, but Kitchen still had one position
-read timeout. Separate paired HTTP variants all passed, including defaults; no HTTP workaround
-is justified. The host's shared Avahi daemon is consuming about100% of one CPU, and even version
-reads took289–2671ms. Next ask permission to restart that shared discovery service, then recheck
-read-only availability and deploy the reviewed fix after checking live playback. See
-`docs/operations/2026-09-06-m4-discovery-deadline.md`. Do not claim playback repaired, conduct an
-unsolicited physical test, or resume accepted browser-responsiveness tuning.
+The user explicitly approved restarting shared Avahi. That restart completed on September 6 at
+23:12:46 after a 74-second graceful SIGTERM exit; the initial shell timeout did not cancel systemd's
+job. New PID 2493290 initially used 0/0/1% CPU and answered version reads in 3/5/5ms instead of
+289–2671ms. Permission is no longer pending. No second restart or manual kill was issued.
+Kitchen still dropped out in a subsequent read-only watch. Longer header/reuse comparisons failed
+equally across variants, so no HTTP workaround was introduced.
+
+Two diagnostic-only longer-budget traces then captured three complete Kitchen position replies
+at 5033/5033/5019ms, beyond the ordinary three-second deadline. Reviewed `c1d0e6e` adds optional
+`positionTimeoutMs`, defaulting to the greater of eight seconds and the request budget. Only the
+position read changes; other request/write budgets, complete-body waiting, genuine failures,
+stream ownership and account guards remain. No cached/partial state substitutes for a timeout.
+Twelve new regressions, independent review, 248 client/86 plugin tests and scoped gates pass.
+A guarded plugin read accepted a real 5027ms response. The exact revision was deployed at
+08:29:29 MDT on September 7; live plugin source and profile were verified. Default verify retains
+25 prototype errors/16 warnings; the initial temporary full-gate logs went missing and the same
+gates were rerun successfully directly into a durable archive.
+
+The deployed three-minute watch found both rooms reachable in 88/90 samples, but a brief two-room
+failure still occurred before recovery. Its cause remains unproven. Kitchen was stopped with
+9 tracks/revision 23 before and after this deployment; Living Room stayed stopped/empty/revision
+33. Kitchen's change from the earlier 42/revision 21 snapshot predates this deployment; read-only
+observations do not establish its origin. No queue was restored or otherwise altered by diagnostics.
+The library remains 370, diagnostic browsers are stopped/unreachable, services and endpoints are
+healthy. See `docs/operations/2026-09-06-m4-discovery-deadline.md` and
+`docs/operations/2026-09-07-m4-position-deadline.md`.
+
+Next isolate the stage/typed failure behind the remaining brief availability loss and verify the
+user's current controls without playback. The user explicitly said **not to play anything on
+Sonos**; continue with reads only, never playback, queue, grouping or volume commands. Physical
+acceptance remains open. Do not reopen the user-closed handoff report or accepted latency tuning.
 
 Album removal is no longer deferred. D17 records your decision: server removal wins,
 queued local placement intent is discarded, and the client reports the conflict.

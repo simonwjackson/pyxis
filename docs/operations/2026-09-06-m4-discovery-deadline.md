@@ -9,10 +9,14 @@ Do not re-enable controls from cached truth or treat their disabled state as the
 
 `f95ed257fe2e7cd5be70e94b50203ee066f5768b` is a reviewed, committed discovery-helper deadline
 correction. Its immutable package and host flake check pass; the package is
-`/nix/store/9541j8ypc3bpjq4p8ip8v1hbla5kp4w1-pyxis-2.0.0`. It is **not deployed**;
-production remains `6334018`. Host discovery health and a separate intermittent Kitchen
-position-read timeout remain open. No speaker playback, queue, grouping, or volume command
-was issued in this investigation. No production configuration was read/decrypted or changed.
+`/nix/store/9541j8ypc3bpjq4p8ip8v1hbla5kp4w1-pyxis-2.0.0`. It was deployed on September 7 at
+07:19 MDT through profile `pyxis`, priority 9, replacing the verified `6334018` entry. The
+user-approved shared Avahi restart completed beforehand. Kitchen's separate slow position
+reply was then addressed in `c1d0e6e`, the subsequent production revision; see
+[the position-deadline report](2026-09-07-m4-position-deadline.md). Brief availability failures
+remain; neither deployment establishes physical playback acceptance. No speaker playback,
+queue, grouping, or volume command was issued in this investigation. No production plugin
+configuration was read/decrypted or changed.
 
 ## Stage-localized reproduction
 
@@ -66,7 +70,7 @@ A separate bounded paired-HTTP comparison ran default, no-reuse and Connection:c
 under both Bun and Node. **All variants, including defaults, succeeded.** It does not justify
 a permanent keepalive/header/runtime workaround for Kitchen.
 
-## Host-level finding and next action
+## Host-level finding and authorized restart
 
 The host's existing Avahi daemon was using **99.7–100.2% of one CPU core** in repeated samples.
 Even read-only D-Bus GetVersionString calls took **289, 1065 and 2671 ms**. It reports Avahi 0.8.
@@ -77,12 +81,29 @@ The daemon's CPU use and slow replies are concrete evidence. Why it is spinning,
 it also explains Kitchen's HTTP timeout, are not established. Avahi 0.8 source explicitly
 flushes service output; no stdout-buffering workaround was added.
 
-Ask permission before restarting this **shared host discovery service**. A restart may briefly
-interrupt LAN service discovery for other applications. It is not a queue/playback command and
-is not a NixOS switch, but it extends beyond restarting Pyxis alone. After approval, recheck
-bounded discovery and saved-session availability read-only, deploy the exact reviewed Pyxis
-revision only after checking live playback, and retain any remaining failures. Do not claim
-Sonos playback acceptance or issue an unsolicited playback test.
+The user explicitly approved **“Yes, restart Avahi.”** The shared-service restart was requested
+at 23:11:32 on September 6. The shell call timed out after 30 seconds, but systemd's restart job
+continued. The old daemon processed SIGTERM and exited successfully at 23:12:46, about 74 seconds
+later, within its 90-second stop budget. This was a graceful exit, not systemd SIGKILL; no second
+restart or manual kill was issued. The new daemon PID is 2493290. Immediate CPU samples were
+0%, 0%, 1%; version calls fell to 3, 5, 5 ms. Three exact Avahi helpers exited normally in about
+1.01 seconds each, with 5594 stdout bytes and exit 0. Permission was granted and used, not left
+pending. No other service was manually changed.
+
+Under unchanged `6334018`, a subsequent 30-second read-only watch found both rooms reachable in
+12/15 samples. Living Room remained reachable; Kitchen still dropped out. The longer controller
+comparison then found one position timeout in each five-trial mode: default, no-reuse and
+Connection:close. An owned ESTABLISHED TCP socket during a stall does not prove application
+response or root cause. These comparisons do not justify a header/runtime workaround.
+
+The exact `f95ed25` deployment followed a public check showing no reachable playing session;
+old unreachable browser records with cached Playing state were left untouched. Pyxis was
+restarted, its live plugin source contained the reviewed SIGKILL safeguard, all three user
+units were active, local/tailnet health returned 200, and LAN `/rpc` returned 404. No push or
+NixOS switch occurred. A 60-second post-deployment watch found both rooms reachable in 22/30
+samples; Living Room remained reachable, but Kitchen did not. This confirms that restoring
+Avahi and bounding its helper did not fully resolve Kitchen's failure. The subsequent
+position-specific correction and remaining brief dropouts are recorded in the linked report.
 
 Evidence is retained under `~/.local/state/pyxis-diagnostics/sonos-deadline-evidence/`. All diagnostic
 helper processes completed; no diagnostic browser was started in this pass. Historical failed
