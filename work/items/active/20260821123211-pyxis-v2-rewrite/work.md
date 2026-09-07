@@ -25,7 +25,8 @@ requirements and decisions were captured directly into `plan.md` sections
 
 **M1, M2, M5, M6, and M7 are complete. M4 was accepted previously; the new Sonos failure
 report requires diagnosis and revalidation. Bidirectional Play/Pause/Stop and current
-responsiveness are accepted. M3 remains open for handoff, autoplay, and reconnect acceptance.**
+responsiveness are accepted. The user resolved the handoff report by identifying the wrong
+initiating device. M3 retains physical autoplay/background/reconnect checks.**
 
 The 2026-09-06 autonomous pass fixed two more realtime lifecycle races in `ecbb285`, with
 seven regression cases and a successful independent follow-up review. `423ce52` then fixed
@@ -256,17 +257,22 @@ suite/clippy, passed an exact-commit Nix build and flake check, and is deployed 
 repaired to `.flac`. The temporary credentials were removed afterward, so the scheduler is safely
 idle while the verified local upgrade remains available.
 
-Current user direction: **focus only on browser-to-browser handoff**. Sonos investigation is
-paused. The silent-click correction is deployed as `560b530`, bundle `index-EelMZonK.js`.
-The user retried after deployment and selected **“Still nothing happens.”** This did not resolve
-their case. Latest public reads show source revision 79 with nine queued tracks, while the
-empty destination is still revision 18. No automated user-session command was sent.
-Next identify the exact button/row and Runtime status rather than repeating the same test or
-assuming another cause. In particular, the existing button sends this window's own queue to
-the listed row; it does not bring the listed device's queue here, and errors appear far above
-in Runtime. Neither misleading direction nor a missed click has been established for the user.
-Do not treat the isolated native-click correction or muted handoffs as physical acceptance. Bidirectional transport and responsiveness remain accepted;
-handoff, autoplay, and reconnect acceptance remain open.
+The user subsequently said **“Nevermind, I was handing off from the wrong device aparently.
+Let's move to the next thing.”** Close the reported browser-handoff issue on that basis, not
+as proof that either diagnostic patch resolved their case. Direction/error affordances remain
+parked; do not ask for another identical handoff test.
+
+Current focus is the remaining **Sonos report**. The runtime is unchanged at `560b530`, bundle
+`index-EelMZonK.js`. Read-only checks reproduced `output.targets.list` failing after 25.903 s
+with no room answering topology refresh; a repeat found all four rooms after 29.862 s. Direct
+identity-checked topology reads answered quickly under both Bun 1.3.13 and Node 22.22.1.
+Both saved rooms later became reachable again, without a code/configuration fix: Kitchen has
+42 queued tracks, Living Room is empty, both core sessions stopped. No speaker playback,
+queue, group, or volume command was issued. See
+`docs/operations/2026-09-06-m4-sonos-discovery-follow-up.md`.
+Next identify whether the user's failure concerns discovery/direct room playback or unsupported
+browser-to-Sonos handoff, and the relevant room, before any controlled physical test.
+Browser responsiveness stays accepted; no latency tuning or full M3 acceptance is implied.
 
 Album removal is no longer deferred. D17 records your decision: server removal wins,
 queued local placement intent is discarded, and the client reports the conflict.

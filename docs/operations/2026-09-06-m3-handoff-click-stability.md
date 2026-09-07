@@ -13,8 +13,9 @@ or capture the user's pointer gesture.
 
 `560b53099ccc66a00b9918d7396fc4326d72e742` fixes a newly reproduced silent-click defect. It
 supersedes the deployment in [the preceding report](2026-09-06-m3-handoff-sonos-follow-up.md).
-User acceptance of handoff is still open. Bidirectional transport and provisional
-responsiveness acceptance are unchanged.
+The user later identified the wrong initiating device and asked to move on, resolving the
+reported handoff issue. This is not evidence that either diagnostic correction caused their
+resolution. Bidirectional transport and provisional responsiveness acceptance are unchanged.
 
 ## Reproduction and correction
 
@@ -126,4 +127,10 @@ No automated command targeted either user session. Next identify the actual clic
 Runtime status rather than repeat the same test or presume a cause. The current button sends
 the clicking window's queue to the listed device, not the reverse; errors are rendered in Runtime
 above the large library. Neither misleading direction nor missed input is established for the
-user. Keep acceptance open, and do not resume Sonos or latency work.
+user at that point.
+
+The user subsequently clarified: “Nevermind, I was handing off from the wrong device aparently.
+Let's move to the next thing.” The reported browser-handoff issue is now closed on that basis;
+no further identical retest is requested. Sonos investigation resumes as the next outstanding
+report. Physical autoplay/background/reconnect checks and the parked handoff-affordance work
+remain distinct. Browser latency tuning remains paused.
