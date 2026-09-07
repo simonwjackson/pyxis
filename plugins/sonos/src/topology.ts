@@ -28,6 +28,7 @@ export interface SonosConfig {
   readonly seedHosts: readonly string[]
   readonly discoveryTimeoutMs: number
   readonly requestTimeoutMs: number
+  readonly positionTimeoutMs?: number
 }
 
 export interface TopologyEnvironment {

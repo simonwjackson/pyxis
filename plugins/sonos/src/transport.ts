@@ -147,7 +147,7 @@ export class SonosController {
       target,
       "GetPositionInfo",
       "<InstanceID>0</InstanceID>",
-      this.config.requestTimeoutMs,
+      this.config.positionTimeoutMs ?? this.config.requestTimeoutMs,
       this.environment.fetch,
     )
     const positionMs = parseTime(xmlTag(position, "RelTime"))

@@ -42,6 +42,13 @@ export function createSonosPlugin(
           },
           discoveryTimeoutMs: { type: "integer", minimum: 100, maximum: 10_000 },
           requestTimeoutMs: { type: "integer", minimum: 100, maximum: 30_000 },
+          positionTimeoutMs: {
+            type: "integer",
+            minimum: 100,
+            maximum: 30_000,
+            description:
+              "GetPositionInfo deadline; defaults to the greater of 8000ms and requestTimeoutMs. Other requests retain requestTimeoutMs.",
+          },
         },
       },
     },
@@ -86,11 +93,16 @@ export function createSonosPlugin(
 if (import.meta.main) await runPlugin(createSonosPlugin())
 
 function configOf(value: unknown): SonosConfig {
-  if (value === null || value === undefined) {
-    return { seedHosts: [], discoveryTimeoutMs: 2_500, requestTimeoutMs: 3_000 }
-  }
-  const record = object(value, "Sonos config must be an object")
+  const record =
+    value === null || value === undefined ? {} : object(value, "Sonos config must be an object")
   const seedHosts = record.seedHosts === undefined ? [] : stringArray(record.seedHosts, "seedHosts")
+  const requestTimeoutMs = boundedInteger(
+    record.requestTimeoutMs,
+    "requestTimeoutMs",
+    3_000,
+    100,
+    30_000,
+  )
   return {
     seedHosts,
     discoveryTimeoutMs: boundedInteger(
@@ -100,10 +112,13 @@ function configOf(value: unknown): SonosConfig {
       100,
       10_000,
     ),
-    requestTimeoutMs: boundedInteger(
-      record.requestTimeoutMs,
-      "requestTimeoutMs",
-      3_000,
+    requestTimeoutMs,
+    // Some complete, successful Sonos position replies take about five seconds. Keep
+    // their full URI/position proof instead of timing out early or returning partial state.
+    positionTimeoutMs: boundedInteger(
+      record.positionTimeoutMs,
+      "positionTimeoutMs",
+      Math.max(requestTimeoutMs, 8_000),
       100,
       30_000,
     ),

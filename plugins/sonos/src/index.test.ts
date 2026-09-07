@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test"
+import { describe, expect, spyOn, test } from "bun:test"
 import { createPluginRuntime, PluginCapability } from "@pyxis/plugin-sdk"
 import { verifyPlugin } from "@pyxis/plugin-sdk/testing"
 import { createSonosPlugin } from "./index"
@@ -32,17 +32,190 @@ function environment(fault = false): TopologyEnvironment {
   }
 }
 
-function call(operation: string, input: unknown, id = operation): string {
+function call(operation: string, input: unknown, id = operation, config?: unknown): string {
   return JSON.stringify({
     id,
     request: {
       _tag: "capability.call",
-      payload: { capability: "output", operation, input },
+      payload: {
+        capability: "output",
+        operation,
+        input,
+        ...(config === undefined ? {} : { config }),
+      },
     },
   })
 }
 
+const position =
+  "<RelTime>0:00:12</RelTime><TrackDuration>0:03:00</TrackDuration><TrackURI>http://192.168.1.2/stream/owned</TrackURI>"
+
+function stateEnvironment(delayMs = 0, stall?: string, stallBody = false): TopologyEnvironment {
+  const base = environment()
+  return {
+    ...base,
+    fetch: async (input, init) => {
+      const action = new Headers(init?.headers).get("soapaction")?.match(/#([^"']+)/u)?.[1]
+      if (stall !== undefined && action === stall) {
+        const pending = new Promise<never>((_resolve, reject) => {
+          init?.signal?.addEventListener("abort", () => reject(new Error("aborted")), {
+            once: true,
+          })
+        })
+        if (!stallBody) return pending
+        const response = new Response(null)
+        response.text = () => pending
+        return response
+      }
+      if (action === "GetTransportInfo")
+        return new Response("<CurrentTransportState>PLAYING</CurrentTransportState>")
+      if (action === "GetPositionInfo") {
+        if (delayMs > 0)
+          await new Promise<void>((resolve, reject) => {
+            const aborted = () => {
+              clearTimeout(timer)
+              reject(new Error("aborted"))
+            }
+            const timer = setTimeout(() => {
+              init?.signal?.removeEventListener("abort", aborted)
+              resolve()
+            }, delayMs)
+            init?.signal?.addEventListener("abort", aborted, { once: true })
+          })
+        return new Response(position)
+      }
+      return base.fetch(input, init)
+    },
+  }
+}
+
 describe("Sonos output plugin", () => {
+  test.each([
+    [undefined, 3000, 8000],
+    [{ requestTimeoutMs: 12000 }, 12000, 12000],
+    [{ requestTimeoutMs: 100, positionTimeoutMs: 200 }, 100, 200],
+  ] as const)(
+    "uses position-specific budgets for config %j",
+    async (config, regular, expectedPosition) => {
+      const timers: (number | undefined)[] = []
+      const original = globalThis.setTimeout
+      const recordingTimer = Object.assign(
+        (...args: Parameters<typeof setTimeout>) => {
+          timers.push(args[1])
+          return original(...args)
+        },
+        { __promisify__: original.__promisify__ },
+      )
+      // Parameters<> selects the final Node overload; forwarding preserves the DOM overload too.
+      const spy = spyOn(globalThis, "setTimeout").mockImplementation(
+        recordingTimer as typeof setTimeout,
+      )
+      try {
+        const runtime = createPluginRuntime(createSonosPlugin(stateEnvironment()))
+        await runtime.handleLine(
+          call("transport.state", { targetId: "RINCON_KITCHEN" }, "state", config),
+        )
+        expect(timers.at(-1)).toBe(expectedPosition)
+        expect(timers.slice(0, -1).length).toBeGreaterThan(0)
+        expect(timers.slice(0, -1).every((ms) => ms === regular)).toBe(true)
+      } finally {
+        spy.mockRestore()
+      }
+    },
+  )
+
+  test("accepts a complete position response beyond the generic deadline", async () => {
+    const runtime = createPluginRuntime(createSonosPlugin(stateEnvironment(3100)))
+    expect(
+      await runtime.handleLine(call("transport.state", { targetId: "RINCON_KITCHEN" })),
+    ).toMatchObject({
+      _tag: "response",
+      envelope: {
+        response: {
+          outcome: {
+            status: "ready",
+            value: {
+              state: "PLAYING",
+              positionMs: 12000,
+              durationMs: 180000,
+              streamUrl: "http://192.168.1.2/stream/owned",
+            },
+          },
+        },
+      },
+    })
+  })
+
+  test.each([
+    ["GetPositionInfo", false, 200],
+    ["GetPositionInfo", true, 200],
+    ["GetTransportInfo", false, 100],
+    ["Pause", false, 100],
+  ] as const)("still fails closed for stalled %s (body=%s)", async (action, body, budget) => {
+    const runtime = createPluginRuntime(createSonosPlugin(stateEnvironment(0, action, body)))
+    const operation = action === "Pause" ? "transport.pause" : "transport.state"
+    expect(
+      await runtime.handleLine(
+        call(operation, { targetId: "RINCON_KITCHEN" }, "stalled", {
+          requestTimeoutMs: 100,
+          positionTimeoutMs: 200,
+        }),
+      ),
+    ).toMatchObject({
+      _tag: "response",
+      envelope: {
+        response: {
+          outcome: {
+            status: "unavailable",
+            value: {
+              code: "sonos.soap",
+              retryable: true,
+              message: `Sonos ${action} timed out after ${budget}ms`,
+            },
+          },
+        },
+      },
+    })
+  })
+
+  test.each([99, 30001, 100.5, "8000"])(
+    "rejects invalid position deadline %j before I/O",
+    async (value) => {
+      let calls = 0
+      const base = stateEnvironment()
+      const runtime = createPluginRuntime(
+        createSonosPlugin({
+          ...base,
+          fetch: async (...args) => {
+            calls++
+            return base.fetch(...args)
+          },
+        }),
+      )
+      expect(
+        await runtime.handleLine(
+          call("transport.state", { targetId: "RINCON_KITCHEN" }, "invalid", {
+            positionTimeoutMs: value,
+          }),
+        ),
+      ).toMatchObject({
+        _tag: "response",
+        envelope: {
+          response: {
+            outcome: {
+              status: "unavailable",
+              value: {
+                code: "capability.invalidInput",
+                retryable: false,
+              },
+            },
+          },
+        },
+      })
+      expect(calls).toBe(0)
+    },
+  )
+
   test("passes SDK conformance as an output-only plugin", async () => {
     await expect(
       verifyPlugin(createSonosPlugin(environment()), [

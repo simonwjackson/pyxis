@@ -89,10 +89,23 @@ only the ProseQL source file.
 
 ## Sonos discovery
 
-The Sonos plugin uses SSDP multicast on the local network and does not require credentials.
-Where multicast is unavailable, set account-scoped plugin config for id `sonos` with private
-IPv4 `seedHosts`, for example `{ "seedHosts": ["192.168.1.20"] }`. Optional
-`discoveryTimeoutMs` and `requestTimeoutMs` values bound network waits.
+The Sonos plugin uses SSDP multicast plus an Avahi mDNS fallback and does not require credentials.
+Where discovery is unavailable, set account-scoped plugin config for id `sonos` with private
+IPv4 `seedHosts`, for example `{ "seedHosts": ["192.168.1.20"] }`.
+
+Optional deadlines, in milliseconds:
+
+| Setting | Default | Scope |
+|---|---|---|
+| `discoveryTimeoutMs` | 2500 | SSDP/mDNS discovery window; range 100–10000 |
+| `requestTimeoutMs` | 3000 | Descriptions, topology and ordinary SOAP requests; range 100–30000 |
+| `positionTimeoutMs` | Greater of 8000 and `requestTimeoutMs` | Only `GetPositionInfo`; range 100–30000 |
+
+Some valid position replies take about five seconds. The separate position deadline allows
+those replies to complete without substituting cached or partial state on timeout. It does
+not make the speaker faster: a stalled position read can hold serialized output work up to
+five seconds longer at defaults. The core's overall plugin-call deadline remains 30 seconds;
+large individual deadlines do not extend that total budget.
 
 Set `PYXIS_LAN_BASE_URL` to the LAN-reachable HTTP origin speakers use to fetch Pyxis media,
 for example `http://192.168.1.2:9000`. The selected TCP port must be allowed by the host firewall;
