@@ -1,5 +1,9 @@
 # Sonos discovery follow-up
 
+**Later update:** the user identified device entries flashing in/out. The deployed `6334018`
+visibility correction is documented in [the output-visibility report](2026-09-06-m4-output-visibility.md).
+It retains unavailable rows but does not resolve the discovery/state-request failures below.
+
 ## Scope
 
 The user resolved the browser-handoff report by identifying the wrong initiating device and

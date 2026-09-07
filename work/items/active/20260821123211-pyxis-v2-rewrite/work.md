@@ -175,8 +175,8 @@ fully accounted: 370 albums are in Discovery, 16 remain unresolved after manual 
 and no import request failed. The durable audit is
 `docs/operations/2026-08-21-v1-album-import.md`.
 
-The current 2026-09-06 deployment is locked to `560b530` through the `pyxis` Nix profile entry,
-at `/nix/store/nincvcxiafmgli0y5ihspapvgks6n97d-pyxis-2.0.0`. The `pyxis.service`,
+The current 2026-09-06 deployment is locked to `6334018` through the `pyxis-1` Nix profile entry,
+at `/nix/store/rwsd0i7c24wcl8i9fmkp30lxszaixb5j-pyxis-2.0.0`. The `pyxis.service`,
 `pyxis-tsnet.service`, and `pyxis-ytdlp-update.timer` user units are active; local and tailnet
 health return 200.
 
@@ -199,7 +199,8 @@ outbox entry surviving. Follow-ups `01M1W0J02HD295KB4SCDV074MN` and
 cards because its residual-resolution tool is unavailable; earlier claims that all eight
 were merely stale were too broad.
 
-**M4/U18 is complete and product-accepted on real Sonos hardware.** The TypeScript output plugin
+**M4/U18 was product-accepted on real Sonos hardware on 2026-08-24.** The current Sonos
+regression requires revalidation, as recorded above. The TypeScript output plugin
 provides private-LAN SSDP plus mDNS discovery, authoritative topology, SOAP fault classification,
 transport, group volume, grouping convergence, stream profiles, and DIDL metadata. The Rust core
 hosts output sessions, routes console commands without a browser, serves candidate-bound media
@@ -262,17 +263,24 @@ Let's move to the next thing.”** Close the reported browser-handoff issue on t
 as proof that either diagnostic patch resolved their case. Direction/error affordances remain
 parked; do not ask for another identical handoff test.
 
-Current focus is the remaining **Sonos report**. The runtime is unchanged at `560b530`, bundle
-`index-EelMZonK.js`. Read-only checks reproduced `output.targets.list` failing after 25.903 s
-with no room answering topology refresh; a repeat found all four rooms after 29.862 s. Direct
-identity-checked topology reads answered quickly under both Bun 1.3.13 and Node 22.22.1.
-Both saved rooms later became reachable again, without a code/configuration fix: Kitchen has
-42 queued tracks, Living Room is empty, both core sessions stopped. No speaker playback,
-queue, group, or volume command was issued. See
-`docs/operations/2026-09-06-m4-sonos-discovery-follow-up.md`.
-Next identify whether the user's failure concerns discovery/direct room playback or unsupported
-browser-to-Sonos handoff, and the relevant room, before any controlled physical test.
-Browser responsiveness stays accepted; no latency tuning or full M3 acceptance is implied.
+Current focus is the remaining **Sonos report**. Read-only checks reproduced discovery failing
+after 25.903 s and succeeding after 29.862 s, while direct identity-checked topology reads were
+fast under both Bun and Node. The user then clarified that devices were flashing in/out of the
+browser. `6334018` now retains known output rows with truthful availability and disabled
+unavailable session controls. Review found and verified a correction for delayed resyncs undoing
+that clamp; session publication is fenced across connection failure/retirement. Six regressions,
+248 client/71 plugin tests, independent review, and scoped build/Nix gates pass.
+
+The exact `6334018` deployment serves `index-DVvhGIPJ.js`. A read-only production check kept the
+same output DOM rows through availability changes, a real diagnostic-only network cut, and
+recovery. Diagnostics are stopped/unreachable; Kitchen retains 42 tracks/revision 21 and Living
+Room is empty/revision 33. No speaker playback/queue/group/volume command was issued.
+See `docs/operations/2026-09-06-m4-output-visibility.md` and the preceding discovery report.
+
+Next confirm the user's room entries remain visible after reload, then isolate the underlying
+Sonos discovery/state-request failures. Availability labels may still change; connection
+reliability and physical Sonos playback are not repaired or accepted. Do not conduct an
+unsolicited physical test or resume accepted browser-responsiveness tuning.
 
 Album removal is no longer deferred. D17 records your decision: server removal wins,
 queued local placement intent is discarded, and the client reports the conflict.

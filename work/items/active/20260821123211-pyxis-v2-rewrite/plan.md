@@ -862,6 +862,14 @@ port 9000, and made YouTube Music resolve M4A instead of Sonos-incompatible WebM
 Living Room probe and the reference client both produced audible playback; the user confirmed it
 works. Output queues can be cleared from the reference client.
 
+**Follow-up (2026-09-06): Sonos reliability requires revalidation.** A new user report exposed
+intermittent discovery/state-read failures and saved room entries disappearing with availability
+changes. `6334018` retains known output entries as unavailable, disables their session controls,
+and fences stale publication after connection failure. Reviewed tests and the exact deployed
+read-only browser check pass; underlying Sonos connection failures remain unresolved and no
+new physical playback acceptance is claimed. See
+`docs/operations/2026-09-06-m4-output-visibility.md` for evidence and scope.
+
 ---
 
 ### U19. Soulseek fidelity plugin
