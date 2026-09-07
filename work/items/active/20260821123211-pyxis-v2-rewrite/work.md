@@ -245,11 +245,15 @@ suite/clippy, passed an exact-commit Nix build and flake check, and is deployed 
 repaired to `.flac`. The temporary credentials were removed afterward, so the scheduler is safely
 idle while the verified local upgrade remains available.
 
-Next: obtain the failed handoff source/destination and Sonos room, control, and exact error.
-Do not treat the browser restart correction as resolving every reported symptom, or run
-unsolicited speaker playback/grouping/configuration tests. Then finish handoff, autoplay, and
-reconnect acceptance. Bidirectional transport and responsiveness are accepted. Normal/private
-windows alone do not establish phone behavior or persistence after all private windows close.
+Current user direction: **focus only on browser-to-browser handoff**, which still appears to
+have no effect after the restart correction. Sonos investigation is paused. A read-only snapshot
+shows one reachable browser paused with four tracks and the other stopped with an empty queue.
+The current button sends the clicking window's own queue; paused transport stays paused.
+Next establish the exact direction, visible queue movement, and any error from a controlled
+user retry. Do not assume either wrong direction or autoplay is the cause, and do not command
+user sessions automatically. The restart fix is not acceptance of the remaining symptom.
+Bidirectional transport and responsiveness remain accepted; handoff, autoplay, and reconnect
+acceptance remain open.
 
 Album removal is no longer deferred. D17 records your decision: server removal wins,
 queued local placement intent is discarded, and the client reports the conflict.

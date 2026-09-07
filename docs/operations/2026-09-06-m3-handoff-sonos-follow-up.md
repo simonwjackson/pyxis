@@ -123,9 +123,15 @@ All diagnostic browsers and the proxy are stopped. Read-only checks confirm:
 New A's device is `01M1WMYMRV3GDFDERAPQX3A6VT`. The library still contains 370 albums.
 All three user units are active, local/tailnet health return 200, and LAN `/rpc` returns 404.
 
-Next obtain the user's failed handoff source/destination and Sonos room, control, and error.
-The browser restart defect is fixed and deployed; do not claim all handoff or Sonos symptoms
-resolved. Physical autoplay/background/reconnect acceptance remains open.
+The user subsequently clarified that **browser-to-browser handoff still appears to have no
+effect** and asked to focus there. Sonos investigation is paused. A read-only snapshot showed
+`01M1W59YH76407X22XSRB4A3W6` paused with four tracks (revision 68), and
+`01M1WBF931NWE131HBVZZN6QAR` stopped/empty (revision 18), both reachable. This does not reveal
+which window initiated the failed action. The callback sends the clicking window's own queue,
+and the API preserves paused/stopped transport intent. Next obtain the direction, queue
+movement and error from a controlled user retry; do not assume wrong direction or autoplay.
+The browser restart defect is fixed, but the user's remaining symptom is not resolved.
+Physical autoplay/background/reconnect acceptance remains open.
 
 Follow-ups: `01M1WMM0NJ8H3SKG58PTVMCA6N` (reference handoff/error affordances) and
 `01M1WNM11MH33SPVVGE5P1KJN6` (fail-closed durable diagnostic harness).
