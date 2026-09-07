@@ -906,12 +906,13 @@ YouTube.
 **Verification:** `just verify`, plus `tools/verify-api-example-local`, which runs the published
 worked example against a core built from the working tree instead of the deployed service.
 
-**Acceptance status (2026-09-07): implemented, not deployed.** One live query for
-"David Bowie Heroes" returned three catalog songs, three albums and three artists from
-`ytmusic`, with an empty `failures` list. The same query previously answered with
-`David Bowie - "Heroes" (Official Video) [HD]`. `tools/verify-api-example` still fails against
-the installed service, correctly: the deployed build predates this contract. Deployment is a
-separate, user-authorized step.
+**Acceptance status (2026-09-07): deployed, awaiting user confirmation.** `a63036e` is the
+installed revision. `tools/verify-api-example` passes against the running service and returns
+`David Bowie — "Heroes"` where it previously returned
+`David Bowie - "Heroes" (Official Video) [HD]`. A read-only "Radiohead" query through the HTTPS
+origin returned four artists, four albums and four catalog songs, with one expected
+`pandora: plugin.search` failure from missing credentials. Evidence and limits are in
+`docs/operations/2026-09-07-catalog-search-deployment.md`. The user has not used the search yet.
 
 **Known gap:** the reference client lists source albums and artists but cannot act on them.
 Adding a source album to the library needs a `library.album.add` affordance the reference

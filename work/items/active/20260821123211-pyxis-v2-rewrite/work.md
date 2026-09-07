@@ -23,7 +23,18 @@ requirements and decisions were captured directly into `plan.md` sections
 
 ## Current position
 
-**M8 (search finds albums, artists and songs) is implemented locally and not deployed.**
+**M8 (search finds albums, artists and songs) is deployed and answering on the tailnet.**
+`a63036e` is live at `/nix/store/h3lqhy1f11xn5y12a3kxjpc29b0vmi6q-pyxis-2.0.0`, profile priority
+11. `tools/verify-api-example` passes against the running service and now returns
+`David Bowie — "Heroes"` where it previously returned
+`David Bowie - "Heroes" (Official Video) [HD]`. A read-only "Radiohead" query through the
+HTTPS origin returned four artists, four albums and four catalog songs, with one expected
+`pandora: plugin.search` failure from missing credentials. The served client carries the three
+new sections. No speaker command was issued, no queue changed, and the 370-album library is
+intact. See `docs/operations/2026-09-07-catalog-search-deployment.md` for the exact evidence
+and its limits. The user has not yet confirmed the search by using it.
+
+Earlier local record, retained:
 `c871fe2` moves song search to the YouTube Music catalog and adds artist search in the plugin;
 the follow-up unit adds albums and artists to `source.search.run`, bounds each kind by the
 requested limit, and treats an unimplemented kind as a capability boundary rather than a
