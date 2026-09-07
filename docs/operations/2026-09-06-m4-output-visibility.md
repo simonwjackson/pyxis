@@ -99,6 +99,7 @@ The first native driver tried to serialize DOM nodes over CDP; returning scalar 
 instead corrected that harness error. Neither was a product failure. Temporary guards still
 do not constitute the parked shared harness covering every mutation channel.
 
-Next validate that the user's room entries remain visible after reload. Availability labels
-may still change: discovery and state-request failures need their own diagnosis. Do not claim
+The user subsequently confirmed the room entries no longer blink, but the controls remain
+disabled. Visibility is accepted; discovery and state-request failures still need correction.
+See [the deadline/host-discovery follow-up](2026-09-06-m4-discovery-deadline.md). Do not claim
 Sonos playback fixed, resume browser latency tuning, or issue an unsolicited physical test.

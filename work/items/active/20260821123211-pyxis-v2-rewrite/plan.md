@@ -868,7 +868,11 @@ changes. `6334018` retains known output entries as unavailable, disables their s
 and fences stale publication after connection failure. Reviewed tests and the exact deployed
 read-only browser check pass; underlying Sonos connection failures remain unresolved and no
 new physical playback acceptance is claimed. See
-`docs/operations/2026-09-06-m4-output-visibility.md` for evidence and scope.
+`docs/operations/2026-09-06-m4-output-visibility.md` for evidence and scope. The user subsequently
+confirmed no blinking but disabled controls. `f95ed25` bounds a reproduced Avahi helper deadline
+overrun; it is reviewed, verified, and not yet deployed. The host's shared discovery daemon is
+using a full CPU core; its restart needs permission. Kitchen also has an unresolved intermittent
+position-read timeout. See `docs/operations/2026-09-06-m4-discovery-deadline.md`.
 
 ---
 

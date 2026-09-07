@@ -277,10 +277,19 @@ recovery. Diagnostics are stopped/unreachable; Kitchen retains 42 tracks/revisio
 Room is empty/revision 33. No speaker playback/queue/group/volume command was issued.
 See `docs/operations/2026-09-06-m4-output-visibility.md` and the preceding discovery report.
 
-Next confirm the user's room entries remain visible after reload, then isolate the underlying
-Sonos discovery/state-request failures. Availability labels may still change; connection
-reliability and physical Sonos playback are not repaired or accepted. Do not conduct an
-unsolicited physical test or resume accepted browser-responsiveness tuning.
+The user confirmed the entries no longer blink, but the controls remain disabled. Visibility
+is accepted; Sonos reliability is not. Read-only stage traces then proved the Avahi helper can
+outlive its 2500ms discovery deadline by seconds (up to27391ms). Reviewed `f95ed25` enforces
+that ephemeral helper's deadline and drops interrupted final records; it passes248 client/74
+plugin tests and scoped gates, but is **not deployed**. Production remains6334018.
+
+The corrected-source probe bounds discovery to2501–2505ms, but Kitchen still had one position
+read timeout. Separate paired HTTP variants all passed, including defaults; no HTTP workaround
+is justified. The host's shared Avahi daemon is consuming about100% of one CPU, and even version
+reads took289–2671ms. Next ask permission to restart that shared discovery service, then recheck
+read-only availability and deploy the reviewed fix after checking live playback. See
+`docs/operations/2026-09-06-m4-discovery-deadline.md`. Do not claim playback repaired, conduct an
+unsolicited physical test, or resume accepted browser-responsiveness tuning.
 
 Album removal is no longer deferred. D17 records your decision: server removal wins,
 queued local placement intent is discarded, and the client reports the conflict.
