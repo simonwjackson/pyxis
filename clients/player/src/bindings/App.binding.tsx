@@ -35,6 +35,7 @@ import { Notice } from "../system-next/Notice.tsx"
 import { AudioRenderer } from "./AudioRenderer.binding.tsx"
 import { type AccountEdge, useAccount } from "./useAccount.binding.tsx"
 import { type LibraryEdge, useLibrary } from "./useLibrary.binding.tsx"
+import { useMediaSession } from "./useMediaSession.binding.tsx"
 import { type PlaybackEdge, usePlayback } from "./usePlayback.binding.tsx"
 import { type RealtimeEdge, useRealtime } from "./useRealtime.binding.tsx"
 import { useRoute } from "./useRoute.binding.tsx"
@@ -125,6 +126,9 @@ export interface AppProps {
   /// How to notice a newer build and how to move onto it. Optional for the same reason as
   /// the socket: a test about the library should not have to fake a deploy.
   readonly updateEdge?: UpdateEdge
+  /// Where a car, a lock screen or a notification shade reads what is playing. Optional
+  /// because it is a browser global, and absent in tests and in browsers without one.
+  readonly mediaSession?: MediaSession
   /// What this device calls itself in the account. A real decision rather than a nickname:
   /// it is what a person reads when choosing where to send music, so the composition root
   /// derives it from the actual browser instead of this file inventing one.
@@ -137,6 +141,7 @@ export function App({
   playbackEdge,
   realtimeEdge,
   updateEdge,
+  mediaSession,
   deviceName,
 }: AppProps) {
   const { route, go } = useRoute()
@@ -207,6 +212,7 @@ export function App({
       : { state: "paired", accountName: held.account.name, deviceName: held.device.name }
 
   const sounding = playback.playback.state === "ready" ? playback.playback.value : undefined
+
   const soundingTrackId = sounding?.currentTrackId
   const soundingAlbum = useMemo(
     () =>
@@ -217,6 +223,38 @@ export function App({
           ),
     [albums, soundingTrackId],
   )
+
+  /// What a car, a lock screen or a notification shade is told.
+  ///
+  /// The track's own name rather than the album's: a dashboard showing the record while the
+  /// fourth song plays is telling a half-truth, and the album is carried alongside anyway.
+  const soundingTrack = soundingAlbum?.tracks.find((track) => track.id === soundingTrackId)
+  useMediaSession({
+    ...(soundingAlbum === undefined || soundingTrack === undefined
+      ? {}
+      : {
+          nowPlaying: {
+            title: soundingTrack.title,
+            album: soundingAlbum.title,
+            artist: soundingTrack.artist ?? soundingAlbum.artist,
+            ...(soundingAlbum.artworkUrl === undefined
+              ? {}
+              : { artworkUrl: soundingAlbum.artworkUrl }),
+          },
+        }),
+    ...(sounding === undefined
+      ? {}
+      : { transport: sounding.transport === "playing" ? "playing" : "paused" }),
+    handlers: {
+      onPlay: play,
+      onPause: pause,
+      // Offered to the dashboard only where there is somewhere to go, for the same reason
+      // the bar omits them: a skip that cannot work should not be presented as one.
+      ...(sounding?.hasNext ? { onNext: next } : {}),
+      ...(sounding?.hasPrevious ? { onPrevious: previous } : {}),
+    },
+    session: mediaSession,
+  })
 
   // Every hook has run by here, so the early return below cannot change their order.
   //

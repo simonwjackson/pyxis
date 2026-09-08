@@ -175,6 +175,11 @@ createRoot(host).render(
     playbackEdge,
     realtimeEdge,
     updateEdge,
+    // Another global, bound here for the same reason as the rest. Absent in browsers that
+    // have no media session, where the app simply goes untold on the lock screen.
+    ...(globalThis.navigator?.mediaSession === undefined
+      ? {}
+      : { mediaSession: globalThis.navigator.mediaSession }),
     deviceName,
   }),
 )
