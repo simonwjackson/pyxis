@@ -100,16 +100,55 @@ nothing added to the checkout) confirmed:
 - the registered `@property --px-type-base` is picked up as a canvas tunable, with `--px-cover`
   and `--px-duration` read from source.
 
-## Not verified, and one real failure
+## The HMR failure, and how my first account of it was wrong
 
-**Part add/delete fails the HMR release gate.** Across three consecutive runs, component,
-prop-type and CSS edits preserved the sentinel, object count and coordinates every time. Adding
-a `*.part.tsx` emitted `[vite] page reload` and destroyed the session in two of three runs; the
-one apparent pass was a race where the check ran before the navigation landed. The consumer has
-no HMR handler, no glob and no bridge, so this is not consumer-side. Caliper's own
-`verify:amaze-hmr` covers the `sourcePartBridges` path, which uses a different watcher, so the
-in-project path looks ungated for this category. Tracked as `01M1YJC05DJKWFQ6KBYKZ2Z2XD`.
+I reported that part add/delete reloaded the page in two runs of three. Reproducing it properly
+corrected that in three ways, and each correction matters more than the original finding:
 
-Still open: organism, template and page layers (`gate:product` reports all three); touch
-behaviour and physical-device rendering; and every product mechanism — nothing here plays
-audio, reads the library, connects a source, or pairs a device.
+- **Add was never broken. Delete was.** My harness collapsed add and delete into one stage and
+  read the workspace only afterwards, so it could not tell them apart.
+- **It was not intermittent.** The "one in three passed" was my measurement racing the
+  navigation. With a settle before reading, the failure is three of three, byte-identical.
+- **Object count and coordinates survived the reload**, because the board is restored from
+  persisted surface state. Only the post-placement `window` sentinel, which cannot be restored,
+  exposed the destroyed document. A gate asserting on placed objects alone would have passed a
+  broken build.
+
+Root cause: part wrappers are deliberately excluded from React Fast Refresh, so a part module
+accepts nothing. On unlink Vite fed the deleted module to `updateModules`, propagation
+dead-ended, and Vite escalated to a full reload — undoing the surgical removal message Caliper
+had already sent. Add was unaffected only because the module was not yet in the graph.
+
+It was never caught because the existing gate's part path sits outside the Vite root, where
+Vite's unlink handler never runs. The gate covered the one path structurally incapable of
+showing the bug.
+
+Fixed in the Caliper repo and verified six consecutive runs, with a new in-project regression
+gate. Tracked as `01M1YJC05DJKWFQ6KBYKZ2Z2XD`.
+
+## What parity actually means
+
+The reference client exposes **42 capabilities that must be replaced** before it can retire,
+plus 14 that are protocol-harness only and must *not* be rebuilt as product UI, and 6 already
+live below the UI in the reused worker layer. The survey corrected the count of shapes from
+nine to twelve.
+
+Three of the 42 are not ports but missing verbs, and need product decisions before milestone 3
+is scoped: **adding a found source album to your library does not exist anywhere today**;
+**multi-account does not exist** (one hardcoded device name, one implicit account); and **listen
+history is written but never read** — the core builds a Hot projection that no client renders,
+so History is new construction rather than replacement.
+
+Still open: template and page layers (`gate:product` reports both); touch behaviour and
+physical-device rendering; and every product mechanism — nothing here plays audio, reads the
+library, connects a source, or pairs a device.
+
+**Nobody has looked at the ten organisms rendered.** They are discoverable, typed and tested,
+but their visual claims rest on ported CSS rather than on seeing them, and that is exactly the
+kind of "equivalent by construction" argument this project has already rejected once.
+
+Two gate rules were narrowed after they rejected correct code: list rendering via `.map`, and
+`useRef`/`useId` below a binding. Both narrowings are pinned by negative tests. The genuinely
+contested part is untouched and still needs a decision — whether a stateful compound widget may
+own `useState` and its own context below a binding. Until that is settled, modal sheets
+(`PlayerSheet`, `RoomsSheet`) cannot be written, because `showModal()` needs an effect.
