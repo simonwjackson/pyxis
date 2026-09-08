@@ -26,11 +26,21 @@
 
 /* The status bar is drawn over the page, not beside it, so the nav pays the top inset itself.
    Without this the first row of controls sits underneath the clock and cannot be read or hit. */
+/* Destinations at one end, the account control at the other. `space-between` rather than a
+   spacer element, so the control stays put when the destination list grows. */
 .px-frame-nav {
   grid-area: nav;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--px-s3);
   padding: calc(var(--px-s2) + env(safe-area-inset-top, 0)) var(--px-s3) var(--px-s2);
   background: var(--px-ground);
   border-block-end: var(--px-line) solid var(--px-rule);
+}
+
+.px-frame-account {
+  flex: 0 0 auto;
 }
 
 .px-frame-notice {

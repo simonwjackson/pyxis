@@ -79,6 +79,10 @@ export interface PlaybackBinding {
   readonly playAlbum: (trackIds: readonly string[]) => void
   readonly play: () => void
   readonly pause: () => void
+  /// Move to the next or previous track. Absent from the core's vocabulary, so both are a
+  /// cursor jump followed by a play; see `skip`.
+  readonly next: () => void
+  readonly previous: () => void
   readonly refresh: () => void
   /// Accept a session record pushed by the core rather than asked for.
   ///
@@ -329,6 +333,36 @@ export function usePlayback(edge: PlaybackEdge, options: PlaybackOptions = {}): 
     void command({ _tag: "transport.play", payload: {} })
   }, [command])
 
+  /// Move by one track, either way.
+  ///
+  /// The core has no next or previous command, only `cursor.jump`, and jumping deliberately
+  /// stops: choosing a track and starting it are separate decisions there, so a jump alone
+  /// would leave a chosen track sitting silent. Skipping is therefore a jump and a play, in
+  /// that order, against the session the jump returned.
+  ///
+  /// Refusing to move past either end is the caller's guard as well as this one's, but it
+  /// belongs here too: the core rejects an index outside the queue, and a skip button that
+  /// throws at the last track is worse than one that is not offered.
+  const skip = useCallback(
+    (by: 1 | -1) => {
+      void (async () => {
+        const on = session.current
+        if (on === undefined || on.cursor === undefined) return
+        const index = on.cursor + by
+        if (index < 0 || index >= on.queue.length) return
+        const jumped = await edge.queueSessionCommand(on, {
+          _tag: "cursor.jump",
+          payload: { index },
+        })
+        publish(await edge.queueSessionCommand(jumped, { _tag: "transport.play", payload: {} }))
+      })()
+    },
+    [edge, publish],
+  )
+
+  const next = useCallback(() => skip(1), [skip])
+  const previous = useCallback(() => skip(-1), [skip])
+
   const pause = useCallback(() => {
     void (async () => {
       await command({ _tag: "transport.pause", payload: {} })
@@ -402,6 +436,8 @@ export function usePlayback(edge: PlaybackEdge, options: PlaybackOptions = {}): 
     playAlbum,
     play,
     pause,
+    next,
+    previous,
     refresh,
     applySession,
     applyDirective,

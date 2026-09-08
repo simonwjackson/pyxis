@@ -13,6 +13,10 @@ export interface NowBarPlayingProps {
   readonly onOpenPlayer?: () => void
   readonly onOpenRooms?: () => void
   readonly onToggle?: () => void
+  /// Absent when there is nothing on that side of the queue, so the control is omitted
+  /// rather than offered dead.
+  readonly onPrevious?: () => void
+  readonly onNext?: () => void
 }
 // Playback presence while something is loaded. A sibling of NowBarResting rather than the
 // same component holding a flag: the two say different things, carry different controls and
@@ -28,6 +32,8 @@ export function NowBarPlaying({
   otherRooms = 0,
   onOpenPlayer,
   onOpenRooms,
+  onPrevious,
+  onNext,
   onToggle,
 }: NowBarPlayingProps) {
   const roomLabel = otherRooms > 0 ? `${room} +${otherRooms}` : room
@@ -56,11 +62,18 @@ export function NowBarPlaying({
             />
             <Text text={roomLabel} size="small" weight="strong" />
           </Action>
+          {/* Offered only where there is somewhere to go. At the first or last track the
+              control is absent rather than disabled, the same way the resting bar omits a
+              resume it cannot honour: a dead button teaches nothing. */}
+          {onPrevious ? (
+            <IconButton label="Previous track" icon="previous" onClick={onPrevious} />
+          ) : null}
           <IconButton
             label={playing ? "Pause" : "Play"}
             icon={playing ? "pause" : "play"}
             {...(onToggle ? { onClick: onToggle } : {})}
           />
+          {onNext ? <IconButton label="Next track" icon="next" onClick={onNext} /> : null}
         </>
       }
       {...(onOpenPlayer ? { onOpen: onOpenPlayer } : {})}

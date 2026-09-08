@@ -1,4 +1,12 @@
-import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react"
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  renderHook,
+  screen,
+  waitFor,
+} from "@testing-library/react"
 import { afterEach, expect, test, vi } from "vitest"
 import {
   type ListenTrackEventInput,
@@ -51,6 +59,18 @@ function apply(current: RpcSession, command: RpcSessionCommand): RpcSession {
         queue,
         cursor: 0,
         ...(first === undefined ? {} : { currentTrackId: first }),
+      }
+    }
+    case "cursor.jump": {
+      // Mirrors the core: choosing a track and starting it are separate decisions there, so
+      // a jump stops. A fake that kept playing would let a skip that never plays look fine.
+      const track = next.queue[command.payload.index]
+      return {
+        ...next,
+        cursor: command.payload.index,
+        transport: RpcTransport.Stopped,
+        positionMs: 0,
+        ...(track === undefined ? {} : { currentTrackId: track }),
       }
     }
     case "transport.play":
@@ -550,4 +570,42 @@ test("a console's directive is carried out once, however often it arrives", asyn
   })
 
   expect(fake.commands.filter((command) => command._tag === "transport.pause")).toHaveLength(1)
+})
+
+test("skipping forward jumps and then plays, because a jump alone is silent", async () => {
+  const fake = harness(session({ positionMs: 0 }))
+  const { result } = renderHook(() => usePlayback(fake.edge, { deviceId: "device-1" }))
+  await waitFor(() => expect(fake.loads).toEqual(["track-1"]))
+
+  await act(async () => {
+    result.current.next()
+    await Promise.resolve()
+  })
+
+  // The core has no next command, only a cursor jump, and jumping deliberately stops. A
+  // skip that forgot the play would leave a chosen track sitting silent.
+  await waitFor(() =>
+    expect(fake.commands.map((command) => command._tag)).toEqual(
+      expect.arrayContaining(["cursor.jump", "transport.play"]),
+    ),
+  )
+  const jump = fake.commands.find((command) => command._tag === "cursor.jump")
+  expect(jump).toMatchObject({ payload: { index: 1 } })
+  await waitFor(() => expect(fake.loads).toEqual(["track-1", "track-2"]))
+})
+
+test("skipping past either end of the queue asks for nothing", async () => {
+  // The core rejects an index outside the queue, and the surface withholds the control
+  // there, but the binding must not depend on the surface having done so.
+  const fake = harness(session({ positionMs: 0, cursor: 1, currentTrackId: "track-2" }))
+  const { result } = renderHook(() => usePlayback(fake.edge, { deviceId: "device-1" }))
+  await waitFor(() => expect(fake.loads).toEqual(["track-2"]))
+  const before = fake.commands.length
+
+  await act(async () => {
+    result.current.next()
+    await Promise.resolve()
+  })
+
+  expect(fake.commands).toHaveLength(before)
 })

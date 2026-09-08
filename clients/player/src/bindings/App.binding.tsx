@@ -13,12 +13,14 @@
 /// needs pairing on a perfectly ordinary first boot, about a problem this client created by
 /// asking too early.
 
-import { useCallback, useMemo } from "react"
+import { useCallback, useMemo, useState } from "react"
 import type { AlbumView } from "../model/album"
 import { type EdgeReason, type Remote, shownValue } from "../model/edge"
 import { byRecentlyAdded, downloaded, inPlacement } from "../model/library"
 import { ROUTES, routeTitle, sameRoute } from "../router/route.ts"
+import { AccountSheet } from "../shapes/AccountSheet.tsx"
 import type { AlbumSummary } from "../shapes/album.ts"
+import type { AccountStanding } from "../shapes/entities.ts"
 import { LibraryPage } from "../shapes/LibraryPage.tsx"
 import { NowBarPlaying } from "../shapes/NowBarPlaying.tsx"
 import { NowBarResting } from "../shapes/NowBarResting.tsx"
@@ -139,6 +141,9 @@ export function App({
 }: AppProps) {
   const { route, go } = useRoute()
   const update = useUpdate(updateEdge)
+  /// Whether the account sheet is showing. Ephemeral interaction state that is born here and
+  /// dies here, which is why it may live below the shell's other readers rather than in one.
+  const [accountOpen, setAccountOpen] = useState(false)
   const { credential, reclaim } = useAccount(accountEdge, deviceName)
   const held = credential.state === "ready" ? credential.value : undefined
 
@@ -157,7 +162,7 @@ export function App({
     // carry on from a state that quietly missed something.
     onResyncRequired: refreshPlayback,
   })
-  const { playAlbum, play, pause } = playback
+  const { playAlbum, play, pause, next, previous } = playback
 
   const stacks = useMemo(() => toSurface(albums, buildStacks), [albums])
   const everything = useMemo(() => toSurface(albums, (found) => found.map(summarise)), [albums])
@@ -185,6 +190,22 @@ export function App({
   /// What the bar is about. Resolved by finding the album that owns the sounding track,
   /// rather than by remembering what was pressed: after a reload, or a command from another
   /// device, the session is the only thing that knows.
+  /// What the account sheet says about this device. Derived from the credential rather than
+  /// stored, so it cannot drift from the thing it describes.
+  const standing: AccountStanding =
+    held === undefined
+      ? {
+          state: "unpaired",
+          deviceName,
+          trouble:
+            credential.state === "unavailable"
+              ? reasonText(credential.reason)
+              : "This device has not asked for a credential yet.",
+          // Asking again is only worth offering when repeating it could change the answer.
+          canRetry: credential.state !== "unavailable" || credential.reason.kind !== "permanent",
+        }
+      : { state: "paired", accountName: held.account.name, deviceName: held.device.name }
+
   const sounding = playback.playback.state === "ready" ? playback.playback.value : undefined
   const soundingTrackId = sounding?.currentTrackId
   const soundingAlbum = useMemo(
@@ -231,6 +252,22 @@ export function App({
       // on navigation. Reloading stays the person's choice: a page that reloads itself can
       // end a track halfway through for the sake of a version number.
       notice={update.available ? <UpdateNotice onApply={update.apply} /> : undefined}
+      // Configuration hangs off the account control rather than taking a navigation slot,
+      // which is the approved arrangement. It is also the only place that answers "which
+      // build am I on" without putting a version number permanently on screen.
+      account={
+        <>
+          <Action label="Account" onClick={() => setAccountOpen(true)} />
+          <AccountSheet
+            standing={standing}
+            open={accountOpen}
+            onClose={() => setAccountOpen(false)}
+            updateAvailable={update.available}
+            {...(update.build === undefined ? {} : { build: update.build })}
+            {...(credential.state === "unavailable" ? { onPair: reclaim } : {})}
+          />
+        </>
+      }
       // Outside the outlet. Navigating replaces the surface above and leaves this alone,
       // which is the entire reason the router exists rather than a conditional render.
       bar={
@@ -242,10 +279,14 @@ export function App({
             room={sounding.name}
             transport={sounding.transport === "playing" ? "playing" : "paused"}
             // Offered only when a command sent now could actually take effect. A control
-            // that silently does nothing is worse than one that is not there.
+            // that silently does nothing is worse than one that is not there. Skipping is
+            // additionally gated on there being somewhere to go, so the first and last
+            // tracks of a queue simply have one fewer control.
             {...(sounding.controllable
               ? { onToggle: sounding.transport === "playing" ? pause : play }
               : {})}
+            {...(sounding.controllable && sounding.hasPrevious ? { onPrevious: previous } : {})}
+            {...(sounding.controllable && sounding.hasNext ? { onNext: next } : {})}
           />
         )
       }

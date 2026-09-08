@@ -3,6 +3,9 @@ import "./base.css"
 import "./AppFrame.css"
 export interface AppFrameProps {
   readonly nav: ReactNode
+  /// Sits at the far end of the nav row. Configuration hangs off it rather than taking a
+  /// destination of its own.
+  readonly account?: ReactNode
   /// A notice about the shell itself, such as a newer build being served. Sits above the
   /// surface and outside the outlet so it survives navigation and never scrolls away.
   readonly notice?: ReactNode
@@ -19,10 +22,13 @@ export interface AppFrameProps {
 //
 // Bar deliberately does not position itself, so that it can be reviewed as an object in
 // isolation. This is the file that takes that decision instead.
-export function AppFrame({ nav, notice, children, bar }: AppFrameProps) {
+export function AppFrame({ nav, account, notice, children, bar }: AppFrameProps) {
   return (
     <div className="px-frame">
-      <header className="px-frame-nav">{nav}</header>
+      <header className="px-frame-nav">
+        {nav}
+        {account ? <div className="px-frame-account">{account}</div> : null}
+      </header>
       {notice ? <div className="px-frame-notice">{notice}</div> : null}
       <main className="px-frame-outlet">{children}</main>
       <div className="px-frame-bar">{bar}</div>

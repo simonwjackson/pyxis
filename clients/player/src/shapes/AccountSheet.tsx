@@ -11,6 +11,12 @@ export interface AccountSheetProps {
   readonly onClose: () => void
   // Ask the core for a credential again. Absent when there is nothing worth asking.
   readonly onPair?: () => void
+  // Which build this page is running, and whether the server has moved on. Somewhere to
+  // look when you wonder whether a change reached you, rather than a permanent banner: the
+  // notice already interrupts when it matters, and this answers the question the rest of
+  // the time.
+  readonly build?: string
+  readonly updateAvailable?: boolean
 }
 // Whose library this is, and whether this device is allowed to read it.
 //
@@ -26,7 +32,14 @@ export interface AccountSheetProps {
 // Sources and devices are places, and the approved arrangement hangs them off this control
 // rather than giving them navigation slots. They are absent because this client has no route
 // for either yet, and a link that silently returns you to Stacks is a worse answer than none.
-export function AccountSheet({ standing, open, onClose, onPair }: AccountSheetProps) {
+export function AccountSheet({
+  standing,
+  open,
+  onClose,
+  onPair,
+  build,
+  updateAvailable = false,
+}: AccountSheetProps) {
   return (
     <Sheet title="Account" open={open} onClose={onClose}>
       {standing.state === "paired" ? (
@@ -68,6 +81,18 @@ export function AccountSheet({ standing, open, onClose, onPair }: AccountSheetPr
           }
         />
       ) : null}
+      {build === undefined ? null : (
+        <Row
+          title={updateAvailable ? "A newer Pyxis is ready" : "Up to date"}
+          detail={`Running ${build}`}
+          actions={
+            <StatusMark
+              label={updateAvailable ? "Update ready" : "Current"}
+              state={updateAvailable ? "active" : "ready"}
+            />
+          }
+        />
+      )}
     </Sheet>
   )
 }

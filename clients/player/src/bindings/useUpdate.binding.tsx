@@ -20,6 +20,10 @@ export interface UpdateEdge {
 export interface UpdateBinding {
   readonly available: boolean
   readonly apply: () => void
+  /// The build this page is running, for somewhere to look when you wonder whether a change
+  /// reached you. Absent in development, where the shell is served from source and there is
+  /// no hashed bundle to name.
+  readonly build?: string
 }
 
 export function useUpdate(edge: UpdateEdge | undefined): UpdateBinding {
@@ -40,5 +44,6 @@ export function useUpdate(edge: UpdateEdge | undefined): UpdateBinding {
   return {
     available,
     apply: () => edge?.reload(),
+    ...(edge?.current === undefined ? {} : { build: edge.current }),
   }
 }

@@ -77,10 +77,27 @@ export function applySessionCommand(
       transport = RpcTransport.Stopped
       positionMs = 0
       break
-    case "transport.trackEnded":
+    case "transport.trackEnded": {
       if (transport !== RpcTransport.Playing) throw new Error("cannot end unless playing")
-      transport = RpcTransport.Ended
+      // Mirrors `sessions::machine::track_ended` in the core, and must keep mirroring it.
+      // Silence belongs at the end of a record, not between its tracks: the cursor moves
+      // while the queue still has something on it, and only an exhausted queue ends.
+      //
+      // This projection is what the interface actually renders -- `queueSessionCommand`
+      // returns it rather than waiting for the core -- so a copy that ends every track ends
+      // every album after one song, whatever the core decides on reconnect.
+      positionMs = 0
+      const next = cursor === undefined ? undefined : cursor + 1
+      if (next !== undefined && next < queue.length) {
+        cursor = next
+        // A new track brings its own length; keeping the old one draws a progress bar
+        // against the wrong duration.
+        durationMs = undefined
+      } else {
+        transport = RpcTransport.Ended
+      }
       break
+    }
     case "position.report":
       positionMs = command.payload.positionMs
       if (command.payload.durationMs !== undefined) durationMs = command.payload.durationMs
