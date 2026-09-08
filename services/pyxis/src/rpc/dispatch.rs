@@ -681,20 +681,7 @@ pub fn dispatch(state: &AppState, request: RpcRequest, auth: Option<AuthContext>
                     failures,
                 }) => RpcResponse::SourceSearchRun(SourceSearchOutcome::Ready(
                     RpcSourceSearchResult {
-                        tracks: tracks
-                            .into_iter()
-                            .map(|track| RpcSearchTrack {
-                                id: track.id,
-                                title: track.title,
-                                artist: track.artist,
-                                album: track.album,
-                                album_external_id: track.album_external_id,
-                                duration_ms: track.duration_ms,
-                                track_number: track.track_number,
-                                artwork_url: track.artwork_url,
-                                source_plugin_id: track.source_plugin_id,
-                            })
-                            .collect(),
+                        tracks: tracks.into_iter().map(rpc_search_track).collect(),
                         albums: albums
                             .into_iter()
                             .map(|album| RpcSourceAlbumSummary {
@@ -1238,21 +1225,7 @@ pub fn dispatch(state: &AppState, request: RpcRequest, auth: Option<AuthContext>
                         year: album.year,
                         artwork_url: album.artwork_url,
                         source_plugin_id: album.source_plugin_id,
-                        tracks: album
-                            .tracks
-                            .into_iter()
-                            .map(|track| RpcSearchTrack {
-                                id: track.id,
-                                title: track.title,
-                                artist: track.artist,
-                                album: track.album,
-                                album_external_id: track.album_external_id,
-                                duration_ms: track.duration_ms,
-                                track_number: track.track_number,
-                                artwork_url: track.artwork_url,
-                                source_plugin_id: track.source_plugin_id,
-                            })
-                            .collect(),
+                        tracks: album.tracks.into_iter().map(rpc_search_track).collect(),
                     }))
                 }
                 Err(error) => RpcResponse::SourceAlbumGet(SourceAlbumGetOutcome::Unavailable(
@@ -1350,6 +1323,7 @@ fn rpc_station(station: crate::stations::Station) -> RpcStation {
 fn rpc_search_track(track: crate::source_catalog::SearchTrack) -> RpcSearchTrack {
     RpcSearchTrack {
         id: track.id,
+        external_id: track.external_id,
         title: track.title,
         artist: track.artist,
         album: track.album,

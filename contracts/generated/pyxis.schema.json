@@ -3973,6 +3973,10 @@
         "id": {
           "type": "string"
         },
+        "externalId": {
+          "description": "The source's own reference for this recording. It addresses `source.station.create`\nwith a `track` seed, so a client can start a station from a song it just found.\nWithout it a client can list and play stations but can never begin one.",
+          "type": "string"
+        },
         "title": {
           "type": "string"
         },
@@ -4021,6 +4025,7 @@
       "additionalProperties": false,
       "required": [
         "id",
+        "externalId",
         "title",
         "artist",
         "sourcePluginId"

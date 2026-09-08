@@ -60,6 +60,11 @@ export interface ReferenceContextValue {
   /// Queues one bounded batch from a station. It never starts playback: asking a source what
   /// comes next and deciding to play are separate actions.
   startStation(pluginId: string, stationId: string): Promise<void>
+  /// Starts a station from a song the user just found, then queues its first batch. This is
+  /// the only way radio begins somewhere the listener actually is.
+  startStationFromTrack(pluginId: string, trackExternalId: string): Promise<void>
+  /// Sources that accept a `track` seed, so the client offers radio only where it works.
+  trackSeedSources: readonly string[]
   enqueue(trackId: string): Promise<void>
   /// Queue every track of a library album, in album order.
   enqueueAlbum(albumId: string): Promise<void>

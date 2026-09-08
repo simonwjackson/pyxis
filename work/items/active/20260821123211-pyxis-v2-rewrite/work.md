@@ -41,8 +41,10 @@ exhausted station.
 **The user has not used the station surface in a browser yet.** Nothing above proves the reference
 client feels right, only that the operations answer correctly.
 
-**Next gap:** a search result cannot seed a station, because `RpcSearchTrack` never carries the
-recording's provider id. See `Deferred to Follow-Up Work`.
+**Closed since:** a search result can now seed a station. `RpcSearchTrack` publishes the source's
+own `externalId` beside the core's account-scoped `id`, and the reference client offers **Start
+radio** on any song whose source declared a `track` seed. Pandora songs get no such button, because
+Pandora declares no seed kinds.
 
 Earlier record, retained:
 

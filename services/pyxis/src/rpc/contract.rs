@@ -328,6 +328,10 @@ pub struct SourceSearchRequest {
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct RpcSearchTrack {
     pub id: String,
+    /// The source's own reference for this recording. It addresses `source.station.create`
+    /// with a `track` seed, so a client can start a station from a song it just found.
+    /// Without it a client can list and play stations but can never begin one.
+    pub external_id: String,
     pub title: String,
     pub artist: String,
     #[serde(skip_serializing_if = "Option::is_none")]

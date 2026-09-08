@@ -548,6 +548,12 @@ export interface RpcRealtimeRemoval {
 
 export interface RpcSearchTrack {
 	id: string;
+	/**
+	 * The source's own reference for this recording. It addresses `source.station.create`
+	 * with a `track` seed, so a client can start a station from a song it just found.
+	 * Without it a client can list and play stations but can never begin one.
+	 */
+	externalId: string;
 	title: string;
 	artist: string;
 	album?: string;

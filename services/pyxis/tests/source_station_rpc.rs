@@ -70,6 +70,7 @@ fn derived_station_source(id: &str) -> PluginCandidate {
         .with_env("PYXIS_LAB_BEHAVIOR", "ready")
         .with_env("PYXIS_LAB_STATION", format!("{id}-station|{id} Radio"))
         .with_env("PYXIS_LAB_STATION_SEEDS", "track")
+        .with_env("PYXIS_LAB_SEARCH", "Idioteque|Radiohead|Kid A|310000")
 }
 
 async fn app_with(candidates: Vec<PluginCandidate>) -> (axum::Router, String, tempfile::TempDir) {
@@ -373,4 +374,67 @@ async fn plugin_list_publishes_the_seed_kinds_a_client_can_offer() {
         .map(|kind| kind.as_str().expect("kind"))
         .collect();
     assert_eq!(kinds, vec!["track", "artist"]);
+}
+
+#[tokio::test]
+async fn a_search_result_carries_the_id_that_seeds_its_station() {
+    // Radio has to start somewhere a listener actually is, and that is a song they just found.
+    // A search result used to publish only the core's account-scoped id, which means nothing to
+    // a plugin, so a client could list and play stations but never begin one.
+    let (app, token, _dir) = app_with(vec![derived_station_source("radio-like")]).await;
+
+    let found = rpc(
+        &app,
+        json!({ "_tag": "source.search.run", "payload": { "query": "anything", "limit": 1 } }),
+        Some(&token),
+    )
+    .await;
+    assert_eq!(found["outcome"]["status"], "ready");
+    let track = &found["outcome"]["value"]["tracks"][0];
+    let external_id = track["externalId"]
+        .as_str()
+        .expect("externalId")
+        .to_string();
+    assert_ne!(
+        external_id,
+        track["id"].as_str().expect("id"),
+        "the source's reference must not be the core's account-scoped id"
+    );
+
+    // The seed round-trips: what search published is what station.create accepts.
+    let created = rpc(
+        &app,
+        json!({
+            "_tag": "source.station.create",
+            "payload": {
+                "pluginId": track["sourcePluginId"],
+                "seed": { "kind": "track", "externalId": external_id }
+            }
+        }),
+        Some(&token),
+    )
+    .await;
+    assert_eq!(created["outcome"]["status"], "ready");
+
+    let batch = rpc(
+        &app,
+        json!({
+            "_tag": "source.station.next",
+            "payload": {
+                "pluginId": "radio-like",
+                "stationId": created["outcome"]["value"]["externalId"],
+                "limit": 2
+            }
+        }),
+        Some(&token),
+    )
+    .await;
+    assert_eq!(batch["outcome"]["status"], "ready");
+    assert!(
+        !batch["outcome"]["value"]["tracks"]
+            .as_array()
+            .expect("tracks")
+            .is_empty(),
+        "a station seeded from a search result must play something"
+    );
 }

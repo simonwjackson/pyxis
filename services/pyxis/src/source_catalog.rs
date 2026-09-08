@@ -18,6 +18,9 @@ const MAX_METADATA_CHARS: usize = 4_096;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SearchTrack {
     pub id: String,
+    /// The source's own reference for this recording, kept so a client can seed a station
+    /// from it. The core's `id` is account-scoped and means nothing to the plugin.
+    pub external_id: String,
     pub title: String,
     pub artist: String,
     pub album: Option<String>,
@@ -419,6 +422,7 @@ impl SourceCatalog {
             .into_iter()
             .map(|track| SearchTrack {
                 id: track_id(auth.account_id.as_str(), plugin_id, &track.external_id),
+                external_id: track.external_id,
                 title: track.title,
                 artist: track.artist,
                 album: Some(album.title.clone()),
@@ -494,12 +498,13 @@ pub(crate) fn register_source_track(
     track: PluginSearchTrack,
 ) -> Result<SearchTrack, SourceCatalogError> {
     let id = track_id(auth.account_id.as_str(), plugin_id, &track.external_id);
+    let external_id = track.external_id;
     media.ensure_plugin_candidate(
         &auth.account_id,
         &id,
         PluginCandidateInput {
             plugin_id: plugin_id.into(),
-            external_id: track.external_id,
+            external_id: external_id.clone(),
             format: None,
             fidelity: Fidelity {
                 lossless: false,
@@ -512,6 +517,7 @@ pub(crate) fn register_source_track(
     )?;
     Ok(SearchTrack {
         id,
+        external_id,
         title: track.title,
         artist: track.artist,
         album: track.album,

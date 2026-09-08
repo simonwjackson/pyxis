@@ -12,6 +12,8 @@ export function ReferenceLibrary() {
     searchHasNoSources,
     sourceFailures,
     enqueue,
+    startStationFromTrack,
+    trackSeedSources,
     enqueueAlbum,
     albums,
     offline,
@@ -51,7 +53,17 @@ export function ReferenceLibrary() {
             {track.album === undefined ? "" : ` — ${track.album}`} ({track.sourcePluginId}){" "}
             <button type="button" onClick={() => void enqueue(track.id)}>
               Add to queue
-            </button>
+            </button>{" "}
+            {/* Radio is offered only where the source declared it works. A source that never
+                said it accepts a track seed gets no button, rather than a button that fails. */}
+            {trackSeedSources.includes(track.sourcePluginId) ? (
+              <button
+                type="button"
+                onClick={() => void startStationFromTrack(track.sourcePluginId, track.externalId)}
+              >
+                Start radio
+              </button>
+            ) : null}
           </li>
         ))}
       </ol>

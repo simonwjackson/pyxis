@@ -108,12 +108,12 @@ everything provider-shaped lives at the edge behind a plugin protocol.
   disconnect and account switch each need defined cancellation. Prefetch depth is bounded by a
   provider fact recorded in U30: a Pandora batch is perishable and process-bound. The session
   acknowledgement fix in `9c0efb7` was the stated precondition and has landed.
-- **A search result cannot seed a station.** `RpcSearchTrack` carries the core's derived track id
-  and an `albumExternalId`, but never the recording's own provider id. `source.station.create`
-  needs that provider id, so a client can list stations and play them, yet cannot start a station
-  from a song it just found. The live check had to read a video id out of `yt-dlp` to test at all.
-  Adding the field is small; deciding whether a provider id belongs in a public search result is
-  the actual question, since the rest of the contract deliberately keeps provider ids opaque.
+- **Two console tests fail under CPU load.** `retains a retired event during a delayed command
+  acknowledgement` and `fences library event authority held at snapshot across connection failure`
+  both pass in seven consecutive idle runs and fail reproducibly when `cargo test` runs beside
+  them. The first burns a full 1016 ms before giving up, so it is waiting on a real timeout rather
+  than a missing element. They are timing-sensitive, they predate the station work, and a suite
+  that fails on a busy machine trains people to rerun instead of read.
 - **A dependency's test suite was being run as ours.** `clients/app/.cache/proseql` is a symlink
   into the Nix store, and the vitest config had no `exclude`, so 172 unresolvable ProseQL test
   files were collected on every run. Environment setup took 166 seconds. U33 excludes `.cache`,

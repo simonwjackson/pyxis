@@ -8,6 +8,7 @@ import {
   type RpcSession,
   type RpcSessionDirective,
   RpcTransport,
+  StationSeedKind,
 } from "../../../../contracts/generated/pyxis"
 import { RpcError, type WorkerRpc } from "../rpc/client.ts"
 import { createDirectWorkerClient, type WorkerClient } from "../worker/client.ts"
@@ -90,6 +91,9 @@ function client(plugins: Awaited<ReturnType<ReferenceClient["listPlugins"]>>): R
     }),
     listPlugins: async () => plugins,
     listStations: async () => ({ stations: [], noSources: false, failures: [] }),
+    createStation: async () => {
+      throw new Error("not used")
+    },
     nextStationBatch: async () => ({ tracks: [], exhausted: true }),
     listAlbums: async () => [],
     listOutputTargets: async () => ({
@@ -3068,6 +3072,103 @@ describe("reference client", () => {
     fireEvent.click(screen.getByRole("button", { name: "Play" }))
 
     await waitFor(() => expect(loadedTrack).toBe("track-1"))
+  })
+})
+
+describe("radio starts from a song the listener just found", () => {
+  const seedSource = {
+    id: "ytmusic",
+    name: "YouTube Music",
+    version: "1.0.0",
+    capabilities: ["source"] as const,
+    status: "live" as const,
+    configured: true,
+    stationSeedKinds: [StationSeedKind.Track],
+  }
+
+  const foundSong = {
+    id: "track-1",
+    externalId: "videoOne",
+    title: "Idioteque",
+    artist: "Radiohead",
+    sourcePluginId: "ytmusic",
+  }
+
+  test("the seed sent is the source's id, not the core's", async () => {
+    let seededWith: string | undefined
+    let stationAsked: string | undefined
+    const radioClient: ReferenceClient = {
+      ...client([seedSource]),
+      search: async () => ({
+        tracks: [foundSong],
+        albums: [],
+        artists: [],
+        noSources: false,
+        failures: [],
+      }),
+      createStation: async (_token, _pluginId, seedExternalId) => {
+        seededWith = seedExternalId
+        return {
+          externalId: "RDAMVMvideoOne",
+          name: "YouTube Music radio",
+          sourcePluginId: "ytmusic",
+        }
+      },
+      nextStationBatch: async (_token, _pluginId, stationId) => {
+        stationAsked = stationId
+        return { tracks: [foundSong], exhausted: false }
+      },
+    }
+
+    render(
+      <ReferenceApp client={radioClient} worker={createDirectWorkerClient()}>
+        <ReferenceLibrary />
+        <ReferenceSessions />
+      </ReferenceApp>,
+    )
+    await waitFor(() => expect(screen.getByText(/Account: default/)).toBeTruthy())
+
+    fireEvent.change(screen.getByLabelText("Query"), { target: { value: "Idioteque" } })
+    fireEvent.click(screen.getByRole("button", { name: "Search" }))
+    await waitFor(() => expect(screen.getByRole("button", { name: "Start radio" })).toBeTruthy())
+
+    fireEvent.click(screen.getByRole("button", { name: "Start radio" }))
+
+    // The provider's own id has to make the round trip. Sending the core's account-scoped
+    // id would mean nothing to the plugin, which is the bug this affordance existed to fix.
+    await waitFor(() => expect(seededWith).toBe("videoOne"))
+    expect(seededWith).not.toBe(foundSong.id)
+    await waitFor(() => expect(stationAsked).toBe("RDAMVMvideoOne"))
+  })
+
+  test("a source that cannot seed a station offers no radio button", async () => {
+    // Pandora owns its stations and declares no seed kinds. Offering a button that can only
+    // fail would teach the user that radio is broken rather than that it is unavailable here.
+    const ownedStations = { ...seedSource, id: "pandora", name: "Pandora", stationSeedKinds: [] }
+    const pandoraClient: ReferenceClient = {
+      ...client([ownedStations]),
+      search: async () => ({
+        tracks: [{ ...foundSong, sourcePluginId: "pandora" }],
+        albums: [],
+        artists: [],
+        noSources: false,
+        failures: [],
+      }),
+    }
+
+    render(
+      <ReferenceApp client={pandoraClient} worker={createDirectWorkerClient()}>
+        <ReferenceLibrary />
+        <ReferenceSessions />
+      </ReferenceApp>,
+    )
+    await waitFor(() => expect(screen.getByText(/Account: default/)).toBeTruthy())
+
+    fireEvent.change(screen.getByLabelText("Query"), { target: { value: "Idioteque" } })
+    fireEvent.click(screen.getByRole("button", { name: "Search" }))
+    await waitFor(() => expect(screen.getByRole("button", { name: "Add to queue" })).toBeTruthy())
+
+    expect(screen.queryByRole("button", { name: "Start radio" })).toBeNull()
   })
 })
 

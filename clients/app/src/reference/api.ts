@@ -17,6 +17,7 @@ import type {
   RpcSourceArtistSummary,
   RpcStation,
 } from "../../../../contracts/generated/pyxis"
+import { StationSeedKind } from "../../../../contracts/generated/pyxis"
 import { assertRpcRequest, assertRpcResponse } from "../rpc/validation"
 
 export interface RealtimeHandlers {
@@ -64,6 +65,8 @@ export interface ReferenceClient {
   claimDevice(name: string): Promise<RpcAuthGrant>
   listPlugins(token: string): Promise<readonly RpcPlugin[]>
   listStations(token: string): Promise<StationsResult>
+  /// Creates a station from a seed the user chose, and returns where it lives.
+  createStation(token: string, pluginId: string, seedExternalId: string): Promise<RpcStation>
   nextStationBatch(
     token: string,
     pluginId: string,
@@ -285,6 +288,22 @@ export function createReferenceClient(config: ReferenceClientConfig = {}): Refer
           (failure) => `${failure.pluginId}: ${failure.failure.message}`,
         ),
       }
+    },
+
+    async createStation(token, pluginId, seedExternalId) {
+      const response = await rpc(
+        {
+          _tag: "source.station.create",
+          payload: { pluginId, seed: { kind: StationSeedKind.Track, externalId: seedExternalId } },
+        },
+        token,
+      )
+      if (response._tag !== "source.station.create") throw new Error("invalid station response")
+      if (response.outcome.status === "unsupportedSeed") {
+        throw new Error(`${pluginId} cannot start a station from a song`)
+      }
+      if (response.outcome.status !== "ready") throw new Error("station create is unavailable")
+      return response.outcome.value
     },
 
     async nextStationBatch(token, pluginId, stationId, limit = 10) {

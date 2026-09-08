@@ -14,7 +14,7 @@ import type {
   RpcSourceArtistSummary,
   RpcStation,
 } from "../../../../contracts/generated/pyxis"
-import { RpcTransport } from "../../../../contracts/generated/pyxis"
+import { RpcTransport, StationSeedKind } from "../../../../contracts/generated/pyxis"
 import type { WorkerClient } from "../worker/client.ts"
 import { spawnWorkerClient } from "../worker/client.ts"
 import {
@@ -907,23 +907,53 @@ export function ReferenceApp({
     })
   }, [client, currentToken, run])
 
-  const startStation = useCallback(
+  // Queueing a batch is the same work whichever way the station was found, so both entry
+  // points share it rather than drifting apart.
+  const queueStationBatch = useCallback(
     async (pluginId: string, stationId: string) => {
+      const batch = await client.nextStationBatch(currentToken(), pluginId, stationId)
+      if (batch.tracks.length === 0) return
+      const target = await ensureSession()
+      setSession(
+        await runHostCommand(target, {
+          _tag: "queue.add",
+          payload: { trackIds: batch.tracks.map((track) => track.id) },
+        }),
+      )
+    },
+    [client, currentToken, ensureSession, runHostCommand],
+  )
+
+  const startStationFromTrack = useCallback(
+    async (pluginId: string, trackExternalId: string) => {
       await run(async () => {
-        const batch = await client.nextStationBatch(currentToken(), pluginId, stationId)
-        if (batch.tracks.length === 0) return
-        const target = await ensureSession()
-        // The batch is queued and nothing else. Play stays a separate, explicit command, so
-        // asking a source what comes next can never start audio on its own.
-        setSession(
-          await runHostCommand(target, {
-            _tag: "queue.add",
-            payload: { trackIds: batch.tracks.map((track) => track.id) },
-          }),
-        )
+        const station = await client.createStation(currentToken(), pluginId, trackExternalId)
+        await queueStationBatch(station.sourcePluginId, station.externalId)
       })
     },
-    [client, currentToken, ensureSession, run, runHostCommand],
+    [client, currentToken, queueStationBatch, run],
+  )
+
+  // Only sources that declared a `track` seed in their manifest can start a station from a
+  // song. Reading the published declaration means the client never probes an operation to
+  // discover it is missing.
+  const trackSeedSources = useMemo(
+    () =>
+      plugins
+        .filter((plugin) => plugin.stationSeedKinds?.includes(StationSeedKind.Track) === true)
+        .map((plugin) => plugin.id),
+    [plugins],
+  )
+
+  const startStation = useCallback(
+    async (pluginId: string, stationId: string) => {
+      // The batch is queued and nothing else. Play stays a separate, explicit command, so
+      // asking a source what comes next can never start audio on its own.
+      await run(async () => {
+        await queueStationBatch(pluginId, stationId)
+      })
+    },
+    [queueStationBatch, run],
   )
 
   const enqueueAlbum = useCallback(
@@ -1282,6 +1312,8 @@ export function ReferenceApp({
       search,
       loadStations,
       startStation,
+      startStationFromTrack,
+      trackSeedSources,
       enqueue,
       enqueueAlbum,
       enqueueAlbumOnSession,
@@ -1327,6 +1359,8 @@ export function ReferenceApp({
       search,
       loadStations,
       startStation,
+      startStationFromTrack,
+      trackSeedSources,
       enqueue,
       enqueueAlbum,
       enqueueAlbumOnSession,
