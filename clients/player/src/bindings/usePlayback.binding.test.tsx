@@ -4,6 +4,7 @@ import {
   type ListenTrackEventInput,
   type RpcSession,
   type RpcSessionCommand,
+  type RpcSessionDirective,
   RpcTransport,
 } from "../../../../contracts/generated/pyxis"
 import { AudioRenderer } from "./AudioRenderer.binding.tsx"
@@ -129,11 +130,29 @@ function harness(initial: RpcSession, options: { holdStream?: boolean } = {}): H
   }
 }
 
-function Probe({ edge }: { readonly edge: PlaybackEdge }) {
+function Probe({
+  edge,
+  pushed,
+  directive,
+}: {
+  readonly edge: PlaybackEdge
+  /// A session record as the realtime socket would hand it over.
+  readonly pushed?: RpcSession
+  readonly directive?: RpcSessionDirective
+}) {
   const playback = usePlayback(edge, { deviceId: "device-1", newEventId: () => "event-1" })
   const view = playback.playback.state === "ready" ? playback.playback.value : undefined
   return (
     <div>
+      <button type="button" onClick={() => pushed !== undefined && playback.applySession(pushed)}>
+        Push session
+      </button>
+      <button
+        type="button"
+        onClick={() => directive !== undefined && playback.applyDirective(directive)}
+      >
+        Obey
+      </button>
       <button type="button" onClick={() => playback.playAlbum(["track-9"])}>
         Play album
       </button>
@@ -468,4 +487,67 @@ test("jsdom cannot prove playback, so this states what it does prove", () => {
   // meaningful while "is sound coming out" is not testable at all.
   audio.currentTime = 7
   expect(audio.currentTime).toBe(7)
+})
+
+test("a session pushed by the core replaces what was held", async () => {
+  const fake = harness(session())
+  const advanced = session({ cursor: 1, currentTrackId: "track-2", revision: 2 })
+  const { container } = render(<Probe edge={fake.edge} pushed={advanced} />)
+  await waitFor(() => expect(fake.loads).toEqual(["track-1"]))
+
+  // Nothing asked for this. The core pushed it, which is the whole point: an album moving
+  // to its next track has to reach the renderer without the renderer polling for it.
+  fireEvent.click(screen.getByRole("button", { name: "Push session" }))
+
+  await waitFor(() => expect(fake.loads).toEqual(["track-1", "track-2"]))
+  expect(audioOf(container).getAttribute("src")).toBe("/stream/track-2")
+})
+
+test("a session hosted by another device is not taken", async () => {
+  const fake = harness(session())
+  // Every session on the account arrives on the sessions topic, including the one playing
+  // in another room. This binding drives a real audio element, so taking that record would
+  // put another room's track out of these speakers.
+  const elsewhere = session({
+    id: "session-2",
+    hostDeviceId: "device-2",
+    currentTrackId: "track-9",
+    queue: ["track-9"],
+  })
+  render(<Probe edge={fake.edge} pushed={elsewhere} />)
+  await waitFor(() => expect(fake.loads).toEqual(["track-1"]))
+
+  fireEvent.click(screen.getByRole("button", { name: "Push session" }))
+  await act(async () => {
+    await Promise.resolve()
+  })
+
+  expect(fake.loads).toEqual(["track-1"])
+})
+
+test("a console's directive is carried out once, however often it arrives", async () => {
+  const fake = harness(session())
+  const directive: RpcSessionDirective = {
+    sessionId: "session-1",
+    command: { _tag: "transport.pause", payload: {} },
+    issuedBy: "device-2",
+    directiveId: "directive-1",
+  }
+  render(<Probe edge={fake.edge} directive={directive} />)
+  await waitFor(() => expect(fake.loads).toEqual(["track-1"]))
+
+  fireEvent.click(screen.getByRole("button", { name: "Obey" }))
+  await waitFor(() =>
+    expect(fake.commands.filter((command) => command._tag === "transport.pause")).toHaveLength(1),
+  )
+
+  // A socket that drops mid-delivery redelivers. Obeying twice would pause something a
+  // person has since resumed, and for queue.add it would put the album in the queue twice.
+  fireEvent.click(screen.getByRole("button", { name: "Obey" }))
+  fireEvent.click(screen.getByRole("button", { name: "Obey" }))
+  await act(async () => {
+    await Promise.resolve()
+  })
+
+  expect(fake.commands.filter((command) => command._tag === "transport.pause")).toHaveLength(1)
 })

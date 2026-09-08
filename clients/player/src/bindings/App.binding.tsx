@@ -33,6 +33,7 @@ import { AudioRenderer } from "./AudioRenderer.binding.tsx"
 import { type AccountEdge, useAccount } from "./useAccount.binding.tsx"
 import { type LibraryEdge, useLibrary } from "./useLibrary.binding.tsx"
 import { type PlaybackEdge, usePlayback } from "./usePlayback.binding.tsx"
+import { type RealtimeEdge, useRealtime } from "./useRealtime.binding.tsx"
 import { useRoute } from "./useRoute.binding.tsx"
 
 /// Narrow an edge album to what a cover needs. The surfaces never see the richer view, so
@@ -113,13 +114,17 @@ export interface AppProps {
   readonly edge: LibraryEdge
   readonly accountEdge: AccountEdge
   readonly playbackEdge: PlaybackEdge
+  /// How to open the realtime socket. Optional so a test that is not about presence does
+  /// not have to fake one; absent means this device never becomes reachable, and the
+  /// interface withholds transport controls, which is the honest reading of not connected.
+  readonly realtimeEdge?: RealtimeEdge
   /// What this device calls itself in the account. A real decision rather than a nickname:
   /// it is what a person reads when choosing where to send music, so the composition root
   /// derives it from the actual browser instead of this file inventing one.
   readonly deviceName: string
 }
 
-export function App({ edge, accountEdge, playbackEdge, deviceName }: AppProps) {
+export function App({ edge, accountEdge, playbackEdge, realtimeEdge, deviceName }: AppProps) {
   const { route, go } = useRoute()
   const { credential, reclaim } = useAccount(accountEdge, deviceName)
   const held = credential.state === "ready" ? credential.value : undefined
@@ -127,6 +132,18 @@ export function App({ edge, accountEdge, playbackEdge, deviceName }: AppProps) {
   const library = useLibrary(edge, { ready: held !== undefined })
   const { albums, refresh } = library
   const playback = usePlayback(playbackEdge, held === undefined ? {} : { deviceId: held.device.id })
+
+  // Holding this socket is what makes the core count this device as present, and presence
+  // is what makes its own sessions controllable. Without it the transport controls are
+  // correctly withheld: the core is not wrong to call an unconnected device unreachable.
+  const { applySession, applyDirective, refresh: refreshPlayback } = playback
+  useRealtime(realtimeEdge, held?.token, {
+    onSession: applySession,
+    onDirective: applyDirective,
+    // The replay had a gap, so what is held is no longer trustworthy. Re-read rather than
+    // carry on from a state that quietly missed something.
+    onResyncRequired: refreshPlayback,
+  })
   const { playAlbum, play, pause } = playback
 
   const stacks = useMemo(() => toSurface(albums, buildStacks), [albums])

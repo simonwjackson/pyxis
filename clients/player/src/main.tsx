@@ -17,7 +17,9 @@ import { spawnWorkerClient } from "../../app/src/worker/client.ts"
 import { App } from "./bindings/App.binding.tsx"
 import type { AccountEdge } from "./bindings/useAccount.binding.tsx"
 import type { PlaybackEdge } from "./bindings/usePlayback.binding.tsx"
+import type { RealtimeEdge } from "./bindings/useRealtime.binding.tsx"
 import { deviceNameFrom, readClaimOutcome } from "./model/account.ts"
+import { realtimeUrlFrom } from "./rpc/realtime.ts"
 import { createStreamLoader } from "./rpc/stream.ts"
 import { createRpcTransport } from "./rpc/transport.ts"
 import "./system-next/tokens.css"
@@ -141,4 +143,16 @@ function browserNameFrom(userAgent: string): string | undefined {
   return known.find(([needle]) => userAgent.includes(needle))?.[1]
 }
 
-createRoot(host).render(createElement(App, { edge: worker, accountEdge, playbackEdge, deviceName }))
+/// The socket, supplied the same way `fetch` is.
+///
+/// A `WebSocket` is a global, so the modules below this one never name it. Bound here
+/// because only a composition root may reach for one, and constructed per call so a
+/// reconnect gets a genuinely new socket rather than a reused corpse.
+const realtimeEdge: RealtimeEdge = {
+  open: (url) => new WebSocket(url),
+  url: realtimeUrlFrom(globalThis.location.origin),
+}
+
+createRoot(host).render(
+  createElement(App, { edge: worker, accountEdge, playbackEdge, realtimeEdge, deviceName }),
+)

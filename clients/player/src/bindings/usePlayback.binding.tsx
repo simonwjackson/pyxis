@@ -15,6 +15,7 @@ import type {
   ListenTrackEventInput,
   RpcSession,
   RpcSessionCommand,
+  RpcSessionDirective,
 } from "../../../../contracts/generated/pyxis"
 import type { WorkerClient } from "../../../app/src/worker/client.ts"
 import { loading, type Remote, ready, type SyncOutcome, unavailable, unknown } from "../model/edge"
@@ -79,6 +80,14 @@ export interface PlaybackBinding {
   readonly play: () => void
   readonly pause: () => void
   readonly refresh: () => void
+  /// Accept a session record pushed by the core rather than asked for.
+  ///
+  /// Realtime events carry the whole record, so this replaces rather than patches. Without
+  /// it the only way state ever moved was by asking, which is why an advancing album
+  /// updated late and a command from another device did not show up at all.
+  readonly applySession: (session: RpcSession) => void
+  /// Obey a console. Another device asked this one to change a session it hosts.
+  readonly applyDirective: (directive: RpcSessionDirective) => void
 }
 
 const eventId = () => crypto.randomUUID()
@@ -105,6 +114,8 @@ export function usePlayback(edge: PlaybackEdge, options: PlaybackOptions = {}): 
   const pendingSeekMs = useRef<number | undefined>(undefined)
   /// Discards a slow earlier read that would otherwise land after a newer one.
   const generation = useRef(0)
+  /// Directives already carried out, so a redelivery after a reconnect is not applied twice.
+  const seenDirectives = useRef<Set<string>>(new Set())
 
   const publish = useCallback((next: RpcSession | undefined) => {
     session.current = next
@@ -335,6 +346,54 @@ export function usePlayback(edge: PlaybackEdge, options: PlaybackOptions = {}): 
     void read()
   }, [read])
 
+  /// Take a pushed session, if it is this device's to take.
+  ///
+  /// Guarded on the host. Every session on the account arrives on the sessions topic, so an
+  /// ungated version would let the record playing in another room overwrite what this
+  /// device is rendering -- and this binding drives a real audio element, so that is not a
+  /// display glitch but the wrong track coming out of the speakers. A session already being
+  /// tracked is also accepted, so a handoff that moves a session away is not ignored on the
+  /// way out.
+  const applySession = useCallback(
+    (next: RpcSession) => {
+      const mine = deviceId !== undefined && next.hostDeviceId === deviceId
+      if (!mine && session.current?.id !== next.id) return
+      // Beat any read that is still in flight: this record is newer than a response that
+      // has not landed yet, and letting a slow read win would move playback backwards.
+      generation.current += 1
+      publish(next)
+    },
+    [deviceId, publish],
+  )
+
+  /// Carry out a command another device asked for.
+  ///
+  /// This device is the renderer, so a console cannot change the sound itself: it asks, and
+  /// the host applies. Repeats are discarded by `directiveId`, which the contract provides
+  /// for exactly this -- a socket that drops mid-delivery redelivers, and applying
+  /// `queue.add` twice would put the album in the queue twice.
+  const applyDirective = useCallback(
+    (directive: RpcSessionDirective) => {
+      if (seenDirectives.current.has(directive.directiveId)) return
+      seenDirectives.current.add(directive.directiveId)
+      // Bounded, because a long-lived page would otherwise grow this set forever. Far more
+      // than any redelivery window and still nothing in memory terms.
+      if (seenDirectives.current.size > 512) {
+        const oldest = seenDirectives.current.values().next()
+        if (!oldest.done) seenDirectives.current.delete(oldest.value)
+      }
+      const on = session.current
+      // Addressed to a session this device is not hosting. The core routes by device, so
+      // this means the world moved; asking for the truth beats guessing at it.
+      if (on === undefined || on.id !== directive.sessionId) {
+        void read()
+        return
+      }
+      void command(directive.command, on).catch(() => undefined)
+    },
+    [command, read],
+  )
+
   return {
     playback,
     ...(audioUrl === undefined ? {} : { audioUrl }),
@@ -344,5 +403,7 @@ export function usePlayback(edge: PlaybackEdge, options: PlaybackOptions = {}): 
     play,
     pause,
     refresh,
+    applySession,
+    applyDirective,
   }
 }
