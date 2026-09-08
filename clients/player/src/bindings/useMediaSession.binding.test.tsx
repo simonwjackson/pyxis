@@ -128,7 +128,7 @@ test("offers a skip only where there is somewhere to go", () => {
       session={session as unknown as MediaSession}
     />,
   )
-  session.handlers.get("nexttrack")?.()
+  session.handlers.get("nexttrack")?.({ action: "nexttrack" })
   expect(onNext).toHaveBeenCalledTimes(1)
 
   rerender(
@@ -242,15 +242,15 @@ test("a scrubber, a steering wheel and a watch all land in the same place", () =
     />,
   )
 
-  session.handlers.get("seekto")?.({ seekTime: 90 })
+  session.handlers.get("seekto")?.({ action: "seekto", seekTime: 90 })
   expect(onSeek).toHaveBeenLastCalledWith(90_000)
 
   // A dashboard that says how far it wants to jump is obeyed.
-  session.handlers.get("seekforward")?.({ seekOffset: 30 })
+  session.handlers.get("seekforward")?.({ action: "seekforward", seekOffset: 30 })
   expect(onSeek).toHaveBeenLastCalledWith(72_000)
 
   // One that does not gets the platform's ten seconds.
-  session.handlers.get("seekbackward")?.({})
+  session.handlers.get("seekbackward")?.({ action: "seekbackward" })
   expect(onSeek).toHaveBeenLastCalledWith(32_000)
 })
 
@@ -268,6 +268,6 @@ test("a seek backwards past the start lands at the start", () => {
     />,
   )
 
-  session.handlers.get("seekbackward")?.({})
+  session.handlers.get("seekbackward")?.({ action: "seekbackward" })
   expect(onSeek).toHaveBeenLastCalledWith(0)
 })

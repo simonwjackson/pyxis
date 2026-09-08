@@ -101,6 +101,21 @@ export interface PlaybackBinding {
 
 const eventId = () => crypto.randomUUID()
 
+/// How long the loaded track runs, if the element has decoded enough to say.
+///
+/// `duration` is NaN before metadata arrives and Infinity for a stream of unknown length, so
+/// both are refused rather than sent as a number the core would store and a dashboard would
+/// draw a bar against.
+///
+/// Module scope rather than the component body so it is stable across renders: defined
+/// inside, it became a new function every render and a dependency of every callback that
+/// used it, which would have rebuilt them all on each pass.
+function elementDurationMs(audio: HTMLAudioElement | null): number | undefined {
+  const duration = audio?.duration
+  if (duration === undefined || !Number.isFinite(duration) || duration <= 0) return undefined
+  return Math.round(duration * 1000)
+}
+
 export function usePlayback(edge: PlaybackEdge, options: PlaybackOptions = {}): PlaybackBinding {
   const { deviceId, newEventId = eventId, positionReportIntervalMs = 15_000 } = options
   const [playback, setPlayback] = useState<Remote<PlaybackView | undefined>>(
@@ -268,21 +283,10 @@ export function usePlayback(edge: PlaybackEdge, options: PlaybackOptions = {}): 
   /// Only the host knows. Without it a console shows a frozen position and a handoff
   /// resumes every track from zero. A zero reading is skipped because it is far more often
   /// an element that has not started than a genuine rewind to the very beginning.
-  /// How long the loaded track runs, if the element has decoded enough to say.
-  ///
-  /// `duration` is NaN before metadata arrives and Infinity for a stream of unknown length,
-  /// so both are refused rather than sent as a number the core would store and a dashboard
-  /// would draw a bar against.
-  const elementDurationMs = (): number | undefined => {
-    const duration = audioElement.current?.duration
-    if (duration === undefined || !Number.isFinite(duration) || duration <= 0) return undefined
-    return Math.round(duration * 1000)
-  }
-
   const reportPosition = useCallback(async () => {
     const positionMs = Math.round((audioElement.current?.currentTime ?? 0) * 1000)
     if (positionMs <= 0) return
-    const durationMs = elementDurationMs()
+    const durationMs = elementDurationMs(audioElement.current)
     await command({
       _tag: "position.report",
       // Carried alongside the position because only the host has it: the core stores a
@@ -298,7 +302,7 @@ export function usePlayback(edge: PlaybackEdge, options: PlaybackOptions = {}): 
   /// exactly where a freshly loaded track sits. Waiting for the first tick instead would
   /// leave a dashboard with no progress bar for the opening seconds of every track.
   const reportDuration = useCallback(() => {
-    const durationMs = elementDurationMs()
+    const durationMs = elementDurationMs(audioElement.current)
     if (durationMs === undefined) return
     const positionMs = Math.round((audioElement.current?.currentTime ?? 0) * 1000)
     void command({ _tag: "position.report", payload: { positionMs, durationMs } })

@@ -193,5 +193,5 @@ export function useMediaSession(options: MediaSessionOptions): void {
       // Some browsers reject combinations others accept, and a dashboard without a progress
       // bar is a smaller loss than a player that crashes trying to draw one.
     }
-  }, [session, positionMs, durationMs, transport])
+  }, [session, positionMs, durationMs])
 }

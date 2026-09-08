@@ -1,0 +1,61 @@
+#!/usr/bin/env bash
+# Ship the player: prove it, build it, put it on this machine, push it.
+#
+# This exists because the ad-hoc version of it shipped broken code twice, both times the same
+# way: a check was piped into `grep` or `tail`, the pipeline reported the exit code of the
+# filter rather than the check, and a failure read as a success. `pipefail` below is the fix,
+# and writing the sequence down once is what stops it being retyped wrongly a third time.
+#
+# It also runs the type checker, which the hand-typed chain never did. Vite transpiles with
+# esbuild and never checks types, so a type error reached production silently and would have
+# again.
+#
+# `nix profile upgrade` is deliberately not used: it silently refuses when the profile entry
+# is pinned to a locked flake revision, which looks exactly like a successful deploy.
+
+set -euo pipefail
+
+cd "$(dirname "$0")/.."
+
+# Node is not on the default PATH here and is not in the dev shell either.
+export PATH="/nix/store/gi0p7azcixb20pddx39k5mwnkj6xl4bz-nodejs-22.22.1/bin:$PATH"
+
+say() { printf '\n\033[1m== %s\033[0m\n' "$1"; }
+
+say "format and lint"
+nix develop --command biome check --write clients/player/src
+nix develop --command biome check clients/player/src
+
+say "types"
+node node_modules/typescript/bin/tsc -p clients/player/tsconfig.json --noEmit
+
+say "architecture, all five layers"
+node clients/player/test/architecture.mjs --product
+node --test clients/player/test/architecture.test.mjs
+
+say "tests"
+node clients/player/node_modules/vitest/vitest.mjs run --config clients/player/vite.config.ts
+
+if [ -n "$(git status --porcelain clients/player/src)" ]; then
+  echo "refusing to ship: clients/player/src has uncommitted changes" >&2
+  exit 1
+fi
+
+say "build"
+out=$(nix build .#pyxis --no-link --print-out-paths)
+echo "$out"
+
+say "install"
+# Remove then add, rather than upgrade, for the reason in the header.
+nix profile remove pyxis
+nix profile add .#pyxis
+systemctl --user restart pyxis
+sleep 10
+systemctl --user is-active pyxis
+
+say "serving"
+# The bundle name is hashed, so this is the one honest answer to "did my change land".
+curl -fsS https://pyxis.hummingbird-lake.ts.net/ | grep -o 'assets/index-[A-Za-z0-9_-]*\.js'
+
+say "push"
+git push origin main
