@@ -99,6 +99,18 @@ export function inspectPart(file, text) {
 // A composition root mounts the tree and is allowed to import a binding. Nothing else below a
 // binding may reach for state. Listed explicitly so the allowance is a decision, not a gap.
 export const COMPOSITION_ROOTS = new Set(["src/main.tsx", "src/preview/mount.tsx"])
+// Local mechanics, not state. None of these reads an external source: a ref holds a DOM node,
+// useId names an element for aria wiring, and memo/callback only stabilise identity. Banning
+// them made aria-describedby and dialog refs unwritable below a binding, which cost real
+// accessibility for no architectural gain. State reads proper -- useState, useReducer,
+// useContext, useSyncExternalStore, useEffect -- remain forbidden below a binding.
+export const LOCAL_MECHANICS = new Set([
+  "useRef",
+  "useId",
+  "useMemo",
+  "useCallback",
+  "useImperativeHandle",
+])
 export function inspectModule(file, text, { compositionRoot = false } = {}) {
   const ast = parse(file, text)
   const errors = []
@@ -107,7 +119,12 @@ export function inspectModule(file, text, { compositionRoot = false } = {}) {
   const system = file.replaceAll("\\", "/").includes("/system-next/")
   const shape = file.replaceAll("\\", "/").includes("/shapes/")
   visit(ast, (node) => {
-    if (isFunction(node) && returnsJsx(node)) functions.push(node)
+    // A render callback is not a component: it has no name, no props contract and no part.
+    // Only declared functions count, so the ordinary items.map(item => <Row/>) idiom is allowed
+    // while a private or nested component declaration is still caught.
+    const renderCallback =
+      node.parent && ts.isCallExpression(node.parent) && node.parent.arguments.includes(node)
+    if (isFunction(node) && returnsJsx(node) && !renderCallback) functions.push(node)
     if (
       ts.isStringLiteral(node) &&
       (ts.isImportDeclaration(node.parent) ||
@@ -123,7 +140,10 @@ export function inspectModule(file, text, { compositionRoot = false } = {}) {
     }
     if (!binding && ts.isCallExpression(node)) {
       const name = node.expression.getText(ast).split(".").at(-1)
-      if (/^use[A-Z]|^(fetch|createContext|createStore)$/.test(name ?? ""))
+      if (
+        !LOCAL_MECHANICS.has(name ?? "") &&
+        /^use[A-Z]|^(fetch|createContext|createStore)$/.test(name ?? "")
+      )
         errors.push("state-below-binding")
     }
     if (

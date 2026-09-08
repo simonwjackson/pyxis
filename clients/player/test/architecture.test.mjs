@@ -125,3 +125,45 @@ test("only the token source may hold raw design values", () => {
     rmSync(root, { recursive: true, force: true })
   }
 })
+
+test("a render callback is allowed but a nested component is still caught", () => {
+  // The ordinary list idiom. Rejecting this forced every list component into a manual loop,
+  // which is worse code for no architectural gain.
+  assert.deepEqual(
+    inspectModule(
+      "/system-next/Wall.tsx",
+      "export function Wall({ items }) { return <ul>{items.map((i) => <li key={i.id}>{i.name}</li>)}</ul> }",
+    ).errors,
+    [],
+  )
+  // The rule it exists to enforce must still bite: a second declared component in one file.
+  assert.ok(
+    inspectModule(
+      "/system-next/Wall.tsx",
+      "function Tile() { return <li /> }\nexport function Wall() { return <ul><Tile /></ul> }",
+    ).errors.includes("multiple-components"),
+  )
+  // Including one hidden inside another component rather than at the top level.
+  assert.ok(
+    inspectModule(
+      "/system-next/Wall.tsx",
+      "export function Wall() { const Tile = () => <li />; return <ul><Tile /></ul> }",
+    ).errors.includes("multiple-components"),
+  )
+})
+
+test("local mechanics are allowed below a binding but state reads are not", () => {
+  for (const mechanic of ["useRef", "useId", "useMemo", "useCallback"])
+    assert.deepEqual(
+      inspectModule("/system-next/Sheet.tsx", `const handle = React.${mechanic}(null)`).errors,
+      [],
+      `${mechanic} reads no external source and must be allowed`,
+    )
+  for (const read of ["useState", "useReducer", "useContext", "useSyncExternalStore", "useEffect"])
+    assert.ok(
+      inspectModule("/system-next/Sheet.tsx", `const x = React.${read}(fn)`).errors.includes(
+        "state-below-binding",
+      ),
+      `${read} is a state read and must stay forbidden`,
+    )
+})
