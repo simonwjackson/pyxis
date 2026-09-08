@@ -58,6 +58,14 @@ export interface PlaybackOptions {
   /// Injected so a test can assert on a stable identity. This is an idempotency key for
   /// replay, so uniqueness is the only requirement.
   readonly newEventId?: () => string
+  /// How often the host tells the core where it actually is, while sound is coming out.
+  ///
+  /// Reporting only on pause loses the position whenever a tab is closed or a browser is
+  /// killed, which is most of the time: people leave, they do not pause. The interval is a
+  /// chattiness decision rather than a correctness one, so it is a parameter. Every report
+  /// is read from the audio element, so a tick that fires while nothing is playing sends
+  /// nothing rather than advancing a counter of its own.
+  readonly positionReportIntervalMs?: number
 }
 
 export interface PlaybackBinding {
@@ -76,7 +84,7 @@ export interface PlaybackBinding {
 const eventId = () => crypto.randomUUID()
 
 export function usePlayback(edge: PlaybackEdge, options: PlaybackOptions = {}): PlaybackBinding {
-  const { deviceId, newEventId = eventId } = options
+  const { deviceId, newEventId = eventId, positionReportIntervalMs = 15_000 } = options
   const [playback, setPlayback] = useState<Remote<PlaybackView | undefined>>(
     unknown<PlaybackView | undefined>,
   )
@@ -245,6 +253,20 @@ export function usePlayback(edge: PlaybackEdge, options: PlaybackOptions = {}): 
     if (positionMs <= 0) return
     await command({ _tag: "position.report", payload: { positionMs } })
   }, [command])
+
+  /// Keep the core's idea of the position roughly current while sound is coming out.
+  ///
+  /// Guarded on `transport === "playing"` rather than on the element, because a paused
+  /// element still has a `currentTime` and reporting it forever would keep a finished
+  /// session looking alive. Position is always read from the element at the moment of the
+  /// report; nothing here simulates progress between ticks.
+  useEffect(() => {
+    if (transport !== "playing" || positionReportIntervalMs <= 0) return
+    const timer = setInterval(() => {
+      void reportPosition().catch(() => undefined)
+    }, positionReportIntervalMs)
+    return () => clearInterval(timer)
+  }, [positionReportIntervalMs, reportPosition, transport])
 
   const reportEnded = useCallback(() => {
     void (async () => {

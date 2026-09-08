@@ -266,6 +266,80 @@ test("position is reported from the element, which is the only thing that knows 
   )
 })
 
+/// A probe that reports on a short interval, so the periodic path can be exercised without
+/// fake timers fighting the effects that resolve streams.
+function TickingProbe({ edge }: { readonly edge: PlaybackEdge }) {
+  const playback = usePlayback(edge, {
+    deviceId: "device-1",
+    newEventId: () => "event-1",
+    positionReportIntervalMs: 20,
+  })
+  return (
+    <div>
+      <button type="button" onClick={playback.refresh}>
+        Refresh
+      </button>
+      <AudioRenderer playback={playback} />
+    </div>
+  )
+}
+
+test("position keeps being reported while playing, not only when paused", async () => {
+  // People leave; they do not pause. Reporting only on pause loses the position every time
+  // a tab is closed, which is almost always.
+  const fake = harness(session())
+  const { container } = render(<TickingProbe edge={fake.edge} />)
+  await waitFor(() => expect(fake.loads).toEqual(["track-1"]))
+
+  audioOf(container).currentTime = 12
+  await waitFor(() =>
+    expect(fake.commands).toContainEqual({
+      _tag: "position.report",
+      payload: { positionMs: 12_000 },
+    }),
+  )
+
+  // The second report carries the element's new position, so this is reading the element
+  // each time rather than repeating a remembered number.
+  audioOf(container).currentTime = 30
+  await waitFor(() =>
+    expect(fake.commands).toContainEqual({
+      _tag: "position.report",
+      payload: { positionMs: 30_000 },
+    }),
+  )
+})
+
+test("a paused session stops reporting instead of looking alive forever", async () => {
+  // Starts playing so a real element exists with a real position. Starting paused proved
+  // nothing: no stream loads when paused, so there was no element, so `currentTime ?? 0`
+  // was zero and the zero-guard swallowed the report whether this rule existed or not.
+  const fake = harness(session())
+  const { container } = render(<TickingProbe edge={fake.edge} />)
+  await waitFor(() => expect(fake.loads).toEqual(["track-1"]))
+  audioOf(container).currentTime = 55
+  await waitFor(() =>
+    expect(fake.commands.some((command) => command._tag === "position.report")).toBe(true),
+  )
+
+  // Now the session is paused elsewhere. The element keeps its src and its currentTime, so
+  // only the transport rule can stop the reports.
+  fake.setSession(session({ transport: RpcTransport.Paused, positionMs: 55_000 }))
+  fireEvent.click(screen.getByRole("button", { name: "Refresh" }))
+  await waitFor(() =>
+    expect(
+      fake.commands.filter((command) => command._tag === "position.report").length,
+    ).toBeGreaterThan(0),
+  )
+  const settled = fake.commands.filter((command) => command._tag === "position.report").length
+
+  await new Promise((resolve) => setTimeout(resolve, 80))
+
+  // Four intervals would have elapsed. A paused session that keeps reporting looks alive
+  // forever to every other device.
+  expect(fake.commands.filter((command) => command._tag === "position.report").length).toBe(settled)
+})
+
 test("a position of zero is not reported as a rewind to the start", async () => {
   const fake = harness(session())
   const { container } = render(<Probe edge={fake.edge} />)

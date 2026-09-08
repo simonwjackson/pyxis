@@ -1,13 +1,25 @@
 /// The composition root: the only place that builds the object graph.
 ///
-/// It spawns the real worker and hands it to the shell as a plain port. Nothing below here
-/// knows the worker exists, which is what makes the whole tree testable without one.
+/// It spawns the real worker, builds the RPC transport and the stream loader, joins them
+/// into the ports the shell asks for, and hands those down as plain objects. Nothing below
+/// here knows the worker or the network exists, which is what makes the whole tree testable
+/// without either.
+///
+/// This is also the only file allowed to reach for a global. Everything it reaches for is
+/// passed inward as a parameter — `fetch`, the service worker controller, the browser's own
+/// description of itself — so the modules that use them stay pure and testable. That is the
+/// entire reason this file is thin: it wires, it does not decide.
 
 import { createElement } from "react"
 import { createRoot } from "react-dom/client"
 import { registerPwa } from "../../app/src/pwa/register.ts"
 import { spawnWorkerClient } from "../../app/src/worker/client.ts"
 import { App } from "./bindings/App.binding.tsx"
+import type { AccountEdge } from "./bindings/useAccount.binding.tsx"
+import type { PlaybackEdge } from "./bindings/usePlayback.binding.tsx"
+import { deviceNameFrom, readClaimOutcome } from "./model/account.ts"
+import { createStreamLoader } from "./rpc/stream.ts"
+import { createRpcTransport } from "./rpc/transport.ts"
 import "./system-next/tokens.css"
 
 const host = document.getElementById("root")
@@ -20,8 +32,8 @@ host.dataset.theme = "dark"
 
 // Built once, outside render. A worker client rebuilt on every render would restart
 // reconciliation forever, which is exactly the trap the binding's stable-identity note warns
-// about.
-const edge = spawnWorkerClient(true)
+// about. The same applies to every port assembled below.
+const worker = spawnWorkerClient(true)
 
 // The service worker is not only an offline shell: it is what attaches credentials to media
 // requests. An audio element cannot send an Authorization header, so without a registered
@@ -29,4 +41,104 @@ const edge = spawnWorkerClient(true)
 // reason the worker client is.
 void registerPwa()
 
-createRoot(host).render(createElement(App, { edge }))
+// Wrapped rather than passed by reference: an unbound `fetch` throws when it is called
+// without its global as the receiver.
+const request = (input: string, init?: RequestInit) => globalThis.fetch(input, init)
+const rpc = createRpcTransport({ request })
+const streams = createStreamLoader({
+  request,
+  // Read at call time. A service worker takes control after the page has loaded, so a
+  // controller captured here would usually be the null from before it did — which would
+  // silently send every stream down the slow whole-file path.
+  controller: () => globalThis.navigator?.serviceWorker?.controller ?? undefined,
+})
+
+/// The credential, read from the worker's settings row at the moment it is needed.
+///
+/// The durable row is the single source of the credential: `useAccount` writes it there, so
+/// reading it here rather than threading React state keeps these ports stable for the life
+/// of the page. A port rebuilt when the credential arrived would restart reconciliation.
+const credentials = async () => {
+  const settings = await worker.settings()
+  const { bearerToken, accountId, deviceId } = settings
+  if (bearerToken === undefined || accountId === undefined || deviceId === undefined) {
+    // Not a network failure and not worth retrying. Whoever asked has jumped ahead of
+    // pairing, and saying so plainly beats a request that cannot be authorised.
+    throw new Error("this device is not paired yet")
+  }
+  return {
+    token: bearerToken,
+    accountId,
+    deviceId,
+    streamEpoch: settings.streamEpoch ?? 0,
+    deviceName: settings.deviceName,
+  }
+}
+
+const accountEdge: AccountEdge = {
+  open: () => worker.open(),
+  settings: () => worker.settings(),
+  writeSettings: (patch) => worker.writeSettings(patch),
+  // Transport returns the core's answer whole; the model decides what it means. Keeping
+  // that reading in one place is why a refusal to admit an unpaired device stays
+  // distinguishable from a core that could not be reached.
+  claim: async (name) => readClaimOutcome(await rpc.claimDevice(name)),
+}
+
+const playbackEdge: PlaybackEdge = {
+  sessions: () => worker.sessions(),
+  queueSessionCommand: (session, command) => worker.queueSessionCommand(session, command),
+  queueListen: (event) => worker.queueListen(event),
+  touchOfflineTrack: (trackId) => worker.touchOfflineTrack(trackId),
+  syncSessions: (origin) => worker.syncSessions(origin),
+  loadStream: async (trackId) => {
+    const { token, accountId, deviceId, streamEpoch } = await credentials()
+    return streams.load(trackId, { token, accountId, deviceId, streamEpoch })
+  },
+  /// Reuse the session this device already hosts, or create one.
+  ///
+  /// Reuse rather than create-every-time, because a second session for the same device is a
+  /// second place music could be playing. The created session is written into the worker's
+  /// store before it is returned, since the commands that follow are queued locally against
+  /// a session the worker has to already know about.
+  ensureSession: async () => {
+    const { token, deviceId, deviceName } = await credentials()
+    const existing = await rpc.listSessions(token)
+    const mine = existing.find((candidate) => candidate.hostDeviceId === deviceId)
+    if (mine !== undefined) return worker.putSession(mine)
+    // Named for the device, because a session name is read by a person deciding where to
+    // send music, and "this browser" is the honest answer.
+    const created = await rpc.createSession(token, deviceName ?? "This device")
+    return worker.putSession(created)
+  },
+}
+
+// A label, not an identity. The hints come from the browser here so the model stays free of
+// globals and testable; it decides what to do when a hint is missing. An absent hint is
+// omitted rather than passed as undefined, so "we could not tell" never reaches the model
+// disguised as an answer.
+const userAgent = globalThis.navigator?.userAgent
+const browser = userAgent === undefined ? undefined : browserNameFrom(userAgent)
+const platform = globalThis.navigator?.platform
+const deviceName = deviceNameFrom({
+  ...(browser === undefined ? {} : { browser }),
+  ...(platform === undefined ? {} : { platform }),
+})
+
+/// The browser's common name, or nothing.
+///
+/// A user-agent string is not a fact about hardware, so this reads only the few names a
+/// person would recognise and gives up rather than guessing. Order matters: several
+/// browsers still identify as Chrome or Safari, so the more specific names are tested first.
+function browserNameFrom(userAgent: string): string | undefined {
+  const known: readonly (readonly [string, string])[] = [
+    ["Firefox", "Firefox"],
+    ["Edg/", "Edge"],
+    ["OPR/", "Opera"],
+    ["Chrome", "Chrome"],
+    ["Safari", "Safari"],
+  ]
+  return known.find(([needle]) => userAgent.includes(needle))?.[1]
+}
+
+createRoot(host).render(createElement(App, { edge: worker, accountEdge, playbackEdge, deviceName }))
