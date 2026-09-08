@@ -9,11 +9,23 @@
 /// shapes and maps between them. The binding owns every actual read.
 
 /// Why data is not available. Each case implies a different offer to the person:
-/// offline suggests waiting, auth-required suggests pairing again, failed suggests retry.
+/// offline suggests waiting, auth-required suggests pairing this device, failed suggests
+/// trying again, and permanent suggests nothing at all, because nothing here would help.
+///
+/// `permanent` exists because the contract already draws this line and this layer was
+/// flattening it. `RpcFailure.retryable` is provided, in its own words, "so an offline
+/// client can decide whether to keep a queued write or surface it as a permanent error,
+/// without parsing code strings". With only `failed` to map onto, a refusal that can never
+/// succeed was rendered as retry advice, and a person was invited to keep pressing a button
+/// that could not work.
+///
+/// It is distinct from `auth-required`, which is also not fixed by retrying. The difference
+/// is that auth-required has a remedy a person can carry out, and permanent does not.
 export type EdgeReason =
   | { readonly kind: "offline" }
   | { readonly kind: "auth-required" }
   | { readonly kind: "failed"; readonly message: string }
+  | { readonly kind: "permanent"; readonly message: string }
 
 /// How much to trust what is being shown.
 ///
@@ -46,6 +58,21 @@ export const ready = <T>(value: T, freshness: Freshness = "local"): Remote<T> =>
 })
 export const unavailable = <T>(reason: EdgeReason, last?: T): Remote<T> =>
   last === undefined ? { state: "unavailable", reason } : { state: "unavailable", reason, last }
+
+/// Turn a transport failure into a reason, keeping the one bit that decides what to offer.
+///
+/// The single place that maps `retryable` onto a reason, so no caller has to remember which
+/// way round it goes and no caller has to parse a code string to work it out.
+export const failureReason = (message: string, retryable: boolean): EdgeReason =>
+  retryable ? { kind: "failed", message } : { kind: "permanent", message }
+
+/// Whether repeating the same request could produce a different answer.
+///
+/// `auth-required` is false. Repeating the read cannot help, because the credential is what
+/// is wrong. That is not "nothing can be done" -- pairing the device is the remedy -- but it
+/// is a different offer, and a screen must not dress it up as a retry.
+export const isRetryable = (reason: EdgeReason): boolean =>
+  reason.kind === "offline" || reason.kind === "failed"
 
 /// The best value available to render, including data kept from before a failure.
 /// Returns undefined only when there is truly nothing to show.
@@ -82,6 +109,11 @@ export interface SyncOutcome {
 ///
 /// Order matters. Refused credentials are reported ahead of offline because waiting will
 /// never fix them, and ahead of a generic failure because they have a specific remedy.
+///
+/// This never yields `permanent`, and that is not an oversight. `SyncOutcome` is a
+/// structural mirror of the worker's sync report, which carries no retryable flag, so
+/// inventing one here would be guessing. A permanent reason enters through `failureReason`,
+/// where a real `retryable` is actually in hand.
 export function syncReason(outcome: SyncOutcome): EdgeReason | undefined {
   if (outcome.authRequired) return { kind: "auth-required" }
   if (outcome.offline) return { kind: "offline" }

@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest"
 import {
   afterSync,
+  failureReason,
   isPending,
+  isRetryable,
   isSettled,
   loading,
   ready,
@@ -79,6 +81,36 @@ describe("the reason offered decides what the person is asked to do", () => {
 
   it("reports no reason for a clean sync", () => {
     expect(syncReason(outcome())).toBeUndefined()
+  })
+})
+
+describe("a failure that can never succeed is not offered as a retry", () => {
+  it("keeps the retryable bit instead of flattening both onto one reason", () => {
+    expect(failureReason("database is down", true)).toEqual({
+      kind: "failed",
+      message: "database is down",
+    })
+    expect(failureReason("claims are disabled", false)).toEqual({
+      kind: "permanent",
+      message: "claims are disabled",
+    })
+    // The whole point: these must not be the same reason. Before this existed, a refusal
+    // that could never succeed arrived as `failed` and was rendered as retry advice.
+    expect(failureReason("x", true).kind).not.toBe(failureReason("x", false).kind)
+  })
+
+  it("offers a retry only where repeating the request could change the answer", () => {
+    expect(isRetryable({ kind: "offline" })).toBe(true)
+    expect(isRetryable({ kind: "failed", message: "boom" })).toBe(true)
+    expect(isRetryable({ kind: "permanent", message: "boom" })).toBe(false)
+    // Not a retry, and not nothing either. Pairing is the remedy, so this must not be
+    // dressed up as a button that repeats the same failing read.
+    expect(isRetryable({ kind: "auth-required" })).toBe(false)
+  })
+
+  it("still carries a message, so a permanent failure can say what went wrong", () => {
+    const reason = failureReason("unsupported: claims are disabled", false)
+    expect(reason.kind === "permanent" && reason.message).toBe("unsupported: claims are disabled")
   })
 })
 

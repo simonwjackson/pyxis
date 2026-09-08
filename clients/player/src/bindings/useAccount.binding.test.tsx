@@ -150,6 +150,25 @@ describe("a refusal is not a failure to retry", () => {
       message: "internal: database is down",
     })
   })
+
+  it("carries a refusal the core says can never succeed", async () => {
+    // The core answers `retryable: false` precisely so a client can stop offering a retry.
+    // Dropping the flag here is invisible until someone presses a button forever, so this
+    // asserts the whole thread: outcome -> claim result -> reason.
+    const { result } = render({
+      claim: async () => ({
+        status: "unavailable",
+        message: "auth.deviceRevoked: this device was removed from the account",
+        retryable: false,
+      }),
+    })
+    await waitFor(() => expect(result.current.credential.state).toBe("unavailable"))
+    const state = result.current.credential
+    expect(state.state === "unavailable" && state.reason).toEqual({
+      kind: "permanent",
+      message: "auth.deviceRevoked: this device was removed from the account",
+    })
+  })
 })
 
 describe("a first claim that cannot reach the core", () => {

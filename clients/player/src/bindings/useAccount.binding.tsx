@@ -150,7 +150,9 @@ export function useAccount(edge: AccountEdge, deviceName: string): AccountBindin
         return
       }
       if (result.status === "unavailable") {
-        fallBack(claimFailureReason(isOnline(), result.message))
+        // The core said whether this can ever succeed. Passing it on is what stops the screen
+        // offering a retry that is guaranteed to fail.
+        fallBack(claimFailureReason(isOnline(), result.message, result.retryable))
         return
       }
 

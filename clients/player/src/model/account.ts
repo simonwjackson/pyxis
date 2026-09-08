@@ -9,7 +9,7 @@
 /// describes shapes and maps between them. The binding owns every actual read.
 
 import type { DeviceClaimOutcome, RpcAuthGrant } from "../../../../contracts/generated/pyxis"
-import type { EdgeReason } from "./edge"
+import { type EdgeReason, failureReason } from "./edge"
 
 /// The account this device belongs to.
 export interface AccountIdentity {
@@ -162,8 +162,12 @@ export function settingsFromCredential(credential: Credential): AccountSettingsR
 /// online has only established that an interface is up, which says nothing about the core
 /// being reachable. So a false means offline, and a true means we genuinely do not know
 /// and must say what went wrong instead of guessing at the network.
-export function claimFailureReason(online: boolean, message: string): EdgeReason {
-  return online ? { kind: "failed", message } : { kind: "offline" }
+/// `retryable` comes from the core's own failure envelope, which carries it so a client can
+/// tell a temporary fault from a permanent one without parsing code strings. Defaulting to
+/// true keeps the cautious answer for callers that genuinely do not know: inviting a retry
+/// that fails is a smaller harm than refusing one that would have worked.
+export function claimFailureReason(online: boolean, message: string, retryable = true): EdgeReason {
+  return online ? failureReason(message, retryable) : { kind: "offline" }
 }
 
 /// What to call this device in the account.
