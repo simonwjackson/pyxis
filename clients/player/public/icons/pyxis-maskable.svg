@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="t">
+  <title id="t">Pyxis</title>
+  <!--
+    The maskable variant. A launcher crops this to a circle, a squircle, or a rounded square
+    of its own choosing, so the background runs full bleed and the mark stays inside the safe
+    zone: the central 80%, which is a circle of radius 205.
+
+    The mark spans 120 to 392, putting its corners 192 from centre. That is the whole reason
+    it is smaller here than in the unmasked file — the previous icon declared itself maskable
+    while filling 60% of the canvas, and a circular mask cut its corners off.
+  -->
+  <rect width="512" height="512" fill="#131210"/>
+  <rect x="120" y="120" width="228" height="228" fill="#686662"/>
+  <rect x="164" y="164" width="228" height="228" fill="#f2efe8"/>
+  <circle cx="220" cy="220" r="36" fill="#f0603a"/>
+</svg>

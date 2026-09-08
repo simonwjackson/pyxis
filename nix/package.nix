@@ -1,7 +1,10 @@
+# The reference client is deliberately absent. The player replaces it as the served UI; the
+# reference client remains a buildable flake output (nix build .#client) for protocol work,
+# but nothing serves it any more.
 {
   pkgs,
   core,
-  client,
+  player,
   tsnet,
   pluginYtmusic,
   pluginPandora,
@@ -23,7 +26,7 @@ pkgs.stdenvNoCC.mkDerivation {
     mkdir -p $out/bin $out/share/systemd/user
 
     makeWrapper ${core}/bin/pyxis $out/bin/pyxis \
-      --set PYXIS_WEB_ROOT ${client} \
+      --set PYXIS_WEB_ROOT ${player} \
       --set-default PYXIS_HOST 127.0.0.1 \
       --set-default PYXIS_PORT 4488 \
       --prefix PATH : ${pkgs.lib.makeBinPath [ pluginYtmusic pluginPandora pluginSonos pluginSoulseek pkgs.ffmpeg-headless ]}
@@ -42,7 +45,7 @@ pkgs.stdenvNoCC.mkDerivation {
   '';
 
   meta = {
-    description = "Pyxis core, reference client, source/output plugins, and user services";
+    description = "Pyxis core, player client, source/output plugins, and user services";
     mainProgram = "pyxis";
   };
 }

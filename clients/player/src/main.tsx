@@ -5,6 +5,7 @@
 
 import { createElement } from "react"
 import { createRoot } from "react-dom/client"
+import { registerPwa } from "../../app/src/pwa/register.ts"
 import { spawnWorkerClient } from "../../app/src/worker/client.ts"
 import { App } from "./bindings/App.binding.tsx"
 import "./system-next/tokens.css"
@@ -21,5 +22,11 @@ host.dataset.theme = "dark"
 // reconciliation forever, which is exactly the trap the binding's stable-identity note warns
 // about.
 const edge = spawnWorkerClient(true)
+
+// The service worker is not only an offline shell: it is what attaches credentials to media
+// requests. An audio element cannot send an Authorization header, so without a registered
+// worker every stream is an unauthenticated request. Registered outside render for the same
+// reason the worker client is.
+void registerPwa()
 
 createRoot(host).render(createElement(App, { edge }))
