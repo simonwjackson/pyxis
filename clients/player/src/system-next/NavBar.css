@@ -1,0 +1,39 @@
+.px-nav-bar {
+  display: flex;
+  gap: var(--px-s4);
+  align-items: center;
+  inline-size: 100%;
+  padding: var(--px-s2) var(--px-s4);
+  background: var(--px-raised);
+  border-block-start: var(--px-line) solid var(--px-rule);
+}
+.px-nav-bar-link {
+  display: flex;
+  gap: var(--px-s1);
+  align-items: center;
+  min-block-size: var(--px-target);
+  color: var(--px-soft);
+  font-size: var(--px-t-small);
+  font-weight: 600;
+  text-decoration: none;
+  letter-spacing: -0.01em;
+}
+/* Where you are is stated by weight and full-strength ink, not by a pill or an underline.
+   The destination you are on is the one you are least likely to need to find. */
+.px-nav-bar-link[aria-current="page"] {
+  color: var(--px-ink);
+}
+.px-nav-bar-link:focus-visible {
+  outline: var(--px-focus) solid var(--px-ink);
+  outline-offset: var(--px-focus-offset);
+}
+.px-nav-bar-trailing {
+  display: flex;
+  align-items: center;
+  margin-inline-start: auto;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .px-nav-bar-link {
+    transition: color var(--px-duration);
+  }
+}

@@ -1,0 +1,20 @@
+.px-link {
+  display: inline-flex;
+  align-items: center;
+  min-block-size: var(--px-target);
+  color: var(--px-ink);
+  font-size: var(--px-t-small);
+  font-weight: 600;
+  text-decoration: none;
+}
+.px-link[data-emphasis="plain"] {
+  color: var(--px-soft);
+  font-weight: 400;
+}
+.px-link:hover {
+  color: var(--px-heat);
+}
+.px-link:focus-visible {
+  outline: var(--px-focus) solid var(--px-ink);
+  outline-offset: var(--px-focus-offset);
+}

@@ -1,0 +1,20 @@
+.px-panel {
+  display: block;
+  padding-block-start: var(--px-s6);
+}
+.px-panel-head {
+  display: flex;
+  gap: var(--px-s2);
+  align-items: baseline;
+  padding-block-end: var(--px-s2);
+}
+/* No divider is drawn here. A row already carries its own rule, and a panel that added one
+   between rows would draw every line twice. */
+.px-panel-rows {
+  display: block;
+}
+.px-panel > .px-text {
+  display: block;
+  max-inline-size: var(--px-measure);
+  padding-block-start: var(--px-s3);
+}

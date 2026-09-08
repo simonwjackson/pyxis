@@ -1,0 +1,39 @@
+/* The sheet takes a wash of the album it is about, so the surface belongs to the record rather
+   than to the application. With no album there is nothing to take colour from and it stays the
+   raised neutral. */
+.px-sheet {
+  --px-pool: color-mix(in oklab, var(--px-tint, var(--px-raised)) 10%, var(--px-raised));
+  inline-size: min(var(--px-sheet), 100%);
+  max-block-size: 88svh;
+  /* No padding here on purpose: the element's own box is the backdrop hit area, so any padding
+     would be a ring of "inside the sheet" that closes it when clicked. */
+  padding: 0;
+  overflow: hidden auto;
+  color: var(--px-ink);
+  background: var(--px-pool);
+  border: 0;
+  border-radius: var(--px-radius);
+  box-shadow: var(--px-sheet-shadow);
+}
+.px-sheet[data-measure="wide"] {
+  inline-size: min(var(--px-sheet-wide), 100%);
+}
+.px-sheet::backdrop {
+  background: var(--px-scrim);
+}
+/* Sticky so the way out stays reachable in a long list of rooms. */
+.px-sheet-head {
+  position: sticky;
+  inset-block-start: 0;
+  z-index: 1;
+  display: flex;
+  gap: var(--px-s3);
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--px-s4) var(--px-s5) var(--px-s3);
+  background: var(--px-pool);
+}
+.px-sheet-body {
+  display: block;
+  padding: 0 var(--px-s5) var(--px-s5);
+}
