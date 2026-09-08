@@ -52,6 +52,15 @@
   --px-tile-min: 124px;
   --px-lead-max: 420px;
   --px-measure: 46ch;
+  /* A sheet is a sheet of paper, not a page: wide enough for a row and its control, capped so
+     the eye does not have to travel. The wide variant is for content carrying its own padding. */
+  --px-sheet: 520px;
+  --px-sheet-wide: 680px;
+  /* A room's sleeve is smaller than a rail cover and larger than a bar's: it is an object being
+     identified, not browsed. */
+  --px-slot: 52px;
+  --px-scrim: rgb(20 18 16 / 0.55);
+  --px-sheet-shadow: 0 24px 60px -12px rgb(0 0 0 / 0.7);
   --px-duration: 140ms;
   --px-object-shadow:
     inset 0 0 0 1px rgb(0 0 0 / 0.06), 0 1px 2px rgb(0 0 0 / 0.18),
@@ -60,6 +69,13 @@
 .px-scope {
   container-type: inline-size;
 }
+/* `:root` carries the dark palette so a component is never invisible merely because an ancestor
+   class is missing. Parts are mounted directly by the preview host, outside `.px-scope`, and
+   without this every token resolved to nothing: measured contrast was 1.06 on a 38px heading,
+   i.e. black ink on a dark board. Scoped rules still win wherever `.px-scope` is present, because
+   they set the property on the element itself rather than inheriting it, so the light theme and
+   an explicit dark theme both behave exactly as before. */
+:root,
 .px-scope[data-theme="dark"] {
   --px-ground: #131210;
   --px-raised: #1b1917;
@@ -73,6 +89,8 @@
   --px-object-shadow:
     inset 0 0 0 1px rgb(255 255 255 / 0.06), 0 1px 2px rgb(0 0 0 / 0.35),
     0 10px 28px -6px rgb(0 0 0 / 0.55);
+  /* Darker, because a scrim over a dark ground has to work harder to read as a layer. */
+  --px-scrim: rgb(0 0 0 / 0.66);
   color-scheme: dark;
 }
 .px-scope[data-theme="light"] {
