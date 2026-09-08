@@ -11,7 +11,7 @@
 /// next one is refused by autoplay policy, because nothing marks it as playing music on
 /// purpose.
 
-import { useEffect } from "react"
+import { useEffect, useState } from "react"
 
 export interface NowPlayingMetadata {
   readonly title: string
@@ -75,6 +75,43 @@ export function useMediaSession(options: MediaSessionOptions): void {
   const onSeek = handlers?.onSeek
   const { positionMs, durationMs } = options
 
+  /// The cover, once its real dimensions are known.
+  ///
+  /// A dashboard picks between images by size, so the size has to be right rather than
+  /// absent. Declaring the same file at several invented sizes would be a lie, and declaring
+  /// "any" -- which is what this did first -- is a truthful statement that platforms do not
+  /// act on: every worked example from the people who implement this passes explicit pixels.
+  /// So the image is loaded and measured, which is neither a lie nor a guess. Loading it here
+  /// also warms the cache the dashboard is about to read from.
+  ///
+  /// A cover that cannot be loaded produces no artwork at all. If it will not load in the
+  /// page it will not load for the notification either, and a broken reference is worse than
+  /// an honest absence.
+  const [cover, setCover] = useState<{ src: string; sizes: string } | undefined>(undefined)
+
+  useEffect(() => {
+    setCover(undefined)
+    if (artworkUrl === undefined) return
+    const ImageConstructor = globalThis.Image
+    if (ImageConstructor === undefined) return
+    const src = absolute(artworkUrl, globalThis.location?.href ?? "/")
+    const image = new ImageConstructor()
+    let live = true
+    image.onload = () => {
+      if (!live) return
+      const { naturalWidth: width, naturalHeight: height } = image
+      if (width > 0 && height > 0) setCover({ src, sizes: `${width}x${height}` })
+    }
+    // No error handler: the reset at the top of this pass has already cleared the previous
+    // cover, so a failed load needs nothing further. One that set the cover to undefined
+    // again could not be told apart from its own absence, which makes it dead code.
+    image.src = src
+    return () => {
+      // A newer cover must not be overwritten by an older one finishing late.
+      live = false
+    }
+  }, [artworkUrl])
+
   useEffect(() => {
     if (session === undefined) return
     if (title === undefined || album === undefined || artist === undefined) {
@@ -92,17 +129,13 @@ export function useMediaSession(options: MediaSessionOptions): void {
         artist,
         // Several sizes are declared from one file on purpose: the cover is already square
         // and a dashboard picks whichever it wants rather than being handed one guess.
-        // One entry at "any" rather than the same file declared at three invented sizes.
-        // The cover's real dimensions are not known here, and claiming to offer a 96px and
-        // a 512px version of one image is a lie a dashboard is entitled to believe.
-        artwork:
-          artworkUrl === undefined
-            ? []
-            : [{ src: absolute(artworkUrl, globalThis.location?.href ?? "/"), sizes: "any" }],
+        // Empty until the cover has been measured, so the words appear immediately and the
+        // picture follows. A dashboard is told the size the file actually is.
+        artwork: cover === undefined ? [] : [cover],
       })
     }
     session.playbackState = transport === "playing" ? "playing" : "paused"
-  }, [session, title, album, artist, artworkUrl, transport])
+  }, [session, title, album, artist, cover, transport])
 
   useEffect(() => {
     if (session === undefined) return

@@ -5,7 +5,7 @@
 /// means these tests prove what this binding *writes*, and can prove nothing about what any
 /// dashboard does with it. Whether a car shows the right record is a fact about a car.
 
-import { cleanup, render } from "@testing-library/react"
+import { cleanup, render, waitFor } from "@testing-library/react"
 import { afterEach, beforeEach, expect, test, vi } from "vitest"
 import { useMediaSession } from "./useMediaSession.binding.tsx"
 
@@ -89,7 +89,133 @@ test("names the track, not just the record", () => {
   expect(session.playbackState).toBe("playing")
 })
 
-test("hands over an absolute cover, because whatever renders it is out of process", () => {
+/// jsdom loads no images, so a stand-in stands in for the decoder. It reports the dimensions
+/// asked of it, which is what lets these tests say what is declared about a cover without
+/// claiming anything about a cover being drawn.
+function withFakeImages(size: { width: number; height: number } | "broken") {
+  const original = globalThis.Image
+  class FakeImage {
+    onload: (() => void) | null = null
+    onerror: (() => void) | null = null
+    naturalWidth = size === "broken" ? 0 : size.width
+    naturalHeight = size === "broken" ? 0 : size.height
+    set src(_value: string) {
+      queueMicrotask(() => (size === "broken" ? this.onerror?.() : this.onload?.()))
+    }
+  }
+  ;(globalThis as { Image?: unknown }).Image = FakeImage
+  return () => {
+    ;(globalThis as { Image?: unknown }).Image = original
+  }
+}
+
+test("declares the cover at the size it actually is", async () => {
+  const restore = withFakeImages({ width: 501, height: 496 })
+  const session = fakeSession()
+  render(
+    <Probe
+      nowPlaying={{
+        title: "Die Slow",
+        album: "GET COLOR",
+        artist: "HEALTH",
+        artworkUrl: "/artwork/get-color.jpg",
+      }}
+      transport="playing"
+      session={session as unknown as MediaSession}
+    />,
+  )
+
+  // A dashboard picks between images by size, so an invented size is a lie it acts on and
+  // "any" is a truth it ignores. Measuring is neither.
+  await waitFor(() => expect(session.metadata?.artwork[0]?.sizes).toBe("501x496"))
+  restore()
+})
+
+test("says the words before it has the picture", () => {
+  const restore = withFakeImages({ width: 501, height: 496 })
+  const session = fakeSession()
+  render(
+    <Probe
+      nowPlaying={{
+        title: "Die Slow",
+        album: "GET COLOR",
+        artist: "HEALTH",
+        artworkUrl: "/artwork/get-color.jpg",
+      }}
+      transport="playing"
+      session={session as unknown as MediaSession}
+    />,
+  )
+
+  // Measuring takes a moment and a title should not wait for it.
+  expect(session.metadata?.title).toBe("Die Slow")
+  expect(session.metadata?.artwork).toEqual([])
+  restore()
+})
+
+test("offers no cover at all when the cover will not load", async () => {
+  const restore = withFakeImages("broken")
+  const session = fakeSession()
+  render(
+    <Probe
+      nowPlaying={{
+        title: "Die Slow",
+        album: "GET COLOR",
+        artist: "HEALTH",
+        artworkUrl: "/artwork/missing.jpg",
+      }}
+      transport="playing"
+      session={session as unknown as MediaSession}
+    />,
+  )
+
+  // A reference that resolves to nothing is worse than an honest absence.
+  await waitFor(() => expect(session.metadata?.title).toBe("Die Slow"))
+  expect(session.metadata?.artwork).toEqual([])
+  restore()
+})
+
+test("does not leave one record's cover on the next", async () => {
+  const restore = withFakeImages({ width: 501, height: 496 })
+  const session = fakeSession()
+  const { rerender } = render(
+    <Probe
+      nowPlaying={{
+        title: "Die Slow",
+        album: "GET COLOR",
+        artist: "HEALTH",
+        artworkUrl: "/artwork/get-color.jpg",
+      }}
+      transport="playing"
+      session={session as unknown as MediaSession}
+    />,
+  )
+  await waitFor(() => expect(session.metadata?.artwork).toHaveLength(1))
+  restore()
+
+  const restoreBroken = withFakeImages("broken")
+  rerender(
+    <Probe
+      nowPlaying={{
+        title: "Nothing",
+        album: "No Cover",
+        artist: "HEALTH",
+        artworkUrl: "/artwork/missing.jpg",
+      }}
+      transport="playing"
+      session={session as unknown as MediaSession}
+    />,
+  )
+
+  // Showing the previous album's sleeve next to this album's name is a confident lie, which
+  // is worse than showing no sleeve at all.
+  await waitFor(() => expect(session.metadata?.title).toBe("Nothing"))
+  expect(session.metadata?.artwork).toEqual([])
+  restoreBroken()
+})
+
+test("hands over an absolute cover, because whatever renders it is out of process", async () => {
+  const restore = withFakeImages({ width: 501, height: 496 })
   const session = fakeSession()
   render(
     <Probe
