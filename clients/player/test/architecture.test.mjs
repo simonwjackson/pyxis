@@ -13,17 +13,25 @@ test("new UI cannot import old components", () => {
     ).errors.includes("old-ui-import"),
   )
 })
-test("state aliases and nested hooks cannot hide below the binding", () => {
+test("state aliases cannot hide below the binding", () => {
   assert.ok(
     inspectModule(
       "/shapes/Album.tsx",
       'import { client as data } from "../../worker/client"',
     ).errors.includes("state-below-binding"),
   )
+  // useContext itself is permitted below a binding: a compound widget reads its own context,
+  // which is ephemeral and local. What stays forbidden is where a FOREIGN context comes from,
+  // and that is caught at the import rather than at the hook.
+  assert.deepEqual(
+    inspectModule("/system-next/Row.tsx", "const open = React.useContext(RowContext)").errors,
+    [],
+  )
   assert.ok(
-    inspectModule("/system-next/Row.tsx", "const data = React.useContext(Context)").errors.includes(
-      "state-below-binding",
-    ),
+    inspectModule(
+      "/system-next/Row.tsx",
+      'import { LibraryContext } from "../bindings/Library.binding.tsx"\nconst d = React.useContext(LibraryContext)',
+    ).errors.includes("state-below-binding"),
   )
   assert.deepEqual(
     inspectModule("/bindings/Stacks.binding.tsx", "const data = React.useContext(Context)").errors,
@@ -152,18 +160,51 @@ test("a render callback is allowed but a nested component is still caught", () =
   )
 })
 
-test("local mechanics are allowed below a binding but state reads are not", () => {
-  for (const mechanic of ["useRef", "useId", "useMemo", "useCallback"])
+test("a widget may own ephemeral state but may not reach outside the tree", () => {
+  // Interaction state is born in the component and dies with it. A dialog's openness is not
+  // shared truth, and forbidding it bought no safety while making modals unwritable.
+  for (const local of [
+    "useState",
+    "useReducer",
+    "useEffect",
+    "useContext",
+    "createContext",
+    "useRef",
+    "useId",
+  ])
     assert.deepEqual(
-      inspectModule("/system-next/Sheet.tsx", `const handle = React.${mechanic}(null)`).errors,
+      inspectModule("/system-next/Sheet.tsx", `const x = React.${local}(arg)`).errors,
       [],
-      `${mechanic} reads no external source and must be allowed`,
+      `${local} cannot reach outside the component tree and must be allowed`,
     )
-  for (const read of ["useState", "useReducer", "useContext", "useSyncExternalStore", "useEffect"])
+  // Reaching outside it is the thing that creates a second reader of shared truth.
+  for (const external of ["fetch", "createStore", "useSyncExternalStore"])
     assert.ok(
-      inspectModule("/system-next/Sheet.tsx", `const x = React.${read}(fn)`).errors.includes(
+      inspectModule("/system-next/Sheet.tsx", `const x = ${external}(arg)`).errors.includes(
         "state-below-binding",
       ),
-      `${read} is a state read and must stay forbidden`,
+      `${external} reads outside the tree and must stay forbidden`,
+    )
+})
+
+test("ephemeral state cannot be used to smuggle shared truth downward", () => {
+  // The permission above is only safe because these remain closed. If any of them opens, a
+  // widget can hold real application state in useState and the binding rule is dead.
+  for (const source of [
+    'import { client } from "../../worker/client"',
+    'import { useLibrary } from "../bindings/useLibrary.binding.tsx"',
+    'import { AlbumView } from "../model/album.ts"',
+  ])
+    assert.ok(
+      inspectModule("/system-next/Sheet.tsx", source).errors.includes("state-below-binding"),
+      `${source} must stay forbidden below a binding`,
+    )
+  for (const global of ["localStorage", "sessionStorage", "indexedDB", "location"])
+    assert.ok(
+      inspectModule(
+        "/system-next/Sheet.tsx",
+        `const [x] = React.useState(${global}.foo)`,
+      ).errors.includes("state-below-binding"),
+      `${global} must stay forbidden even inside an allowed hook`,
     )
 })

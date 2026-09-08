@@ -99,18 +99,28 @@ export function inspectPart(file, text) {
 // A composition root mounts the tree and is allowed to import a binding. Nothing else below a
 // binding may reach for state. Listed explicitly so the allowance is a decision, not a gap.
 export const COMPOSITION_ROOTS = new Set(["src/main.tsx", "src/preview/mount.tsx"])
-// Local mechanics, not state. None of these reads an external source: a ref holds a DOM node,
-// useId names an element for aria wiring, and memo/callback only stabilise identity. Banning
-// them made aria-describedby and dialog refs unwritable below a binding, which cost real
-// accessibility for no architectural gain. State reads proper -- useState, useReducer,
-// useContext, useSyncExternalStore, useEffect -- remain forbidden below a binding.
-export const LOCAL_MECHANICS = new Set([
-  "useRef",
-  "useId",
-  "useMemo",
-  "useCallback",
-  "useImperativeHandle",
-])
+// THE STATE RULE, and the conflict it settles.
+//
+// atomic-decomp says the binding is the sole state reader. The react skill says a compound
+// widget's Root owns all state and its parts read that widget's context. Read as "no hook below
+// a binding" the two are irreconcilable, and the cost is real: no modal dialog, because
+// showModal() needs an effect and a ref; no aria-describedby, because that needs a generated id;
+// no compound widget at all.
+//
+// They reconcile once you notice both rules are about the SOURCE of state, not the name of the
+// hook. What must never happen below a binding is reaching OUTSIDE the component tree -- to the
+// server, the worker, the URL, storage, or a global store -- because that creates a second
+// reader of shared truth, and two readers disagree. Ephemeral interaction state that is born
+// in the component and dies with it is not shared truth: a dialog's openness, a hover, which
+// tab of a widget is showing.
+//
+// So the ban is placed on external sources rather than on hooks. These three calls each reach
+// outside the tree and stay forbidden below a binding. Everything else React offers --
+// useState, useReducer, useEffect, useContext, createContext, refs, ids, memo -- is allowed,
+// because the import ban and the global ban below already make it impossible for them to read
+// anything but local, ephemeral state. A widget cannot smuggle the library in through useState
+// when it cannot import the worker, touch localStorage, or call fetch.
+export const EXTERNAL_STATE = new Set(["fetch", "createStore", "useSyncExternalStore"])
 export function inspectModule(file, text, { compositionRoot = false } = {}) {
   const ast = parse(file, text)
   const errors = []
@@ -140,11 +150,7 @@ export function inspectModule(file, text, { compositionRoot = false } = {}) {
     }
     if (!binding && ts.isCallExpression(node)) {
       const name = node.expression.getText(ast).split(".").at(-1)
-      if (
-        !LOCAL_MECHANICS.has(name ?? "") &&
-        /^use[A-Z]|^(fetch|createContext|createStore)$/.test(name ?? "")
-      )
-        errors.push("state-below-binding")
+      if (EXTERNAL_STATE.has(name ?? "")) errors.push("state-below-binding")
     }
     if (
       !binding &&
