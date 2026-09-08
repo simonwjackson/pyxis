@@ -8,7 +8,9 @@ import { AlbumSheet } from "./AlbumSheet.tsx"
 import { GET_COLOR } from "./album-fixtures.ts"
 import { DeviceList } from "./DeviceList.tsx"
 import {
-  REVIEW_ACCOUNTS,
+  REVIEW_ACCOUNT_PAIRED,
+  REVIEW_ACCOUNT_REFUSED,
+  REVIEW_ACCOUNT_UNPAIRED,
   REVIEW_DEVICES,
   REVIEW_HISTORY,
   REVIEW_ROOMS,
@@ -232,13 +234,42 @@ describe("one album", () => {
 })
 
 describe("configuration", () => {
-  it("gives the current account a word and the others a way to switch", () => {
-    const onSwitch = vi.fn()
-    render(<AccountSheet accounts={REVIEW_ACCOUNTS} open onClose={() => {}} onSwitch={onSwitch} />)
-    expect(screen.queryByRole("button", { name: "Switch to Default" })).toBeNull()
-    expect(screen.getByText("Current")).toBeDefined()
-    fireEvent.click(screen.getByRole("button", { name: "Switch to Shared" }))
-    expect(onSwitch).toHaveBeenCalledWith("shared")
+  it("names the one account and this device, and offers nothing to switch to", () => {
+    render(<AccountSheet standing={REVIEW_ACCOUNT_PAIRED} open onClose={() => {}} />)
+    expect(screen.getByText("Default")).toBeDefined()
+    expect(screen.getByText("This device is Firefox on Linux")).toBeDefined()
+    expect(screen.getByRole("img", { name: "Paired" })).toBeDefined()
+    // Counted rather than named. Asserting the absence of a button called "Switch" would
+    // pass again the moment somebody added one called "Change account", so the claim is
+    // that a paired sheet offers no control at all beyond the sheet's own dismissal.
+    expect(screen.getAllByRole("button")).toHaveLength(1)
+    expect(screen.getByRole("button", { name: "Done" })).toBeDefined()
+  })
+
+  it("says why an unpaired device cannot read the library, and offers to pair it", () => {
+    const onPair = vi.fn()
+    render(
+      <AccountSheet standing={REVIEW_ACCOUNT_UNPAIRED} open onClose={() => {}} onPair={onPair} />,
+    )
+    // The device is still named. It is the one thing that is known before a grant, and a
+    // person needs it to recognise which device they are pairing.
+    expect(screen.getByText("Firefox on Linux")).toBeDefined()
+    expect(screen.getByRole("img", { name: "Not paired" })).toBeDefined()
+    expect(screen.getByRole("alert")).toBeDefined()
+    fireEvent.click(screen.getByRole("button", { name: "Pair this device" }))
+    expect(onPair).toHaveBeenCalledTimes(1)
+  })
+
+  it("withholds the pairing button when asking again could not help", () => {
+    const onPair = vi.fn()
+    render(
+      <AccountSheet standing={REVIEW_ACCOUNT_REFUSED} open onClose={() => {}} onPair={onPair} />,
+    )
+    // The reason is still stated: a permanent refusal is the case a person most needs
+    // explained, precisely because there is nothing on screen for them to press.
+    expect(screen.getByText("unsupported: claims are disabled on this server.")).toBeDefined()
+    expect(screen.queryByRole("button", { name: "Pair this device" })).toBeNull()
+    expect(screen.getAllByRole("button")).toHaveLength(1)
   })
 
   it("asks for a verb only from the sources that need one", () => {

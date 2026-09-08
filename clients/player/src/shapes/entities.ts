@@ -27,13 +27,24 @@ export interface Device {
   readonly detail: string
   readonly state: "this" | "reachable" | "unreachable"
 }
-export interface Account {
-  readonly id: string
-  readonly name: string
-  readonly sources: number
-  readonly albums: number
-  readonly current: boolean
-}
+// What this device can say about the account it belongs to.
+//
+// One account, and no list. The core creates a default account on first boot and this device
+// claims onto it. There is nothing to switch between, no account id to thread through the
+// product, and no second account to add — so this describes a standing, not a roster.
+export type AccountStanding =
+  // The core granted this device a credential, so both names are known.
+  | { readonly state: "paired"; readonly accountName: string; readonly deviceName: string }
+  // No credential. The account's name is genuinely unknown in this case rather than merely
+  // omitted: a name is only ever learned from a grant, and this device never received one.
+  | {
+      readonly state: "unpaired"
+      readonly deviceName: string
+      readonly trouble: string
+      // Whether asking again could help. A refusal that can never succeed is not retryable,
+      // and a button that cannot work is worse than no button.
+      readonly canRetry: boolean
+    }
 export interface Play {
   readonly id: string
   readonly album: AlbumSummary

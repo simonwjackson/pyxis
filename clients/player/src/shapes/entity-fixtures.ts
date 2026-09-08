@@ -1,5 +1,5 @@
 import { GET_COLOR, REVIEW_ALBUMS } from "./album-fixtures.ts"
-import type { Account, Device, PlayDay, Room, Source } from "./entities.ts"
+import type { AccountStanding, Device, PlayDay, Room, Source } from "./entities.ts"
 // Review fixtures for everything that is not an album. Each set deliberately carries its
 // awkward cases, because a list where every row is healthy proves only that the happy path
 // draws: a room that cannot be reached, a source whose session expired, a device that is this
@@ -57,10 +57,27 @@ export const REVIEW_DEVICES: readonly Device[] = [
     state: "unreachable",
   },
 ]
-export const REVIEW_ACCOUNTS: readonly Account[] = [
-  { id: "default", name: "Default", sources: 2, albums: 370, current: true },
-  { id: "shared", name: "Shared", sources: 1, albums: 24, current: false },
-]
+// The ordinary state: this device holds a credential on the one account there is.
+export const REVIEW_ACCOUNT_PAIRED: AccountStanding = {
+  state: "paired",
+  accountName: "Default",
+  deviceName: "Firefox on Linux",
+}
+// Refused, but a person can fix it. This is the case the surface exists for.
+export const REVIEW_ACCOUNT_UNPAIRED: AccountStanding = {
+  state: "unpaired",
+  deviceName: "Firefox on Linux",
+  trouble: "Your library refused this device. Pair it to let it read your albums.",
+  canRetry: true,
+}
+// Refused for good. Carried as a fixture because a surface that only ever shows recoverable
+// trouble is a surface nobody has checked for the case where the button must not appear.
+export const REVIEW_ACCOUNT_REFUSED: AccountStanding = {
+  state: "unpaired",
+  deviceName: "Firefox on Linux",
+  trouble: "unsupported: claims are disabled on this server.",
+  canRetry: false,
+}
 export const REVIEW_HISTORY: readonly PlayDay[] = [
   {
     id: "today",
