@@ -34,6 +34,7 @@ import { Flow } from "../system-next/Flow.tsx"
 import { Notice } from "../system-next/Notice.tsx"
 import { AudioRenderer } from "./AudioRenderer.binding.tsx"
 import { type AccountEdge, useAccount } from "./useAccount.binding.tsx"
+import { type FullscreenDocument, useFullscreen } from "./useFullscreen.binding.tsx"
 import { type LibraryEdge, useLibrary } from "./useLibrary.binding.tsx"
 import { useMediaSession } from "./useMediaSession.binding.tsx"
 import { type PlaybackEdge, usePlayback } from "./usePlayback.binding.tsx"
@@ -129,6 +130,9 @@ export interface AppProps {
   /// Where a car, a lock screen or a notification shade reads what is playing. Optional
   /// because it is a browser global, and absent in tests and in browsers without one.
   readonly mediaSession?: MediaSession
+  /// Where full screen is asked for. A global, so it is bound at the root like the rest, and
+  /// absent in tests and in browsers without a Fullscreen API.
+  readonly fullscreenTarget?: FullscreenDocument
   /// What this device calls itself in the account. A real decision rather than a nickname:
   /// it is what a person reads when choosing where to send music, so the composition root
   /// derives it from the actual browser instead of this file inventing one.
@@ -142,10 +146,12 @@ export function App({
   realtimeEdge,
   updateEdge,
   mediaSession,
+  fullscreenTarget,
   deviceName,
 }: AppProps) {
   const { route, go } = useRoute()
   const update = useUpdate(updateEdge)
+  const fullscreen = useFullscreen(fullscreenTarget)
   /// Whether the account sheet is showing. Ephemeral interaction state that is born here and
   /// dies here, which is why it may live below the shell's other readers rather than in one.
   const [accountOpen, setAccountOpen] = useState(false)
@@ -307,6 +313,8 @@ export function App({
             open={accountOpen}
             onClose={() => setAccountOpen(false)}
             updateAvailable={update.available}
+            fullscreen={fullscreen.active}
+            {...(fullscreen.supported ? { onToggleFullscreen: fullscreen.toggle } : {})}
             {...(update.build === undefined ? {} : { build: update.build })}
             {...(credential.state === "unavailable" ? { onPair: reclaim } : {})}
           />

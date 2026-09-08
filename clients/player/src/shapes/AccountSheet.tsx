@@ -17,6 +17,10 @@ export interface AccountSheetProps {
   // the time.
   readonly build?: string
   readonly updateAvailable?: boolean
+  // Give the app the whole screen, or hand it back. Absent where the browser has no
+  // Fullscreen API, so the row is not offered rather than offered and inert.
+  readonly onToggleFullscreen?: () => void
+  readonly fullscreen?: boolean
 }
 // Whose library this is, and whether this device is allowed to read it.
 //
@@ -39,6 +43,8 @@ export function AccountSheet({
   onPair,
   build,
   updateAvailable = false,
+  onToggleFullscreen,
+  fullscreen = false,
 }: AccountSheetProps) {
   return (
     <Sheet title="Account" open={open} onClose={onClose}>
@@ -81,6 +87,24 @@ export function AccountSheet({
           }
         />
       ) : null}
+      {onToggleFullscreen === undefined ? null : (
+        <Row
+          title={fullscreen ? "Full screen" : "Use the whole screen"}
+          detail={
+            fullscreen
+              ? "Covers the system bars until you leave it"
+              : "Hides the browser and system bars"
+          }
+          actions={
+            <Action
+              label={fullscreen ? "Leave full screen" : "Enter full screen"}
+              onClick={onToggleFullscreen}
+            >
+              {fullscreen ? "Leave" : "Enter"}
+            </Action>
+          }
+        />
+      )}
       {build === undefined ? null : (
         <Row
           title={updateAvailable ? "A newer Pyxis is ready" : "Up to date"}

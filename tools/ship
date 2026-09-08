@@ -58,8 +58,21 @@ sleep 10
 systemctl --user is-active pyxis
 
 say "serving"
+site="https://pyxis.hummingbird-lake.ts.net/"
+playwright="/home/simonwjackson/code/github/simonwjackson/caliper/node_modules/playwright-core/index.mjs"
 # The bundle name is hashed, so this is the one honest answer to "did my change land".
 curl -fsS https://pyxis.hummingbird-lake.ts.net/ | grep -o 'assets/index-[A-Za-z0-9_-]*\.js'
+
+say "layout"
+# The unit suite runs in jsdom, which has no layout engine: it cannot see a shell that does
+# not fill the viewport or a player bar that has fallen off the bottom. Both have shipped.
+# Playwright lives in a sibling checkout, so a machine without it says so rather than
+# pretending the check ran.
+if [ -f "$playwright" ]; then
+  node tools/layout-probe.mjs "$site"
+else
+  echo "SKIPPED: no playwright at $playwright -- layout is unverified" >&2
+fi
 
 say "push"
 git push origin main

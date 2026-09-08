@@ -30,6 +30,17 @@
       #root {
         block-size: 100%;
       }
+      html,
+      body {
+        /* The document itself never scrolls; the surface inside the frame does. Without this
+           any overflow makes the page scroll, which on a phone drags the browser's own bars
+           in and out and is most of what stops a web app feeling like an app. */
+        overflow: hidden;
+        /* No pull-to-refresh and no rubber-banding at the edges. Refresh is a page reload,
+           and a reload during a record stops the music to satisfy a gesture meant for
+           documents -- the same reason the app never reloads itself for an update. */
+        overscroll-behavior: none;
+      }
       body {
         margin: 0;
         background: #131210;

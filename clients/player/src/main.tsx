@@ -196,6 +196,9 @@ createRoot(host).render(
     ...(globalThis.navigator?.mediaSession === undefined
       ? {}
       : { mediaSession: globalThis.navigator.mediaSession }),
+    // The document itself. Full screen cannot be asked for on load -- browsers require a
+    // gesture -- so this is bound and the control does the asking.
+    fullscreenTarget: document,
     deviceName,
   }),
 )
