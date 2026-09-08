@@ -609,3 +609,40 @@ test("skipping past either end of the queue asks for nothing", async () => {
 
   expect(fake.commands).toHaveLength(before)
 })
+
+test("tells the core how long the track is, as soon as the element knows", async () => {
+  const fake = harness(session({ positionMs: 0 }))
+  const { container } = render(<Probe edge={fake.edge} />)
+  await waitFor(() => expect(container.querySelector("audio")).not.toBeNull())
+  const audio = container.querySelector("audio") as HTMLAudioElement
+
+  // jsdom decodes nothing, so `duration` is NaN forever and has to be stated. That makes
+  // this a test of what is sent once a length is known, not of the length being learned.
+  Object.defineProperty(audio, "duration", { value: 251, configurable: true })
+  fireEvent.loadedMetadata(audio)
+
+  // The core stores a duration and nothing ever sent one, so every track looked endless.
+  await waitFor(() =>
+    expect(
+      fake.commands.find(
+        (command) => command._tag === "position.report" && command.payload.durationMs !== undefined,
+      ),
+    ).toMatchObject({ payload: { durationMs: 251_000 } }),
+  )
+})
+
+test("says nothing about a length it does not have", async () => {
+  const fake = harness(session({ positionMs: 0 }))
+  const { container } = render(<Probe edge={fake.edge} />)
+  await waitFor(() => expect(container.querySelector("audio")).not.toBeNull())
+  const audio = container.querySelector("audio") as HTMLAudioElement
+
+  // A live stream reports Infinity and an undecoded file NaN. Neither is a length, and
+  // sending either would have a dashboard draw a bar against nonsense.
+  for (const value of [Number.NaN, Number.POSITIVE_INFINITY]) {
+    Object.defineProperty(audio, "duration", { value, configurable: true })
+    fireEvent.loadedMetadata(audio)
+  }
+
+  expect(fake.commands.filter((command) => command._tag === "position.report")).toHaveLength(0)
+})

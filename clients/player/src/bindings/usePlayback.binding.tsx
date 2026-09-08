@@ -76,6 +76,8 @@ export interface PlaybackBinding {
   readonly attachAudio: (element: HTMLAudioElement | null) => void
   /// Called by the audio element when the track runs out. Reports; never advances.
   readonly reportEnded: () => void
+  /// Called by the audio element once it has decoded enough to know how long the track is.
+  readonly reportDuration: () => void
   readonly playAlbum: (trackIds: readonly string[]) => void
   readonly play: () => void
   readonly pause: () => void
@@ -83,6 +85,9 @@ export interface PlaybackBinding {
   /// cursor jump followed by a play; see `skip`.
   readonly next: () => void
   readonly previous: () => void
+  /// Move within the current track. The core has no seek command, so this moves the element
+  /// and reports where it landed; see `seek`.
+  readonly seek: (positionMs: number) => void
   readonly refresh: () => void
   /// Accept a session record pushed by the core rather than asked for.
   ///
@@ -263,10 +268,40 @@ export function usePlayback(edge: PlaybackEdge, options: PlaybackOptions = {}): 
   /// Only the host knows. Without it a console shows a frozen position and a handoff
   /// resumes every track from zero. A zero reading is skipped because it is far more often
   /// an element that has not started than a genuine rewind to the very beginning.
+  /// How long the loaded track runs, if the element has decoded enough to say.
+  ///
+  /// `duration` is NaN before metadata arrives and Infinity for a stream of unknown length,
+  /// so both are refused rather than sent as a number the core would store and a dashboard
+  /// would draw a bar against.
+  const elementDurationMs = (): number | undefined => {
+    const duration = audioElement.current?.duration
+    if (duration === undefined || !Number.isFinite(duration) || duration <= 0) return undefined
+    return Math.round(duration * 1000)
+  }
+
   const reportPosition = useCallback(async () => {
     const positionMs = Math.round((audioElement.current?.currentTime ?? 0) * 1000)
     if (positionMs <= 0) return
-    await command({ _tag: "position.report", payload: { positionMs } })
+    const durationMs = elementDurationMs()
+    await command({
+      _tag: "position.report",
+      // Carried alongside the position because only the host has it: the core stores a
+      // duration but nothing ever sent one, so every track looked endless and a progress
+      // bar had nothing to draw against.
+      payload: { positionMs, ...(durationMs === undefined ? {} : { durationMs }) },
+    })
+  }, [command])
+
+  /// Say how long the track is, as soon as the element knows.
+  ///
+  /// Separate from `reportPosition` because that one refuses a zero position, and zero is
+  /// exactly where a freshly loaded track sits. Waiting for the first tick instead would
+  /// leave a dashboard with no progress bar for the opening seconds of every track.
+  const reportDuration = useCallback(() => {
+    const durationMs = elementDurationMs()
+    if (durationMs === undefined) return
+    const positionMs = Math.round((audioElement.current?.currentTime ?? 0) * 1000)
+    void command({ _tag: "position.report", payload: { positionMs, durationMs } })
   }, [command])
 
   /// Keep the core's idea of the position roughly current while sound is coming out.
@@ -363,6 +398,32 @@ export function usePlayback(edge: PlaybackEdge, options: PlaybackOptions = {}): 
   const next = useCallback(() => skip(1), [skip])
   const previous = useCallback(() => skip(-1), [skip])
 
+  /// Move within the current track.
+  ///
+  /// The core has no seek command -- position is something the host reports, not something
+  /// it is told -- so this moves the element and then reports where it landed. Reporting
+  /// immediately rather than waiting for the next tick matters because a console watching
+  /// this session would otherwise show the old position for up to the whole interval.
+  ///
+  /// Clamped here rather than trusted from the caller: a dashboard's scrubber can ask for a
+  /// position past the end of a track, and setting `currentTime` beyond the duration ends
+  /// it, which would turn a scrub into an accidental skip.
+  const seek = useCallback(
+    (positionMs: number) => {
+      const audio = audioElement.current
+      if (audio === null) return
+      const durationMs =
+        Number.isFinite(audio.duration) && audio.duration > 0 ? audio.duration * 1000 : undefined
+      const target = Math.max(
+        0,
+        durationMs === undefined ? positionMs : Math.min(positionMs, durationMs - 1000),
+      )
+      audio.currentTime = target / 1000
+      void command({ _tag: "position.report", payload: { positionMs: Math.round(target) } })
+    },
+    [command],
+  )
+
   const pause = useCallback(() => {
     void (async () => {
       await command({ _tag: "transport.pause", payload: {} })
@@ -433,11 +494,13 @@ export function usePlayback(edge: PlaybackEdge, options: PlaybackOptions = {}): 
     ...(audioUrl === undefined ? {} : { audioUrl }),
     attachAudio,
     reportEnded,
+    reportDuration,
     playAlbum,
     play,
     pause,
     next,
     previous,
+    seek,
     refresh,
     applySession,
     applyDirective,

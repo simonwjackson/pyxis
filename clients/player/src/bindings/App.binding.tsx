@@ -167,7 +167,7 @@ export function App({
     // carry on from a state that quietly missed something.
     onResyncRequired: refreshPlayback,
   })
-  const { playAlbum, play, pause, next, previous } = playback
+  const { playAlbum, play, pause, next, previous, seek } = playback
 
   const stacks = useMemo(() => toSurface(albums, buildStacks), [albums])
   const everything = useMemo(() => toSurface(albums, (found) => found.map(summarise)), [albums])
@@ -245,9 +245,15 @@ export function App({
     ...(sounding === undefined
       ? {}
       : { transport: sounding.transport === "playing" ? "playing" : "paused" }),
+    // Both or neither: a dashboard cannot draw a progress bar against an unknown length.
+    ...(sounding?.durationMs === undefined
+      ? {}
+      : { positionMs: sounding.positionMs, durationMs: sounding.durationMs }),
     handlers: {
       onPlay: play,
       onPause: pause,
+      onStop: pause,
+      onSeek: seek,
       // Offered to the dashboard only where there is somewhere to go, for the same reason
       // the bar omits them: a skip that cannot work should not be presented as one.
       ...(sounding?.hasNext ? { onNext: next } : {}),

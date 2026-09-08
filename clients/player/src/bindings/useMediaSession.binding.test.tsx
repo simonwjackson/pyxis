@@ -30,12 +30,29 @@ class FakeMetadata {
 }
 
 function fakeSession() {
-  const handlers = new Map<string, (() => void) | null>()
+  const handlers = new Map<string, ((details?: MediaSessionActionDetails) => void) | null>()
   return {
     metadata: null as FakeMetadata | null,
     playbackState: "none" as string,
-    setActionHandler(action: string, handler: (() => void) | null) {
+    positionState: undefined as MediaPositionState | undefined,
+    setActionHandler(
+      action: string,
+      handler: ((details?: MediaSessionActionDetails) => void) | null,
+    ) {
       handlers.set(action, handler)
+    },
+    /// Mirrors the real API's refusals, or these tests would prove nothing about the
+    /// clamping and the rate: a stand-in that accepts anything cannot catch a call the
+    /// browser would have thrown on.
+    setPositionState(state: MediaPositionState) {
+      if (state.playbackRate === 0) throw new TypeError("playbackRate must not be zero")
+      if (
+        state.duration !== undefined &&
+        state.position !== undefined &&
+        state.position > state.duration
+      )
+        throw new TypeError("position must not exceed duration")
+      this.positionState = state
     },
     handlers,
   }
@@ -141,4 +158,116 @@ test("releases its handlers when the shell goes away", () => {
   unmount()
 
   expect(session.handlers.get("play")).toBeNull()
+})
+
+test("gives a dashboard a progress bar to draw", () => {
+  const session = fakeSession()
+  render(
+    <Probe
+      nowPlaying={{ title: "Die Slow", album: "GET COLOR", artist: "HEALTH" }}
+      transport="playing"
+      positionMs={42_000}
+      durationMs={251_000}
+      session={session as unknown as MediaSession}
+    />,
+  )
+
+  expect(session.positionState).toEqual({
+    duration: 251,
+    position: 42,
+    // Never zero: a zero rate is rejected outright, and playbackState is what stops a clock.
+    playbackRate: 1,
+  })
+})
+
+test("keeps the playback rate at one even when paused", () => {
+  const session = fakeSession()
+  render(
+    <Probe
+      nowPlaying={{ title: "Die Slow", album: "GET COLOR", artist: "HEALTH" }}
+      transport="paused"
+      positionMs={42_000}
+      durationMs={251_000}
+      session={session as unknown as MediaSession}
+    />,
+  )
+
+  expect(session.positionState?.playbackRate).toBe(1)
+  expect(session.playbackState).toBe("paused")
+})
+
+test("draws no bar rather than a wrong one when the length is unknown", () => {
+  const session = fakeSession()
+  render(
+    <Probe
+      nowPlaying={{ title: "Die Slow", album: "GET COLOR", artist: "HEALTH" }}
+      transport="playing"
+      positionMs={42_000}
+      session={session as unknown as MediaSession}
+    />,
+  )
+
+  expect(session.positionState).toEqual({})
+})
+
+test("survives a position past the end instead of taking the shell down", () => {
+  const session = fakeSession()
+  // The length comes from the loaded file and the position from the session, so the two can
+  // disagree by a rounding. The API throws on a position past the duration.
+  expect(() =>
+    render(
+      <Probe
+        nowPlaying={{ title: "Die Slow", album: "GET COLOR", artist: "HEALTH" }}
+        transport="playing"
+        positionMs={999_000}
+        durationMs={251_000}
+        session={session as unknown as MediaSession}
+      />,
+    ),
+  ).not.toThrow()
+  expect(session.positionState?.position).toBe(251)
+})
+
+test("a scrubber, a steering wheel and a watch all land in the same place", () => {
+  const session = fakeSession()
+  const onSeek = vi.fn()
+  render(
+    <Probe
+      nowPlaying={{ title: "Die Slow", album: "GET COLOR", artist: "HEALTH" }}
+      transport="playing"
+      positionMs={42_000}
+      durationMs={251_000}
+      handlers={{ onSeek }}
+      session={session as unknown as MediaSession}
+    />,
+  )
+
+  session.handlers.get("seekto")?.({ seekTime: 90 })
+  expect(onSeek).toHaveBeenLastCalledWith(90_000)
+
+  // A dashboard that says how far it wants to jump is obeyed.
+  session.handlers.get("seekforward")?.({ seekOffset: 30 })
+  expect(onSeek).toHaveBeenLastCalledWith(72_000)
+
+  // One that does not gets the platform's ten seconds.
+  session.handlers.get("seekbackward")?.({})
+  expect(onSeek).toHaveBeenLastCalledWith(32_000)
+})
+
+test("a seek backwards past the start lands at the start", () => {
+  const session = fakeSession()
+  const onSeek = vi.fn()
+  render(
+    <Probe
+      nowPlaying={{ title: "Die Slow", album: "GET COLOR", artist: "HEALTH" }}
+      transport="playing"
+      positionMs={4_000}
+      durationMs={251_000}
+      handlers={{ onSeek }}
+      session={session as unknown as MediaSession}
+    />,
+  )
+
+  session.handlers.get("seekbackward")?.({})
+  expect(onSeek).toHaveBeenLastCalledWith(0)
 })

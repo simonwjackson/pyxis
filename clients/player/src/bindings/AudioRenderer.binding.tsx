@@ -17,10 +17,18 @@ export interface AudioRendererProps {
 }
 
 export function AudioRenderer({ playback }: AudioRendererProps) {
-  const { audioUrl, attachAudio, reportEnded } = playback
+  const { audioUrl, attachAudio, reportEnded, reportDuration } = playback
   if (audioUrl === undefined) return null
   return (
-    <audio ref={attachAudio} src={audioUrl} onEnded={reportEnded} preload="auto">
+    // `onLoadedMetadata` rather than a timer: the length is known the moment the header is
+    // decoded, and only the host can tell the core what it is.
+    <audio
+      ref={attachAudio}
+      src={audioUrl}
+      onEnded={reportEnded}
+      onLoadedMetadata={reportDuration}
+      preload="auto"
+    >
       <track kind="captions" />
     </audio>
   )
