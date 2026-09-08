@@ -24,6 +24,7 @@ import { NowBarPlaying } from "../shapes/NowBarPlaying.tsx"
 import { NowBarResting } from "../shapes/NowBarResting.tsx"
 import { type StacksContent, StacksPage, type StacksShelf } from "../shapes/StacksPage.tsx"
 import type { SurfaceState } from "../shapes/surface.ts"
+import { UpdateNotice } from "../shapes/UpdateNotice.tsx"
 import { Action } from "../system-next/Action.tsx"
 import { AppFrame } from "../system-next/AppFrame.tsx"
 import { ChoiceChip } from "../system-next/ChoiceChip.tsx"
@@ -35,6 +36,7 @@ import { type LibraryEdge, useLibrary } from "./useLibrary.binding.tsx"
 import { type PlaybackEdge, usePlayback } from "./usePlayback.binding.tsx"
 import { type RealtimeEdge, useRealtime } from "./useRealtime.binding.tsx"
 import { useRoute } from "./useRoute.binding.tsx"
+import { type UpdateEdge, useUpdate } from "./useUpdate.binding.tsx"
 
 /// Narrow an edge album to what a cover needs. The surfaces never see the richer view, so
 /// they cannot start depending on fields the edge might stop sending.
@@ -118,14 +120,25 @@ export interface AppProps {
   /// not have to fake one; absent means this device never becomes reachable, and the
   /// interface withholds transport controls, which is the honest reading of not connected.
   readonly realtimeEdge?: RealtimeEdge
+  /// How to notice a newer build and how to move onto it. Optional for the same reason as
+  /// the socket: a test about the library should not have to fake a deploy.
+  readonly updateEdge?: UpdateEdge
   /// What this device calls itself in the account. A real decision rather than a nickname:
   /// it is what a person reads when choosing where to send music, so the composition root
   /// derives it from the actual browser instead of this file inventing one.
   readonly deviceName: string
 }
 
-export function App({ edge, accountEdge, playbackEdge, realtimeEdge, deviceName }: AppProps) {
+export function App({
+  edge,
+  accountEdge,
+  playbackEdge,
+  realtimeEdge,
+  updateEdge,
+  deviceName,
+}: AppProps) {
   const { route, go } = useRoute()
+  const update = useUpdate(updateEdge)
   const { credential, reclaim } = useAccount(accountEdge, deviceName)
   const held = credential.state === "ready" ? credential.value : undefined
 
@@ -214,6 +227,10 @@ export function App({ edge, accountEdge, playbackEdge, realtimeEdge, deviceName 
           ))}
         </Flow>
       }
+      // Above the surface and outside the outlet, so it neither scrolls away nor disappears
+      // on navigation. Reloading stays the person's choice: a page that reloads itself can
+      // end a track halfway through for the sake of a version number.
+      notice={update.available ? <UpdateNotice onApply={update.apply} /> : undefined}
       // Outside the outlet. Navigating replaces the surface above and leaves this alone,
       // which is the entire reason the router exists rather than a conditional render.
       bar={

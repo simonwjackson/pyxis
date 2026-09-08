@@ -8,7 +8,9 @@
    never engaged, and the whole document scrolled -- carrying the player bar away with it. */
 .px-frame {
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr) auto;
+  /* Nav, an optional shell notice, the surface, the bar. `auto` rows collapse to nothing when
+     empty, so the notice costs no height until there is something to say. */
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
   block-size: 100%;
   min-block-size: 0;
   background: var(--px-ground);
@@ -24,6 +26,11 @@
   padding: calc(var(--px-s2) + env(safe-area-inset-top, 0)) var(--px-s3) var(--px-s2);
   background: var(--px-ground);
   border-block-end: var(--px-line) solid var(--px-rule);
+}
+
+.px-frame-notice {
+  padding: var(--px-s2) var(--px-s3) 0;
+  background: var(--px-ground);
 }
 
 /* min-block-size:0 is what actually lets this row shrink inside the grid. Without it the

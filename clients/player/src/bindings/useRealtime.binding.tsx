@@ -49,19 +49,22 @@ export function useRealtime(
   const latest = useRef(callbacks)
   latest.current = callbacks
 
+  // Destructured outside the effect so its dependencies are the two values that actually
+  // matter. Depending on the edge object itself would reconnect whenever a caller rebuilt it.
+  const openSocket = edge?.open
+  const url = edge?.url
   useEffect(() => {
-    if (token === undefined || edge === undefined) {
+    if (token === undefined || openSocket === undefined || url === undefined) {
       // Nothing to authenticate with, so nothing to try. Opening a socket that can only be
       // refused would earn a reconnect loop against a certain failure.
       setConnected(false)
       return
     }
     const schedule = latest.current.schedule
-    const openSocket = edge.open
     return connectRealtime(
       {
         open: openSocket,
-        url: edge.url,
+        url,
         token,
         topics: [RpcRealtimeTopic.Sessions],
         ...(schedule === undefined ? {} : { schedule }),
@@ -78,7 +81,7 @@ export function useRealtime(
         },
       },
     )
-  }, [edge?.open, edge?.url, token])
+  }, [openSocket, url, token])
 
   return { connected }
 }

@@ -3,6 +3,9 @@ import "./base.css"
 import "./AppFrame.css"
 export interface AppFrameProps {
   readonly nav: ReactNode
+  /// A notice about the shell itself, such as a newer build being served. Sits above the
+  /// surface and outside the outlet so it survives navigation and never scrolls away.
+  readonly notice?: ReactNode
   /// The routed surface. Everything here is replaced on navigation.
   readonly children: ReactNode
   /// Playback presence. Rendered as a sibling of the outlet rather than inside it, which is
@@ -16,10 +19,11 @@ export interface AppFrameProps {
 //
 // Bar deliberately does not position itself, so that it can be reviewed as an object in
 // isolation. This is the file that takes that decision instead.
-export function AppFrame({ nav, children, bar }: AppFrameProps) {
+export function AppFrame({ nav, notice, children, bar }: AppFrameProps) {
   return (
     <div className="px-frame">
       <header className="px-frame-nav">{nav}</header>
+      {notice ? <div className="px-frame-notice">{notice}</div> : null}
       <main className="px-frame-outlet">{children}</main>
       <div className="px-frame-bar">{bar}</div>
     </div>

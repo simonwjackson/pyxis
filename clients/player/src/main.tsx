@@ -18,10 +18,12 @@ import { App } from "./bindings/App.binding.tsx"
 import type { AccountEdge } from "./bindings/useAccount.binding.tsx"
 import type { PlaybackEdge } from "./bindings/usePlayback.binding.tsx"
 import type { RealtimeEdge } from "./bindings/useRealtime.binding.tsx"
+import type { UpdateEdge } from "./bindings/useUpdate.binding.tsx"
 import { deviceNameFrom, readClaimOutcome } from "./model/account.ts"
 import { realtimeUrlFrom } from "./rpc/realtime.ts"
 import { createStreamLoader } from "./rpc/stream.ts"
 import { createRpcTransport } from "./rpc/transport.ts"
+import { bundleOf } from "./rpc/updates.ts"
 import "./system-next/tokens.css"
 
 const host = document.getElementById("root")
@@ -153,6 +155,26 @@ const realtimeEdge: RealtimeEdge = {
   url: realtimeUrlFrom(globalThis.location.origin),
 }
 
+/// Noticing a newer build, and moving onto it only when asked.
+///
+/// `location.reload` is a global, so it is bound here and handed in. The bundle this page
+/// runs is read from this module's own URL, which Vite rewrites to the hashed asset at build
+/// time; in dev it is the source path, which `bundleOf` reads as "unknown" and the watcher
+/// then learns from the first shell it fetches.
+const runningBundle = bundleOf(import.meta.url)
+const updateEdge: UpdateEdge = {
+  request,
+  reload: () => globalThis.location.reload(),
+  ...(runningBundle === undefined ? {} : { current: runningBundle }),
+}
+
 createRoot(host).render(
-  createElement(App, { edge: worker, accountEdge, playbackEdge, realtimeEdge, deviceName }),
+  createElement(App, {
+    edge: worker,
+    accountEdge,
+    playbackEdge,
+    realtimeEdge,
+    updateEdge,
+    deviceName,
+  }),
 )
