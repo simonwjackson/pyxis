@@ -8,9 +8,13 @@
    never engaged, and the whole document scrolled -- carrying the player bar away with it. */
 .px-frame {
   display: grid;
-  /* Nav, an optional shell notice, the surface, the bar. `auto` rows collapse to nothing when
-     empty, so the notice costs no height until there is something to say. */
+  /* Nav, an optional shell notice, the surface, the bar. Each child names its own row, so
+     placement never depends on what else happened to render. The alternative -- letting the
+     grid auto-place by DOM order -- put the bar in a zero-height fourth row the moment the
+     notice was absent, because the outlet slid up into the notice's slot and took the 1fr.
+     The notice row is `auto` and collapses to nothing while there is nothing to say. */
   grid-template-rows: auto auto minmax(0, 1fr) auto;
+  grid-template-areas: "nav" "notice" "outlet" "bar";
   block-size: 100%;
   min-block-size: 0;
   background: var(--px-ground);
@@ -23,12 +27,14 @@
 /* The status bar is drawn over the page, not beside it, so the nav pays the top inset itself.
    Without this the first row of controls sits underneath the clock and cannot be read or hit. */
 .px-frame-nav {
+  grid-area: nav;
   padding: calc(var(--px-s2) + env(safe-area-inset-top, 0)) var(--px-s3) var(--px-s2);
   background: var(--px-ground);
   border-block-end: var(--px-line) solid var(--px-rule);
 }
 
 .px-frame-notice {
+  grid-area: notice;
   padding: var(--px-s2) var(--px-s3) 0;
   background: var(--px-ground);
 }
@@ -36,6 +42,7 @@
 /* min-block-size:0 is what actually lets this row shrink inside the grid. Without it the
    row grows to its content and the whole page scrolls, taking the bar with it. */
 .px-frame-outlet {
+  grid-area: outlet;
   min-block-size: 0;
   overflow-y: auto;
   overscroll-behavior-y: contain;
@@ -43,6 +50,7 @@
 }
 
 .px-frame-bar {
+  grid-area: bar;
   border-block-start: var(--px-line) solid var(--px-rule);
   background: var(--px-raised);
   /* Keeps the bar clear of a home indicator or gesture area on a handheld. */

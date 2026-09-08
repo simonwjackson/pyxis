@@ -1,5 +1,5 @@
 import assert from "node:assert/strict"
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs"
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { test } from "node:test"
@@ -206,5 +206,25 @@ test("ephemeral state cannot be used to smuggle shared truth downward", () => {
         `const [x] = React.useState(${global}.foo)`,
       ).errors.includes("state-below-binding"),
       `${global} must stay forbidden even inside an allowed hook`,
+    )
+})
+
+test("every frame row is claimed by name, so placement cannot depend on DOM order", () => {
+  // jsdom has no layout engine, so the bug this protects against -- the bar sliding into a
+  // zero-height row the moment an optional sibling was absent -- was invisible to every
+  // rendering test and was found on a phone. A grid that names its areas and children that
+  // claim them is placement that survives a missing sibling; auto-placement is not.
+  const css = readFileSync(
+    join(import.meta.dirname, "../src/system-next/AppFrame.css"),
+    "utf8",
+  )
+  const areas = /grid-template-areas:\s*((?:"[^"]+"\s*)+);/.exec(css)?.[1]
+  assert.ok(areas, "the frame must name its rows with grid-template-areas")
+  const named = [...areas.matchAll(/"([^"]+)"/g)].map((m) => m[1].trim())
+  for (const area of named)
+    assert.match(
+      css,
+      new RegExp(`grid-area:\\s*${area}\\s*;`),
+      `row "${area}" is named by the frame but no child claims it`,
     )
 })
