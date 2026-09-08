@@ -22,8 +22,17 @@ export PATH="/nix/store/gi0p7azcixb20pddx39k5mwnkj6xl4bz-nodejs-22.22.1/bin:$PAT
 
 say() { printf '\n\033[1m== %s\033[0m\n' "$1"; }
 
+# Before anything else, and before any formatter can touch the tree: what gets built has to
+# be what is committed, or the thing proven is not the thing shipped.
+if [ -n "$(git status --porcelain clients/player/src tools)" ]; then
+  echo "refusing to ship: uncommitted changes" >&2
+  git status --short clients/player/src tools >&2
+  exit 1
+fi
+
 say "format and lint"
-nix develop --command biome check --write clients/player/src
+# Deliberately not --write. A check that edits the tree to make itself pass is not a check,
+# and the first version of this script did exactly that, then refused its own output.
 nix develop --command biome check clients/player/src
 
 say "types"
@@ -35,11 +44,6 @@ node --test clients/player/test/architecture.test.mjs
 
 say "tests"
 node clients/player/node_modules/vitest/vitest.mjs run --config clients/player/vite.config.ts
-
-if [ -n "$(git status --porcelain clients/player/src)" ]; then
-  echo "refusing to ship: clients/player/src has uncommitted changes" >&2
-  exit 1
-fi
 
 say "build"
 out=$(nix build .#pyxis --no-link --print-out-paths)
