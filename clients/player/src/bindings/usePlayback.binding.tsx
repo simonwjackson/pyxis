@@ -19,7 +19,7 @@ import type {
 } from "../../../../contracts/generated/pyxis"
 import type { WorkerClient } from "../../../app/src/worker/client.ts"
 import { loading, type Remote, ready, type SyncOutcome, unavailable, unknown } from "../model/edge"
-import { currentPlayback, type PlaybackView } from "../model/playback"
+import { chooseLocalSession, currentPlayback, type PlaybackView } from "../model/playback"
 
 /// The slice of the worker this binding needs.
 ///
@@ -445,18 +445,26 @@ export function usePlayback(edge: PlaybackEdge, options: PlaybackOptions = {}): 
     void read()
   }, [read])
 
-  /// Take a pushed session, if it is this device's to take.
+  /// Take a pushed session, if it is the one this device is rendering.
   ///
-  /// Guarded on the host. Every session on the account arrives on the sessions topic, so an
-  /// ungated version would let the record playing in another room overwrite what this
-  /// device is rendering -- and this binding drives a real audio element, so that is not a
-  /// display glitch but the wrong track coming out of the speakers. A session already being
-  /// tracked is also accepted, so a handoff that moves a session away is not ignored on the
-  /// way out.
+  /// Every session on the account arrives on the sessions topic, so something has to be
+  /// refused here. Refusing by host was not enough, and the difference mattered: a device
+  /// hosts several sessions, nothing prunes them, and each event about any of them replaced
+  /// the one being rendered. Because this binding drives a real audio element, that was not
+  /// a flickering label but a different album loading and starting, over and over.
+  ///
+  /// So the gate is the session, not the device. Once one is held, only that one may update
+  /// it -- which also covers a handoff moving it away, since the record still arrives under
+  /// the same id. When none is held yet, this device's own session is adopted using the same
+  /// rule every other caller uses, so an event cannot seat a different session than the one
+  /// a read would have chosen.
   const applySession = useCallback(
     (next: RpcSession) => {
-      const mine = deviceId !== undefined && next.hostDeviceId === deviceId
-      if (!mine && session.current?.id !== next.id) return
+      const held = session.current
+      if (held === undefined) {
+        if (deviceId === undefined || next.hostDeviceId !== deviceId) return
+        if (chooseLocalSession([next], deviceId)?.id !== next.id) return
+      } else if (held.id !== next.id) return
       // Beat any read that is still in flight: this record is newer than a response that
       // has not landed yet, and letting a slow read win would move playback backwards.
       generation.current += 1

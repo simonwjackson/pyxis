@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 import { type RpcSession, RpcTransport } from "../../../../contracts/generated/pyxis"
-import { currentPlayback, playedFraction, readSession } from "./playback"
+import { chooseLocalSession, currentPlayback, playedFraction, readSession } from "./playback"
 
 const session = (patch: Partial<RpcSession> = {}): RpcSession => ({
   id: "session-1",
@@ -113,5 +113,61 @@ describe("choosing which session this device shows", () => {
     )
     expect(chosen?.sessionId).toBe("dead")
     expect(chosen?.controllable).toBe(false)
+  })
+})
+
+describe("a device that hosts several sessions still renders exactly one", () => {
+  // It hosts several because nothing prunes them: one device in real use had six. While the
+  // rule was "first match in list order", three callers asked this same question and could
+  // get three different answers, and every incoming event could change the answer again.
+  // Each change loaded and started a different album.
+
+  it("renders the one making sound", () => {
+    const quiet = session({ id: "a", updatedAt: "2026-09-08T12:00:00Z" })
+    const sounding = session({
+      id: "b",
+      transport: RpcTransport.Playing,
+      updatedAt: "2026-09-08T09:00:00Z",
+    })
+
+    // Even though the quiet one was touched more recently. Whatever is audible right now is
+    // unarguably the session this device is rendering.
+    expect(chooseLocalSession([quiet, sounding], "device-1")?.id).toBe("b")
+  })
+
+  it("otherwise renders the one last touched", () => {
+    const older = session({ id: "a", updatedAt: "2026-09-08T09:00:00Z" })
+    const newer = session({ id: "b", updatedAt: "2026-09-08T12:00:00Z" })
+    expect(chooseLocalSession([older, newer], "device-1")?.id).toBe("b")
+  })
+
+  it("gives the same answer however the list arrives", () => {
+    // The rule was not wrong so much as unstable: the answer depended on order.
+    const many = ["a", "b", "c", "d", "e", "f"].map((id, index) =>
+      session({ id, updatedAt: `2026-09-08T1${index}:00:00Z` }),
+    )
+    const answers = new Set(
+      [many, [...many].reverse(), [...many].sort((l, r) => l.id.localeCompare(r.id))].map(
+        (order) => chooseLocalSession(order, "device-1")?.id,
+      ),
+    )
+    expect(answers).toEqual(new Set(["f"]))
+  })
+
+  it("decides ties, so equal timestamps do not flip the answer", () => {
+    const left = session({ id: "a" })
+    const right = session({ id: "b" })
+    expect(chooseLocalSession([left, right], "device-1")?.id).toBe("b")
+    expect(chooseLocalSession([right, left], "device-1")?.id).toBe("b")
+  })
+
+  it("never renders another device's session", () => {
+    const theirs = session({ id: "a", hostDeviceId: "device-2", transport: RpcTransport.Playing })
+    expect(chooseLocalSession([theirs], "device-1")).toBeUndefined()
+  })
+
+  it("claims nothing when the device is unknown", () => {
+    // Answering with someone else's session would be worse than answering with none.
+    expect(chooseLocalSession([session()], undefined)).toBeUndefined()
   })
 })

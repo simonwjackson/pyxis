@@ -18,8 +18,10 @@ import { App } from "./bindings/App.binding.tsx"
 import type { AccountEdge } from "./bindings/useAccount.binding.tsx"
 import type { PlaybackEdge } from "./bindings/usePlayback.binding.tsx"
 import type { RealtimeEdge } from "./bindings/useRealtime.binding.tsx"
+import type { RpcSession } from "../../../contracts/generated/pyxis.ts"
 import type { UpdateEdge } from "./bindings/useUpdate.binding.tsx"
 import { deviceNameFrom, readClaimOutcome } from "./model/account.ts"
+import { chooseLocalSession } from "./model/playback.ts"
 import { realtimeUrlFrom } from "./rpc/realtime.ts"
 import { createStreamLoader } from "./rpc/stream.ts"
 import { createRpcTransport } from "./rpc/transport.ts"
@@ -89,6 +91,10 @@ const accountEdge: AccountEdge = {
   claim: async (name) => readClaimOutcome(await rpc.claimDevice(name)),
 }
 
+/// Held while an answer is in flight so concurrent callers share one, and cleared after so a
+/// failure is retried rather than remembered.
+let pendingSession: Promise<RpcSession> | undefined
+
 const playbackEdge: PlaybackEdge = {
   sessions: () => worker.sessions(),
   queueSessionCommand: (session, command) => worker.queueSessionCommand(session, command),
@@ -105,15 +111,25 @@ const playbackEdge: PlaybackEdge = {
   /// second place music could be playing. The created session is written into the worker's
   /// store before it is returned, since the commands that follow are queued locally against
   /// a session the worker has to already know about.
+  // Shared rather than raced. Two callers arriving together each saw no session of their
+  // own and each created one, which is how a single device came to host six. They now wait
+  // on the same answer, and a failure clears the slot so the next caller genuinely retries.
   ensureSession: async () => {
-    const { token, deviceId, deviceName } = await credentials()
-    const existing = await rpc.listSessions(token)
-    const mine = existing.find((candidate) => candidate.hostDeviceId === deviceId)
-    if (mine !== undefined) return worker.putSession(mine)
-    // Named for the device, because a session name is read by a person deciding where to
-    // send music, and "this browser" is the honest answer.
-    const created = await rpc.createSession(token, deviceName ?? "This device")
-    return worker.putSession(created)
+    pendingSession ??= (async () => {
+      const { token, deviceId, deviceName } = await credentials()
+      const existing = await rpc.listSessions(token)
+      // The same rule the renderer and the event gate use. Three callers each picking the
+      // first match in list order disagreed once there was more than one to pick from.
+      const mine = chooseLocalSession(existing, deviceId)
+      if (mine !== undefined) return worker.putSession(mine)
+      // Named for the device, because a session name is read by a person deciding where to
+      // send music, and "this browser" is the honest answer.
+      const created = await rpc.createSession(token, deviceName ?? "This device")
+      return worker.putSession(created)
+    })().finally(() => {
+      pendingSession = undefined
+    })
+    return pendingSession
   },
 }
 

@@ -646,3 +646,27 @@ test("says nothing about a length it does not have", async () => {
 
   expect(fake.commands.filter((command) => command._tag === "position.report")).toHaveLength(0)
 })
+
+test("another session on this same device cannot take the speakers", async () => {
+  // The real shape of the bug. A device hosts more than one session -- nothing prunes them,
+  // so they pile up across launches -- and every one of them arrives on the sessions topic.
+  // A gate that asked only "is this my device" said yes to all six, so each event loaded and
+  // started a different album. From outside it sounded like records fighting each other.
+  const fake = harness(session())
+  const sibling = session({
+    id: "session-7",
+    hostDeviceId: "device-1",
+    currentTrackId: "track-9",
+    queue: ["track-9"],
+  })
+  render(<Probe edge={fake.edge} pushed={sibling} />)
+  await waitFor(() => expect(fake.loads).toEqual(["track-1"]))
+
+  fireEvent.click(screen.getByRole("button", { name: "Push session" }))
+  await act(async () => {
+    await Promise.resolve()
+  })
+
+  // The session being rendered is the gate, not the device hosting it.
+  expect(fake.loads).toEqual(["track-1"])
+})
