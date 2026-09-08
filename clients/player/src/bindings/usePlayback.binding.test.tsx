@@ -28,9 +28,12 @@ const session = (patch: Partial<RpcSession> = {}): RpcSession => ({
   ...patch,
 })
 
-/// Applies just enough of a command to keep the fake session coherent. Deliberately does
-/// not advance on `transport.trackEnded`: that is the core's decision, and a fake that
-/// advanced would hide the very behaviour these tests exist to protect.
+/// Applies just enough of a command to keep the fake session coherent.
+///
+/// `transport.trackEnded` mirrors the core: the cursor moves while the queue still has
+/// something on it, and only an exhausted queue reaches `Ended`. The client must never make
+/// that choice itself, but it does have to follow it, and a fake that always ended hid the
+/// fact that it never did -- an album played its first track and then stopped.
 function apply(current: RpcSession, command: RpcSessionCommand): RpcSession {
   const next = { ...current, revision: current.revision + 1 }
   switch (command._tag) {
@@ -53,8 +56,18 @@ function apply(current: RpcSession, command: RpcSessionCommand): RpcSession {
       return { ...next, transport: RpcTransport.Playing }
     case "transport.pause":
       return { ...next, transport: RpcTransport.Paused }
-    case "transport.trackEnded":
-      return { ...next, transport: RpcTransport.Ended }
+    case "transport.trackEnded": {
+      const at = next.cursor === undefined ? undefined : next.cursor + 1
+      if (at === undefined || at >= next.queue.length)
+        return { ...next, transport: RpcTransport.Ended, positionMs: 0 }
+      const track = next.queue[at]
+      return {
+        ...next,
+        cursor: at,
+        positionMs: 0,
+        ...(track === undefined ? {} : { currentTrackId: track }),
+      }
+    }
     case "position.report":
       return { ...next, positionMs: command.payload.positionMs }
     default:
@@ -204,7 +217,9 @@ test("a slow load for the previous track cannot overwrite the current one", asyn
   await waitFor(() => expect(audioOf(container).getAttribute("src")).toBe("/stream/track-2"))
 })
 
-test("a finished track is recorded and nothing else is started", async () => {
+test("a finished track is recorded, and the next one follows the core", async () => {
+  // Two tracks, cursor on the first. Silence belongs at the end of a record, not between its
+  // tracks, so this must carry on -- but only because the core moved the cursor.
   const fake = harness(session({ positionMs: 0 }))
   const { container } = render(<Probe edge={fake.edge} />)
   await waitFor(() => expect(fake.loads).toEqual(["track-1"]))
@@ -229,14 +244,37 @@ test("a finished track is recorded and nothing else is started", async () => {
     expect(fake.commands.some((command) => command._tag === "transport.trackEnded")).toBe(true),
   )
 
-  // The whole point. Ending a track must not queue, jump or start anything: an album that
-  // runs out leaves silence until a person asks for more.
+  // It follows, and it does not decide: no queueing, no jumping, no starting. Every one of
+  // those would be this client inventing a next track instead of reading one.
   expect(
     fake.commands.filter((command) =>
       ["queue.add", "cursor.jump", "transport.play"].includes(command._tag),
     ),
   ).toEqual([])
-  expect(fake.loads).toEqual(["track-1"])
+  await waitFor(() => expect(fake.loads).toEqual(["track-1", "track-2"]))
+})
+
+test("the last track running out leaves silence", async () => {
+  // Cursor on the final track, so there is nothing to follow to. The album is over and the
+  // device goes quiet until a person asks for more.
+  const fake = harness(session({ positionMs: 0, cursor: 1, currentTrackId: "track-2" }))
+  const { container } = render(<Probe edge={fake.edge} />)
+  await waitFor(() => expect(fake.loads).toEqual(["track-2"]))
+
+  await act(async () => {
+    fireEvent.ended(audioOf(container))
+    await Promise.resolve()
+  })
+
+  await waitFor(() => expect(screen.getByTestId("transport").textContent).toBe("ended"))
+  expect(screen.getByTestId("awaiting").textContent).toBe("true")
+  expect(
+    fake.commands.filter((command) =>
+      ["queue.add", "cursor.jump", "transport.play"].includes(command._tag),
+    ),
+  ).toEqual([])
+  // Nothing new was fetched: silence is the whole point.
+  expect(fake.loads).toEqual(["track-2"])
 })
 
 test("an ended album offers to continue rather than continuing", async () => {

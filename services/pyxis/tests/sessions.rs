@@ -54,11 +54,28 @@ fn transport_transitions_are_explicit_and_preserve_one_host_owner() {
         .expect("pause");
     assert_eq!(paused.transport, Transport::Paused);
 
-    let ended = sessions
+    // Two tracks are queued, so the first one running out is not the end of anything. The
+    // session moves to the second and keeps playing: silence belongs at the end of a record,
+    // not between its tracks.
+    let advanced = sessions
         .command(&host, &session.id, SessionCommand::Play)
         .and_then(|_| sessions.command(&host, &session.id, SessionCommand::TrackEnded))
-        .expect("ended");
+        .expect("first track ended");
+    assert_eq!(advanced.transport, Transport::Playing);
+    assert_eq!(advanced.cursor, Some(1));
+    assert_eq!(advanced.current_track_id(), Some("track-2"));
+    assert_eq!(advanced.position_ms, 0);
+    // The new track brings its own length; keeping the old one would draw a progress bar
+    // against the wrong duration.
+    assert_eq!(advanced.duration_ms, None);
+
+    // The last track running out is the end of the album, and the session stops rather than
+    // wrapping around. The client reads this to offer carrying on instead of carrying on.
+    let ended = sessions
+        .command(&host, &session.id, SessionCommand::TrackEnded)
+        .expect("last track ended");
     assert_eq!(ended.transport, Transport::Ended);
+    assert_eq!(ended.cursor, Some(1));
 
     let stopped = sessions
         .command(&host, &session.id, SessionCommand::Stop)

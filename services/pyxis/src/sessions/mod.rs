@@ -855,7 +855,19 @@ fn apply_command(record: &mut SessionRecord, command: &SessionCommand) -> Result
         )?,
         SessionCommand::Pause => machine::pause(&mut record.transport)?,
         SessionCommand::Stop => machine::stop(&mut record.transport, &mut record.position_ms),
-        SessionCommand::TrackEnded => machine::track_ended(&mut record.transport)?,
+        SessionCommand::TrackEnded => {
+            // A new track brings its own length, and keeping the old one would let a client
+            // draw a progress bar against the wrong duration.
+            if machine::track_ended(
+                &mut record.transport,
+                &mut record.position_ms,
+                &mut record.cursor,
+                record.queue.len(),
+            )? == machine::TrackEnd::Advanced
+            {
+                record.duration_ms = None;
+            }
+        }
         SessionCommand::PositionReport {
             position_ms,
             duration_ms,
