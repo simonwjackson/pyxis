@@ -1,0 +1,34 @@
+@import "./base.css";
+
+/* Three rows: nav, surface, bar. The middle row is the only one that scrolls, so the bar
+   never rides up over content and the surface never pushes it off screen. */
+.px-frame {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  block-size: 100%;
+  min-block-size: 100svh;
+  background: var(--px-ground);
+  color: var(--px-ink);
+}
+
+.px-frame-nav {
+  padding: var(--px-s2) var(--px-s3);
+  background: var(--px-ground);
+  border-block-end: var(--px-line) solid var(--px-rule);
+}
+
+/* min-block-size:0 is what actually lets this row shrink inside the grid. Without it the
+   row grows to its content and the whole page scrolls, taking the bar with it. */
+.px-frame-outlet {
+  min-block-size: 0;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  padding: var(--px-s4) var(--px-s3) var(--px-s5);
+}
+
+.px-frame-bar {
+  border-block-start: var(--px-line) solid var(--px-rule);
+  background: var(--px-raised);
+  /* Keeps the bar clear of a home indicator or gesture area on a handheld. */
+  padding-block-end: env(safe-area-inset-bottom, 0);
+}
