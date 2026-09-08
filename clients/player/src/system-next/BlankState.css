@@ -1,0 +1,14 @@
+.px-blank-state {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--px-s3);
+  max-inline-size: var(--px-measure);
+  padding-block: var(--px-s7) var(--px-s6);
+}
+.px-blank-state-acts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--px-s2);
+  margin-block-start: var(--px-s3);
+}

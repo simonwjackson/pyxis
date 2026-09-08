@@ -1,0 +1,24 @@
+.px-lead {
+  display: block;
+  padding-block: var(--px-s5) var(--px-s3);
+}
+/* Capped rather than fluid. Past this the sleeve stops being an object on a wall. */
+.px-lead-art {
+  display: block;
+  inline-size: min(100%, var(--px-lead-max));
+}
+.px-lead-say {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--px-s2);
+  padding-block-start: var(--px-s5);
+}
+/* The context line takes the album's colour when there is one, and falls back to plain muted
+   text when there is not. An absent tint is a normal state, not a failure. */
+.px-lead-say > .px-text[data-size="small"] {
+  color: color-mix(in oklab, var(--px-tint, var(--px-soft)) 55%, var(--px-soft));
+}
+.px-lead-say > .px-action {
+  margin-block-start: var(--px-s2);
+}

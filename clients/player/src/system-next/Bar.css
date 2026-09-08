@@ -1,0 +1,60 @@
+.px-bar {
+  display: flex;
+  gap: var(--px-s3);
+  align-items: center;
+  inline-size: 100%;
+  padding: var(--px-s3) var(--px-s4);
+  background: var(--px-raised);
+  border-block-start: var(--px-line) solid var(--px-rule);
+}
+.px-bar-open {
+  display: flex;
+  gap: var(--px-s3);
+  align-items: center;
+  flex: 1;
+  min-inline-size: 0;
+  padding: 0;
+  text-align: start;
+  background: transparent;
+  border: 0;
+  color: inherit;
+  font: inherit;
+}
+.px-bar-open:is(button) {
+  cursor: pointer;
+}
+.px-bar-open:focus-visible {
+  outline: var(--px-focus) solid var(--px-ink);
+  outline-offset: var(--px-focus-offset);
+}
+/* The cover in a bar is a small object, not a wall tile. */
+.px-bar .px-artwork {
+  flex: none;
+  inline-size: var(--px-target);
+  block-size: var(--px-target);
+}
+.px-bar-copy {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-inline-size: 0;
+}
+/* One line each. A bar that grows to fit a long title pushes the page it sits against. */
+.px-bar-copy > .px-text {
+  display: block;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  max-inline-size: 100%;
+}
+/* Nothing playing is a designed state, so the bar keeps its footprint and steps back
+   rather than disappearing and moving everything below it. */
+.px-bar[data-tone="resting"] .px-bar-copy > .px-text[data-weight="strong"] {
+  color: var(--px-soft);
+}
+.px-bar-trailing {
+  display: flex;
+  gap: var(--px-s2);
+  align-items: center;
+  flex: none;
+}

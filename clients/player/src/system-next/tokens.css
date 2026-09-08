@@ -46,6 +46,11 @@
   --px-icon-large: 30px;
   --px-mark: 9px;
   --px-cover: 156px;
+  /* The wall reads as texture, so its columns are smaller than a rail's single cover.
+     The lead is capped rather than fluid: past this width a sleeve stops being an object
+     on a wall and becomes a backdrop. */
+  --px-tile-min: 124px;
+  --px-lead-max: 420px;
   --px-measure: 46ch;
   --px-duration: 140ms;
   --px-object-shadow:

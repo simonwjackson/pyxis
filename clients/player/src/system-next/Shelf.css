@@ -1,0 +1,46 @@
+.px-shelf {
+  display: block;
+  padding-block-start: var(--px-s6);
+}
+.px-shelf-head {
+  display: flex;
+  gap: var(--px-s2);
+  align-items: baseline;
+  padding-block-end: var(--px-s4);
+}
+/* Sleeves stand in a row and overlap slightly, the way records lean in a crate. The lift on
+   hover is what makes the leaning read as depth rather than as a mistake in the gap. */
+.px-shelf-rail {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: var(--px-cover);
+  gap: 0;
+  padding-block: var(--px-s1) var(--px-s2);
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x proximity;
+  scrollbar-width: none;
+}
+.px-shelf-rail::-webkit-scrollbar {
+  display: none;
+}
+.px-shelf-rail > * {
+  margin-inline-end: calc(var(--px-s4) * -1);
+  scroll-snap-align: start;
+}
+.px-shelf-rail > *:last-child {
+  margin-inline-end: 0;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .px-shelf-rail > * {
+    transition:
+      transform var(--px-duration) ease,
+      margin var(--px-duration) ease;
+  }
+  .px-shelf-rail > *:hover,
+  .px-shelf-rail > *:focus-within {
+    transform: translateY(calc(var(--px-s1) * -1));
+    margin-inline-end: 0;
+  }
+}

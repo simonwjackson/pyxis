@@ -1,0 +1,8 @@
+/* auto-fill, not auto-fit: empty tracks survive in the resolved column list, so a windowing
+   layer can read geometry back from the stylesheet instead of restating the cell size. */
+.px-wall {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(var(--px-tile-min), 1fr));
+  gap: var(--px-s4);
+  padding-block-start: var(--px-s5);
+}
