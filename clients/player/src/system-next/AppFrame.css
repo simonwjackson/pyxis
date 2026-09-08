@@ -2,11 +2,15 @@
 
 /* Three rows: nav, surface, bar. The middle row is the only one that scrolls, so the bar
    never rides up over content and the surface never pushes it off screen. */
+/* `block-size: 100%` only resolves against a parent with a definite height, so the document
+   establishes that chain. A floor here instead of a fill was the original bug: `min-block-size`
+   caps nothing, so the frame grew to its content, the 1fr row grew with it, `overflow-y: auto`
+   never engaged, and the whole document scrolled -- carrying the player bar away with it. */
 .px-frame {
   display: grid;
   grid-template-rows: auto minmax(0, 1fr) auto;
   block-size: 100%;
-  min-block-size: 100svh;
+  min-block-size: 0;
   background: var(--px-ground);
   color: var(--px-ink);
 }
