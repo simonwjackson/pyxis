@@ -10,12 +10,15 @@ export interface LibraryPageProps {
   readonly library: SurfaceState<readonly AlbumSummary[]>
   readonly emptyAction?: ReactNode
   readonly onRetry?: () => void
+  /// Choosing an album. Without this every cover renders as a control that does nothing,
+  /// which is worse than a cover that is plainly not a control.
+  readonly onOpenAlbum?: (albumId: string) => void
 }
 
 // Everything, at one size, as a field to scan rather than a list to read. This is the
 // surface for "I know it is in here somewhere", which is a different question from the one
 // Stacks answers, and so it is a different surface rather than a mode of the same one.
-export function LibraryPage({ library, emptyAction, onRetry }: LibraryPageProps) {
+export function LibraryPage({ library, emptyAction, onRetry, onOpenAlbum }: LibraryPageProps) {
   if (library.state !== "shown")
     return (
       <SurfaceStatus
@@ -37,7 +40,11 @@ export function LibraryPage({ library, emptyAction, onRetry }: LibraryPageProps)
       {library.reason === undefined && library.freshness === "stale" ? (
         <Notice message="Showing what this device already had" />
       ) : null}
-      <AlbumWall label="All albums" albums={library.value} />
+      <AlbumWall
+        label="All albums"
+        albums={library.value}
+        {...(onOpenAlbum ? { onOpen: onOpenAlbum } : {})}
+      />
     </Flow>
   )
 }

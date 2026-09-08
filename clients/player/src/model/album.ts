@@ -40,6 +40,11 @@ export interface AlbumView {
   readonly placement: Placement
   readonly addedAt: string
   readonly trackCount: number
+  /// The tracks, in order. Carried because queueing an album means sending its track ids:
+  /// the core takes `queue.add` with `trackIds`, so an album that knows only how many
+  /// tracks it has cannot be played. Tracklists stay demoted in the interface; this is the
+  /// queueing fact, not a licence to draw them.
+  readonly tracks: readonly TrackView[]
   /// Total running time, present only when every track reports one. A partial sum is a
   /// wrong number, and a wrong number is worse than no number.
   readonly durationMs?: number
@@ -81,6 +86,7 @@ export function readAlbum(album: RpcLibraryAlbum, offline?: AlbumOffline): Album
     placement: readPlacement(album.placement),
     addedAt: album.addedAt,
     trackCount: album.tracks.length,
+    tracks: album.tracks.map(readTrack),
     ...(duration === undefined ? {} : { durationMs: duration }),
     ...(offline === undefined ? {} : { offline }),
     availability: availabilityOf(offline),

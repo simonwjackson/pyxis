@@ -26,6 +26,9 @@ export interface StacksPageProps {
   readonly library: SurfaceState<StacksContent>
   readonly emptyAction?: ReactNode
   readonly onRetry?: () => void
+  /// Choosing an album. Without this every cover renders as a control that does nothing,
+  /// which is worse than a cover that is plainly not a control.
+  readonly onOpenAlbum?: (albumId: string) => void
 }
 
 // Home. It answers one question — what should I put on — and the answer is an album, so an
@@ -34,7 +37,7 @@ export interface StacksPageProps {
 // Every edge state is drawn here rather than upstream, so that each one can be placed on a
 // board and looked at. A screen whose loading and failure states only exist inside a binding
 // is a screen nobody has ever seen fail.
-export function StacksPage({ library, emptyAction, onRetry }: StacksPageProps) {
+export function StacksPage({ library, emptyAction, onRetry, onOpenAlbum }: StacksPageProps) {
   if (library.state !== "shown")
     return (
       <SurfaceStatus
@@ -62,10 +65,16 @@ export function StacksPage({ library, emptyAction, onRetry }: StacksPageProps) {
           album={lead}
           {...(leadContext ? { context: leadContext } : {})}
           {...(leadTint ? { tint: leadTint } : {})}
+          {...(onOpenAlbum ? { onPlay: () => onOpenAlbum(lead.id) } : {})}
         />
       ) : null}
       {shelves.map((shelf) => (
-        <AlbumShelf key={shelf.id} title={shelf.title} albums={shelf.albums} />
+        <AlbumShelf
+          key={shelf.id}
+          title={shelf.title}
+          albums={shelf.albums}
+          {...(onOpenAlbum ? { onOpen: onOpenAlbum } : {})}
+        />
       ))}
     </Flow>
   )

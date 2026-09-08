@@ -58,7 +58,19 @@ export interface LibraryBinding extends LibraryView {
   readonly refresh: () => void
 }
 
-export function useLibrary(edge: LibraryEdge): LibraryBinding {
+export interface LibraryOptions {
+  /// Whether this device holds a credential yet. The worker's sync reads the bearer token
+  /// from its own settings row, so reading the library before the device is paired fails
+  /// with `authRequired` -- and this binding would faithfully render "pair this device
+  /// again" on a perfectly healthy first boot. Waiting is not a loading nicety; it stops
+  /// the client accusing the person of a problem it created by asking too early.
+  readonly ready?: boolean
+}
+
+export function useLibrary(edge: LibraryEdge, options: LibraryOptions = {}): LibraryBinding {
+  // Named `paired`, not `ready`: `ready` is the imported state constructor, and shadowing it
+  // here silently turned `ready(local, "local")` into a call on a boolean.
+  const paired = options.ready ?? true
   const [albums, setAlbums] = useState<Remote<readonly AlbumView[]>>(unknown<readonly AlbumView[]>)
   const [notices, setNotices] = useState<readonly SyncNoticeRecord[]>([])
   const [pendingWrites, setPendingWrites] = useState(0)
@@ -74,6 +86,12 @@ export function useLibrary(edge: LibraryEdge): LibraryBinding {
     generation.current += 1
     const mine = generation.current
     const current = () => generation.current === mine
+    // Not yet paired: stay at `unknown` and touch nothing. `unknown` says "not asked",
+    // which is the truth, where `loading` would promise an answer that is not coming.
+    if (!paired) {
+      setAlbums(unknown<readonly AlbumView[]>())
+      return
+    }
     setAlbums(loading<readonly AlbumView[]>())
     let supported = false
     try {
@@ -160,7 +178,7 @@ export function useLibrary(edge: LibraryEdge): LibraryBinding {
     } catch {
       // As above.
     }
-  }, [edge])
+  }, [edge, paired])
 
   useEffect(() => {
     void run()
