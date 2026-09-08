@@ -2,7 +2,14 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <!-- viewport-fit=cover lets the surface reach the physical edges; the frame pays the safe
+         areas back as padding. interactive-widget keeps the on-screen keyboard from resizing
+         the visual viewport, which would otherwise shove a fixed shell upward and leave the
+         player bar stranded mid-screen. -->
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content"
+    />
     <title>Pyxis</title>
     <link rel="manifest" href="/manifest.webmanifest" />
     <!-- Matches --px-ground so a standalone launch and the first paint are the same colour

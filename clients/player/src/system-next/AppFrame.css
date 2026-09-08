@@ -13,10 +13,15 @@
   min-block-size: 0;
   background: var(--px-ground);
   color: var(--px-ink);
+  /* The document reaches the physical edges, so the frame owes back the horizontal insets.
+     Landscape on a notched handset otherwise cuts the first column of covers in half. */
+  padding-inline: env(safe-area-inset-left, 0) env(safe-area-inset-right, 0);
 }
 
+/* The status bar is drawn over the page, not beside it, so the nav pays the top inset itself.
+   Without this the first row of controls sits underneath the clock and cannot be read or hit. */
 .px-frame-nav {
-  padding: var(--px-s2) var(--px-s3);
+  padding: calc(var(--px-s2) + env(safe-area-inset-top, 0)) var(--px-s3) var(--px-s2);
   background: var(--px-ground);
   border-block-end: var(--px-line) solid var(--px-rule);
 }
