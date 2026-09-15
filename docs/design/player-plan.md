@@ -152,3 +152,48 @@ Two gate rules were narrowed after they rejected correct code: list rendering vi
 contested part is untouched and still needs a decision — whether a stateful compound widget may
 own `useState` and its own context below a binding. Until that is settled, modal sheets
 (`PlayerSheet`, `RoomsSheet`) cannot be written, because `showModal()` needs an effect.
+
+## The persistent bar, reviewed as rendered boxes
+
+The bar was drawn, measured and changed in one pass. Five widths of the real component in a real
+browser (900, 560, 412, 320, 260px, dark and light, plus an in-place render at 412×760) are the
+only reason the following were found: jsdom has no layout engine, and all of them were invisible
+to 256 passing tests.
+
+What the bar now is:
+
+- **The title is the loudest thing on it.** Body size and strong weight, with the room readout as
+  a muted second line behind the artist. It previously spent its largest, bordered, highest
+  contrast surface on the session's name — in practice this device's own UA-derived name, telling
+  a person where they already were.
+- **A position rule along the top edge.** Full bleed, 3px, drawn through `Progress` with a `rule`
+  size. It costs no width, so it survives every container size unchanged. Offered only when the
+  length is known, because a rule at zero claims a definite answer nobody has.
+- **A room is a control only when there is somewhere to take it.** With no handler it is a readout
+  and becomes part of the detail line, first so that a narrow bar truncates the room and not the
+  artist. As an `Action` with no `onClick` it was a focusable, enabled button that could not act.
+- **The row stacks instead of squeezing.** `--px-bar-copy-min` is the width the copy refuses to be
+  measured below; when the basis plus the controls exceed the line, the controls wrap to their own
+  row. Measured: one row (69–71px) at 900, 560 and 412; one row with a truncated title at 320; two
+  rows at 260. No width removes a control, and no width has ever overflowed its strip.
+
+Two defects the renders exposed, both older than this change and both invisible to the tests:
+
+1. **A cover drawn larger than the box holding it.** `Artwork`'s image and fallback were grid items,
+   so the fallback's words sized the box's row: a 44×44 bar artwork measured 44×62, painting the
+   cover over the copy and past the bottom of the strip. Fixed by positioning the children
+   absolutely and clipping the box, so nothing inside an artwork can size it.
+2. **A 312px copy block inside a 288px row.** `min-inline-size: 0` had been dropped from
+   `.px-bar-open`, so its own content set an automatic minimum; with the row aligned to its end,
+   the excess was pushed out of the *left* edge and the cover was drawn outside the bar entirely.
+
+Deferred, found here and not done here:
+
+- **Nothing opens the full player.** `App.binding.tsx` passes no `onOpenPlayer`, so the bar body
+  is a plain `div` and `PlayerSheet` — which already has a scrubber, elapsed and remaining — is
+  unreachable from anywhere. The bar is the obvious way in.
+- **The position rule does not seek.** It is a `<progress>`, read-through only. Seeking needs a
+  range input, a thumb and a gesture mapped to the container's own width.
+- **The compact room control is quiet enough to be missed.** Dot plus muted label, no plate: it
+  reads as a readout that happens to be tappable. A cast-style mark would say so better, and the
+  icon set has no such mark yet.

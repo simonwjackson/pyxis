@@ -17,6 +17,7 @@ import { useCallback, useMemo, useState } from "react"
 import type { AlbumView } from "../model/album"
 import { type EdgeReason, type Remote, shownValue } from "../model/edge"
 import { byRecentlyAdded, downloaded, inPlacement } from "../model/library"
+import { playedFraction } from "../model/playback"
 import { ROUTES, routeTitle, sameRoute } from "../router/route.ts"
 import { AccountSheet } from "../shapes/AccountSheet.tsx"
 import type { AlbumSummary } from "../shapes/album.ts"
@@ -218,6 +219,11 @@ export function App({
       : { state: "paired", accountName: held.account.name, deviceName: held.device.name }
 
   const sounding = playback.playback.state === "ready" ? playback.playback.value : undefined
+  /// How far through the track, as the bar's position rule reads it. Rounded to whole percent
+  /// because that is the step the rule is drawn at, and `playedFraction` has already clamped it
+  /// to 0..1: a fraction of a percent is not something anyone can see.
+  const played = sounding === undefined ? undefined : playedFraction(sounding)
+  const percentage = played === undefined ? undefined : Math.round(played * 100)
 
   const soundingTrackId = sounding?.currentTrackId
   const soundingAlbum = useMemo(
@@ -333,10 +339,12 @@ export function App({
             // Offered only when a command sent now could actually take effect. A control
             // that silently does nothing is worse than one that is not there. Skipping is
             // additionally gated on there being somewhere to go, so the first and last
-            // tracks of a queue simply have one fewer control.
+            // tracks of a queue simply have one fewer control. The position is offered only
+            // when the length is known, so the rule never claims a place it cannot be.
             {...(sounding.controllable
               ? { onToggle: sounding.transport === "playing" ? pause : play }
               : {})}
+            {...(percentage === undefined ? {} : { percentage })}
             {...(sounding.controllable && sounding.hasPrevious ? { onPrevious: previous } : {})}
             {...(sounding.controllable && sounding.hasNext ? { onNext: next } : {})}
           />

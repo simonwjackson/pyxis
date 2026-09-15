@@ -1,5 +1,8 @@
 .px-status-mark {
   display: inline-block;
+  /* A mark is a fixed dot, never a flexible one. As a flex item beside a label it was squashed
+     to a 1px sliver by the label's own maximum width. */
+  flex: none;
   inline-size: var(--px-mark);
   block-size: var(--px-mark);
   box-shadow: 0 0 0 var(--px-focus) var(--px-ground);

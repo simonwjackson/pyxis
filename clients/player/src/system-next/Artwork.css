@@ -5,22 +5,34 @@
   aspect-ratio: 1;
   background: var(--px-frame);
   box-shadow: inset 0 0 0 var(--px-line) var(--px-edge);
+  /* A cover is never drawn larger than the box holding it. Without this the image and the
+     fallback are grid items whose min-content sizes the box's row, so a box too small for the
+     fallback's words grows past its own `aspect-ratio` and paints the cover over whatever sits
+     beside it. Measured in a bar: a 44x44 box drawing a 44x62 image. */
+  overflow: hidden;
 }
 .px-artwork[data-treatment="object"] {
   border-radius: var(--px-radius);
   box-shadow: var(--px-object-shadow);
 }
+/* Absolute rather than grid items, so nothing inside an artwork can size it. The box is decided
+   by its own width and aspect ratio, and this is the only thing that decides it. */
 .px-artwork img,
 .px-artwork-fallback {
-  grid-area: 1 / 1;
+  position: absolute;
+  inset: 0;
   inline-size: 100%;
   block-size: 100%;
   min-inline-size: 0;
 }
 .px-artwork img {
-  position: relative;
   z-index: 1;
   object-fit: cover;
+}
+/* The words are for a cover that is absent or failed, never for one that is drawn: as a grid
+   item they were painted behind the image and their glyphs still spilled out of the box. */
+.px-artwork:has(img:not([hidden])) .px-artwork-fallback {
+  display: none;
 }
 .px-artwork-fallback {
   display: grid;

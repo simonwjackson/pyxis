@@ -45,6 +45,16 @@
   --px-icon: 24px;
   --px-icon-large: 30px;
   --px-mark: 9px;
+  /* A position read through, not a control. A hairline along the top edge costs no width in a
+     strip that has none, and the same 3px reads at every size. */
+  --px-progress-rule: 3px;
+  /* The narrowest a bar's copy may be asked to be before the controls move to their own row.
+     A minimum rather than a breakpoint: the bar asks the width it was given, and stacks only
+     when the title would stop being readable beside the controls. */
+  --px-bar-copy-min: 12ch;
+  /* How much width a readout may hold before it truncates. A readout yields to a control, and
+     the full value stays in the element's accessible name. */
+  --px-readout-max: 12ch;
   --px-cover: 156px;
   /* The wall reads as texture, so its columns are smaller than a rail's single cover.
      The lead is capped rather than fluid: past this width a sleeve stops being an object

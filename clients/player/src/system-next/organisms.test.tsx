@@ -133,17 +133,67 @@ describe("playback presence", () => {
   })
 
   it("says how many other rooms are live rather than implying only one", () => {
+    const onOpenRooms = vi.fn()
     const { rerender } = render(
       <NowBarPlaying
         album={album({ id: "a" })}
         room="Kitchen"
         transport="playing"
         otherRooms={2}
+        onOpenRooms={onOpenRooms}
       />,
     )
-    expect(screen.getByRole("button", { name: "Rooms, playing in Kitchen +2" })).toBeDefined()
-    rerender(<NowBarPlaying album={album({ id: "a" })} room="Kitchen" transport="playing" />)
+    fireEvent.click(screen.getByRole("button", { name: "Rooms, playing in Kitchen +2" }))
+    expect(onOpenRooms).toHaveBeenCalledTimes(1)
+    rerender(
+      <NowBarPlaying
+        album={album({ id: "a" })}
+        room="Kitchen"
+        transport="playing"
+        onOpenRooms={onOpenRooms}
+      />,
+    )
     expect(screen.getByRole("button", { name: "Rooms, playing in Kitchen" })).toBeDefined()
+  })
+
+  it("reads the room out as text when there is nowhere to take it", () => {
+    // A room with no handler was drawn as a button that could not act, which is the same dead
+    // control the skip pair refuses to draw. Now it is what it is: a readout behind the artist.
+    render(
+      <NowBarPlaying
+        album={album({ id: "a", artist: "HEALTH" })}
+        room="Kitchen"
+        transport="playing"
+      />,
+    )
+    expect(screen.getByText("HEALTH · Kitchen")).toBeDefined()
+    expect(screen.queryByRole("button", { name: /^Rooms/ })).toBeNull()
+  })
+
+  it("draws the position rule only when the length is known", () => {
+    const { rerender } = render(
+      <NowBarPlaying
+        album={album({ id: "a" })}
+        room="Kitchen"
+        transport="playing"
+        percentage={38}
+      />,
+    )
+    expect(screen.getByRole("progressbar", { name: "Position in Title a" })).toBeDefined()
+    rerender(<NowBarPlaying album={album({ id: "a" })} room="Kitchen" transport="playing" />)
+    // Nothing knows where the track is, so nothing claims to. A rule at zero would be a lie.
+    expect(screen.queryByRole("progressbar")).toBeNull()
+  })
+
+  it("keeps the room at the end of the readout so a narrow bar truncates the room, not the artist", () => {
+    render(
+      <NowBarPlaying
+        album={album({ id: "a", artist: "HEALTH" })}
+        room="Chrome on Linux armv81"
+        transport="playing"
+      />,
+    )
+    expect(screen.getByText("HEALTH · Chrome on Linux armv81")).toBeDefined()
   })
 
   it("keeps its footprint with nothing playing and offers no dead resume control", () => {

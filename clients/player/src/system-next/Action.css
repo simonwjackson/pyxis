@@ -13,6 +13,22 @@
 .px-action:enabled:hover {
   border-color: var(--px-ink);
 }
+/* A compact action is a readout that happens to be tappable: no plate, muted, and capped so it
+   yields width to whatever it sits beside. It keeps the shared 44px minimum height from
+   base.css, so the hit area is unchanged by the quieter drawing. */
+.px-action[data-size="compact"] {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--px-s2);
+  padding: 0 var(--px-s2);
+  max-inline-size: var(--px-readout-max);
+  color: var(--px-soft);
+  background: transparent;
+  border-color: transparent;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
 .px-action[data-emphasis="primary"]:enabled:hover {
   color: var(--px-on-heat);
   background: var(--px-heat);

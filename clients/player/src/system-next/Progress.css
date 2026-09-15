@@ -4,3 +4,22 @@
   accent-color: var(--px-ink);
   block-size: var(--px-s2);
 }
+/* The native element draws a track and a value with a browser-chosen radius and colour. A rule
+   has to read as ink against the page's own rule colour at 3px, so both halves are stated
+   rather than inherited, per engine. */
+.px-progress[data-size="rule"] {
+  appearance: none;
+  border: 0;
+  border-radius: 0;
+  background: var(--px-rule);
+  block-size: var(--px-progress-rule);
+}
+.px-progress[data-size="rule"]::-webkit-progress-bar {
+  background: var(--px-rule);
+}
+.px-progress[data-size="rule"]::-webkit-progress-value {
+  background: var(--px-ink);
+}
+.px-progress[data-size="rule"]::-moz-progress-bar {
+  background: var(--px-ink);
+}

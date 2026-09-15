@@ -1,17 +1,43 @@
 .px-bar {
+  /* The position rule is positioned against the strip, not placed in the copy column. */
+  position: relative;
   display: flex;
-  gap: var(--px-s3);
-  align-items: center;
+  flex-direction: column;
   inline-size: 100%;
   padding: var(--px-s3) var(--px-s4);
   background: var(--px-raised);
   border-block-start: var(--px-line) solid var(--px-rule);
 }
+/* Pinned over the strip's own top edge, so it costs no width in a container that has none and
+   every size reads the same amount of progress. The track is the same colour as the border it
+   covers, so the two read as one line whose filled part is ink. */
+.px-bar-position {
+  position: absolute;
+  inset-block-start: calc(var(--px-line) * -1);
+  inset-inline: 0;
+}
+/* One row while it fits. The row stacks when the copy would fall below the width it needs to
+   stay readable, which is a decision about this bar's width rather than about a device. Right
+   aligned so the wrapped controls gather under the copy rather than under the cover. */
+.px-bar-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--px-s3);
+  inline-size: 100%;
+}
+/* The basis is the width the copy refuses to be measured below, so wrapping happens on that
+   decision and not on the length of whatever title is playing. `min-inline-size: 0` is what
+   lets it shrink below that when the container cannot hold it at all: without it the copy's
+   own content sets an automatic minimum, the block grows wider than the row, and a row aligned
+   to its end pushes the excess out of the left edge of the strip. Measured at 320px: a 312px
+   copy block inside a 288px row, drawing the cover outside the bar. */
 .px-bar-open {
   display: flex;
   gap: var(--px-s3);
   align-items: center;
-  flex: 1;
+  flex: 1 1 var(--px-bar-copy-min);
   min-inline-size: 0;
   padding: 0;
   text-align: start;
@@ -33,6 +59,12 @@
   inline-size: var(--px-target);
   block-size: var(--px-target);
 }
+/* At this size the fallback's words cannot be read, and a clipped word is worse than none.
+   The artwork's accessible name already says what it is, so a coverless bar shows the empty
+   frame rather than a broken label. */
+.px-bar .px-artwork-fallback {
+  display: none;
+}
 .px-bar-copy {
   display: flex;
   flex-direction: column;
@@ -52,9 +84,14 @@
 .px-bar[data-tone="resting"] .px-bar-copy > .px-text[data-weight="strong"] {
   color: var(--px-soft);
 }
+/* May wrap within itself, so a container too narrow for the whole transport scrolls nothing
+   and clips nothing; `min-inline-size: 0` is what allows that instead of overflowing. */
 .px-bar-trailing {
   display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
   gap: var(--px-s2);
   align-items: center;
-  flex: none;
+  flex: 0 1 auto;
+  min-inline-size: 0;
 }
