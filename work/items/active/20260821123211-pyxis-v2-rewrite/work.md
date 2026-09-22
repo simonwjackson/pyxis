@@ -23,6 +23,17 @@ requirements and decisions were captured directly into `plan.md` sections
 
 ## Current position
 
+**Phone playback correction, 2026-09-22.** The user reports historical albums competing for the
+queue. The product player rendered raw realtime snapshots during outbox replay, left new commands
+unsent until resync, and let refresh or another Play pick a sibling session. Regression tests now
+cover each path. The correction uses the existing worker session-event gate, stable session
+selection, serialized album replacement, and sync after commands. The Chromium regression fails
+on `c26554b` by loading `historical-a`; corrected code loads only `latest-saved` then
+`latest-choice`, drains the outbox, and advances real decoded audio. All 267 player tests and
+276 reference-client/worker tests pass. Full verification retains independently reproduced baseline
+failures. Deployment and physical phone acceptance are pending at this commit. See
+`docs/operations/2026-09-22-phone-playback-replay.md`. No Sonos command was issued.
+
 **M9 is built, deployed and live-verified on 2026-09-07.** `436becb` is the installed revision at
 `/nix/store/wgnp3k03h62x0gbl2waq3z5pxfqv2ws6-pyxis-2.0.0`. Pandora is configured and returns **37
 real stations** with artwork and no failures; its batches carry no cursor and are never exhausted,

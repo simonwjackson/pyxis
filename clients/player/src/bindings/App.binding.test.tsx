@@ -106,6 +106,7 @@ const mount = (
   }
   const playbackPort: PlaybackEdge = {
     sessions: async () => [],
+    applySessionEvent: async (session) => ({ status: "applied", session }),
     queueSessionCommand: async (current) => current,
     queueListen: async () => undefined,
     touchOfflineTrack: async () => undefined,

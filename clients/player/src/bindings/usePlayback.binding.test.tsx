@@ -115,6 +115,10 @@ function harness(initial: RpcSession, options: { holdStream?: boolean } = {}): H
   const held: (() => void)[] = []
   const edge: PlaybackEdge = {
     sessions: async () => [current],
+    applySessionEvent: async (next) => {
+      if (next.revision >= current.revision) current = next
+      return { status: "applied", session: current }
+    },
     queueSessionCommand: async (target, command) => {
       commands.push(command)
       current = apply(target, command)
@@ -669,4 +673,147 @@ test("another session on this same device cannot take the speakers", async () =>
 
   // The session being rendered is the gate, not the device hosting it.
   expect(fake.loads).toEqual(["track-1"])
+})
+
+test("refresh keeps the selected session when an older album's session is updated", async () => {
+  const current = session()
+  const sibling = session({
+    id: "session-7",
+    currentTrackId: "track-9",
+    queue: ["track-9"],
+    updatedAt: "2026-01-02T00:00:00Z",
+  })
+  const source = harness(current)
+  let sessions = [current]
+  const edge: PlaybackEdge = { ...source.edge, sessions: async () => sessions }
+  const { result } = renderHook(() => usePlayback(edge, { deviceId: "device-1" }))
+  await waitFor(() => expect(source.loads).toEqual(["track-1"]))
+
+  sessions = [sibling, current]
+  await act(async () => result.current.refresh())
+
+  expect(source.loads).toEqual(["track-1"])
+})
+
+test("late session events cannot put a previously requested album back on the speakers", async () => {
+  const source = harness(session())
+  const { result } = renderHook(() => usePlayback(source.edge, { deviceId: "device-1" }))
+  await waitFor(() => expect(source.loads).toEqual(["track-1"]))
+
+  await act(async () => result.current.playAlbum(["track-9"]))
+  await waitFor(() => expect(source.loads.at(-1)).toBe("track-9"))
+  const settled = [...source.loads]
+
+  await act(async () => result.current.applySession(session()))
+
+  expect(source.loads).toEqual(settled)
+})
+
+test("a burst of session events renders the newest worker result", async () => {
+  const source = harness(session())
+  const { result } = renderHook(() => usePlayback(source.edge, { deviceId: "device-1" }))
+  await waitFor(() => expect(source.loads).toEqual(["track-1"]))
+
+  await act(async () => {
+    result.current.applySession(session({ currentTrackId: "track-2", revision: 2 }))
+    result.current.applySession(session({ currentTrackId: "track-3", revision: 3 }))
+  })
+
+  await waitFor(() => expect(source.loads.at(-1)).toBe("track-3"))
+})
+
+test("an unpaired device never renders another device's saved session", async () => {
+  const source = harness(session())
+  const { result } = renderHook(() => usePlayback(source.edge))
+  await waitFor(() => expect(result.current.playback.state).toBe("ready"))
+  expect(source.loads).toEqual([])
+})
+
+test("choosing an album keeps the selected session instead of bootstrapping a sibling", async () => {
+  const source = harness(session())
+  let bootstraps = 0
+  const edge: PlaybackEdge = {
+    ...source.edge,
+    ensureSession: async () => {
+      bootstraps += 1
+      return session({ id: "sibling" })
+    },
+  }
+  const { result } = renderHook(() => usePlayback(edge, { deviceId: "device-1" }))
+  await waitFor(() => expect(source.loads).toEqual(["track-1"]))
+
+  act(() => result.current.playAlbum(["track-9"]))
+
+  await waitFor(() => expect(source.loads.at(-1)).toBe("track-9"))
+  expect(bootstraps).toBe(0)
+  expect(result.current.playback).toMatchObject({
+    state: "ready",
+    value: { sessionId: "session-1" },
+  })
+})
+
+test("an offline album still loads while sync remains unavailable", async () => {
+  const source = harness(session({ transport: RpcTransport.Paused }))
+  const edge: PlaybackEdge = {
+    ...source.edge,
+    syncSessions: async () => ({ offline: true, authRequired: false, deferred: 3 }),
+  }
+  const { result } = renderHook(() => usePlayback(edge, { deviceId: "device-1" }))
+  await waitFor(() => expect(result.current.playback.state).toBe("unavailable"))
+
+  act(() => result.current.playAlbum(["track-9"]))
+
+  await waitFor(() =>
+    expect(result.current.playback).toMatchObject({
+      state: "unavailable",
+      reason: { kind: "offline" },
+      last: { transport: "playing" },
+    }),
+  )
+  await waitFor(() => expect(result.current.audioUrl).toBe("/stream/track-9"))
+})
+
+test("an offline duration report does not pause already loaded audio", async () => {
+  const source = harness(session())
+  let offline = false
+  const edge: PlaybackEdge = {
+    ...source.edge,
+    syncSessions: async () => ({ offline, authRequired: false, deferred: 0 }),
+  }
+  const { result } = renderHook(() => usePlayback(edge, { deviceId: "device-1" }))
+  await waitFor(() => expect(result.current.audioUrl).toBe("/stream/track-1"))
+  const audio = document.createElement("audio")
+  Object.defineProperty(audio, "duration", { value: 30 })
+  const pause = vi.spyOn(audio, "pause")
+  result.current.attachAudio(audio)
+  offline = true
+
+  act(() => result.current.reportDuration())
+
+  await waitFor(() => expect(result.current.playback.state).toBe("unavailable"))
+  expect(pause).not.toHaveBeenCalled()
+})
+
+test("the previous audio element cannot end the newly selected album while it loads", async () => {
+  const source = harness(session())
+  let release = (_url: string) => {}
+  const edge: PlaybackEdge = {
+    ...source.edge,
+    loadStream: async (track) =>
+      track === "track-9"
+        ? new Promise<string>((resolve) => {
+            release = resolve
+          })
+        : source.edge.loadStream(track),
+  }
+  const { container } = render(<Probe edge={edge} />)
+  await waitFor(() => expect(audioOf(container).getAttribute("src")).toBe("/stream/track-1"))
+  fireEvent.click(screen.getByRole("button", { name: "Play album" }))
+  await waitFor(() => expect(source.commands.at(-1)?._tag).toBe("transport.play"))
+
+  await act(async () => fireEvent.ended(audioOf(container)))
+
+  expect(source.commands.some((command) => command._tag === "transport.trackEnded")).toBe(false)
+  expect(source.listens).toEqual([])
+  await act(async () => release("/stream/track-9"))
 })

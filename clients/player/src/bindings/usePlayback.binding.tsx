@@ -18,8 +18,16 @@ import type {
   RpcSessionDirective,
 } from "../../../../contracts/generated/pyxis"
 import type { WorkerClient } from "../../../app/src/worker/client.ts"
-import { loading, type Remote, ready, type SyncOutcome, unavailable, unknown } from "../model/edge"
-import { chooseLocalSession, currentPlayback, type PlaybackView } from "../model/playback"
+import {
+  loading,
+  type Remote,
+  ready,
+  type SyncOutcome,
+  shownValue,
+  unavailable,
+  unknown,
+} from "../model/edge"
+import { chooseLocalSession, type PlaybackView, readSession } from "../model/playback"
 
 /// The slice of the worker this binding needs.
 ///
@@ -27,6 +35,7 @@ import { chooseLocalSession, currentPlayback, type PlaybackView } from "../model
 /// and a test can supply real responses without a browser database.
 export interface PlaybackWorkerEdge {
   sessions(): Promise<readonly RpcSession[]>
+  applySessionEvent: WorkerClient["applySessionEvent"]
   queueSessionCommand(session: RpcSession, command: RpcSessionCommand): Promise<RpcSession>
   queueListen(event: ListenTrackEventInput): Promise<void>
   touchOfflineTrack(trackId: string): Promise<void>
@@ -140,17 +149,39 @@ export function usePlayback(edge: PlaybackEdge, options: PlaybackOptions = {}): 
   const generation = useRef(0)
   /// Directives already carried out, so a redelivery after a reconnect is not applied twice.
   const seenDirectives = useRef<Set<string>>(new Set())
+  const selectedId = useRef<string | undefined>(undefined)
+  const pendingEvent = useRef<RpcSession | undefined>(undefined)
+  const eventGeneration = useRef(0)
+  const commands = useRef(Promise.resolve())
+  const pendingCommands = useRef(0)
 
   const publish = useCallback((next: RpcSession | undefined) => {
+    generation.current += 1
     session.current = next
-    setPlayback(ready(next === undefined ? undefined : currentPlayback([next], next.hostDeviceId)))
+    if (next !== undefined) selectedId.current = next.id
+    setPlayback(ready(next === undefined ? undefined : readSession(next)))
   }, [])
+
+  const select = useCallback(
+    (sessions: readonly RpcSession[]) => {
+      const next =
+        selectedId.current === undefined
+          ? chooseLocalSession(sessions, deviceId)
+          : sessions.find(
+              (candidate) =>
+                candidate.id === selectedId.current && candidate.hostDeviceId === deviceId,
+            )
+      if (next !== undefined) selectedId.current = next.id
+      return next
+    },
+    [deviceId],
+  )
 
   const read = useCallback(async () => {
     generation.current += 1
     const mine = generation.current
     const current = () => generation.current === mine
-    setPlayback(loading<PlaybackView | undefined>())
+    if (session.current === undefined) setPlayback(loading<PlaybackView | undefined>())
     let sessions: readonly RpcSession[]
     try {
       sessions = await edge.sessions()
@@ -159,9 +190,12 @@ export function usePlayback(edge: PlaybackEdge, options: PlaybackOptions = {}): 
       return
     }
     if (!current()) return
-    const view = currentPlayback(sessions, deviceId)
-    session.current = sessions.find((candidate) => candidate.id === view?.sessionId)
-    setPlayback(ready(view, "local"))
+    const local = select(sessions)
+    const view = local === undefined ? undefined : readSession(local)
+    if (pendingCommands.current === 0) {
+      session.current = local
+      setPlayback(ready(view, "local"))
+    }
 
     let outcome: SyncOutcome
     try {
@@ -174,10 +208,18 @@ export function usePlayback(edge: PlaybackEdge, options: PlaybackOptions = {}): 
     }
     if (!current()) return
     try {
+      const retained = pendingEvent.current
+      if (retained !== undefined) {
+        const applied = await edge.applySessionEvent(retained)
+        if (applied.status === "applied" && pendingEvent.current === retained) {
+          pendingEvent.current = undefined
+        }
+      }
       const reconciled = await edge.sessions()
-      if (!current()) return
-      const next = currentPlayback(reconciled, deviceId)
-      session.current = reconciled.find((candidate) => candidate.id === next?.sessionId)
+      if (!current() || pendingCommands.current > 0) return
+      const chosen = select(reconciled)
+      const next = chosen === undefined ? undefined : readSession(chosen)
+      session.current = chosen
       setPlayback(
         outcome.offline || outcome.authRequired || outcome.failure !== undefined
           ? unavailable(
@@ -193,14 +235,37 @@ export function usePlayback(edge: PlaybackEdge, options: PlaybackOptions = {}): 
     } catch {
       // Keep what is already shown. The session list is still the one just read.
     }
-  }, [deviceId, edge])
+  }, [edge, select])
 
   useEffect(() => {
+    session.current = undefined
+    selectedId.current = undefined
+    pendingEvent.current = undefined
+    seenDirectives.current.clear()
     void read()
     return () => {
       generation.current += 1
     }
   }, [read])
+
+  // A queue replacement is one local operation. Serializing individual database calls
+  // alone permits clear(A), clear(B), add(A), add(B), which mixes albums.
+  const run = useCallback(
+    (action: () => Promise<void>) => {
+      generation.current += 1
+      pendingCommands.current += 1
+      commands.current = commands.current
+        .then(action)
+        .catch((cause: unknown) => {
+          setPlayback(unavailable({ kind: "failed", message: String(cause) }))
+        })
+        .finally(() => {
+          pendingCommands.current -= 1
+          if (pendingCommands.current === 0) void read()
+        })
+    },
+    [read],
+  )
 
   /// Resolve a stream URL for one track, at most once.
   const loadAudioFor = useCallback(
@@ -237,7 +302,7 @@ export function usePlayback(edge: PlaybackEdge, options: PlaybackOptions = {}): 
     [audioUrl, edge],
   )
 
-  const view = playback.state === "ready" ? playback.value : undefined
+  const view = shownValue(playback)
   const trackId = view?.currentTrackId
   const transport = view?.transport
 
@@ -256,7 +321,7 @@ export function usePlayback(edge: PlaybackEdge, options: PlaybackOptions = {}): 
   useEffect(() => {
     const audio = audioElement.current
     if (audio === null) return
-    if (transport === "playing" && audioUrl !== undefined) {
+    if (transport === "playing" && audioUrl !== undefined && loadedTrack.current === trackId) {
       const resumeFrom = pendingSeekMs.current
       pendingSeekMs.current = undefined
       if (resumeFrom !== undefined && resumeFrom > 0) audio.currentTime = resumeFrom / 1000
@@ -267,15 +332,15 @@ export function usePlayback(edge: PlaybackEdge, options: PlaybackOptions = {}): 
       return
     }
     audio.pause()
-  }, [audioUrl, transport])
+  }, [audioUrl, trackId, transport])
 
   const command = useCallback(
     async (next: RpcSessionCommand, target?: RpcSession) => {
       const on = target ?? session.current
-      if (on === undefined) return
+      if (on === undefined || on.hostDeviceId !== deviceId) return
       publish(await edge.queueSessionCommand(on, next))
     },
-    [edge, publish],
+    [deviceId, edge, publish],
   )
 
   /// Tell the core where this host actually is.
@@ -284,6 +349,7 @@ export function usePlayback(edge: PlaybackEdge, options: PlaybackOptions = {}): 
   /// resumes every track from zero. A zero reading is skipped because it is far more often
   /// an element that has not started than a genuine rewind to the very beginning.
   const reportPosition = useCallback(async () => {
+    if (loadedTrack.current !== session.current?.currentTrackId) return
     const positionMs = Math.round((audioElement.current?.currentTime ?? 0) * 1000)
     if (positionMs <= 0) return
     const durationMs = elementDurationMs(audioElement.current)
@@ -302,11 +368,16 @@ export function usePlayback(edge: PlaybackEdge, options: PlaybackOptions = {}): 
   /// exactly where a freshly loaded track sits. Waiting for the first tick instead would
   /// leave a dashboard with no progress bar for the opening seconds of every track.
   const reportDuration = useCallback(() => {
+    const track = loadedTrack.current
+    if (track !== session.current?.currentTrackId) return
     const durationMs = elementDurationMs(audioElement.current)
     if (durationMs === undefined) return
     const positionMs = Math.round((audioElement.current?.currentTime ?? 0) * 1000)
-    void command({ _tag: "position.report", payload: { positionMs, durationMs } })
-  }, [command])
+    run(async () => {
+      if (track !== session.current?.currentTrackId) return
+      await command({ _tag: "position.report", payload: { positionMs, durationMs } })
+    })
+  }, [command, run])
 
   /// Keep the core's idea of the position roughly current while sound is coming out.
   ///
@@ -317,13 +388,17 @@ export function usePlayback(edge: PlaybackEdge, options: PlaybackOptions = {}): 
   useEffect(() => {
     if (transport !== "playing" || positionReportIntervalMs <= 0) return
     const timer = setInterval(() => {
-      void reportPosition().catch(() => undefined)
+      run(reportPosition)
     }, positionReportIntervalMs)
     return () => clearInterval(timer)
-  }, [positionReportIntervalMs, reportPosition, transport])
+  }, [positionReportIntervalMs, reportPosition, run, transport])
 
   const reportEnded = useCallback(() => {
-    void (async () => {
+    const ended = session.current
+    // The old element can still emit while the replacement stream is resolving.
+    if (loadedTrack.current !== ended?.currentTrackId) return
+    run(async () => {
+      if (session.current?.currentTrackId !== ended?.currentTrackId) return
       const on = session.current
       const endedTrack = on?.currentTrackId
       if (on === undefined || endedTrack === undefined) return
@@ -346,14 +421,14 @@ export function usePlayback(edge: PlaybackEdge, options: PlaybackOptions = {}): 
       // Report and stop. Whether anything follows is the core's decision, and if the album
       // is over the answer is silence.
       await command({ _tag: "transport.trackEnded", payload: {} }, on).catch(() => undefined)
-    })()
-  }, [command, deviceId, edge, newEventId])
+    })
+  }, [command, deviceId, edge, newEventId, run])
 
   const playAlbum = useCallback(
     (trackIds: readonly string[]) => {
-      void (async () => {
-        if (trackIds.length === 0) return
-        const target = await edge.ensureSession()
+      if (trackIds.length === 0) return
+      run(async () => {
+        const target = session.current ?? (await edge.ensureSession())
         const cleared = await edge.queueSessionCommand(target, {
           _tag: "queue.clear",
           payload: {},
@@ -363,14 +438,14 @@ export function usePlayback(edge: PlaybackEdge, options: PlaybackOptions = {}): 
           payload: { trackIds: [...trackIds] },
         })
         publish(await edge.queueSessionCommand(queued, { _tag: "transport.play", payload: {} }))
-      })()
+      })
     },
-    [edge, publish],
+    [edge, publish, run],
   )
 
   const play = useCallback(() => {
-    void command({ _tag: "transport.play", payload: {} })
-  }, [command])
+    run(() => command({ _tag: "transport.play", payload: {} }))
+  }, [command, run])
 
   /// Move by one track, either way.
   ///
@@ -384,7 +459,7 @@ export function usePlayback(edge: PlaybackEdge, options: PlaybackOptions = {}): 
   /// throws at the last track is worse than one that is not offered.
   const skip = useCallback(
     (by: 1 | -1) => {
-      void (async () => {
+      run(async () => {
         const on = session.current
         if (on === undefined || on.cursor === undefined) return
         const index = on.cursor + by
@@ -394,9 +469,9 @@ export function usePlayback(edge: PlaybackEdge, options: PlaybackOptions = {}): 
           payload: { index },
         })
         publish(await edge.queueSessionCommand(jumped, { _tag: "transport.play", payload: {} }))
-      })()
+      })
     },
-    [edge, publish],
+    [edge, publish, run],
   )
 
   const next = useCallback(() => skip(1), [skip])
@@ -415,7 +490,8 @@ export function usePlayback(edge: PlaybackEdge, options: PlaybackOptions = {}): 
   const seek = useCallback(
     (positionMs: number) => {
       const audio = audioElement.current
-      if (audio === null) return
+      if (audio === null || loadedTrack.current !== session.current?.currentTrackId) return
+      const track = loadedTrack.current
       const durationMs =
         Number.isFinite(audio.duration) && audio.duration > 0 ? audio.duration * 1000 : undefined
       const target = Math.max(
@@ -423,17 +499,20 @@ export function usePlayback(edge: PlaybackEdge, options: PlaybackOptions = {}): 
         durationMs === undefined ? positionMs : Math.min(positionMs, durationMs - 1000),
       )
       audio.currentTime = target / 1000
-      void command({ _tag: "position.report", payload: { positionMs: Math.round(target) } })
+      run(async () => {
+        if (track !== session.current?.currentTrackId) return
+        await command({ _tag: "position.report", payload: { positionMs: Math.round(target) } })
+      })
     },
-    [command],
+    [command, run],
   )
 
   const pause = useCallback(() => {
-    void (async () => {
+    run(async () => {
       await command({ _tag: "transport.pause", payload: {} })
       await reportPosition()
-    })()
-  }, [command, reportPosition])
+    })
+  }, [command, reportPosition, run])
 
   const attachAudio = useCallback((element: HTMLAudioElement | null) => {
     audioElement.current = element
@@ -453,24 +532,42 @@ export function usePlayback(edge: PlaybackEdge, options: PlaybackOptions = {}): 
   /// the one being rendered. Because this binding drives a real audio element, that was not
   /// a flickering label but a different album loading and starting, over and over.
   ///
-  /// So the gate is the session, not the device. Once one is held, only that one may update
-  /// it -- which also covers a handoff moving it away, since the record still arrives under
-  /// the same id. When none is held yet, this device's own session is adopted using the same
-  /// rule every other caller uses, so an event cannot seat a different session than the one
-  /// a read would have chosen.
+  /// Reads select the session. Events never select it. The worker applies revision and
+  /// pending-command rules before a record can reach the renderer. A raw server event
+  /// during outbox replay describes historical intent, not what this device should play.
   const applySession = useCallback(
     (next: RpcSession) => {
-      const held = session.current
-      if (held === undefined) {
-        if (deviceId === undefined || next.hostDeviceId !== deviceId) return
-        if (chooseLocalSession([next], deviceId)?.id !== next.id) return
-      } else if (held.id !== next.id) return
-      // Beat any read that is still in flight: this record is newer than a response that
-      // has not landed yet, and letting a slow read win would move playback backwards.
-      generation.current += 1
-      publish(next)
+      if (selectedId.current !== next.id) return
+      const mine = generation.current
+      const event = ++eventGeneration.current
+      void edge
+        .applySessionEvent(next)
+        .then((result) => {
+          if (selectedId.current !== next.id) return
+          if (result.status === "queued") {
+            if (
+              pendingEvent.current === undefined ||
+              next.revision >= pendingEvent.current.revision
+            ) {
+              pendingEvent.current = next
+            }
+            return
+          }
+          if (
+            pendingCommands.current > 0 ||
+            generation.current !== mine ||
+            eventGeneration.current !== event
+          )
+            return
+          publish(result.session.hostDeviceId === deviceId ? result.session : undefined)
+        })
+        .catch((cause: unknown) => {
+          if (generation.current === mine) {
+            setPlayback(unavailable({ kind: "failed", message: String(cause) }))
+          }
+        })
     },
-    [deviceId, publish],
+    [deviceId, edge, publish],
   )
 
   /// Carry out a command another device asked for.
@@ -496,9 +593,9 @@ export function usePlayback(edge: PlaybackEdge, options: PlaybackOptions = {}): 
         void read()
         return
       }
-      void command(directive.command, on).catch(() => undefined)
+      run(() => command(directive.command, on))
     },
-    [command, read],
+    [command, read, run],
   )
 
   return {
