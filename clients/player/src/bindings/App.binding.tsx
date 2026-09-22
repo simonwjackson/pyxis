@@ -218,7 +218,9 @@ export function App({
         }
       : { state: "paired", accountName: held.account.name, deviceName: held.device.name }
 
-  const sounding = playback.playback.state === "ready" ? playback.playback.value : undefined
+  // Sync failure does not stop local audio. Keep the bar and OS controls on the same
+  // retained session as the renderer rather than announcing that nothing is playing.
+  const sounding = shownValue(playback.playback)
   /// How far through the track, as the bar's position rule reads it. Rounded to whole percent
   /// because that is the step the rule is drawn at, and `playedFraction` has already clamped it
   /// to 0..1: a fraction of a percent is not something anyone can see.

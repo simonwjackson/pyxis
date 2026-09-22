@@ -23,6 +23,18 @@ requirements and decisions were captured directly into `plan.md` sections
 
 ## Current position
 
+**Phone media controls, 2026-09-22.** A sync failure cleared the app's Media Session metadata and
+transport while the renderer kept playing its retained local session. The app now reads that same
+retained value. Three regressions and a real Chromium red/green check pass; all 270 player tests
+and 276 reference-client/worker tests pass. Browser fixtures are now typechecked. Existing full
+repository gate failures remain visible. Deployment and phone revalidation are pending.
+
+A physical-device trace separately captured a stalled next-track load, followed by Chrome
+freezing, not a new process exit. The cause of that stall remains unknown. A temporary Chrome
+power exemption was restored; transitions succeeded with and without it. Notifications were not
+changed. Album starts in the middle remain unreproduced. See
+`docs/operations/2026-09-22-phone-media-controls.md` for evidence and limits.
+
 **Phone playback correction, 2026-09-22.** The user reports historical albums competing for the
 queue. The product player rendered raw realtime snapshots during outbox replay, left new commands
 unsent until resync, and let refresh or another Play pick a sibling session. Regression tests now

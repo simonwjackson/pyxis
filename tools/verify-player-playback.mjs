@@ -33,8 +33,17 @@ try {
     }
     await route.continue()
   })
+  // Evaluate asynchronous predicates in Node. A Promise returned inside the browser's
+  // waitForFunction poll is truthy before the worker read has completed.
+  const waitForState = async (predicate) => {
+    const deadline = Date.now() + 30_000
+    while (!(await page.evaluate(predicate))) {
+      assert.ok(Date.now() < deadline, "playback state did not converge")
+      await page.waitForTimeout(25)
+    }
+  }
   await page.goto(`${origin}/test/playback-browser.html`)
-  await page.waitForFunction(async () => {
+  await waitForState(async () => {
     const probe = window.playbackProbe
     if (!probe || probe.sent.length < 9) return false
     return (await probe.inspect()).pending === 0
@@ -52,7 +61,7 @@ try {
   })
 
   await page.evaluate(() => window.playbackProbe.choose())
-  await page.waitForFunction(async () => {
+  await waitForState(async () => {
     const state = await window.playbackProbe.inspect()
     return state.pending === 0 && state.remoteQueue.join(",") === "latest-choice"
   })

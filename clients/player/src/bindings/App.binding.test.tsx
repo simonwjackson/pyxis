@@ -87,6 +87,7 @@ const mount = (
   ports: {
     readonly account?: Partial<AccountEdge>
     readonly playback?: Partial<PlaybackEdge>
+    readonly mediaSession?: MediaSession
   } = {},
 ) => {
   const stable: LibraryEdge = {
@@ -120,6 +121,7 @@ const mount = (
       edge={stable}
       accountEdge={account}
       playbackEdge={playbackPort}
+      {...(ports.mediaSession === undefined ? {} : { mediaSession: ports.mediaSession })}
       deviceName="Chrome on Linux"
     />,
   )
@@ -241,6 +243,66 @@ describe("the shell translates edge states into what the surface shows", () => {
     expect(screen.queryByRole("button", { name: /^Resume/ })).toBeNull()
     expect(screen.queryByRole("button", { name: "Pause" })).toBeNull()
   })
+})
+
+describe("media controls during session sync failure", () => {
+  it.each([
+    { offline: true, authRequired: false, deferred: 1 },
+    { offline: false, authRequired: true, deferred: 1 },
+    { offline: false, authRequired: false, deferred: 1, failure: "sync unavailable" },
+  ])(
+    "retains the playing session when sync reports $offline/$authRequired/$failure",
+    async (outcome) => {
+      const handlers = new Map<MediaSessionAction, MediaSessionActionHandler | null>()
+      const mediaSession: MediaSession = {
+        metadata: null,
+        playbackState: "none",
+        setActionHandler: (action, handler) => {
+          handlers.set(action, handler)
+        },
+        setPositionState: () => {},
+        setCameraActive: async () => {},
+        setMicrophoneActive: async () => {},
+      }
+      const current = session({
+        queue: ["a-t1", "a-t2"],
+        cursor: 0,
+        currentTrackId: "a-t1",
+        transport: RpcTransport.Playing,
+      })
+      let failSync = false
+      let failureReturned = false
+      const { container } = mount(
+        {},
+        {
+          mediaSession,
+          playback: {
+            sessions: async () => [current],
+            syncSessions: async () => {
+              if (failSync) {
+                failureReturned = true
+                return outcome
+              }
+              return { offline: false, authRequired: false, deferred: 0 }
+            },
+          },
+        },
+      )
+      await waitFor(() => expect(mediaSession.playbackState).toBe("playing"))
+      const audio = container.querySelector("audio")
+      if (audio === null) throw new Error("audio renderer missing")
+      Object.defineProperty(audio, "duration", { value: 251, configurable: true })
+      failSync = true
+
+      fireEvent.loadedMetadata(audio)
+
+      await waitFor(() => expect(failureReturned).toBe(true))
+      expect(mediaSession.playbackState).toBe("playing")
+      expect(handlers.get("nexttrack")).toBeTypeOf("function")
+      expect(container.querySelector("audio")).toBe(audio)
+      expect(screen.queryByText("Nothing playing")).toBeNull()
+    },
+  )
 })
 
 describe("choosing an album", () => {

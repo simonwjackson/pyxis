@@ -93,6 +93,16 @@ everything provider-shaped lives at the edge behind a plugin protocol.
 
 ### Deferred to Follow-Up Work
 
+- **Phone screen-off playback and media controls, 2026-09-22.** A device trace captured normal
+  track completion followed by a stalled next-stream request, then Chrome freezing without a
+  new process exit. The cause of the stream stall remains open. A separate reproduced app bug
+  cleared Media Session during sync failure while retained audio continued. The correction uses
+  the renderer's existing `shownValue` selection in the app. Three regressions and a native
+  Chromium red/green check cover it. Deployment and physical revalidation are pending. Chrome's
+  temporary power exemption was restored; transitions also succeeded without it. Notification
+  settings were not changed. Album starts in the middle remain unreproduced. Stream-error
+  reporting and retry of a failed selected source also remain open. See
+  `docs/operations/2026-09-22-phone-media-controls.md`.
 - **Phone player acceptance, 2026-09-22.** The product client bypassed the worker's session-event
   guards and did not sync local commands after playback actions. Outbox replay therefore rendered
   historical album choices. The correction uses the existing worker API, retains one selected
