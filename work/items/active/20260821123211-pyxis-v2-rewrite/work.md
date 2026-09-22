@@ -27,7 +27,9 @@ requirements and decisions were captured directly into `plan.md` sections
 transport while the renderer kept playing its retained local session. The app now reads that same
 retained value. Three regressions and a real Chromium red/green check pass; all 270 player tests
 and 276 reference-client/worker tests pass. Browser fixtures are now typechecked. Existing full
-repository gate failures remain visible. Deployment and phone revalidation are pending.
+repository gate failures remain visible. `80ebbf4` is deployed as `index-C607_03P.js`. The served
+shell, bundle and service worker match the installed artifact through local and tailnet origins;
+both services are active and both health checks return 200. Phone revalidation is pending.
 
 A physical-device trace separately captured a stalled next-track load, followed by Chrome
 freezing, not a new process exit. The cause of that stall remains unknown. A temporary Chrome

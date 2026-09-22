@@ -93,4 +93,29 @@ host. No Sonos playback, queue, grouping, or volume command was issued.
 
 ## Deployment
 
-The correction is verified locally. Deployment and physical-phone validation are pending.
+Deployed and verified: `80ebbf4ffb8026d8d4a8069fbdce86edeae7e1d6`.
+
+| Item | Verified value |
+| --- | --- |
+| Package | `/nix/store/00fclidljix5bq11nlxj4ianahlxfbll-pyxis-2.0.0` |
+| Running web root | `/nix/store/73a4437s9zxfff0q0vzlmhgm0lpq3kbw-pyxis-player-2.0.0` |
+| Bundle | `index-C607_03P.js` |
+| Bundle SHA-256 | `a6ee37bdce19784fd49f9bd9f813a161b1e481c4444fb20d29a99592c740cc74` |
+
+The exact commit built successfully. A read-only session check found no reachable playing
+session before deployment. Both Pyxis user services are active. Local and tailnet health checks
+return 200. The served shell, bundle, and service worker match the installed artifact byte for
+byte through both origins. The running process's web root matches the installed wrapper.
+
+The first install attempt used an unsupported `nix profile add --name` option after removing
+the old profile entry. It stopped before restarting services. The previous entry was restored
+with the exact old flake reference, and its running artifact was verified unchanged. The retry
+omitted the unsupported option and completed. Profile priority 5 was preserved. No deployment
+helper change is included in this code fix.
+
+Physical acceptance of this correction is still pending. The phone must use **Reload now** to
+load the new bundle. Do not clear its site data or command outbox. Temporary page event listeners
+were stored only in memory and disappear on reload; Chrome was frozen when explicit removal was
+attempted. The timed Android captures finished; the remote helpers and local browser-debugging
+forward were removed. Android battery settings were restored and verified. Notification settings
+were not changed.
