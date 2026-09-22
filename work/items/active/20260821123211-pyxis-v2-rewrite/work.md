@@ -31,7 +31,9 @@ selection, serialized album replacement, and sync after commands. The Chromium r
 on `c26554b` by loading `historical-a`; corrected code loads only `latest-saved` then
 `latest-choice`, drains the outbox, and advances real decoded audio. All 267 player tests and
 276 reference-client/worker tests pass. Full verification retains independently reproduced baseline
-failures. Deployment and physical phone acceptance are pending at this commit. See
+failures. `16b16f5` is deployed as `index-C_dEkOCQ.js`; the shell, bundle, and service worker match
+the installed artifact byte for byte through both local and tailnet origins. Both services are
+active and health checks return 200. Physical phone acceptance remains open. See
 `docs/operations/2026-09-22-phone-playback-replay.md`. No Sonos command was issued.
 
 **M9 is built, deployed and live-verified on 2026-09-07.** `436becb` is the installed revision at

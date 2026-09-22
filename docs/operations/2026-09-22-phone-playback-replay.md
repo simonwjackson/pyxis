@@ -78,10 +78,26 @@ process was stopped.
 
 ## Deployment and acceptance
 
-Deployment is pending at this commit. The existing served bundle before deployment is
-`index-BIZMAJja.js`. Local and tailnet health both return 200. A read-only `session.list` returns
-no reachable sessions. No playback, queue, grouping, or volume command was sent to a live device.
+**Deployed and verified:** `16b16f5c1a07057282932d7ba917658b7641cd01`.
 
-After deployment, verify the running service's `PYXIS_WEB_ROOT`, compare its `index.html` with
-the tailnet response, and check both health endpoints. The phone needs to reload the new bundle.
-Only the user can confirm that the reported cycling has stopped on that phone.
+| Item | Verified value |
+| --- | --- |
+| Installed package | `/nix/store/z08w0d41ppbj3f09w7ksvl9j4fynihnx-pyxis-2.0.0` |
+| Running `PYXIS_WEB_ROOT` | `/nix/store/gdd475v8flcdrb84rx3929mbp71l2i9q-pyxis-player-2.0.0` |
+| Previous bundle | `index-BIZMAJja.js` |
+| New bundle | `index-C_dEkOCQ.js` |
+| Bundle SHA-256 | `baa73315c0dfb2e4afbef680ef97f9c28041b1bf5992e67c4a14a51e88b5b3d8` |
+
+Local and tailnet health return 200. The served shell, main bundle, and service worker match the
+installed artifact byte for byte at both origins. The running process's web root matches the
+installed wrapper. Both user services are active.
+
+`tools/deploy-revision` exited 141 before producing its build message. A local Nix-shebang Python
+script instead built the exact commit, read the profile as JSON, replaced only the `pyxis` entry,
+and restarted the two Pyxis services. It preserved the old priority and included restoration of
+the old package if installation failed. No deployment script was changed in this fix.
+
+A read-only `session.list` before deployment returned no reachable sessions. No playback, queue,
+grouping, or volume command was sent to a live device. Physical phone acceptance remains open.
+The phone needs to use **Reload now** to load the new bundle. Do not clear site data or discard its
+outbox. Only the user can confirm that the reported cycling has stopped on that phone.

@@ -97,12 +97,15 @@ everything provider-shaped lives at the edge behind a plugin protocol.
   guards and did not sync local commands after playback actions. Outbox replay therefore rendered
   historical album choices. The correction uses the existing worker API, retains one selected
   session, and serializes album replacement. Browser regression fails on `c26554b` and passes with
-  the correction. Phone acceptance remains open. See
+  the correction. `16b16f5` is deployed and its served bytes are verified. Phone acceptance remains open. See
   `docs/operations/2026-09-22-phone-playback-replay.md` for tests and deployment status.
 - **Current full-repository gate failures, 2026-09-22.** Pristine `c26554b` fails Rust formatting at
   `sessions/machine.rs:84` and root TypeScript checking at the player JPEG fixture import. Owned
   Biome diagnostics match the playback correction exactly. Keep these failures visible; player
   tests and typecheck are separate passing gates, not substitutes for `just verify`.
+- **Deployment helper exits 141, 2026-09-22.** `tools/deploy-revision` failed before its first build
+  message. The phone fix used a local script with JSON profile reads and rollback protection.
+  Check the helper's early-exit profile pipeline separately; no helper change was included here.
 - Verify ProseQL query-cache invalidation before reducing refresh-under-lock
   (`01M1VZZYSRGB8C8G4Y0WMS2MXS`). A real-WASM placement probe again found a persisted
   outbox row missing from a same-handle query. Production reopen boundaries remain required.
