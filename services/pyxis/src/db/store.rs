@@ -57,11 +57,18 @@ fn operation(reason: &str, message: String) -> EngineError {
     })
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum WriteMode {
+    Merge,
+    SessionSnapshot,
+}
+
 #[derive(Debug, Clone)]
 pub struct StoreWrite {
     collection: String,
     id: String,
     value: Value,
+    mode: WriteMode,
 }
 
 #[derive(Clone)]
@@ -171,7 +178,25 @@ impl Store {
             collection: collection.into(),
             id: id.into(),
             value: to_object(collection, record)?,
+            mode: WriteMode::Merge,
         })
+    }
+
+    /// Sessions have no createdAt or relationships. Replace their omitted optional fields
+    /// inside the receipt/handoff transaction; do not extend this to other collections.
+    pub fn session_snapshot<T: Serialize>(id: impl Into<String>, record: &T) -> Result<StoreWrite> {
+        let mut write = Self::write(schema::SESSIONS, id, record)?;
+        write.mode = WriteMode::SessionSnapshot;
+        Ok(write)
+    }
+
+    pub fn put_session_snapshot<T: Serialize>(
+        &self,
+        account: &AccountId,
+        id: &str,
+        record: &T,
+    ) -> Result<()> {
+        self.put_mixed_batch(account, &[Self::session_snapshot(id, record)?])
     }
 
     /// Write records across several collections as one durable ProseQL commit.
@@ -191,8 +216,9 @@ impl Store {
         self.runtime
             .mutate(move |database| {
                 for write in writes {
-                    if let Some(existing) = database.find_by_id(&write.collection, &write.id)? {
-                        if !belongs_to_id(&existing, &account_id) {
+                    let existing = database.find_by_id(&write.collection, &write.id)?;
+                    if let Some(existing) = &existing {
+                        if !belongs_to_id(existing, &account_id) {
                             return Err(operation(
                                 "scope-collision",
                                 format!(
@@ -201,6 +227,25 @@ impl Store {
                                 ),
                             ));
                         }
+                    }
+                    if write.mode == WriteMode::SessionSnapshot {
+                        let updated_at = write.value.get("updatedAt").cloned();
+                        // NativeRuntime::mutate commits or rolls back this entire batch.
+                        // No reader or durable file can observe the intermediate deletion.
+                        if existing.is_some() {
+                            database.delete(&write.collection, &write.id)?;
+                        }
+                        database.create(&write.collection, write.value)?;
+                        // Native create overwrites timestamps; retain the session's own
+                        // timestamp so the acknowledgement and a fresh read agree.
+                        if let Some(updated_at) = updated_at {
+                            database.update(
+                                &write.collection,
+                                &write.id,
+                                serde_json::json!({ "updatedAt": updated_at }),
+                            )?;
+                        }
+                    } else if existing.is_some() {
                         let Value::Object(mut updates) = write.value else {
                             unreachable!("store write is not an object")
                         };

@@ -144,7 +144,8 @@ skipping physical effects.
 right now. Pass `includeUnreachable: true` for the durable question of which sessions
 exist. `reachable` means one specific thing. The host is holding a live realtime socket.
 It is never persisted, so a crashed or sleeping host cannot leave a session looking
-controllable.
+controllable. List order is unspecified and can change after a session update. Keep selection
+by session ID and sort a copy when the display needs a stable order.
 
 Two operations look similar and are not:
 

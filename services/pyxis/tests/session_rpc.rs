@@ -116,6 +116,50 @@ async fn host_device_creates_queues_and_drives_its_session_through_one_command_u
 }
 
 #[tokio::test]
+async fn replacing_an_album_does_not_restore_the_previous_track_number() {
+    let dir = tempfile::tempdir().expect("temp dir");
+    let app = router(AppState::open(Store::open(dir.path()).expect("store")).expect("state"));
+    let host = claim(&app, "phone").await;
+    let created = rpc(
+        &app,
+        json!({"_tag": "session.create", "payload": {"name": "Phone"}}),
+        Some(token(&host)),
+    )
+    .await;
+    let session_id = created["outcome"]["value"]["id"]
+        .as_str()
+        .expect("session id");
+    let commands = [
+        json!({"_tag": "queue.add", "payload": {"trackIds": ["old-1", "old-2", "old-3", "old-4"]}}),
+        json!({"_tag": "cursor.jump", "payload": {"index": 2}}),
+        json!({"_tag": "transport.play", "payload": {}}),
+        json!({"_tag": "position.report", "payload": {"positionMs": 12000, "durationMs": 240000}}),
+        json!({"_tag": "queue.clear", "payload": {}}),
+        json!({"_tag": "queue.add", "payload": {"trackIds": ["new-1", "new-2", "new-3", "new-4"]}}),
+        json!({"_tag": "transport.play", "payload": {}}),
+    ];
+    let mut last = Value::Null;
+    for (index, command) in commands.into_iter().enumerate() {
+        last = rpc(&app, json!({
+            "_tag": "session.command.run",
+            "payload": {"sessionId": session_id, "commandId": format!("command-{index}"), "command": command}
+        }), Some(token(&host))).await;
+        assert_eq!(last["outcome"]["status"], "applied");
+    }
+    assert_eq!(last["outcome"]["value"]["cursor"], 0);
+    assert_eq!(last["outcome"]["value"]["currentTrackId"], "new-1");
+    let snapshot = rpc(
+        &app,
+        json!({"_tag": "session.state.get", "payload": {"sessionId": session_id}}),
+        Some(token(&host)),
+    )
+    .await;
+    assert_eq!(snapshot["outcome"]["value"]["cursor"], 0);
+    assert_eq!(snapshot["outcome"]["value"]["currentTrackId"], "new-1");
+    assert!(snapshot["outcome"]["value"].get("durationMs").is_none());
+}
+
+#[tokio::test]
 async fn replaying_one_session_command_id_applies_it_once() {
     let dir = tempfile::tempdir().expect("temp dir");
     let state = AppState::open(Store::open(dir.path()).expect("store")).expect("state");

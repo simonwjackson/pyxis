@@ -23,6 +23,17 @@ requirements and decisions were captured directly into `plan.md` sections
 
 ## Current position
 
+**Album track-number carryover, 2026-09-22.** The phone trace confirms the user's suspicion:
+local Clear/Add/Play chose Ruiner track 1, then server events restored cursor 6 and loaded track 7.
+No Next command occurred between the album selection and the jump. `SessionRecord` omitted cleared
+fields, but the core database merged updates and retained the old cursor. Session-only snapshot
+writes now replace those fields inside the existing receipt/handoff transaction. Service and RPC
+regressions fail before the correction and pass after it. All 18 focused session/RPC/snapshot tests
+pass; independent review found no blocker. Full Rust results are 206 passed and 1 inherited,
+date-dependent listen-test failure, also reproduced on unchanged main. Client gates retain their
+documented exceptions. Deployment and phone retest are pending. See
+`docs/operations/2026-09-22-album-cursor.md`. No frontend playback change or Sonos command occurred.
+
 **Phone media controls, 2026-09-22.** A sync failure cleared the app's Media Session metadata and
 transport while the renderer kept playing its retained local session. The app now reads that same
 retained value. Three regressions and a real Chromium red/green check pass; all 270 player tests

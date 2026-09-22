@@ -93,6 +93,16 @@ everything provider-shaped lives at the edge behind a plugin protocol.
 
 ### Deferred to Follow-Up Work
 
+- **Album track-number carryover, 2026-09-22.** Physical phone tracing confirms local queue
+  replacement returns cursor 0, then the core returns the previous cursor 6 with the new album.
+  Session records omitted cleared fields into a merge-style database update. Session-only
+  snapshot writes now remove those fields atomically with command receipts and handoff. Service
+  and RPC negative controls fail before the fix and pass after it. Deployment and phone retest
+  are pending. See `docs/operations/2026-09-22-album-cursor.md`. Separate diagnostic playhead-reset
+  and late-load defects remain open; they did not match the user's clarified track-number report.
+- **Date-dependent listen RPC test, 2026-09-22.** `batch_append_replay_history_and_hot_are_public_contracts`
+  uses August 21 fixtures with a 30-day hot-album window. It fails on unchanged main on September 22.
+  Keep this separate from the session correction; full Rust results are 206 passed and 1 failed.
 - **Phone screen-off playback and media controls, 2026-09-22.** A device trace captured normal
   track completion followed by a stalled next-stream request, then Chrome freezing without a
   new process exit. The cause of the stream stall remains open. A separate reproduced app bug
@@ -101,7 +111,8 @@ everything provider-shaped lives at the edge behind a plugin protocol.
   Chromium red/green check cover it. `80ebbf4` is deployed; the shell, bundle and service worker
   match the installed artifact through local and tailnet origins. Phone revalidation is pending.
   Chrome's temporary power exemption was restored; transitions also succeeded without it. Notification
-  settings were not changed. Album starts in the middle remain unreproduced. Stream-error
+  settings were not changed. The later album-cursor investigation above captures the track-number
+  carryover that was still unreproduced in this earlier pass. Stream-error
   reporting and retry of a failed selected source also remain open. See
   `docs/operations/2026-09-22-phone-media-controls.md`.
 - **Phone player acceptance, 2026-09-22.** The product client bypassed the worker's session-event

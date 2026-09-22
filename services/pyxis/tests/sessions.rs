@@ -68,6 +68,12 @@ fn transport_transitions_are_explicit_and_preserve_one_host_owner() {
     // The new track brings its own length; keeping the old one would draw a progress bar
     // against the wrong duration.
     assert_eq!(advanced.duration_ms, None);
+    let persisted = sessions
+        .get(&host, &session.id)
+        .expect("get")
+        .expect("session");
+    assert_eq!(persisted.duration_ms, None);
+    assert_eq!(persisted.updated_at, advanced.updated_at);
 
     // The last track running out is the end of the album, and the session stops rather than
     // wrapping around. The client reads this to offer carrying on instead of carrying on.
@@ -82,6 +88,74 @@ fn transport_transitions_are_explicit_and_preserve_one_host_owner() {
         .expect("stop");
     assert_eq!(stopped.transport, Transport::Stopped);
     assert_eq!(stopped.position_ms, 0);
+}
+
+#[test]
+fn replacing_an_album_starts_at_track_one_after_sync_and_reopen() {
+    for with_receipts in [false, true] {
+        let dir = tempfile::tempdir().expect("temp dir");
+        let host = auth("account-a", "device-a");
+        let store = Store::open(dir.path()).expect("store");
+        let sessions = Sessions::open(store.clone());
+        let session = sessions.create(&host, "Phone").expect("create");
+        let commands = [
+            SessionCommand::QueueAdd {
+                track_ids: (1..=10).map(|index| format!("old-{index}")).collect(),
+            },
+            SessionCommand::CursorJump { index: 6 },
+            SessionCommand::Play,
+            SessionCommand::PositionReport {
+                position_ms: 12_000,
+                duration_ms: Some(240_000),
+            },
+            SessionCommand::QueueClear,
+            SessionCommand::QueueAdd {
+                track_ids: (1..=14).map(|index| format!("new-{index}")).collect(),
+            },
+            SessionCommand::Play,
+        ];
+        for (index, command) in commands.into_iter().enumerate() {
+            let id = format!("command-{index}");
+            let fingerprint = format!("{command:?}");
+            let receipt = with_receipts.then_some((id.as_str(), fingerprint.as_str()));
+            let applied = sessions
+                .command_once(&host, &session.id, command.clone(), receipt)
+                .expect("command");
+            let persisted = sessions
+                .get(&host, &session.id)
+                .expect("get")
+                .expect("session");
+            assert_eq!(persisted, applied);
+            if index == 4 {
+                assert!(persisted.queue.is_empty());
+                assert_eq!(persisted.cursor, None);
+                assert_eq!(persisted.duration_ms, None);
+            }
+            if with_receipts {
+                let replayed = sessions
+                    .command_once(&host, &session.id, command, receipt)
+                    .expect("replay");
+                assert_eq!(replayed, applied);
+            }
+        }
+        let played = sessions
+            .get(&host, &session.id)
+            .expect("get")
+            .expect("session");
+        assert_eq!(played.cursor, Some(0), "receipts: {with_receipts}");
+        assert_eq!(played.current_track_id(), Some("new-1"));
+        assert_eq!(played.position_ms, 0);
+        assert_eq!(played.duration_ms, None);
+        store.close().expect("close");
+        let reopened = Sessions::open(Store::open(dir.path()).expect("reopen"));
+        let persisted = reopened
+            .get(&host, &session.id)
+            .expect("get")
+            .expect("session");
+        assert_eq!(persisted.cursor, Some(0));
+        assert_eq!(persisted.current_track_id(), Some("new-1"));
+        assert_eq!(persisted.duration_ms, None);
+    }
 }
 
 #[test]
@@ -171,6 +245,65 @@ fn reserved_command_ids_bind_content_and_apply_once() {
     assert_eq!(first.queue, ["track-1"]);
     assert_eq!(replay.queue, ["track-1"]);
     assert_eq!(replay.revision, first.revision);
+    assert_eq!(replay.updated_at, first.updated_at);
+}
+
+#[test]
+fn handoff_durably_clears_source_fields_without_resetting_the_target_cursor() {
+    let dir = tempfile::tempdir().expect("temp dir");
+    let store = Store::open(dir.path()).expect("store");
+    let sessions = Sessions::open(store.clone());
+    let host = auth("account-a", "device-a");
+    let target_host = auth("account-a", "device-b");
+    sessions.attach_device("device-a");
+    sessions.attach_device("device-b");
+    let source = sessions.create(&host, "Source").expect("source");
+    let target = sessions.create(&target_host, "Target").expect("target");
+    sessions
+        .command(
+            &host,
+            &source.id,
+            SessionCommand::QueueAdd {
+                track_ids: vec!["one".into(), "two".into(), "three".into()],
+            },
+        )
+        .expect("queue");
+    sessions
+        .command(&host, &source.id, SessionCommand::CursorJump { index: 2 })
+        .expect("jump");
+    sessions
+        .command(
+            &host,
+            &source.id,
+            SessionCommand::PositionReport {
+                position_ms: 12000,
+                duration_ms: Some(240000),
+            },
+        )
+        .expect("position");
+    sessions
+        .command(&host, &source.id, SessionCommand::Play)
+        .expect("play");
+    sessions
+        .handoff(&host, &source.id, &target.id)
+        .expect("handoff");
+    store.close().expect("close");
+    let reopened = Sessions::open(Store::open(dir.path()).expect("reopen"));
+    let cleared = reopened
+        .get(&host, &source.id)
+        .expect("get source")
+        .expect("source");
+    assert!(cleared.queue.is_empty());
+    assert_eq!(cleared.cursor, None);
+    assert_eq!(cleared.duration_ms, None);
+    let carried = reopened
+        .get(&target_host, &target.id)
+        .expect("get target")
+        .expect("target");
+    assert_eq!(carried.cursor, Some(2));
+    assert_eq!(carried.current_track_id(), Some("three"));
+    assert_eq!(carried.position_ms, 12000);
+    assert_eq!(carried.duration_ms, Some(240000));
 }
 
 #[test]

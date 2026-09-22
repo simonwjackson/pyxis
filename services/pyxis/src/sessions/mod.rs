@@ -273,7 +273,7 @@ impl Sessions {
             updated_at: timestamp,
         };
         self.store
-            .put(schema::SESSIONS, &auth.account_id, &record.id, &record)?;
+            .put_session_snapshot(&auth.account_id, &record.id, &record)?;
         Ok(self.session(record))
     }
 
@@ -478,7 +478,7 @@ impl Sessions {
             self.store.put_mixed_batch(
                 &auth.account_id,
                 &[
-                    Store::write(schema::SESSIONS, session_id.to_string(), &record)?,
+                    Store::session_snapshot(session_id.to_string(), &record)?,
                     Store::write(
                         schema::SESSION_COMMAND_RECEIPTS,
                         receipt.id.clone(),
@@ -488,7 +488,7 @@ impl Sessions {
             )?;
         } else {
             self.store
-                .put(schema::SESSIONS, &auth.account_id, session_id, &record)?;
+                .put_session_snapshot(&auth.account_id, session_id, &record)?;
         }
         Ok(self.session(record))
     }
@@ -611,7 +611,7 @@ impl Sessions {
         self.store.put_mixed_batch(
             &auth.account_id,
             &[
-                Store::write(schema::SESSIONS, session_id.to_string(), &record)?,
+                Store::session_snapshot(session_id.to_string(), &record)?,
                 Store::write(
                     schema::SESSION_COMMAND_RECEIPTS,
                     receipt.id.clone(),
@@ -656,7 +656,7 @@ impl Sessions {
         record.updated_by = actor.to_string();
         record.updated_at = now();
         self.store
-            .put(schema::SESSIONS, &auth.account_id, session_id, &record)?;
+            .put_session_snapshot(&auth.account_id, session_id, &record)?;
         Ok(self.session(record))
     }
 
@@ -717,8 +717,8 @@ impl Sessions {
         self.store.put_mixed_batch(
             &auth.account_id,
             &[
-                Store::write(schema::SESSIONS, source.id.clone(), &source)?,
-                Store::write(schema::SESSIONS, target.id.clone(), &target)?,
+                Store::session_snapshot(source.id.clone(), &source)?,
+                Store::session_snapshot(target.id.clone(), &target)?,
             ],
         )?;
         Ok((self.session(source), self.session(target)))
