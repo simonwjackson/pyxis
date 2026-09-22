@@ -14,10 +14,11 @@ result-*
 # Flake-managed symlink to the proseql checkout, created by the devshell hook.
 .cache/
 
-# Local tooling caches
+# Local tooling caches and session handoffs
 .lab/
 .fallow/
 .dev-data/
+.pi-web/
 
 # Environment files with credentials
 .env.local
