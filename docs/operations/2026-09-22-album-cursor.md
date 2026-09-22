@@ -83,8 +83,26 @@ host, including the actual phone trace and the negative-control logs.
 
 ## Remaining work and deployment
 
-Deployment and physical-phone retest are pending. The screen-off stream-loading stall remains
-separate. Diagnostic playhead-reset and late-stream-load defects also remain separate; the user
+Deployed and verified: `7b0aaf7b3cea3d156318cfbcacbe924781814224`.
+
+| Item | Verified value |
+| --- | --- |
+| Package | `/nix/store/zj4ildac5rqbga5l1dv94h25yr6kxsiy-pyxis-2.0.0` |
+| Running core | `/nix/store/4sx8g5147kb8pywcj359c1473sx0w3bg-pyxis-core-2.0.0/bin/pyxis` |
+| Player bundle | `index-C607_03P.js`, unchanged. |
+
+A real-process smoke used the package's actual core binary, an isolated temporary store, and
+zero plugins. The old package returned cursor 6 and `b-7`. The new package returned cursor 0,
+`b-1`, zero position, and no inherited duration. No live account or speaker was used.
+
+The running service executable matches that tested core binary. Both Pyxis user services are
+active. Local and tailnet health checks return 200; shell, bundle, and service-worker bytes match
+the installed artifact at both origins. No reachable playing session was reported before the
+restart. Profile priority 5 was preserved.
+
+Physical-phone retest is pending. This is a server correction; a client update is not required.
+Choose the album again to replace the queue through the corrected path. Do not clear site data.
+The screen-off stream-loading stall remains separate. Diagnostic playhead-reset and late-stream-load defects also remain separate; the user
 explicitly clarified that these did not describe the track-number report.
 
 No Sonos playback, queue, grouping, or volume command was issued. Temporary phone worker-message

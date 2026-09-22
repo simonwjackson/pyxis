@@ -31,8 +31,11 @@ writes now replace those fields inside the existing receipt/handoff transaction.
 regressions fail before the correction and pass after it. All 18 focused session/RPC/snapshot tests
 pass; independent review found no blocker. Full Rust results are 206 passed and 1 inherited,
 date-dependent listen-test failure, also reproduced on unchanged main. Client gates retain their
-documented exceptions. Deployment and phone retest are pending. See
-`docs/operations/2026-09-22-album-cursor.md`. No frontend playback change or Sonos command occurred.
+documented exceptions. `7b0aaf7` is deployed. The package's actual core passes isolated real-process
+album replacement, and `/proc` confirms that binary is running. Both services and local/tailnet
+health checks pass; served assets match the installed package. The player bundle is unchanged.
+Phone retest is pending. See `docs/operations/2026-09-22-album-cursor.md`. No frontend playback
+change or Sonos command occurred.
 
 **Phone media controls, 2026-09-22.** A sync failure cleared the app's Media Session metadata and
 transport while the renderer kept playing its retained local session. The app now reads that same

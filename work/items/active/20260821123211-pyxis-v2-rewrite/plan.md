@@ -97,8 +97,9 @@ everything provider-shaped lives at the edge behind a plugin protocol.
   replacement returns cursor 0, then the core returns the previous cursor 6 with the new album.
   Session records omitted cleared fields into a merge-style database update. Session-only
   snapshot writes now remove those fields atomically with command receipts and handoff. Service
-  and RPC negative controls fail before the fix and pass after it. Deployment and phone retest
-  are pending. See `docs/operations/2026-09-22-album-cursor.md`. Separate diagnostic playhead-reset
+  and RPC negative controls fail before the fix and pass after it. `7b0aaf7` is deployed. The
+  actual package binary passes isolated real-process testing and matches the running core.
+  Phone retest is pending. See `docs/operations/2026-09-22-album-cursor.md`. Separate diagnostic playhead-reset
   and late-load defects remain open; they did not match the user's clarified track-number report.
 - **Date-dependent listen RPC test, 2026-09-22.** `batch_append_replay_history_and_hot_are_public_contracts`
   uses August 21 fixtures with a 30-day hot-album window. It fails on unchanged main on September 22.
