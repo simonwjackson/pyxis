@@ -98,7 +98,11 @@ let pendingSession: Promise<RpcSession> | undefined
 const playbackEdge: PlaybackEdge = {
   sessions: () => worker.sessions(),
   applySessionEvent: (session) => worker.applySessionEvent(session),
-  queueSessionCommand: (session, command) => worker.queueSessionCommand(session, command),
+  session: (id) => worker.session(id),
+  previewSessionCommand: (id, command, commandId) =>
+    worker.previewSessionCommand(id, command, commandId),
+  queueSessionCommand: (session, command, commandId, expectedRevision) =>
+    worker.queueSessionCommand(session, command, commandId, expectedRevision),
   queueListen: (event) => worker.queueListen(event),
   touchOfflineTrack: (trackId) => worker.touchOfflineTrack(trackId),
   syncSessions: (origin) => worker.syncSessions(origin),

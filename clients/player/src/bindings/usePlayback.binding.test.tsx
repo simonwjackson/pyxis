@@ -1,12 +1,4 @@
-import {
-  act,
-  cleanup,
-  fireEvent,
-  render,
-  renderHook,
-  screen,
-  waitFor,
-} from "@testing-library/react"
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { afterEach, expect, test, vi } from "vitest"
 import {
   type ListenTrackEventInput,
@@ -15,6 +7,9 @@ import {
   type RpcSessionDirective,
   RpcTransport,
 } from "../../../../contracts/generated/pyxis"
+import { SESSION_CHANGED_DURING_CONFIRMATION } from "../../../app/src/worker/contract"
+import { applySessionCommand } from "../../../app/src/worker/session-local"
+import { renderPlayback as renderHook } from "../../test/render-playback"
 import { AudioRenderer } from "./AudioRenderer.binding.tsx"
 import { type PlaybackEdge, usePlayback } from "./usePlayback.binding.tsx"
 
@@ -37,65 +32,6 @@ const session = (patch: Partial<RpcSession> = {}): RpcSession => ({
   ...patch,
 })
 
-/// Applies just enough of a command to keep the fake session coherent.
-///
-/// `transport.trackEnded` mirrors the core: the cursor moves while the queue still has
-/// something on it, and only an exhausted queue reaches `Ended`. The client must never make
-/// that choice itself, but it does have to follow it, and a fake that always ended hid the
-/// fact that it never did -- an album played its first track and then stopped.
-function apply(current: RpcSession, command: RpcSessionCommand): RpcSession {
-  const next = { ...current, revision: current.revision + 1 }
-  switch (command._tag) {
-    case "queue.clear": {
-      // Omitted rather than set to undefined: an empty queue has no cursor at all.
-      const { cursor: _cursor, currentTrackId: _track, ...rest } = next
-      return { ...rest, queue: [] }
-    }
-    case "queue.add": {
-      const queue = [...next.queue, ...command.payload.trackIds]
-      const first = queue[0]
-      return {
-        ...next,
-        queue,
-        cursor: 0,
-        ...(first === undefined ? {} : { currentTrackId: first }),
-      }
-    }
-    case "cursor.jump": {
-      // Mirrors the core: choosing a track and starting it are separate decisions there, so
-      // a jump stops. A fake that kept playing would let a skip that never plays look fine.
-      const track = next.queue[command.payload.index]
-      return {
-        ...next,
-        cursor: command.payload.index,
-        transport: RpcTransport.Stopped,
-        positionMs: 0,
-        ...(track === undefined ? {} : { currentTrackId: track }),
-      }
-    }
-    case "transport.play":
-      return { ...next, transport: RpcTransport.Playing }
-    case "transport.pause":
-      return { ...next, transport: RpcTransport.Paused }
-    case "transport.trackEnded": {
-      const at = next.cursor === undefined ? undefined : next.cursor + 1
-      if (at === undefined || at >= next.queue.length)
-        return { ...next, transport: RpcTransport.Ended, positionMs: 0 }
-      const track = next.queue[at]
-      return {
-        ...next,
-        cursor: at,
-        positionMs: 0,
-        ...(track === undefined ? {} : { currentTrackId: track }),
-      }
-    }
-    case "position.report":
-      return { ...next, positionMs: command.payload.positionMs }
-    default:
-      return next
-  }
-}
-
 interface Harness {
   readonly edge: PlaybackEdge
   readonly commands: RpcSessionCommand[]
@@ -113,15 +49,29 @@ function harness(initial: RpcSession, options: { holdStream?: boolean } = {}): H
   const listens: ListenTrackEventInput[] = []
   const loads: string[] = []
   const held: (() => void)[] = []
+  const receipts = new Map<string, string>()
   const edge: PlaybackEdge = {
+    session: async (id) => (id === current.id ? current : undefined),
+    previewSessionCommand: async (id, command, commandId) => {
+      if (id !== current.id) throw new Error("unknown session")
+      const prior = receipts.get(commandId)
+      if (prior !== undefined && prior !== JSON.stringify(command))
+        throw new Error("commandId conflict")
+      if (prior === undefined) applySessionCommand(current, command)
+      return { session: current, replayed: prior !== undefined }
+    },
     sessions: async () => [current],
     applySessionEvent: async (next) => {
       if (next.revision >= current.revision) current = next
       return { status: "applied", session: current }
     },
-    queueSessionCommand: async (target, command) => {
+    queueSessionCommand: async (_target, command, commandId, expectedRevision) => {
+      if (commandId !== undefined && receipts.has(commandId)) return current
+      if (expectedRevision !== undefined && current.revision !== expectedRevision)
+        throw new Error(SESSION_CHANGED_DURING_CONFIRMATION)
       commands.push(command)
-      current = apply(target, command)
+      current = applySessionCommand(current, command)
+      if (commandId !== undefined) receipts.set(commandId, JSON.stringify(command))
       return current
     },
     queueListen: async (event) => {
@@ -219,25 +169,24 @@ test("a re-render does not reload the stream", async () => {
   expect(fake.loads).toEqual(["track-1"])
 })
 
-test("a second request for the same track does not swap the source mid-play", async () => {
-  // The genuine race: a slow stream is still resolving when the listener pauses and starts
-  // again. Without a guard the second resolution swaps `src` out from under audio that is
-  // already playing, which restarts the track from zero.
-  const fake = harness(session(), { holdStream: true })
-  render(<Probe edge={fake.edge} />)
+test("a cancelled load cannot replace the source after a confirmed retry", async () => {
+  const source = harness(session(), { holdStream: true })
+  const play = vi.spyOn(HTMLMediaElement.prototype, "play").mockResolvedValue(undefined)
+  const { container } = render(<Probe edge={source.edge} />)
 
-  await waitFor(() => expect(fake.loads).toEqual(["track-1"]))
+  await waitFor(() => expect(source.loads).toEqual(["track-1"]))
   fireEvent.click(screen.getByRole("button", { name: "Pause" }))
   await waitFor(() => expect(screen.getByTestId("transport").textContent).toBe("paused"))
   fireEvent.click(screen.getByRole("button", { name: "Play" }))
+  await waitFor(() => expect(source.loads).toHaveLength(2))
+  expect(screen.getByTestId("transport").textContent).toBe("paused")
+  expect(source.commands.some((command) => command._tag === "transport.play")).toBe(false)
+
+  await act(async () => source.releaseStream())
   await waitFor(() => expect(screen.getByTestId("transport").textContent).toBe("playing"))
-
-  await act(async () => {
-    fake.releaseStream()
-    await Promise.resolve()
-  })
-
-  expect(fake.loads).toEqual(["track-1"])
+  expect(audioOf(container).getAttribute("src")).toBe("/stream/track-1")
+  expect(play).toHaveBeenCalledTimes(1)
+  play.mockRestore()
 })
 
 test("a slow load for the previous track cannot overwrite the current one", async () => {
@@ -808,10 +757,12 @@ test("the previous audio element cannot end the newly selected album while it lo
   }
   const { container } = render(<Probe edge={edge} />)
   await waitFor(() => expect(audioOf(container).getAttribute("src")).toBe("/stream/track-1"))
+  const previous = audioOf(container)
   fireEvent.click(screen.getByRole("button", { name: "Play album" }))
-  await waitFor(() => expect(source.commands.at(-1)?._tag).toBe("transport.play"))
+  await waitFor(() => expect(source.commands.at(-1)?._tag).toBe("queue.add"))
+  expect(source.commands.some((command) => command._tag === "transport.play")).toBe(false)
 
-  await act(async () => fireEvent.ended(audioOf(container)))
+  await act(async () => fireEvent.ended(previous))
 
   expect(source.commands.some((command) => command._tag === "transport.trackEnded")).toBe(false)
   expect(source.listens).toEqual([])

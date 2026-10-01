@@ -1904,8 +1904,11 @@ describe("console mode", () => {
     await waitFor(() => expect(pause).toHaveBeenCalled())
   })
 
-  test("does not report a directed Play when the browser refuses autoplay", async () => {
-    let deliver: ((directive: RpcSessionDirective) => void) | undefined
+  test("retains a refused Play error through search, reconnect and unrelated directives until playback retry", async () => {
+    let handlers: RealtimeHandlers | undefined
+    let pluginReads = 0
+    let failSessionSync = false
+    let failedSessionSyncs = 0
     const play = vi
       .spyOn(HTMLMediaElement.prototype, "play")
       .mockRejectedValueOnce(new Error("autoplay refused"))
@@ -1920,12 +1923,42 @@ describe("console mode", () => {
         transport: RpcTransport.Stopped,
       }),
     )
-    const store = persistent(createDirectWorkerClient(async () => database))
+    const backing = persistent(createDirectWorkerClient(async () => database))
+    const store: WorkerClient = {
+      ...backing,
+      syncSessions: async (...args) => {
+        const report = await backing.syncSessions(...args)
+        if (failSessionSync) {
+          failedSessionSyncs += 1
+          throw new Error("session sync unavailable")
+        }
+        return report
+      },
+    }
     const configured: ReferenceClient = {
       ...client([]),
+      listPlugins: async () => {
+        pluginReads += 1
+        return []
+      },
+      search: async () => ({
+        tracks: [
+          {
+            id: "found",
+            externalId: "found-source-id",
+            title: "Found song",
+            artist: "Artist",
+            sourcePluginId: "source",
+          },
+        ],
+        albums: [],
+        artists: [],
+        noSources: false,
+        failures: [],
+      }),
       loadStream: async () => "blob:track-1",
-      connectRealtime: (_token, handlers) => {
-        deliver = handlers.onDirective
+      connectRealtime: (_token, next) => {
+        handlers = next
         return () => {}
       },
     }
@@ -1933,12 +1966,15 @@ describe("console mode", () => {
       <ReferenceApp client={configured} worker={store}>
         <ReferencePlugins />
         <ReferenceAudio />
+        <ReferenceLibrary />
+        <ReferenceConsole />
       </ReferenceApp>,
     )
-    await waitFor(() => expect(deliver).toBeTypeOf("function"))
+    await waitFor(() => expect(handlers).toBeDefined())
+    await waitFor(() => expect(screen.getByText("Status: ready")).toBeTruthy())
 
     act(() =>
-      deliver?.({
+      handlers?.onDirective({
         sessionId: "mine",
         command: { _tag: "transport.play", payload: {} },
         issuedBy: "device-2",
@@ -1950,6 +1986,115 @@ describe("console mode", () => {
     await waitFor(() => expect(screen.getByRole("alert").textContent).toContain("autoplay refused"))
     expect((await database.session("mine"))?.transport).toBe(RpcTransport.Stopped)
     expect(await database.outbox()).toEqual([])
+
+    fireEvent.change(screen.getByLabelText("Query"), { target: { value: "Artist" } })
+    fireEvent.click(screen.getByRole("button", { name: "Search" }))
+    await screen.findByText(/Found song/)
+    expect(screen.getByRole("alert").textContent).toContain("autoplay refused")
+    expect(screen.getByText("Status: error")).toBeTruthy()
+
+    const beforeReconnect = pluginReads
+    await act(async () => {
+      fireEvent(window, new Event("online"))
+    })
+    await waitFor(() => expect(pluginReads).toBeGreaterThan(beforeReconnect))
+    expect(screen.getByRole("alert").textContent).toContain("autoplay refused")
+    await act(async () => {
+      handlers?.onConnected?.()
+      await handlers?.onResync()
+    })
+    expect(screen.getByRole("alert").textContent).toContain("autoplay refused")
+
+    failSessionSync = true
+    act(() =>
+      handlers?.onDirective({
+        sessionId: "mine",
+        command: { _tag: "volume.set", payload: { volume: 70 } },
+        issuedBy: "device-2",
+        directiveId: "volume-after-refusal",
+      }),
+    )
+    await waitFor(async () => expect((await database.session("mine"))?.volume).toBe(70))
+    await waitFor(() => expect(failedSessionSyncs).toBe(1))
+    expect(screen.getByRole("alert").textContent).toContain("autoplay refused")
+    expect(play).toHaveBeenCalledTimes(1)
+
+    failSessionSync = false
+    fireEvent.click(screen.getByRole("button", { name: "Play" }))
+    await waitFor(async () =>
+      expect((await database.session("mine"))?.transport).toBe(RpcTransport.Playing),
+    )
+    await waitFor(() => expect(screen.queryByRole("alert")).toBeNull())
+    expect(screen.getByText("Status: ready")).toBeTruthy()
+    expect(play).toHaveBeenCalledTimes(2)
+  })
+
+  test("retains renderer failure through receipt-only Play redelivery and clears it after a fresh confirmed directive", async () => {
+    let handlers: RealtimeHandlers | undefined
+    let sessionSyncs = 0
+    const play = vi.spyOn(HTMLMediaElement.prototype, "play").mockResolvedValue(undefined)
+    const database = await openWorkerDatabase({ engine: createMemoryEngine() })
+    await database.putSession(
+      session({
+        id: "mine",
+        hostDeviceId: "device-1",
+        queue: ["track-1"],
+        cursor: 0,
+        currentTrackId: "track-1",
+      }),
+    )
+    const backing = persistent(createDirectWorkerClient(async () => database))
+    const store: WorkerClient = {
+      ...backing,
+      syncSessions: async (...args) => {
+        const report = await backing.syncSessions(...args)
+        sessionSyncs += 1
+        return report
+      },
+    }
+    const configured: ReferenceClient = {
+      ...client([]),
+      connectRealtime: (_token, next) => {
+        handlers = next
+        return () => {}
+      },
+    }
+    const { container } = render(
+      <ReferenceApp client={configured} worker={store}>
+        <ReferencePlugins />
+        <ReferenceAudio />
+      </ReferenceApp>,
+    )
+    await waitFor(() => expect(handlers).toBeDefined())
+    const directive: RpcSessionDirective = {
+      sessionId: "mine",
+      command: { _tag: "transport.play", payload: {} },
+      issuedBy: "console",
+      directiveId: "confirmed-play",
+    }
+    act(() => handlers?.onDirective(directive))
+    await waitFor(() => expect(sessionSyncs).toBe(1))
+    expect((await database.session("mine"))?.transport).toBe(RpcTransport.Playing)
+    const audio = container.querySelector("audio")
+    if (audio === null) throw new Error("fixture renderer missing")
+    act(() => audio.dispatchEvent(new Event("error")))
+    await waitFor(() => expect(sessionSyncs).toBe(2))
+    expect((await database.session("mine"))?.transport).toBe(RpcTransport.Paused)
+    expect(screen.getByRole("alert").textContent).toContain("Audio renderer failed")
+
+    act(() => handlers?.onDirective(directive))
+    await waitFor(() => expect(sessionSyncs).toBe(3))
+    expect(screen.getByRole("alert").textContent).toContain("Audio renderer failed")
+    expect(screen.getByText("Status: error")).toBeTruthy()
+    expect((await database.session("mine"))?.transport).toBe(RpcTransport.Paused)
+    expect(play).toHaveBeenCalledTimes(1)
+
+    act(() => handlers?.onDirective({ ...directive, directiveId: "renderer-retry" }))
+    await waitFor(() => expect(sessionSyncs).toBe(4))
+    await waitFor(() => expect(screen.queryByRole("alert")).toBeNull())
+    expect(screen.getByText("Status: ready")).toBeTruthy()
+    expect((await database.session("mine"))?.transport).toBe(RpcTransport.Playing)
+    expect(play).toHaveBeenCalledTimes(2)
   })
 
   test("rejects a stale cursor directive before stopping real audio", async () => {
@@ -2393,6 +2538,84 @@ describe("console mode", () => {
       { commandId: "jump-1", command: { _tag: "cursor.jump" } },
     ])
   })
+
+  test.each([RpcTransport.Stopped, RpcTransport.Paused])(
+    "Pause cancels an explicit unconfirmed Play from %s without a durable Pause",
+    async (transport) => {
+      let deliver: ((directive: RpcSessionDirective) => void) | undefined
+      let releaseStream: (() => void) | undefined
+      const loadStream = vi.fn(
+        () =>
+          new Promise<string>((resolve) => {
+            releaseStream = () => resolve("blob:late-track")
+          }),
+      )
+      const database = await openWorkerDatabase({ engine: createMemoryEngine() })
+      await database.putSession(
+        session({
+          id: "mine",
+          hostDeviceId: "device-1",
+          queue: ["track-1"],
+          cursor: 0,
+          currentTrackId: "track-1",
+          transport,
+        }),
+      )
+      const backing = persistent(createDirectWorkerClient(async () => database))
+      const syncSessions = vi.fn(() => backing.syncSessions())
+      const store = { ...backing, syncSessions }
+      const configured: ReferenceClient = {
+        ...client([]),
+        loadStream,
+        connectRealtime: (_token, handlers) => {
+          deliver = handlers.onDirective
+          return () => {}
+        },
+      }
+      render(
+        <ReferenceApp client={configured} worker={store}>
+          <ReferenceAudio />
+        </ReferenceApp>,
+      )
+      await waitFor(() => expect(deliver).toBeTypeOf("function"))
+      act(() =>
+        deliver?.({
+          sessionId: "mine",
+          command: { _tag: "transport.play", payload: {} },
+          issuedBy: "console",
+          directiveId: "pending-play",
+        }),
+      )
+      await waitFor(() => expect(loadStream).toHaveBeenCalledTimes(1))
+      act(() =>
+        deliver?.({
+          sessionId: "mine",
+          command: { _tag: "transport.pause", payload: {} },
+          issuedBy: "console",
+          directiveId: "cancel-play",
+        }),
+      )
+      // Both directives settle before the held stream resolves. Neither reports Playing
+      // or invents a successful Pause against the stopped/paused durable session.
+      await waitFor(() => expect(syncSessions).toHaveBeenCalledTimes(2))
+      expect((await database.session("mine"))?.transport).toBe(transport)
+      expect(await database.outbox()).toEqual([])
+      await act(async () => {
+        releaseStream?.()
+        await Promise.resolve()
+      })
+      expect(screen.getByText("No audio loaded.")).toBeTruthy()
+      expect(
+        (
+          await store.previewSessionCommand(
+            "mine",
+            { _tag: "transport.play", payload: {} },
+            "pending-play",
+          )
+        ).replayed,
+      ).toBe(false)
+    },
+  )
 
   test("a directed Pause cancels a stream that is still loading", async () => {
     let deliver: ((directive: RpcSessionDirective) => void) | undefined

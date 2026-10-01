@@ -99,6 +99,25 @@ everything provider-shaped lives at the edge behind a plugin protocol.
   retry. Closing that window needs a durable pre-request decision or server receipts, outside
   this local-only correction. Command and listen retries retain their existing IDs. See
   `docs/operations/2026-10-01-local-sync-settlement.md`.
+- **Shared renderer-confirmed commands, 2026-09-30.** The architecture review found that the
+  product client records Playing before audio confirmation and deduplicates directives before
+  completion. The reference client already confirms, persists, and rolls back through the
+  worker's preview/receipt/revision contract. The user selected sharing this behavior between
+  both clients. Failed remote commands will show errors on the playback host only in this
+  change, by explicit user decision. The console receives resulting session state, not a
+  correlated failure. If album queue replacement succeeds but Play fails, the new album stays
+  selected and ready for retry. Successful queue changes are not rolled back. Pause during an
+  unconfirmed Play cancels it locally and retains the prior Stopped or Paused state. It does not
+  invent a Playing write or a successful Pause receipt; later redelivery remains retryable.
+  The user selected this after both state machines were found to reject Pause before Playing.
+  Both clients now use one non-React confirmation owner. It checks durable receipts and ownership,
+  confirms renderer effects, commits expected revisions, and rolls back failed transitions.
+  Submitted Play writes settle before separate cancellation corrections. Failed corrections keep
+  audio paused and expose the error without automatic restart. Fresh Play explicitly retries.
+  Native refusal, retry, error retention, deduplication, rollback, and loading cancellation pass.
+  No wire, core, or worker-schema change is required. Deployment is pending the final integrated gate.
+  See `docs/operations/2026-10-01-renderer-confirmed-commands.md` for evidence and limits.
+  This does not diagnose the phone's stream stall or Chrome suspension.
 - **Album track-number carryover, 2026-09-22.** Physical phone tracing confirms local queue
   replacement returns cursor 0, then the core returns the previous cursor 6 with the new album.
   Session records omitted cleared fields into a merge-style database update. Session-only

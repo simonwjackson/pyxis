@@ -7,6 +7,7 @@ import {
   type RpcSessionCommand,
   RpcTransport,
 } from "../../../../contracts/generated/pyxis"
+import { applySessionCommand } from "../../../app/src/worker/session-local"
 import type { ClaimResult } from "../model/account"
 import type { OfflineOverviewRecord } from "../model/offline"
 import { App } from "./App.binding.tsx"
@@ -105,16 +106,33 @@ const mount = (
     claim: async () => GRANT,
     ...ports.account,
   }
+  let playbackState = session()
   const playbackPort: PlaybackEdge = {
+    session: async () => playbackState,
+    previewSessionCommand: async (id, command) => {
+      const observed = (await ports.playback?.sessions?.())?.find(
+        (candidate) => candidate.id === id,
+      )
+      if (observed !== undefined && observed.revision >= playbackState.revision)
+        playbackState = observed
+      applySessionCommand(playbackState, command)
+      return { session: playbackState, replayed: false }
+    },
     sessions: async () => [],
     applySessionEvent: async (session) => ({ status: "applied", session }),
-    queueSessionCommand: async (current) => current,
     queueListen: async () => undefined,
     touchOfflineTrack: async () => undefined,
     syncSessions: async () => ({ offline: false, authRequired: false, deferred: 0 }),
     loadStream: async (trackId) => `blob:${trackId}`,
     ensureSession: async () => session(),
     ...ports.playback,
+    queueSessionCommand: async (current, command, commandId, expectedRevision) => {
+      playbackState =
+        ports.playback?.queueSessionCommand === undefined
+          ? applySessionCommand(current, command)
+          : await ports.playback.queueSessionCommand(current, command, commandId, expectedRevision)
+      return playbackState
+    },
   }
   return render(
     <App
@@ -316,7 +334,7 @@ describe("choosing an album", () => {
           ensureSession,
           queueSessionCommand: async (current, command) => {
             commands.push(command)
-            return current
+            return applySessionCommand(current, command)
           },
         },
       },

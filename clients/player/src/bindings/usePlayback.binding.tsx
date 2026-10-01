@@ -10,13 +10,17 @@
 /// finishes leaves silence, and the offer to continue is a button someone presses, not a
 /// timer that fires. Auto-advance is why every other player turns an album into a feed.
 
-import { useCallback, useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import type {
   ListenTrackEventInput,
   RpcSession,
   RpcSessionCommand,
   RpcSessionDirective,
 } from "../../../../contracts/generated/pyxis"
+import {
+  type ConfirmedPlaybackHost,
+  createConfirmedPlaybackHost,
+} from "../../../app/src/playback/confirmed-host"
 import type { WorkerClient } from "../../../app/src/worker/client.ts"
 import {
   loading,
@@ -36,7 +40,9 @@ import { chooseLocalSession, type PlaybackView, readSession } from "../model/pla
 export interface PlaybackWorkerEdge {
   sessions(): Promise<readonly RpcSession[]>
   applySessionEvent: WorkerClient["applySessionEvent"]
-  queueSessionCommand(session: RpcSession, command: RpcSessionCommand): Promise<RpcSession>
+  session: WorkerClient["session"]
+  previewSessionCommand: WorkerClient["previewSessionCommand"]
+  queueSessionCommand: WorkerClient["queueSessionCommand"]
   queueListen(event: ListenTrackEventInput): Promise<void>
   touchOfflineTrack(trackId: string): Promise<void>
   syncSessions(origin?: string): Promise<SyncOutcome>
@@ -134,21 +140,9 @@ export function usePlayback(edge: PlaybackEdge, options: PlaybackOptions = {}): 
 
   const audioElement = useRef<HTMLAudioElement | null>(null)
   const session = useRef<RpcSession | undefined>(undefined)
-  /// Which track the loaded URL belongs to. Reloading the same track would swap the
-  /// element's `src` and silently restart it from the beginning, so a re-render that
-  /// touches this binding must not reach the network.
-  const loadedTrack = useRef<string | undefined>(undefined)
-  /// In-flight load, so a double press cannot download the same track twice and swap the
-  /// element's source out from under playback.
-  const inFlight = useRef<{ trackId: string; promise: Promise<void> } | undefined>(undefined)
-  const loadGeneration = useRef(0)
-  /// Where freshly loaded audio should start. Consumed exactly once, so a resume can never
-  /// fight a manual seek made afterwards: rewinding is the listener's decision.
-  const pendingSeekMs = useRef<number | undefined>(undefined)
+  const hostFailure = useRef<string | undefined>(undefined)
   /// Discards a slow earlier read that would otherwise land after a newer one.
   const generation = useRef(0)
-  /// Directives already carried out, so a redelivery after a reconnect is not applied twice.
-  const seenDirectives = useRef<Set<string>>(new Set())
   const selectedId = useRef<string | undefined>(undefined)
   const pendingEvent = useRef<RpcSession | undefined>(undefined)
   const eventGeneration = useRef(0)
@@ -159,7 +153,12 @@ export function usePlayback(edge: PlaybackEdge, options: PlaybackOptions = {}): 
     generation.current += 1
     session.current = next
     if (next !== undefined) selectedId.current = next.id
-    setPlayback(ready(next === undefined ? undefined : readSession(next)))
+    const view = next === undefined ? undefined : readSession(next)
+    setPlayback(
+      hostFailure.current === undefined
+        ? ready(view)
+        : unavailable({ kind: "failed", message: hostFailure.current }, view),
+    )
   }, [])
 
   const select = useCallback(
@@ -186,7 +185,8 @@ export function usePlayback(edge: PlaybackEdge, options: PlaybackOptions = {}): 
     try {
       sessions = await edge.sessions()
     } catch (cause) {
-      if (current()) setPlayback(unavailable({ kind: "failed", message: String(cause) }))
+      if (current())
+        setPlayback(unavailable({ kind: "failed", message: hostFailure.current ?? String(cause) }))
       return
     }
     if (!current()) return
@@ -194,7 +194,11 @@ export function usePlayback(edge: PlaybackEdge, options: PlaybackOptions = {}): 
     const view = local === undefined ? undefined : readSession(local)
     if (pendingCommands.current === 0) {
       session.current = local
-      setPlayback(ready(view, "local"))
+      setPlayback(
+        hostFailure.current === undefined
+          ? ready(view, "local")
+          : unavailable({ kind: "failed", message: hostFailure.current }, view),
+      )
     }
 
     let outcome: SyncOutcome
@@ -202,7 +206,9 @@ export function usePlayback(edge: PlaybackEdge, options: PlaybackOptions = {}): 
       outcome = await edge.syncSessions()
     } catch (cause) {
       if (current()) {
-        setPlayback(unavailable({ kind: "failed", message: String(cause) }, view))
+        setPlayback(
+          unavailable({ kind: "failed", message: hostFailure.current ?? String(cause) }, view),
+        )
       }
       return
     }
@@ -221,16 +227,18 @@ export function usePlayback(edge: PlaybackEdge, options: PlaybackOptions = {}): 
       const next = chosen === undefined ? undefined : readSession(chosen)
       session.current = chosen
       setPlayback(
-        outcome.offline || outcome.authRequired || outcome.failure !== undefined
-          ? unavailable(
-              outcome.authRequired
-                ? { kind: "auth-required" }
-                : outcome.offline
-                  ? { kind: "offline" }
-                  : { kind: "failed", message: outcome.failure ?? "sync failed" },
-              next,
-            )
-          : ready(next, "live"),
+        hostFailure.current !== undefined
+          ? unavailable({ kind: "failed", message: hostFailure.current }, next)
+          : outcome.offline || outcome.authRequired || outcome.failure !== undefined
+            ? unavailable(
+                outcome.authRequired
+                  ? { kind: "auth-required" }
+                  : outcome.offline
+                    ? { kind: "offline" }
+                    : { kind: "failed", message: outcome.failure ?? "sync failed" },
+                next,
+              )
+            : ready(next, "live"),
       )
     } catch {
       // Keep what is already shown. The session list is still the one just read.
@@ -241,7 +249,7 @@ export function usePlayback(edge: PlaybackEdge, options: PlaybackOptions = {}): 
     session.current = undefined
     selectedId.current = undefined
     pendingEvent.current = undefined
-    seenDirectives.current.clear()
+    hostFailure.current = undefined
     void read()
     return () => {
       generation.current += 1
@@ -257,7 +265,14 @@ export function usePlayback(edge: PlaybackEdge, options: PlaybackOptions = {}): 
       commands.current = commands.current
         .then(action)
         .catch((cause: unknown) => {
-          setPlayback(unavailable({ kind: "failed", message: String(cause) }))
+          if (cause instanceof DOMException && cause.name === "AbortError") return
+          hostFailure.current = String(cause)
+          setPlayback(
+            unavailable(
+              { kind: "failed", message: hostFailure.current },
+              session.current === undefined ? undefined : readSession(session.current),
+            ),
+          )
         })
         .finally(() => {
           pendingCommands.current -= 1
@@ -267,80 +282,71 @@ export function usePlayback(edge: PlaybackEdge, options: PlaybackOptions = {}): 
     [read],
   )
 
-  /// Resolve a stream URL for one track, at most once.
-  const loadAudioFor = useCallback(
-    async (trackId: string) => {
-      if (loadedTrack.current === trackId && audioUrl !== undefined) return
-      const running = inFlight.current
-      if (running?.trackId === trackId) {
-        await running.promise
-        return
-      }
-      loadGeneration.current += 1
-      const mine = loadGeneration.current
-      const promise = (async () => {
-        const url = await edge.loadStream(trackId)
-        if (loadGeneration.current !== mine) {
-          // A newer load won. Release the object URL rather than leaking it.
-          if (url.startsWith("blob:") && typeof URL.revokeObjectURL === "function") {
-            URL.revokeObjectURL(url)
-          }
-          return
-        }
-        loadedTrack.current = trackId
-        pendingSeekMs.current = session.current?.positionMs ?? 0
-        setAudioUrl(url)
-        await edge.touchOfflineTrack(trackId).catch(() => undefined)
-      })()
-      inFlight.current = { trackId, promise }
-      try {
-        await promise
-      } finally {
-        if (inFlight.current?.promise === promise) inFlight.current = undefined
-      }
+  const hostSlot = useMemo(
+    () => ({
+      current: undefined as ConfirmedPlaybackHost | undefined,
+      create: () =>
+        createConfirmedPlaybackHost({
+          store: edge,
+          loadStream: (trackId) => edge.loadStream(trackId),
+          selectedSession: () => session.current,
+          deviceId: () => deviceId,
+          publishSession: publish,
+          publishAudioUrl: setAudioUrl,
+          reportFailure: (cause) => {
+            hostFailure.current = String(cause)
+            setPlayback(
+              unavailable(
+                { kind: "failed", message: hostFailure.current },
+                session.current === undefined ? undefined : readSession(session.current),
+              ),
+            )
+          },
+          requestSessionSync: () => {
+            void read()
+          },
+          newCommandId: () => crypto.randomUUID(),
+        }),
+    }),
+    [deviceId, edge, publish, read],
+  )
+  const playbackHost = useCallback(() => {
+    hostSlot.current ??= hostSlot.create()
+    return hostSlot.current
+  }, [hostSlot])
+  useEffect(
+    () => () => {
+      hostSlot.current?.dispose()
+      hostSlot.current = undefined
     },
-    [audioUrl, edge],
+    [hostSlot],
   )
 
   const view = shownValue(playback)
-  const trackId = view?.currentTrackId
   const transport = view?.transport
-
-  /// Load only when the track actually changed.
-  ///
-  /// The "has this already loaded" decision lives in `loadAudioFor` alone. Repeating it here
-  /// as an early return looked like a harmless optimisation and was worse than useless: it
-  /// made the real guard unreachable, so a test could not tell a working guard from a
-  /// deleted one. Two copies of one decision means one of them is dead.
   useEffect(() => {
-    if (trackId === undefined || transport !== "playing") return
-    void loadAudioFor(trackId).catch(() => undefined)
-  }, [loadAudioFor, trackId, transport])
-
-  /// Drive the element from the session, consuming any pending seek exactly once.
-  useEffect(() => {
-    const audio = audioElement.current
-    if (audio === null) return
-    if (transport === "playing" && audioUrl !== undefined && loadedTrack.current === trackId) {
-      const resumeFrom = pendingSeekMs.current
-      pendingSeekMs.current = undefined
-      if (resumeFrom !== undefined && resumeFrom > 0) audio.currentTime = resumeFrom / 1000
-      // jsdom returns undefined here where a browser returns a promise, so this must not
-      // assume a thenable. Autoplay refusal is a real browser outcome and is swallowed
-      // rather than thrown into a render.
-      void Promise.resolve(audio.play()).catch(() => undefined)
-      return
-    }
-    audio.pause()
-  }, [audioUrl, trackId, transport])
+    playbackHost().renderSession(
+      view?.sessionId === session.current?.id ? session.current : undefined,
+    )
+  }, [playbackHost, view])
 
   const command = useCallback(
     async (next: RpcSessionCommand, target?: RpcSession) => {
       const on = target ?? session.current
       if (on === undefined || on.hostDeviceId !== deviceId) return
-      publish(await edge.queueSessionCommand(on, next))
+      const outcome = await playbackHost().execute(on.id, next)
+      if (
+        next._tag === "transport.play" &&
+        outcome._tag === "Applied" &&
+        !outcome.replayed &&
+        outcome.session.transport === "playing"
+      ) {
+        hostFailure.current = undefined
+        publish(session.current)
+      }
+      return outcome.session
     },
-    [deviceId, edge, publish],
+    [deviceId, playbackHost, publish],
   )
 
   /// Tell the core where this host actually is.
@@ -349,7 +355,7 @@ export function usePlayback(edge: PlaybackEdge, options: PlaybackOptions = {}): 
   /// resumes every track from zero. A zero reading is skipped because it is far more often
   /// an element that has not started than a genuine rewind to the very beginning.
   const reportPosition = useCallback(async () => {
-    if (loadedTrack.current !== session.current?.currentTrackId) return
+    if (playbackHost().loadedTrack() !== session.current?.currentTrackId) return
     const positionMs = Math.round((audioElement.current?.currentTime ?? 0) * 1000)
     if (positionMs <= 0) return
     const durationMs = elementDurationMs(audioElement.current)
@@ -360,7 +366,7 @@ export function usePlayback(edge: PlaybackEdge, options: PlaybackOptions = {}): 
       // bar had nothing to draw against.
       payload: { positionMs, ...(durationMs === undefined ? {} : { durationMs }) },
     })
-  }, [command])
+  }, [command, playbackHost])
 
   /// Say how long the track is, as soon as the element knows.
   ///
@@ -368,7 +374,7 @@ export function usePlayback(edge: PlaybackEdge, options: PlaybackOptions = {}): 
   /// exactly where a freshly loaded track sits. Waiting for the first tick instead would
   /// leave a dashboard with no progress bar for the opening seconds of every track.
   const reportDuration = useCallback(() => {
-    const track = loadedTrack.current
+    const track = playbackHost().loadedTrack()
     if (track !== session.current?.currentTrackId) return
     const durationMs = elementDurationMs(audioElement.current)
     if (durationMs === undefined) return
@@ -377,7 +383,7 @@ export function usePlayback(edge: PlaybackEdge, options: PlaybackOptions = {}): 
       if (track !== session.current?.currentTrackId) return
       await command({ _tag: "position.report", payload: { positionMs, durationMs } })
     })
-  }, [command, run])
+  }, [command, playbackHost, run])
 
   /// Keep the core's idea of the position roughly current while sound is coming out.
   ///
@@ -396,7 +402,7 @@ export function usePlayback(edge: PlaybackEdge, options: PlaybackOptions = {}): 
   const reportEnded = useCallback(() => {
     const ended = session.current
     // The old element can still emit while the replacement stream is resolving.
-    if (loadedTrack.current !== ended?.currentTrackId) return
+    if (playbackHost().loadedTrack() !== ended?.currentTrackId) return
     run(async () => {
       if (session.current?.currentTrackId !== ended?.currentTrackId) return
       const on = session.current
@@ -422,29 +428,32 @@ export function usePlayback(edge: PlaybackEdge, options: PlaybackOptions = {}): 
       // is over the answer is silence.
       await command({ _tag: "transport.trackEnded", payload: {} }, on).catch(() => undefined)
     })
-  }, [command, deviceId, edge, newEventId, run])
+  }, [command, deviceId, edge, newEventId, playbackHost, run])
 
   const playAlbum = useCallback(
     (trackIds: readonly string[]) => {
       if (trackIds.length === 0) return
+      hostFailure.current = undefined
       run(async () => {
         const target = session.current ?? (await edge.ensureSession())
-        const cleared = await edge.queueSessionCommand(target, {
-          _tag: "queue.clear",
-          payload: {},
-        })
-        const queued = await edge.queueSessionCommand(cleared, {
-          _tag: "queue.add",
-          payload: { trackIds: [...trackIds] },
-        })
-        publish(await edge.queueSessionCommand(queued, { _tag: "transport.play", payload: {} }))
+        if (session.current === undefined) {
+          session.current = target
+          selectedId.current = target.id
+        }
+        const host = playbackHost()
+        await host.execute(target.id, { _tag: "queue.clear", payload: {} })
+        await host.execute(target.id, { _tag: "queue.add", payload: { trackIds: [...trackIds] } })
+        await command({ _tag: "transport.play", payload: {} })
       })
     },
-    [edge, publish, run],
+    [command, edge, playbackHost, run],
   )
 
   const play = useCallback(() => {
-    run(() => command({ _tag: "transport.play", payload: {} }))
+    hostFailure.current = undefined
+    run(async () => {
+      await command({ _tag: "transport.play", payload: {} })
+    })
   }, [command, run])
 
   /// Move by one track, either way.
@@ -459,19 +468,17 @@ export function usePlayback(edge: PlaybackEdge, options: PlaybackOptions = {}): 
   /// throws at the last track is worse than one that is not offered.
   const skip = useCallback(
     (by: 1 | -1) => {
+      hostFailure.current = undefined
       run(async () => {
         const on = session.current
         if (on === undefined || on.cursor === undefined) return
         const index = on.cursor + by
         if (index < 0 || index >= on.queue.length) return
-        const jumped = await edge.queueSessionCommand(on, {
-          _tag: "cursor.jump",
-          payload: { index },
-        })
-        publish(await edge.queueSessionCommand(jumped, { _tag: "transport.play", payload: {} }))
+        await playbackHost().execute(on.id, { _tag: "cursor.jump", payload: { index } })
+        await command({ _tag: "transport.play", payload: {} })
       })
     },
-    [edge, publish, run],
+    [command, playbackHost, run],
   )
 
   const next = useCallback(() => skip(1), [skip])
@@ -490,8 +497,8 @@ export function usePlayback(edge: PlaybackEdge, options: PlaybackOptions = {}): 
   const seek = useCallback(
     (positionMs: number) => {
       const audio = audioElement.current
-      if (audio === null || loadedTrack.current !== session.current?.currentTrackId) return
-      const track = loadedTrack.current
+      if (audio === null || playbackHost().loadedTrack() !== session.current?.currentTrackId) return
+      const track = playbackHost().loadedTrack()
       const durationMs =
         Number.isFinite(audio.duration) && audio.duration > 0 ? audio.duration * 1000 : undefined
       const target = Math.max(
@@ -504,21 +511,29 @@ export function usePlayback(edge: PlaybackEdge, options: PlaybackOptions = {}): 
         await command({ _tag: "position.report", payload: { positionMs: Math.round(target) } })
       })
     },
-    [command, run],
+    [command, playbackHost, run],
   )
 
   const pause = useCallback(() => {
+    const on = session.current
+    if (on === undefined) return
+    const paused = playbackHost().execute(on.id, { _tag: "transport.pause", payload: {} })
+    // Reach the host immediately. Waiting behind the outer album operation would prevent
+    // Pause from waking that operation's unresolved Play confirmation.
+    void paused.catch(() => undefined)
     run(async () => {
-      await command({ _tag: "transport.pause", payload: {} })
+      await paused
       await reportPosition()
     })
-  }, [command, reportPosition, run])
+  }, [playbackHost, reportPosition, run])
 
-  const attachAudio = useCallback((element: HTMLAudioElement | null) => {
-    audioElement.current = element
-    const volume = session.current?.volume
-    if (element !== null && volume !== undefined) element.volume = volume / 100
-  }, [])
+  const attachAudio = useCallback(
+    (element: HTMLAudioElement | null) => {
+      audioElement.current = element
+      playbackHost().attachAudio(element)
+    },
+    [playbackHost],
+  )
 
   const refresh = useCallback(() => {
     void read()
@@ -563,7 +578,9 @@ export function usePlayback(edge: PlaybackEdge, options: PlaybackOptions = {}): 
         })
         .catch((cause: unknown) => {
           if (generation.current === mine) {
-            setPlayback(unavailable({ kind: "failed", message: String(cause) }))
+            setPlayback(
+              unavailable({ kind: "failed", message: hostFailure.current ?? String(cause) }),
+            )
           }
         })
     },
@@ -578,14 +595,6 @@ export function usePlayback(edge: PlaybackEdge, options: PlaybackOptions = {}): 
   /// `queue.add` twice would put the album in the queue twice.
   const applyDirective = useCallback(
     (directive: RpcSessionDirective) => {
-      if (seenDirectives.current.has(directive.directiveId)) return
-      seenDirectives.current.add(directive.directiveId)
-      // Bounded, because a long-lived page would otherwise grow this set forever. Far more
-      // than any redelivery window and still nothing in memory terms.
-      if (seenDirectives.current.size > 512) {
-        const oldest = seenDirectives.current.values().next()
-        if (!oldest.done) seenDirectives.current.delete(oldest.value)
-      }
       const on = session.current
       // Addressed to a session this device is not hosting. The core routes by device, so
       // this means the world moved; asking for the truth beats guessing at it.
@@ -593,9 +602,27 @@ export function usePlayback(edge: PlaybackEdge, options: PlaybackOptions = {}): 
         void read()
         return
       }
-      run(() => command(directive.command, on))
+      // Only Pause may enter the host before the outer album operation finishes.
+      // Every other directive must follow the complete Clear/Add/Play sequence.
+      const urgentPause =
+        directive.command._tag === "transport.pause"
+          ? playbackHost().applyDirective(directive)
+          : undefined
+      void urgentPause?.catch(() => undefined)
+      run(async () => {
+        const outcome = await (urgentPause ?? playbackHost().applyDirective(directive))
+        if (
+          directive.command._tag === "transport.play" &&
+          outcome._tag === "Applied" &&
+          !outcome.replayed &&
+          outcome.session.transport === "playing"
+        ) {
+          hostFailure.current = undefined
+          publish(session.current)
+        }
+      })
     },
-    [command, read, run],
+    [playbackHost, publish, read, run],
   )
 
   return {

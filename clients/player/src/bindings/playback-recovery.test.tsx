@@ -1,6 +1,7 @@
-import { act, cleanup, renderHook, waitFor } from "@testing-library/react"
+import { act, cleanup, waitFor } from "@testing-library/react"
 import { afterEach, expect, test } from "vitest"
 import { initialSession, playbackSource } from "../../test/playback-source"
+import { renderPlayback as renderHook } from "../../test/render-playback"
 import { usePlayback } from "./usePlayback.binding"
 
 afterEach(cleanup)
