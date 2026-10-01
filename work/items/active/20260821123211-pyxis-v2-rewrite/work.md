@@ -29,11 +29,16 @@ placements and listens. Network calls remain outside the lock. Storage failure p
 intent and recovery evidence instead of reporting rejection or outage. Saved verdicts resume
 without RPC; current authoritative state supersedes historical projections. Regressions cover
 receipt failure, redelivery, multiple saved verdicts, notice failure and real-WASM reopen.
+
 All 300 reference-client/worker tests, 270 player tests and native Chromium playback pass.
 Final independent review found no correctness blocker.
 Owned Biome, player typecheck, builds, Clippy, shell lint and contract checks pass. Full gates
 retain failures reproduced on pristine `be27649`: Rust formatting, the root JPEG declaration,
-30 Biome errors and 18 warnings, and one date-dependent listen test. Deployment is pending.
+30 Biome errors and 18 warnings, and one date-dependent listen test. `6db9f28` is deployed.
+
+Both services are active. The running core matches its wrapper, and local/tailnet health
+and exact served shell, player, worker, service worker and manifest checks pass. Reload an
+existing player tab to load `entry-DxK1Zu54.js`; physical phone acceptance remains open.
 The plan records the remaining first-stage placement conflict-evidence window. Realtime
 and renderer confirmation remain separate work. See `docs/operations/2026-10-01-local-sync-settlement.md`.
 

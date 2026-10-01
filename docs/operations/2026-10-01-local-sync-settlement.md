@@ -1,6 +1,6 @@
 # Local sync settlement
 
-Local verification passes for the changed worker code. Deployment is pending.
+`6db9f28` is deployed. Local verification passes for the changed worker code.
 
 ## Reproduced failure
 
@@ -58,12 +58,35 @@ command/listen IDs remain unchanged. Generated contracts and UI code did not cha
 unexpected failures separately; its exit status does not claim that full repository gates pass.
 Local logs and scripts are in `~/.local/state/pyxis-diagnostics/local-sync-settlement-20261001/`.
 
+## Deployment
+
+The guarded local script built the fixed Git revision, preserved Nix profile priority 5,
+and verified zero playing sessions before restarting the services. It retains a pinned
+rollback to `7b0aaf7`. The actual packaged core also passes isolated real-process album
+replacement with zero plugins.
+
+| Artifact | Verified value |
+| --- | --- |
+| Implementation revision | `6db9f286c94fc3021384dc845b94be694e30b29c` |
+| Installed package | `/nix/store/ca520a65cmczm2k8drncdcv2g531rscz-pyxis-2.0.0` |
+| Running core, checked through `/proc` | `/nix/store/4sx8g5147kb8pywcj359c1473sx0w3bg-pyxis-core-2.0.0/bin/pyxis` |
+| Running web root | `/nix/store/cq4zp87k33ar5gp824dp7s7wybsiy4m1-pyxis-player-2.0.0` |
+| Player bundle | `index-DswDxEi0.js` |
+| Dedicated worker bundle | `entry-DxK1Zu54.js` |
+| Worker SHA-256 | `f4d4c261cbc3cf790895680a6f4d84e9b75828bb048de63ef0834866cb9f0aa5` |
+| Services | `pyxis.service` and `pyxis-tsnet.service` are active. |
+| Local and tailnet origins | Health returns 200. Shell, player, worker, service worker and asset manifest match installed bytes. |
+
+The origins are `http://127.0.0.1:4488` and `https://pyxis.hummingbird-lake.ts.net`.
+The player references the verified worker bundle. Reload an existing player tab to load
+the new worker. This verifies served artifacts, not physical phone acceptance.
+
 ## Cost and limits
 
-Each verdict adds a durable outbox save. Separate persistence files are not crash-atomic.
+Each verdict adds a durable outbox save and temporarily stores its authoritative snapshot. Separate persistence files are not crash-atomic.
 If that first save fails after a placement RPC, retry retains intent but cannot guarantee
 its original conflict details. Closing this window needs a pre-request decision record or
 server receipts. The plan records it as separate work.
 
 This change does not address realtime ordering or renderer confirmation. The browser check
-is not physical phone acceptance. No Sonos playback, queue, grouping or volume command ran.
+is not physical phone acceptance. This work issued no Sonos playback, queue, grouping or volume command.
