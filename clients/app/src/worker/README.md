@@ -54,7 +54,27 @@ A session-command verdict does the same for sessions: it reads still-queued comm
 session and replaces the session under one refreshed, account-fenced storage lock. Replay stops
 at the first command the current state rejects, so one invalid later command cannot hide the
 command that just succeeded. A command queued during an acknowledgement stays visible and
-replays once instead of disappearing until the next sync.
+replays once instead of disappearing until the next sync. Verdict replay repairs missing
+receipts before publishing the projection, so receipt failure cannot duplicate redelivery.
+The retained journal repairs a later projection failure. Replay excludes commands with saved
+terminal verdicts; their newest authoritative snapshot supplies the base when a pull fails.
+
+Local settlement for placements, sessions and listens has one owner in `sync-settlement.ts`,
+behind `WorkerDatabase.settleOutbox`. It saves the server verdict in the existing opaque
+outbox row, applies the projection, appends any deduplicated notice, and removes the write
+last. Each phase finishes durable persistence before the next starts. Network calls remain
+outside the lock. A local persistence failure reports `failure`, keeps recovery evidence,
+and never becomes a server rejection or network outage. Failed attempt recording is also
+retryable. If the first verdict save fails, replay uses the original command or listen ID.
+Placement retries use the existing conflict rules, not a server receipt.
+
+After reopen, a saved verdict resumes without repeating the RPC. A fresh authoritative
+snapshot can supersede its projection, but not erase its historical conflict or rejection
+notice. Notices retain their existing IDs and newest-100 bound. The optional recovery field
+needs no schema migration. Separate files remain non-atomic across a crash, and settlement
+adds an outbox save before the existing writes. If that first save fails after a placement
+RPC, a later retry cannot guarantee the original conflict details. No UI or renderer ordering
+changes here.
 
 Full album pulls batch storage writes under the existing refreshed, account-fenced Web Lock.
 Albums commit first, then offline pins and media relationships. Both batches finish before

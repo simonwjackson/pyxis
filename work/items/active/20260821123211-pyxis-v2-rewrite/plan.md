@@ -93,6 +93,12 @@ everything provider-shaped lives at the edge behind a plugin protocol.
 
 ### Deferred to Follow-Up Work
 
+- **Placement conflict evidence before journal persistence, 2026-10-01.** Local settlement
+  now stages the complete verdict before projection, notices and dequeue. A failed first stage
+  after a placement RPC retains intent but cannot guarantee the original conflict details on
+  retry. Closing that window needs a durable pre-request decision or server receipts, outside
+  this local-only correction. Command and listen retries retain their existing IDs. See
+  `docs/operations/2026-10-01-local-sync-settlement.md`.
 - **Album track-number carryover, 2026-09-22.** Physical phone tracing confirms local queue
   replacement returns cursor 0, then the core returns the previous cursor 6 with the new album.
   Session records omitted cleared fields into a merge-style database update. Session-only
@@ -1394,6 +1400,10 @@ An ambiguous match entered retry. Sustained throughput and physical playback wer
 - Full album pulls batch durable writes under that same refreshed account lock. Commit
   albums before offline relationships. Retry repairs partially persisted relationships even
   when album revisions already match. Separate files are not crash-atomic together.
+- Local settlement owns verdict application, notices, retry records and outbox removal for
+  session commands, placements and listens. The user approved this scope on 2026-09-30.
+  Network outcomes remain separate from storage failures. Preserve the outbox until local
+  settlement completes, and recover partial writes through reopen and idempotent replay.
 
 **Test scenarios:**
 - Happy path: an offline placement change replays on reconnect.

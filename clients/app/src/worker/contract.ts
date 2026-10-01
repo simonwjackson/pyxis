@@ -152,6 +152,9 @@ export type WorkerOutboxEntry = {
   readonly createdAt: string
   readonly attempts: number
   readonly lastError?: string
+  /// A server verdict saved before local projection, notice and dequeue. Resume it after
+  /// partial persistence instead of reconstructing an outcome from changed server state.
+  readonly settlement?: WorkerOutboxVerdict
 } & (
   | {
       readonly kind: "album.placement"
@@ -192,6 +195,54 @@ export type OutboxResult =
   | "dropped"
   /// Could not reach the server. Stays queued.
   | "deferred"
+
+export type WorkerSettlementSnapshot =
+  | { readonly _tag: "Session"; readonly session: WorkerSession }
+  | { readonly _tag: "Placement"; readonly album: WorkerAlbum }
+  | { readonly _tag: "Removed" }
+
+export type WorkerOutboxVerdict =
+  | { readonly _tag: "SessionAccepted"; readonly session: WorkerSession }
+  | { readonly _tag: "PlacementAccepted"; readonly album: WorkerAlbum }
+  | { readonly _tag: "PlacementConverged"; readonly album: WorkerAlbum }
+  | {
+      readonly _tag: "PlacementConflict"
+      readonly album: WorkerAlbum
+      readonly discarded: RpcPlacement
+    }
+  | { readonly _tag: "ListenAccepted" }
+  | { readonly _tag: "Removed" }
+  | {
+      readonly _tag: "Rejected"
+      readonly reason: string
+      readonly restore?: Exclude<WorkerSettlementSnapshot, { _tag: "Removed" }>
+    }
+
+export type WorkerSettlementAction =
+  | { readonly _tag: "Settle"; readonly verdict: WorkerOutboxVerdict }
+  | { readonly _tag: "Resume"; readonly latest?: WorkerSettlementSnapshot }
+  | {
+      readonly _tag: "Defer"
+      readonly reason: string
+      readonly cause: "network" | "auth" | "storage"
+    }
+
+export type WorkerSettlementResult =
+  | { readonly outcome: "pushed" | "converged" | "absent" }
+  | {
+      readonly outcome: "conflicted"
+      readonly notice: Extract<WorkerSyncNotice, { kind: "conflict" }>
+    }
+  | {
+      readonly outcome: "dropped"
+      readonly reason: string
+      readonly notice: Extract<WorkerSyncNotice, { kind: "dropped" }>
+    }
+  | {
+      readonly outcome: "deferred"
+      readonly reason: "network" | "auth" | "storage"
+      readonly failure?: string
+    }
 
 /// Why a freshly opened database has no data.
 export type WorkerOpenReason =
@@ -295,6 +346,9 @@ export interface WorkerDatabase {
   /// silently forever.
   recordAttempt(id: string, error: string): Promise<void>
   dequeue(id: string): Promise<boolean>
+  /// Finish one write under the refreshed account lock. Save recovery evidence first,
+  /// then projection and notice, and dequeue last. Storage uncertainty stays retryable.
+  settleOutbox(id: string, action: WorkerSettlementAction): Promise<WorkerSettlementResult>
   close(): Promise<void>
 }
 

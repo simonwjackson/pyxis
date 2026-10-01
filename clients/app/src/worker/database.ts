@@ -32,8 +32,11 @@ import {
   type WorkerSessionCommandPreview,
   type WorkerSessionEventResult,
   type WorkerSettings,
+  type WorkerSettlementAction,
+  type WorkerSettlementResult,
 } from "./contract"
 import { applySessionCommand } from "./session-local"
+import { settleOutbox } from "./sync-settlement"
 
 const nextOutboxId = monotonicFactory()
 
@@ -180,6 +183,7 @@ async function clearCollections(engine: WorkerEngine): Promise<void> {
 
 class LocalWorkerDatabase implements WorkerDatabase {
   private settingsMutation: Promise<void> = Promise.resolve()
+  private settlementMutation: Promise<void> = Promise.resolve()
 
   constructor(
     private readonly engine: WorkerEngine,
@@ -388,7 +392,10 @@ class LocalWorkerDatabase implements WorkerDatabase {
     // placement must run wholly before or after this operation, never between them.
     const pending = (await this.outbox()).filter(
       (entry): entry is Extract<WorkerOutboxEntry, { kind: "album.placement" }> =>
-        entry.kind === "album.placement" && entry.albumId === album.id && entry.id !== writeId,
+        entry.kind === "album.placement" &&
+        entry.albumId === album.id &&
+        entry.id !== writeId &&
+        entry.settlement === undefined,
     )
     return this.replaceAlbum({
       ...album,
@@ -503,16 +510,37 @@ class LocalWorkerDatabase implements WorkerDatabase {
     // never between them, or its optimistic result is overwritten while it stays queued.
     const pending = (await this.outbox()).filter(
       (entry): entry is Extract<WorkerOutboxEntry, { kind: "session.command" }> =>
-        entry.kind === "session.command" && entry.sessionId === session.id && entry.id !== writeId,
+        entry.kind === "session.command" &&
+        entry.sessionId === session.id &&
+        entry.id !== writeId &&
+        entry.settlement === undefined,
     )
     let visible = session
+    const replayed: typeof pending = []
     for (const entry of pending) {
       try {
         visible = applySessionCommand(visible, entry.command, visible.updatedAt)
+        replayed.push(entry)
       } catch {
         // The server will return the typed rejection when this entry reaches the front. Do
         // not let one invalid later command hide the earlier command that just succeeded.
         break
+      }
+    }
+    // Replaying changes result timestamps and fingerprints. Repair receipts before
+    // publishing the changed projection, or receipt failure permits duplicate redelivery.
+    // Settlement's durable journal repairs a projection failure after receipt persistence.
+    for (const entry of replayed) {
+      const id = `${session.id}:${entry.commandId}`
+      const fingerprint = canonicalJson(entry.command)
+      const receipt = await this.engine.commandReceipts.findById(id)
+      if (receipt !== undefined && receipt.fingerprint !== fingerprint) {
+        throw new Error(
+          `command ID ${entry.commandId} already belongs to a different session command`,
+        )
+      }
+      if (receipt === undefined) {
+        await this.engine.commandReceipts.upsert({ id, sessionId: session.id, fingerprint })
       }
     }
     return this.replaceSession(visible)
@@ -764,6 +792,15 @@ class LocalWorkerDatabase implements WorkerDatabase {
 
   async dequeue(id: string): Promise<boolean> {
     return this.engine.outbox.delete(id)
+  }
+
+  async settleOutbox(id: string, action: WorkerSettlementAction): Promise<WorkerSettlementResult> {
+    const request = this.settlementMutation.then(() => settleOutbox(this, id, action))
+    this.settlementMutation = request.then(
+      () => undefined,
+      () => undefined,
+    )
+    return request
   }
 
   async close(): Promise<void> {

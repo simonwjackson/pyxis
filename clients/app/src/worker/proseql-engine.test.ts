@@ -14,7 +14,7 @@ import { fileURLToPath } from "node:url"
 import { workerWasmUrl } from "@proseql/browser/worker"
 import { createWebStorageEngineStorageHost } from "@proseql/engine/browser"
 import { beforeAll, describe, expect, test } from "vitest"
-import { RpcPlacement, RpcTransport } from "../../../../contracts/generated/pyxis"
+import { RpcPlacement, type RpcSession, RpcTransport } from "../../../../contracts/generated/pyxis"
 import type { WorkerAlbum } from "./contract"
 import { openWorkerDatabase } from "./database"
 import { createProseqlEngine } from "./proseql-engine"
@@ -110,6 +110,192 @@ function sharedMedium(albumIds: readonly string[]) {
 }
 
 describe("the real ProseQL engine", () => {
+  test.each([
+    ["stage", "outbox.json", 1, "before"],
+    ["projection", "sessions.json", 1, "before"],
+    ["notice", "settings.json", 1, "before"],
+    ["dequeue", "outbox.json", 2, "before"],
+    ["stage", "outbox.json", 1, "after"],
+    ["projection", "sessions.json", 1, "after"],
+    ["notice", "settings.json", 1, "after"],
+    ["dequeue", "outbox.json", 2, "after"],
+  ] as const)(
+    "settlement recovers a failed %s write through reopen (%s, %s, %s)",
+    async (_step, file, occurrence, timing) => {
+      const cells = new Map<string, string>()
+      const original = await open(cells)
+      await original.writeSettings({ accountId: "first", deviceId: "device-1" })
+      const remote: RpcSession = {
+        id: "session-1",
+        name: "Browser",
+        hostDeviceId: "device-1",
+        queue: [],
+        transport: RpcTransport.Stopped,
+        positionMs: 0,
+        volume: 100,
+        reachable: true,
+        revision: 1,
+        updatedAt: "2026-09-30",
+      }
+      await original.putSession(remote)
+      await original.queueSessionCommand(
+        remote,
+        { _tag: "queue.add", payload: { trackIds: ["track-1"] } },
+        "command-1",
+      )
+      await original.close()
+      // Production refreshes under the lock. Same-handle queries can miss an inserted row.
+      const seeded = await open(cells)
+      const [entry] = await seeded.outbox()
+      if (entry === undefined) throw new Error("missing queued command")
+      await seeded.close()
+      let writes = 0
+      const failWrite = (path: string) => {
+        if (path.endsWith(file) && ++writes === occurrence)
+          throw new Error(`configured ${_step} failure`)
+      }
+      const failing = await open(cells, undefined, {
+        beforeWrite: async (path) => {
+          if (timing === "before") failWrite(path)
+        },
+        afterWrite: (path) => {
+          if (timing === "after") failWrite(path)
+        },
+      })
+
+      expect(
+        await failing.settleOutbox(entry.id, {
+          _tag: "Settle",
+          verdict: {
+            _tag: "Rejected",
+            reason: "server refused command",
+            restore: { _tag: "Session", session: remote },
+          },
+        }),
+      ).toMatchObject({ outcome: "deferred", reason: "storage" })
+      // A failed persistence lane can also reject close. Production refresh discards that
+      // handle and opens the durable files, rather than trusting its in-memory projection.
+      await failing.close().catch(() => undefined)
+
+      const reopened = await open(cells)
+      const alreadyFinished = _step === "dequeue" && timing === "after"
+      expect(await reopened.outbox()).toHaveLength(alreadyFinished ? 0 : 1)
+      // If the first durable write failed, there is no saved verdict. Sync asks the server
+      // again using the original command ID; later failures resume the saved reply instead.
+      expect(
+        await reopened.settleOutbox(
+          entry.id,
+          _step === "stage" && timing === "before"
+            ? {
+                _tag: "Settle",
+                verdict: {
+                  _tag: "Rejected",
+                  reason: "server refused command",
+                  restore: { _tag: "Session", session: remote },
+                },
+              }
+            : { _tag: "Resume" },
+        ),
+      ).toMatchObject(
+        alreadyFinished
+          ? { outcome: "absent" }
+          : { outcome: "dropped", reason: "server refused command" },
+      )
+      await reopened.close()
+      const finished = await open(cells)
+      expect(await finished.session(remote.id)).toEqual(remote)
+      expect(await finished.outbox()).toEqual([])
+      expect((await finished.settings()).syncNotices).toEqual([
+        {
+          id: `dropped:${entry.id}`,
+          kind: "dropped",
+          writeId: entry.id,
+          reason: "server refused command",
+        },
+      ])
+      expect(await finished.settleOutbox(entry.id, { _tag: "Resume" })).toEqual({
+        outcome: "absent",
+      })
+      await finished.close()
+    },
+  )
+
+  test("receipts persisted before a failed projection survive reopen and prevent redelivery duplication", async () => {
+    const cells = new Map<string, string>()
+    const handle = await createProseqlEngine({
+      wasm,
+      storageHost: createWebStorageEngineStorageHost({
+        storage: storageBackedBy(cells),
+        keyPrefix: "pyxis-test:",
+      }),
+    })
+    const initial = await openWorkerDatabase({ engine: handle.engine, clear: handle.clear })
+    const remote: RpcSession = {
+      id: "session-1",
+      name: "Browser",
+      hostDeviceId: "device-1",
+      queue: [],
+      transport: RpcTransport.Stopped,
+      positionMs: 0,
+      volume: 100,
+      reachable: true,
+      revision: 1,
+      updatedAt: "old-time",
+    }
+    await initial.putSession(remote)
+    const first = await initial.queueSessionCommand(
+      remote,
+      { _tag: "queue.add", payload: { trackIds: ["first"] } },
+      "first-command",
+    )
+    const second = { _tag: "queue.add" as const, payload: { trackIds: ["second"] } }
+    await initial.queueSessionCommand(first, second, "second-command")
+    await handle.engine.commandReceipts.delete("session-1:second-command")
+    await initial.close()
+    const seeded = await open(cells)
+    const [entry] = await seeded.outbox()
+    if (entry === undefined) throw new Error("missing first command")
+    await seeded.close()
+    let fail = true
+    const failing = await open(cells, undefined, {
+      beforeWrite: async (path) => {
+        if (path.endsWith("sessions.json") && fail) {
+          fail = false
+          throw new Error("configured projection failure")
+        }
+      },
+    })
+    expect(
+      await failing.settleOutbox(entry.id, {
+        _tag: "Settle",
+        verdict: {
+          _tag: "SessionAccepted",
+          session: { ...remote, queue: ["first"], revision: 2, updatedAt: "server-time" },
+        },
+      }),
+    ).toMatchObject({ outcome: "deferred", reason: "storage" })
+    await failing.close().catch(() => undefined)
+
+    const reopened = await open(cells)
+    expect(await reopened.previewSessionCommand(remote.id, second, "second-command")).toMatchObject(
+      { replayed: true },
+    )
+    const current = await reopened.session(remote.id)
+    if (current === undefined) throw new Error("missing session")
+    expect((await reopened.queueSessionCommand(current, second, "second-command")).queue).toEqual([
+      "first",
+      "second",
+    ])
+    expect(await reopened.settleOutbox(entry.id, { _tag: "Resume" })).toMatchObject({
+      outcome: "pushed",
+    })
+    await reopened.close()
+    const finished = await open(cells)
+    expect((await finished.session(remote.id))?.queue).toEqual(["first", "second"])
+    expect(await finished.outbox()).toMatchObject([{ commandId: "second-command" }])
+    await finished.close()
+  })
+
   test("a fresh library snapshot writes albums once and survives reopen", async () => {
     const cells = new Map<string, string>()
     const first = await open(cells)

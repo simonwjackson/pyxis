@@ -1,30 +1,23 @@
-/// Two-way sync.
-///
-/// Order matters and is deliberate: pull first, then push. Pushing blind would send a
-/// change based on state the server left behind long ago, and the conflict rules need to
-/// know what the server currently holds before they can tell a replay from a real clash.
-///
-/// Nothing here decides a merge. `conflict.ts` owns every rule, so the policy can be read
-/// and argued with in one place.
-
+/// Pull before push, keep network calls outside local storage locks, and hand every
+/// local outcome to the database's settlement operation. Placement policy stays pure.
 import type {
   RpcLibraryAlbum,
   RpcPlacement,
   RpcSession,
 } from "../../../../contracts/generated/pyxis"
-
-/// The server's own view, kept current as writes land.
-///
-/// It must be updated as the queue drains. Resolving the second write for an album against
-/// the state before the first one landed makes that write look like a replay, and it is
-/// then dropped without ever being sent.
-type RemoteAlbums = Map<string, RpcLibraryAlbum>
-type RemoteSessions = Map<string, RpcSession>
-
 import { RpcError, type WorkerRpc } from "../rpc/client"
 import { resolvePlacement } from "./conflict"
-import type { OutboxResult, WorkerDatabase, WorkerOutboxEntry, WorkerSyncNotice } from "./contract"
+import type {
+  WorkerDatabase,
+  WorkerOutboxEntry,
+  WorkerOutboxVerdict,
+  WorkerSettlementAction,
+  WorkerSettlementResult,
+} from "./contract"
 import { submitListens } from "./listen-sync"
+
+type RemoteAlbums = Map<string, RpcLibraryAlbum>
+type RemoteSessions = Map<string, RpcSession>
 
 export interface ConflictReport {
   readonly albumId: string
@@ -37,18 +30,13 @@ export interface SyncReport {
   readonly pushed: number
   readonly converged: number
   readonly dropped: readonly { readonly id: string; readonly reason: string }[]
-  /// Writes remaining at the final account-fenced outbox read, including newly queued work.
+  /// Includes work queued during this pass and domains excluded by scoped sync.
   readonly deferred: number
   readonly conflicts: readonly ConflictReport[]
-  /// True when the network stopped answering partway. The queue is intact.
   readonly offline: boolean
-  /// True when the server answered and refused the credentials. Waiting will not fix this;
-  /// the device has to be paired again. The queue is intact.
   readonly authRequired: boolean
-  /// Set when sync could not run at all, with the reason. The queue is intact.
+  /// Pull or local settlement failure. Queued intent stays intact.
   readonly failure?: string
-  /// An in-process compatibility store cannot issue worker RPC itself. The page can fetch
-  /// snapshots directly, but must not claim persistence.
   readonly pageFallbackRequired?: boolean
   readonly albumPullFailed?: boolean
   readonly sessionPullFailed?: boolean
@@ -69,7 +57,6 @@ export async function sync(
   const failure = [albums.failure, sessions.failure]
     .filter((value): value is string => value !== undefined)
     .join("; ")
-
   if (albums.authRequired || sessions.authRequired) {
     return {
       pulled: albums.count + sessions.count,
@@ -85,15 +72,15 @@ export async function sync(
       ...(failure.length === 0 ? {} : { failure }),
     }
   }
-
   const push = await drain(database, rpc, albums.remote, sessions.remote, scope)
+  const combinedFailure = [failure, push.failure].filter((value) => value).join("; ")
   return {
     ...push,
     pulled: albums.count + sessions.count,
     offline: push.offline || albums.offline || sessions.offline,
     albumPullFailed: scope === "all" && albums.remote === undefined,
     sessionPullFailed: sessions.remote === undefined,
-    ...(failure.length === 0 ? {} : { failure }),
+    ...(combinedFailure.length === 0 ? {} : { failure: combinedFailure }),
   }
 }
 
@@ -115,15 +102,11 @@ async function pullAlbums(
   } catch (cause) {
     return pullFailure(cause)
   }
-
-  // Apply the local half as one database operation. In production that means one Web Lock
-  // acquisition and one ProseQL reopen, rather than one of each for every album.
-  const count = await database.applyRemoteAlbums(remote)
   return {
-    count,
+    count: await database.applyRemoteAlbums(remote),
     offline: false,
     authRequired: false,
-    remote: new Map(remote.map((entry) => [entry.id, entry])),
+    remote: new Map(remote.map((row) => [row.id, row])),
   }
 }
 
@@ -137,20 +120,16 @@ async function pullSessions(
   } catch (cause) {
     return pullFailure(cause)
   }
-
-  // Session reachability and queue state are one snapshot. Apply them under one local
-  // critical section so renderer directives are not starved behind per-row reopen churn.
-  const count = await database.applyRemoteSessions(remote)
   return {
-    count,
+    count: await database.applyRemoteSessions(remote),
     offline: false,
     authRequired: false,
-    remote: new Map(remote.map((entry) => [entry.id, entry])),
+    remote: new Map(remote.map((row) => [row.id, row])),
   }
 }
 
 function pullFailure<T>(cause: unknown): DomainPull<T> {
-  const error = cause instanceof RpcError ? cause : new RpcError(String(cause), false)
+  const error = rpcFailure(cause)
   return {
     count: 0,
     offline: error.retryable,
@@ -159,96 +138,108 @@ function pullFailure<T>(cause: unknown): DomainPull<T> {
   }
 }
 
-/// Client to server. Drains the queue in the order the person acted.
 async function drain(
   database: WorkerDatabase,
   rpc: WorkerRpc,
-  remote: RemoteAlbums | undefined,
-  remoteSessions: RemoteSessions | undefined,
+  albums: RemoteAlbums | undefined,
+  sessions: RemoteSessions | undefined,
   scope: SyncScope,
 ): Promise<Omit<SyncReport, "pulled">> {
-  const allEntries = await database.outbox()
-  const entries = allEntries.filter((entry) => scope === "all" || entry.kind === "session.command")
+  const entries = (await database.outbox()).filter(
+    (entry) => scope === "all" || entry.kind === "session.command",
+  )
   const conflicts: ConflictReport[] = []
   const dropped: { id: string; reason: string }[] = []
+  const failures: string[] = []
   let pushed = 0
   let converged = 0
   let offline = false
   let authRequired = false
+  const collect = (id: string, result: WorkerSettlementResult): void => {
+    if (result.outcome === "pushed") pushed += 1
+    if (result.outcome === "converged" || result.outcome === "conflicted") converged += 1
+    if (result.outcome === "dropped") dropped.push({ id, reason: result.reason })
+    if (result.outcome === "conflicted") {
+      const { albumId, kept, discarded } = result.notice
+      conflicts.push({ albumId, kept, discarded })
+    }
+    if (result.outcome === "deferred") {
+      if (result.reason === "auth") authRequired = true
+      if (result.reason === "network") offline = true
+      if (result.failure !== undefined) failures.push(result.failure)
+    }
+  }
+
+  for (const kind of ["album.placement", "session.command"] as const) {
+    for (const entry of entries) {
+      if (entry.kind !== kind || authRequired) continue
+      let result: WorkerSettlementResult
+      if (entry.settlement !== undefined) {
+        result = await settle(database, entry.id, resumeAction(entry, albums, sessions))
+      } else if (entry.kind === "album.placement" && albums !== undefined) {
+        result = await pushPlacement(database, rpc, entry, albums)
+      } else if (entry.kind === "session.command" && sessions !== undefined) {
+        result = await pushSessionCommand(database, rpc, entry, sessions)
+      } else continue
+      collect(entry.id, result)
+      if (result.outcome === "deferred") break
+    }
+  }
 
   const listens = entries.filter(
     (entry): entry is Extract<WorkerOutboxEntry, { kind: "listen.append" }> =>
       entry.kind === "listen.append",
   )
-  const placements = entries.filter(
-    (entry): entry is Extract<WorkerOutboxEntry, { kind: "album.placement" }> =>
-      entry.kind === "album.placement",
-  )
-  const sessionCommands = entries.filter(
-    (entry): entry is Extract<WorkerOutboxEntry, { kind: "session.command" }> =>
-      entry.kind === "session.command",
-  )
-
-  if (remote !== undefined) {
-    for (const entry of placements) {
-      const result = await pushPlacement(database, rpc, entry, remote, conflicts)
-      if (result.outcome === "pushed") pushed += 1
-      if (result.outcome === "converged" || result.outcome === "conflicted") converged += 1
-      if (result.outcome === "deferred") {
-        if (result.reason === "auth") authRequired = true
-        else offline = true
-        // Stop at the first unreachable write. Later writes for the same album must not be
-        // applied out of order.
-        break
-      }
-      if (result.outcome === "dropped") {
-        dropped.push({ id: entry.id, reason: result.reason ?? "rejected by the server" })
-      }
+  const pending: typeof listens = []
+  if (!authRequired) {
+    for (const entry of listens) {
+      if (entry.settlement === undefined) pending.push(entry)
+      else collect(entry.id, await settle(database, entry.id, { _tag: "Resume" }))
     }
   }
-
-  if (!authRequired && remoteSessions !== undefined) {
-    for (const entry of sessionCommands) {
-      const result = await pushSessionCommand(database, rpc, entry, remoteSessions)
-      if (result.outcome === "pushed" || result.outcome === "converged") pushed += 1
-      if (result.outcome === "deferred") {
-        if (result.reason === "auth") authRequired = true
-        else offline = true
-        break
-      }
-      if (result.outcome === "dropped") {
-        dropped.push({ id: entry.id, reason: result.reason ?? "rejected by the server" })
-      }
-    }
-  }
-
-  if (listens.length > 0 && !authRequired) {
+  if (pending.length > 0 && !authRequired) {
     const submission = await submitListens(
       rpc,
-      listens.map((entry) => ({ id: entry.id, event: entry.event })),
+      pending.map((entry) => ({ id: entry.id, event: entry.event })),
     )
     for (const id of submission.accepted) {
-      await database.dequeue(id)
-      pushed += 1
+      collect(
+        id,
+        await settle(database, id, { _tag: "Settle", verdict: { _tag: "ListenAccepted" } }),
+      )
     }
     for (const rejection of submission.rejected) {
-      await persistNotice(database, {
-        id: `dropped:${rejection.id}`,
-        kind: "dropped",
-        writeId: rejection.id,
-        reason: rejection.reason,
-      })
-      await database.dequeue(rejection.id)
-      dropped.push(rejection)
+      collect(
+        rejection.id,
+        await settle(database, rejection.id, {
+          _tag: "Settle",
+          verdict: { _tag: "Rejected", reason: rejection.reason },
+        }),
+      )
     }
-    if (submission.authRequired) authRequired = true
-    else if (submission.deferred.length > 0) offline = true
+    for (const id of submission.deferred) {
+      collect(
+        id,
+        await settle(database, id, {
+          _tag: "Defer",
+          cause: submission.authRequired ? "auth" : "network",
+          reason: submission.authRequired
+            ? "credentials were refused"
+            : "listen submission deferred",
+        }),
+      )
+    }
   }
-
-  // Local requests continue during network sync. Report the queue at completion, including
-  // writes added during this pass and domains intentionally excluded by a scoped sync.
-  const deferred = (await database.outbox()).length
-  return { pushed, converged, dropped, deferred, conflicts, offline, authRequired }
+  return {
+    pushed,
+    converged,
+    dropped,
+    conflicts,
+    offline,
+    authRequired,
+    deferred: (await database.outbox()).length,
+    ...(failures.length === 0 ? {} : { failure: [...new Set(failures)].join("; ") }),
+  }
 }
 
 async function pushSessionCommand(
@@ -256,70 +247,36 @@ async function pushSessionCommand(
   rpc: WorkerRpc,
   entry: Extract<WorkerOutboxEntry, { kind: "session.command" }>,
   sessions: RemoteSessions,
-): Promise<{ outcome: OutboxResult; reason?: string }> {
+): Promise<WorkerSettlementResult> {
   const remote = sessions.get(entry.sessionId)
-  if (remote === undefined) {
-    await persistNotice(database, {
-      id: `dropped:${entry.id}`,
-      kind: "dropped",
-      writeId: entry.id,
-      reason: "session no longer exists",
-    })
-    await database.removeSession(entry.sessionId)
-    await database.dequeue(entry.id)
-    return { outcome: "dropped", reason: "session no longer exists" }
-  }
-
-  // A crash can leave the outbox entry after the optimistic session write but before its
-  // local receipt. Repair that receipt before network success removes the only remaining
-  // evidence, or a later directive redelivery could repeat renderer effects. Storage
-  // uncertainty can never make a precious command disposable.
+  if (remote === undefined)
+    return settle(database, entry.id, { _tag: "Settle", verdict: { _tag: "Removed" } })
   try {
+    // Repair interrupted local receipts before removing their only replay evidence.
     const local = (await database.session(entry.sessionId)) ?? remote
     await database.queueSessionCommand(local, entry.command, entry.commandId)
   } catch (cause) {
-    await database.recordAttempt(
-      entry.id,
-      cause instanceof Error ? cause.message : "local receipt repair failed",
-    )
-    return { outcome: "deferred", reason: "local receipt repair failed" }
+    return settle(database, entry.id, { _tag: "Defer", cause: "storage", reason: message(cause) })
   }
-
+  let updated: RpcSession | undefined
   try {
-    const updated = await rpc.runSessionCommand(entry.sessionId, entry.command, entry.commandId)
-    if (updated === undefined) {
-      await persistNotice(database, {
-        id: `dropped:${entry.id}`,
-        kind: "dropped",
-        writeId: entry.id,
-        reason: "session no longer exists",
-      })
-      await database.removeSession(entry.sessionId)
-      await database.dequeue(entry.id)
-      sessions.delete(entry.sessionId)
-      return { outcome: "dropped", reason: "session no longer exists" }
-    }
-    sessions.set(updated.id, updated)
-    await database.applySessionVerdict(updated, entry.id)
-    await database.dequeue(entry.id)
-    return { outcome: "pushed" }
+    updated = await rpc.runSessionCommand(entry.sessionId, entry.command, entry.commandId)
   } catch (cause) {
-    const error = cause instanceof RpcError ? cause : new RpcError(String(cause), false)
-    if (error.auth) return { outcome: "deferred", reason: "auth" }
-    await database.recordAttempt(entry.id, error.message)
-    if (!error.retryable) {
-      await persistNotice(database, {
-        id: `dropped:${entry.id}`,
-        kind: "dropped",
-        writeId: entry.id,
-        reason: error.message,
-      })
-      await database.applySessionVerdict(remote, entry.id)
-      await database.dequeue(entry.id)
-      return { outcome: "dropped", reason: error.message }
-    }
-    return { outcome: "deferred" }
+    return settle(
+      database,
+      entry.id,
+      rejectedOrDeferred(cause, { _tag: "Session", session: remote }),
+    )
   }
+  if (updated === undefined) {
+    sessions.delete(entry.sessionId)
+    return settle(database, entry.id, { _tag: "Settle", verdict: { _tag: "Removed" } })
+  }
+  sessions.set(updated.id, updated)
+  return settle(database, entry.id, {
+    _tag: "Settle",
+    verdict: { _tag: "SessionAccepted", session: updated },
+  })
 }
 
 async function pushPlacement(
@@ -327,8 +284,7 @@ async function pushPlacement(
   rpc: WorkerRpc,
   entry: Extract<WorkerOutboxEntry, { kind: "album.placement" }>,
   albums: RemoteAlbums,
-  conflicts: ConflictReport[],
-): Promise<{ outcome: OutboxResult; reason?: string }> {
+): Promise<WorkerSettlementResult> {
   const remote = albums.get(entry.albumId)
   const settings = await database.settings()
   const decision = resolvePlacement(
@@ -348,126 +304,106 @@ async function pushPlacement(
           placementUpdatedAt: remote.placementUpdatedAt,
         },
   )
-
-  if (decision.action === "converged") {
-    if (remote !== undefined) await database.applyPlacementVerdict(remote, entry.id)
-    await database.dequeue(entry.id)
-    return { outcome: "converged" }
-  }
-
   if (decision.action === "remove") {
-    await persistNotice(database, {
-      id: `conflict:${entry.id}`,
-      kind: "conflict",
-      albumId: entry.albumId,
-      kept: "removed",
-      discarded: decision.discarded,
-    })
-    await database.removeAlbum(entry.albumId)
-    await database.dequeue(entry.id)
-    conflicts.push({
-      albumId: entry.albumId,
-      kept: "removed",
-      discarded: decision.discarded,
-    })
-    return { outcome: "conflicted" }
+    return settle(database, entry.id, { _tag: "Settle", verdict: { _tag: "Removed" } })
   }
-
-  if (decision.action === "keepRemote") {
-    // The local row still shows the intent that just lost. Put the server's answer back so
-    // the person sees what actually happened rather than a change that never landed.
-    if (remote !== undefined) {
-      await database.applyPlacementVerdict(remote, entry.id)
-      albums.set(remote.id, remote)
-    }
-    await persistNotice(database, {
-      id: `conflict:${entry.id}`,
-      kind: "conflict",
-      albumId: entry.albumId,
-      kept: (remote?.placement ?? entry.placement) as RpcPlacement,
-      discarded: decision.discarded,
+  if (remote !== undefined && decision.action === "converged") {
+    return settle(database, entry.id, {
+      _tag: "Settle",
+      verdict: { _tag: "PlacementConverged", album: remote },
     })
-    await database.dequeue(entry.id)
-    conflicts.push({
-      albumId: entry.albumId,
-      kept: (remote?.placement ?? entry.placement) as RpcPlacement,
-      discarded: decision.discarded,
-    })
-    return { outcome: "conflicted" }
   }
-
+  if (remote !== undefined && decision.action === "keepRemote") {
+    return settle(database, entry.id, {
+      _tag: "Settle",
+      verdict: { _tag: "PlacementConflict", album: remote, discarded: decision.discarded },
+    })
+  }
+  let updated: RpcLibraryAlbum | undefined
   try {
-    const updated = await rpc.setPlacement(entry.albumId, entry.placement)
-    if (updated === undefined) {
-      await persistNotice(database, {
-        id: `conflict:${entry.id}`,
-        kind: "conflict",
-        albumId: entry.albumId,
-        kept: "removed",
-        discarded: entry.placement,
-      })
-      await database.removeAlbum(entry.albumId)
-      await database.dequeue(entry.id)
-      albums.delete(entry.albumId)
-      conflicts.push({
-        albumId: entry.albumId,
-        kept: "removed",
-        discarded: entry.placement,
-      })
-      return { outcome: "conflicted" }
-    }
-    await database.applyPlacementVerdict(updated, entry.id)
-    if (decision.conflict) {
-      await persistNotice(database, {
-        id: `conflict:${entry.id}`,
-        kind: "conflict",
-        albumId: entry.albumId,
-        kept: entry.placement,
-        discarded: decision.discarded,
-      })
-    }
-    await database.dequeue(entry.id)
-    // Keep the server view current so the next queued write for this album is resolved
-    // against what the server now holds.
-    albums.set(updated.id, updated)
-    if (decision.conflict) {
-      conflicts.push({
-        albumId: entry.albumId,
-        kept: entry.placement,
-        discarded: decision.discarded,
-      })
-      return { outcome: "conflicted" }
-    }
-    return { outcome: "pushed" }
+    updated = await rpc.setPlacement(entry.albumId, entry.placement)
   } catch (cause) {
-    const error = cause instanceof RpcError ? cause : new RpcError(String(cause), false)
-    if (error.auth) {
-      // Nothing about repeating this helps until the credentials change, and dropping it
-      // would lose the person's edit because a token expired. Leave it untouched.
-      return { outcome: "deferred", reason: "auth" }
+    return settle(
+      database,
+      entry.id,
+      rejectedOrDeferred(
+        cause,
+        remote === undefined ? undefined : { _tag: "Placement", album: remote },
+      ),
+    )
+  }
+  if (updated === undefined) {
+    albums.delete(entry.albumId)
+    return settle(database, entry.id, { _tag: "Settle", verdict: { _tag: "Removed" } })
+  }
+  albums.set(updated.id, updated)
+  return settle(database, entry.id, {
+    _tag: "Settle",
+    verdict:
+      decision.action === "push" && decision.conflict
+        ? { _tag: "PlacementConflict", album: updated, discarded: decision.discarded }
+        : { _tag: "PlacementAccepted", album: updated },
+  })
+}
+
+function resumeAction(
+  entry: WorkerOutboxEntry,
+  albums: RemoteAlbums | undefined,
+  sessions: RemoteSessions | undefined,
+): WorkerSettlementAction {
+  if (entry.kind === "album.placement" && albums !== undefined) {
+    const album = albums.get(entry.albumId)
+    return {
+      _tag: "Resume",
+      latest: album === undefined ? { _tag: "Removed" } : { _tag: "Placement", album },
     }
-    await database.recordAttempt(entry.id, error.message)
-    if (!error.retryable) {
-      await persistNotice(database, {
-        id: `dropped:${entry.id}`,
-        kind: "dropped",
-        writeId: entry.id,
-        reason: error.message,
-      })
-      // The server refused this change, so the local row still shows an intent that never
-      // landed. Put the server's answer back rather than leaving the device diverged with
-      // no way to notice.
-      if (remote !== undefined) await database.applyPlacementVerdict(remote, entry.id)
-      await database.dequeue(entry.id)
-      return { outcome: "dropped", reason: error.message }
+  }
+  if (entry.kind === "session.command" && sessions !== undefined) {
+    const session = sessions.get(entry.sessionId)
+    return {
+      _tag: "Resume",
+      latest: session === undefined ? { _tag: "Removed" } : { _tag: "Session", session },
     }
-    return { outcome: "deferred" }
+  }
+  return { _tag: "Resume" }
+}
+
+function rejectedOrDeferred(
+  cause: unknown,
+  restore?: Extract<WorkerOutboxVerdict, { _tag: "Rejected" }>["restore"],
+): WorkerSettlementAction {
+  const error = rpcFailure(cause)
+  if (error.auth || error.retryable) {
+    return { _tag: "Defer", cause: error.auth ? "auth" : "network", reason: error.message }
+  }
+  return {
+    _tag: "Settle",
+    verdict: {
+      _tag: "Rejected",
+      reason: error.message,
+      ...(restore === undefined ? {} : { restore }),
+    },
   }
 }
 
-async function persistNotice(database: WorkerDatabase, notice: WorkerSyncNotice): Promise<void> {
-  const settings = await database.settings()
-  const current = settings.syncNotices ?? []
-  if (current.some((entry) => entry.id === notice.id)) return
-  await database.writeSettings({ syncNotices: [...current, notice].slice(-100) })
+function rpcFailure(cause: unknown): RpcError {
+  return cause instanceof RpcError ? cause : new RpcError(String(cause), false)
+}
+
+function message(cause: unknown): string {
+  return cause instanceof Error ? cause.message : String(cause)
+}
+
+async function settle(
+  database: WorkerDatabase,
+  id: string,
+  action: WorkerSettlementAction,
+): Promise<WorkerSettlementResult> {
+  try {
+    return await database.settleOutbox(id, action)
+  } catch (cause) {
+    // The account fence can reject before entering settlement. It must not become a
+    // server refusal or permit writes against the account that replaced the caller's.
+    return { outcome: "deferred", reason: "storage", failure: message(cause) }
+  }
 }

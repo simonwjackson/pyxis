@@ -23,6 +23,20 @@ requirements and decisions were captured directly into `plan.md` sections
 
 ## Current position
 
+**Local sync settlement, 2026-10-01.** One refreshed, account-fenced database operation now
+owns verdict staging, projection, notices, retry records and dequeue for session commands,
+placements and listens. Network calls remain outside the lock. Storage failure preserves
+intent and recovery evidence instead of reporting rejection or outage. Saved verdicts resume
+without RPC; current authoritative state supersedes historical projections. Regressions cover
+receipt failure, redelivery, multiple saved verdicts, notice failure and real-WASM reopen.
+All 300 reference-client/worker tests, 270 player tests and native Chromium playback pass.
+Final independent review found no correctness blocker.
+Owned Biome, player typecheck, builds, Clippy, shell lint and contract checks pass. Full gates
+retain failures reproduced on pristine `be27649`: Rust formatting, the root JPEG declaration,
+30 Biome errors and 18 warnings, and one date-dependent listen test. Deployment is pending.
+The plan records the remaining first-stage placement conflict-evidence window. Realtime
+and renderer confirmation remain separate work. See `docs/operations/2026-10-01-local-sync-settlement.md`.
+
 **Album track-number carryover, 2026-09-22.** The phone trace confirms the user's suspicion:
 local Clear/Add/Play chose Ruiner track 1, then server events restored cursor 6 and loaded track 7.
 No Next command occurred between the album selection and the jump. `SessionRecord` omitted cleared
