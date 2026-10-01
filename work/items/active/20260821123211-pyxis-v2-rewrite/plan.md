@@ -115,7 +115,10 @@ everything provider-shaped lives at the edge behind a plugin protocol.
   Submitted Play writes settle before separate cancellation corrections. Failed corrections keep
   audio paused and expose the error without automatic restart. Fresh Play explicitly retries.
   Native refusal, retry, error retention, deduplication, rollback, and loading cancellation pass.
-  No wire, core, or worker-schema change is required. Deployment is pending the final integrated gate.
+  No wire, core, or worker-schema change is required. `13aa1d9` is deployed. Integrated tests pass:
+  335 reference/worker and 274 player. Both services and local/tailnet health checks pass. Served
+  shell, player, worker, manifest and service worker match the installed artifact. Phone acceptance
+  and the inherited full-repository failures remain open.
   See `docs/operations/2026-10-01-renderer-confirmed-commands.md` for evidence and limits.
   This does not diagnose the phone's stream stall or Chrome suspension.
 - **Album track-number carryover, 2026-09-22.** Physical phone tracing confirms local queue

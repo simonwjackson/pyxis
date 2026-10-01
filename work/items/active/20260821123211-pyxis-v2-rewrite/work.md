@@ -23,6 +23,23 @@ requirements and decisions were captured directly into `plan.md` sections
 
 ## Current position
 
+**Shared renderer-confirmed commands, 2026-10-01.** Both clients use one non-React playback
+host. It owns renderer confirmation, durable receipts, revisions, rollback, cancellation and
+later audio-failure correction. Remote errors stay on the host. Successful album selection
+survives failed Play. Local cancellation creates no fabricated Pause receipt. Submitted writes
+use separate corrections. Failed corrections keep audio paused and expose their failure.
+
+Independent reviews passed after closing ordering, ownership, seek, error retention and
+cancellation/revision regressions. All 335 reference/worker tests, 274 player tests and native
+Chromium checks pass. The shared host has 32 cases. Player typecheck, owned checks, architecture,
+contracts and both builds pass. Full verification retains the documented inherited failures.
+`13aa1d9` is deployed as `index-CFZGkN7t.js`. Both services are active. Local/tailnet health and
+exact served shell, player, worker, manifest and service-worker checks pass. Profile priority 5
+is preserved. The worker remains `entry-DxK1Zu54.js` from the separate settlement correction.
+Reload an existing player tab. Physical phone audibility, screen-off behavior and stream stalls
+remain unverified. See `docs/operations/2026-10-01-renderer-confirmed-commands.md`. No wire,
+worker-schema, visual or Sonos change occurred.
+
 **Local sync settlement, 2026-10-01.** One refreshed, account-fenced database operation now
 owns verdict staging, projection, notices, retry records and dequeue for session commands,
 placements and listens. Network calls remain outside the lock. Storage failure preserves
@@ -55,22 +72,6 @@ album replacement, and `/proc` confirms that binary is running. Both services an
 health checks pass; served assets match the installed package. The player bundle is unchanged.
 Phone retest is pending. See `docs/operations/2026-09-22-album-cursor.md`. No frontend playback
 change or Sonos command occurred.
-
-**Shared renderer-confirmed commands, 2026-10-01.** Both clients now use the same non-React
-playback host. Native Play confirmation precedes its durable write. The host owns receipts,
-revision checks, rollback, cancellation, source lifetime and later audio-failure correction.
-Remote errors stay on the host. Successful album selection survives failed Play. Pause during
-unconfirmed Play keeps prior transport without a fabricated Pause receipt. Submitted writes
-use separate corrections. Failed corrections keep audio paused and expose their failure.
-
-Independent review reproduced and closed command interleaving, stale host ownership, redundant
-seek, error retention, and cancellation/revision races. Native Chromium verifies permission
-refusal, pointer-click decoded playback, same-ID retry, paused receipt replay, storage rollback,
-retained album selection and held-stream cancellation. The unrelated-error negative control
-fails the permission assertion. Physical phone acceptance remains open. Deployment and final
-verification after rebase remain pending. See
-`docs/operations/2026-10-01-renderer-confirmed-commands.md`. No core, worker-schema, wire, visual
-or Sonos change occurred.
 
 **Phone media controls, 2026-09-22.** A sync failure cleared the app's Media Session metadata and
 transport while the renderer kept playing its retained local session. The app now reads that same
