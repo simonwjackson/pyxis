@@ -93,6 +93,18 @@ everything provider-shaped lives at the edge behind a plugin protocol.
 
 ### Deferred to Follow-Up Work
 
+- **Verification closure, 2026-10-16.** The maintenance and Console fixture changes are
+  integrated on one verification branch. Expired listen-test dates, Rust wrapping and root
+  JPEG typing are corrected. Thirty blocking Biome errors are repaired without disabling
+  rules or excluding files. Eighteen existing warnings remain. All nine prototype pages retain
+  their visible text, geometry and computed styles in eighteen fixed-clock browser comparisons.
+  Twenty full Console runs passed 87 cases each: ten normal order and ten shuffled seeds under
+  CPU and temporary-storage load. These are repeated observations, not distinct test additions.
+  The original CPU-load cause and an earlier untraced intermediate missing-Kitchen failure
+  remain unknown; no new unexplained failure appeared in the final campaign. Required checks
+  and review must pass on the exact rebased SHA before a local fast-forward. No flake-free or
+  deployment claim follows from this note. See
+  `docs/operations/2026-10-16-verification-closure.md` for scope, controls and remaining risk.
 - **Placement conflict evidence before journal persistence, 2026-10-01.** Local settlement
   now stages the complete verdict before projection, notices and dequeue. A failed first stage
   after a placement RPC retains intent but cannot guarantee the original conflict details on
