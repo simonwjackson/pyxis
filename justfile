@@ -46,6 +46,14 @@ lint-ts:
 test-ts: link-proseql
     bun run test
 
+# Select related app tests; paths are relative to clients/app. Not a full gate.
+test-app-related +FILES: link-proseql
+    bun run --cwd clients/app vitest related --run --passWithNoTests=false {{FILES}}
+
+# Select related player tests; paths are relative to clients/player. Not a full gate.
+test-player-related +FILES: link-proseql
+    bun run --cwd clients/player vitest related --run --passWithNoTests=false {{FILES}}
+
 test-pandora-fixtures:
     tools/test-pandora-fixtures
 

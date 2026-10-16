@@ -22,6 +22,34 @@ M2 restores the 371-album library and installs the product on the tailnet.
 
 Read [`work/items/active/20260821123211-pyxis-v2-rewrite/plan.md`](work/items/active/20260821123211-pyxis-v2-rewrite/plan.md).
 
+## Focused daytime tests
+
+Inside the project dev shell, run these from the repository root. Each path is relative
+to the named client package, not the repository root:
+
+```sh
+just test-app-related src/worker/offline-policy.ts
+just test-player-related src/model/playback.ts
+# Explicit test files also select themselves.
+just test-app-related src/playback/confirmed-host.test.ts
+just test-player-related src/model/playback.test.tsx
+```
+
+These recipes use Vitest's existing `related --run` selection. They are not full verification,
+typechecking, lint, architecture checks, or builds. Missing selections fail instead of passing
+with zero tests. Static imports can select many tests; dynamic imports and other dependencies
+may not be covered. Use broader tests when the affected scope is unknown.
+
+The clients have separate test configurations. For a shared app playback change, run both:
+
+```sh
+just test-app-related src/playback/confirmed-host.ts
+just test-player-related ../app/src/playback/confirmed-host.ts
+```
+
+Keep `just verify` as the repository gate; focused selection does not replace it or the
+separate player checks.
+
 ## The v1 codebase
 
 The entire v1 history lives on the `legacy` branch, unchanged.
