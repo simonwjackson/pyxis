@@ -27,6 +27,35 @@ import { ReferenceSessions } from "./Sessions.tsx"
 import { ReferenceStations } from "./Stations.tsx"
 import { ReferenceUpdate } from "./Update.tsx"
 
+function deferred<T = void>() {
+  let resolve = (_value: T): void => {
+    throw new Error("deferred promise not initialized")
+  }
+  const promise = new Promise<T>((ready) => {
+    resolve = ready
+  })
+  return { promise, resolve }
+}
+
+// Move only the configured worker delay. Observe rejection before advancing the clock
+// so a fixture failure is reported here, not as an unhandled promise rejection.
+async function finishWorkerScheduling(ready: Promise<void>, delay: number) {
+  const result = ready.then(
+    () => ({ ok: true as const }),
+    (cause: unknown) => ({ ok: false as const, cause }),
+  )
+  try {
+    if (delay > 0)
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(delay)
+      })
+    const outcome = await result
+    if (!outcome.ok) throw outcome.cause
+  } finally {
+    vi.useRealTimers()
+  }
+}
+
 function album(overrides: Partial<RpcLibraryAlbum> = {}): RpcLibraryAlbum {
   return {
     id: "album-1",
@@ -60,6 +89,7 @@ function session(overrides: Partial<RpcSession> = {}): RpcSession {
 afterEach(() => {
   cleanup()
   vi.restoreAllMocks()
+  vi.useRealTimers()
 })
 
 // jsdom has no media stack. Give the element just enough behaviour to assert against.
@@ -966,11 +996,18 @@ describe("console mode", () => {
     expect(await database.session("also-mine")).toBeDefined()
   })
 
-  test.each(["newer", "reachability", "retired"] as const)(
-    "retains a %s event during a delayed command acknowledgement",
-    async (mode) => {
-      let handlers: RealtimeHandlers | undefined
-      let acknowledge: (() => void) | undefined
+  test.each([
+    ["newer", 0],
+    ["reachability", 0],
+    ["retired", 0],
+    // A valid worker turn can exceed the default 1000 ms callback-polling deadline.
+    ["retired", 1250],
+  ] as const)(
+    "retains a %s event during a delayed command acknowledgement (%i ms worker scheduling)",
+    async (mode, workerDelay) => {
+      const connected = deferred<RealtimeHandlers>()
+      const commandStarted = deferred()
+      const acknowledgement = deferred()
       const database = await openWorkerDatabase({ engine: createMemoryEngine() })
       const original = session({
         id: "mine",
@@ -984,23 +1021,37 @@ describe("console mode", () => {
       const rpc: WorkerRpc = {
         listAlbums: vi.fn(async () => []),
         listSessions: async () => [remote],
-        runSessionCommand: async () =>
-          new Promise((resolve) => {
-            acknowledge = () => resolve({ ...original, volume: 50, revision: 2 })
-          }),
+        runSessionCommand: async () => {
+          commandStarted.resolve()
+          await acknowledgement.promise
+          return { ...original, volume: 50, revision: 2 }
+        },
         setPlacement: async () => undefined,
         appendListen: async () => ({ accepted: 0, duplicates: 0 }),
       }
-      const store = persistent(
+      const base = persistent(
         createDirectWorkerClient(
           async () => database,
           () => rpc,
         ),
       )
+      let synchronization: ReturnType<WorkerClient["syncSessions"]> | undefined
+      const store: WorkerClient = {
+        ...base,
+        syncSessions: (...args) => {
+          synchronization = base.syncSessions(...args)
+          return synchronization
+        },
+        queueSessionCommand: async (...args) => {
+          if (workerDelay > 0)
+            await new Promise<void>((resolve) => setTimeout(resolve, workerDelay))
+          return base.queueSessionCommand(...args)
+        },
+      }
       const configured: ReferenceClient = {
         ...client([]),
         connectRealtime: (_token, value) => {
-          handlers = value
+          connected.resolve(value)
           return () => {}
         },
       }
@@ -1011,27 +1062,30 @@ describe("console mode", () => {
         </ReferenceApp>,
       )
       await screen.findByText("Status: ready")
+      const realtime = await connected.promise
       vi.mocked(rpc.listAlbums).mockClear()
-      act(() =>
-        handlers?.onDirective({
-          sessionId: "mine",
-          directiveId: "volume",
-          issuedBy: "device-2",
-          command: { _tag: "volume.set", payload: { volume: 50 } },
-        }),
-      )
-      await waitFor(() => expect(acknowledge).toBeTypeOf("function"))
-      const { cursor: _cursor, currentTrackId: _track, ...cleared } = original
-      remote =
-        mode === "reachability"
-          ? { ...original, volume: 50, revision: 2, reachable: false }
-          : { ...cleared, queue: [], volume: 50, revision: 3 }
-      let covered = false
+      if (workerDelay > 0)
+        vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "setInterval", "clearInterval"] })
       let delivery: Promise<void> | undefined
       try {
+        act(() =>
+          realtime.onDirective({
+            sessionId: "mine",
+            directiveId: "volume",
+            issuedBy: "device-2",
+            command: { _tag: "volume.set", payload: { volume: 50 } },
+          }),
+        )
+        await finishWorkerScheduling(commandStarted.promise, workerDelay)
+        const { cursor: _cursor, currentTrackId: _track, ...cleared } = original
+        remote =
+          mode === "reachability"
+            ? { ...original, volume: 50, revision: 2, reachable: false }
+            : { ...cleared, queue: [], volume: 50, revision: 3 }
+        let covered = false
         await act(async () => {
           delivery = Promise.resolve(
-            handlers?.onEvent({
+            realtime.onEvent({
               topic: RpcRealtimeTopic.Sessions,
               resumeToken: "revision-3",
               state: { _tag: "session.state", payload: remote },
@@ -1042,13 +1096,16 @@ describe("console mode", () => {
           await Promise.resolve()
         })
         expect(covered).toBe(false)
-        if (mode === "retired") act(() => handlers?.onFailure?.(new Error("socket closed")))
+        if (mode === "retired") act(() => realtime.onFailure?.(new Error("socket closed")))
         await act(async () => {
-          acknowledge?.()
+          acknowledgement.resolve()
           if (mode === "retired") await expect(delivery).rejects.toThrow("connection retired")
           else await delivery
         })
-        await waitFor(async () => expect(await database.outbox()).toEqual([]))
+        await act(async () => {
+          await synchronization
+        })
+        expect(await database.outbox()).toEqual([])
         expect(covered).toBe(mode !== "retired")
         expect(rpc.listAlbums).not.toHaveBeenCalled()
         expect(await database.session("mine")).toEqual(
@@ -1056,7 +1113,12 @@ describe("console mode", () => {
         )
         if (mode === "newer") expect(screen.getByText("none")).toBeTruthy()
       } finally {
-        acknowledge?.()
+        acknowledgement.resolve()
+        await act(async () => {
+          // The retired delivery is asserted above; drain it even if an earlier assertion failed.
+          await delivery?.catch(() => undefined)
+          await synchronization
+        })
       }
     },
   )
@@ -1369,110 +1431,128 @@ describe("console mode", () => {
   })
 
   test.each([
-    ["resync", "sync"],
-    ["resync", "snapshot"],
-    ["library event", "sync"],
-    ["library event", "snapshot"],
-  ] as const)("fences %s authority held at %s across connection failure", async (origin, stage) => {
-    const database = await openWorkerDatabase({ engine: createMemoryEngine() })
-    const output = session({
-      id: "output",
-      hostDeviceId: "output-kitchen",
-      output: { pluginId: "sonos", targetId: "kitchen" },
-    })
-    await database.putSession(output)
-    await database.putSession(session({ id: "browser", name: "Other browser" }))
-    const base = persistent(createDirectWorkerClient(async () => database))
-    let holding = false
-    let release: (() => void) | undefined
-    let handlers: RealtimeHandlers | undefined
-    const pause = async (at: string) => {
-      if (holding && at === stage)
-        await new Promise<void>((resolve) => {
-          release = resolve
-        })
-    }
-    render(
-      <ReferenceApp
-        client={{
-          ...client([]),
-          connectRealtime: (_token, next) => {
-            handlers = next
-            return () => {}
-          },
-        }}
-        worker={{
-          ...base,
-          sync: async () => {
-            const report = await base.sync()
-            await pause("sync")
-            return report
-          },
-          sessions: async () => {
-            const rows = await base.sessions()
-            await pause("snapshot")
-            return rows
-          },
-        }}
-      >
-        <ReferenceRemote />
-        <ReferencePlugins />
-      </ReferenceApp>,
-    )
-    await screen.findByText("Status: ready")
-    const realtime = handlers
-    const onFailure = realtime?.onFailure
-    if (realtime === undefined || onFailure === undefined)
-      throw new Error("missing realtime handlers")
-    const row = document.querySelector<HTMLLIElement>('[data-session-id="output"]')
-    const button = row?.querySelector("button")
-    if (row === null || button === undefined || button === null)
-      throw new Error("missing output control")
-    for (const freshBeforeRelease of [false, true]) {
-      holding = true
-      release = undefined
-      let pending: void | Promise<void>
-      await act(async () => {
-        pending =
-          origin === "resync"
-            ? realtime.onResync()
-            : realtime.onEvent({
-                topic: RpcRealtimeTopic.Library,
-                resumeToken: "library-test",
-                state: { _tag: "library.album.state", payload: album() },
-              })
-        await Promise.resolve()
+    ["resync", "sync", 0],
+    ["resync", "snapshot", 0],
+    ["library event", "sync", 0],
+    ["library event", "snapshot", 0],
+    ["library event", "snapshot", 1250],
+  ] as const)(
+    "fences %s authority held at %s across connection failure (%i ms worker scheduling)",
+    async (origin, stage, workerDelay) => {
+      const database = await openWorkerDatabase({ engine: createMemoryEngine() })
+      const output = session({
+        id: "output",
+        hostDeviceId: "output-kitchen",
+        output: { pluginId: "sonos", targetId: "kitchen" },
       })
-      await waitFor(() => expect(release).toBeTypeOf("function"))
-      act(() => onFailure(new Error("socket lost")))
-      expect(button.disabled).toBe(true)
-      expect(document.querySelector('[data-session-id="browser"]')).toBeNull()
-      if (freshBeforeRelease)
-        await act(async () => {
-          await realtime.onEvent({
-            topic: RpcRealtimeTopic.Sessions,
-            resumeToken: "fresh-output",
-            state: {
-              _tag: "session.state",
-              payload: { ...output, name: "Kitchen fresh", revision: 2 },
+      await database.putSession(output)
+      await database.putSession(session({ id: "browser", name: "Other browser" }))
+      const base = persistent(createDirectWorkerClient(async () => database))
+      let holding = false
+      let snapshotHeld = deferred()
+      let release = deferred()
+      const connected = deferred<RealtimeHandlers>()
+      const pause = async (at: string) => {
+        if (holding && at === stage) {
+          snapshotHeld.resolve()
+          await release.promise
+        }
+      }
+      render(
+        <ReferenceApp
+          client={{
+            ...client([]),
+            connectRealtime: (_token, next) => {
+              connected.resolve(next)
+              return () => {}
             },
+          }}
+          worker={{
+            ...base,
+            sync: async () => {
+              const report = await base.sync()
+              await pause("sync")
+              return report
+            },
+            sessions: async () => {
+              const rows = await base.sessions()
+              if (holding && stage === "snapshot" && workerDelay > 0)
+                await new Promise<void>((resolve) => setTimeout(resolve, workerDelay))
+              await pause("snapshot")
+              return rows
+            },
+          }}
+        >
+          <ReferenceRemote />
+          <ReferencePlugins />
+        </ReferenceApp>,
+      )
+      await screen.findByText("Status: ready")
+      const realtime = await connected.promise
+      const onFailure = realtime.onFailure
+      if (onFailure === undefined) throw new Error("missing realtime handlers")
+      const row = document.querySelector<HTMLLIElement>('[data-session-id="output"]')
+      const button = row?.querySelector("button")
+      if (row === null || button === undefined || button === null)
+        throw new Error("missing output control")
+      for (const freshBeforeRelease of [false, true]) {
+        if (workerDelay > 0)
+          vi.useFakeTimers({
+            toFake: ["setTimeout", "clearTimeout", "setInterval", "clearInterval"],
           })
+        holding = true
+        snapshotHeld = deferred()
+        release = deferred()
+        let pending: void | Promise<void>
+        try {
+          await act(async () => {
+            pending =
+              origin === "resync"
+                ? realtime.onResync()
+                : realtime.onEvent({
+                    topic: RpcRealtimeTopic.Library,
+                    resumeToken: "library-test",
+                    state: { _tag: "library.album.state", payload: album() },
+                  })
+            await Promise.resolve()
+          })
+          await finishWorkerScheduling(snapshotHeld.promise, workerDelay)
+          act(() => onFailure(new Error("socket lost")))
+          expect(button.disabled).toBe(true)
+          expect(document.querySelector('[data-session-id="browser"]')).toBeNull()
+          if (freshBeforeRelease)
+            await act(async () => {
+              await realtime.onEvent({
+                topic: RpcRealtimeTopic.Sessions,
+                resumeToken: "fresh-output",
+                state: {
+                  _tag: "session.state",
+                  payload: { ...output, name: "Kitchen fresh", revision: 2 },
+                },
+              })
+            })
+          await act(async () => {
+            release.resolve()
+            await pending
+          })
+          expect(button.disabled).toBe(!freshBeforeRelease)
+          expect(document.querySelector('[data-session-id="browser"]')).toBeNull()
+          if (freshBeforeRelease) expect(row.textContent).toContain("Kitchen fresh")
+        } finally {
+          release.resolve()
+          await act(async () => {
+            await pending
+          })
+          holding = false
+        }
+        await act(async () => {
+          await realtime.onResync()
         })
-      await act(async () => {
-        release?.()
-        await pending
-      })
-      expect(button.disabled).toBe(!freshBeforeRelease)
-      expect(document.querySelector('[data-session-id="browser"]')).toBeNull()
-      if (freshBeforeRelease) expect(row.textContent).toContain("Kitchen fresh")
-      holding = false
-      await act(async () => {
-        await realtime.onResync()
-      })
-      expect(button.disabled).toBe(false)
-      expect(document.querySelector('[data-session-id="browser"]')).not.toBeNull()
-    }
-  })
+        expect(button.disabled).toBe(false)
+        expect(document.querySelector('[data-session-id="browser"]')).not.toBeNull()
+      }
+    },
+  )
 
   test("shows cached output sessions as unavailable before any live pull", async () => {
     const database = await openWorkerDatabase({ engine: createMemoryEngine() })

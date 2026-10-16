@@ -178,6 +178,20 @@ everything provider-shaped lives at the edge behind a plugin protocol.
   them. The first burns a full 1016 ms before giving up, so it is waiting on a real timeout rather
   than a missing element. They are timing-sensitive, they predate the station work, and a suite
   that fails on a busy machine trains people to rerun instead of read.
+  **2026-10-16 scheduling correction:** these test families now wait for fixture readiness and
+  actual sync completion instead of polling callback installation for one second. Two real
+  ReferenceApp/worker regressions inject 1250 ms of virtual worker scheduling. Old coordination
+  fails both callback assertions; completion promises pass; restoring old coordination fails
+  again. No timeout, retry, production or contract change was made. This proves a bounded-wait
+  defect, not the historical Cargo-load cause: current main's original cases passed seven probes,
+  including six beside a fresh Cargo build. All four target variants pass five loaded full-file
+  runs (20/20), but historical causation remains unknown. App tests pass 337/337, player tests
+  274/274. See `docs/operations/2026-10-16-console-fixture-scheduling.md` for controls and limits.
+- **Another Console fixture fails under combined load, 2026-10-16.**
+  `a same-revision disconnect removes a remote session without a full sync` failed once in five
+  full-file runs with eight CPU burners, a temporary-storage writer and concurrent Cargo work.
+  It failed at `getByText(/Kitchen/)`; the two scheduling-correction targets passed. Four runs
+  passed all 86 cases. This separate fixture remains open; no broader load-stability claim is made.
 - **A dependency's test suite was being run as ours.** `clients/app/.cache/proseql` is a symlink
   into the Nix store, and the vitest config had no `exclude`, so 172 unresolvable ProseQL test
   files were collected on every run. Environment setup took 166 seconds. U33 excludes `.cache`,
