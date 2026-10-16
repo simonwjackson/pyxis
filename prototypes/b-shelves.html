@@ -261,12 +261,12 @@
     <dialog id="detail" class="sheet wide"></dialog>
 
     <script type="module">
-      import { ago, availability, element, escape, loadLibrary, policyLabel, reveal, runtime, sleeve, tintFrom, wantedOffline } from "./common.js"
       import { albumLead, albumShelf, albumTile } from "./albums.js"
+      import { ago, availability, element, escape as escapeHtml, loadLibrary, policyLabel, reveal, runtime, sleeve, tintFrom, wantedOffline } from "./common.js"
       import { icon } from "./icons.js"
       import { productNav } from "./nav.js"
-      import { mountWindow } from "./parts.js"
       import { currentSession, mountNowPlaying } from "./nowplaying.js"
+      import { mountWindow } from "./parts.js"
       import { expiredSource } from "./sources.js"
       import { currentQuery, currentState, isLive } from "./states.js"
 
@@ -328,7 +328,7 @@
         document.getElementById("strip").append(
           element(`
             <p class="strip failed">
-              <b>${escape(out.name)} signed out</b>
+              <b>${escapeHtml(out.name)} signed out</b>
               <span class="right">${stranded.length} albums cannot play
                 <a class="act inline" href="./f-sources.html${location.search}">Sign in</a></span>
             </p>
@@ -410,8 +410,8 @@
             <div class="top">
               <span class="frame object">${sleeve(album)}</span>
               <div>
-                <h3 class="album-title big">${escape(album.title)}</h3>
-                <div class="credit">${escape(album.artist)} · ${album.year ?? "—"}</div>
+                <h3 class="album-title big">${escapeHtml(album.title)}</h3>
+                <div class="credit">${escapeHtml(album.artist)} · ${album.year ?? "—"}</div>
                 <dl class="signals">
                   <div><dt>Plays</dt><dd>${album.playCount}</dd></div>
                   <div><dt>Last heard</dt><dd>${ago(album.lastPlayedAt)}</dd></div>
@@ -445,7 +445,7 @@
             playable
               ? `<button>Play album</button><button class="quiet">Shuffle</button>`
               : `<a class="act primary" href="./f-sources.html${location.search}">Sign in to play</a>
-                 <span class="meta trouble">${escape(out?.name ?? "Source")} signed out</span>`,
+                 <span class="meta trouble">${escapeHtml(out?.name ?? "Source")} signed out</span>`,
           ),
         )
         // Playing closes the sheet: the album is now in the bar, which is where it lives.
@@ -665,7 +665,7 @@
             element(
               activeCount() || state.query
                 ? `<p class="none">Nothing matches those filters.</p>`
-                : `<p class="none">Nothing in ${escape(state.placement)}.</p>`,
+                : `<p class="none">Nothing in ${escapeHtml(state.placement)}.</p>`,
             ),
           )
           return

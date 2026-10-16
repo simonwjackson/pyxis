@@ -903,7 +903,8 @@ dialog.sheet::backdrop {
   width: 100%;
   padding: var(--s3) var(--s3);
   font: inherit;
-  font-size: var(--t-body); /* Under var(--t-body), iOS zooms the page on focus and never zooms back. */
+  /* Under var(--t-body), iOS zooms the page on focus and never zooms back. */
+  font-size: var(--t-body);
   font-weight: 500;
   color: var(--ink);
   background: var(--sink);
@@ -961,7 +962,6 @@ dialog.sheet::backdrop {
   line-height: 1.06;
   letter-spacing: -0.03em;
 }
-
 
 /* The reference is showing a recording rather than the live library. Pinned above everything
    so it cannot be mistaken for part of the design being reviewed. */
@@ -1067,9 +1067,7 @@ dialog.sheet::backdrop {
   margin: 0 auto;
   overflow-y: auto;
   color: var(--ink);
-  background:
-    radial-gradient(120% 70% at 50% 24%, var(--wash) 0%, transparent 62%),
-    var(--pool);
+  background: radial-gradient(120% 70% at 50% 24%, var(--wash) 0%, transparent 62%), var(--pool);
   border: none;
 }
 .player::backdrop {

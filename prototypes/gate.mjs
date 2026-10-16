@@ -7,7 +7,7 @@
 //
 // Run: node prototypes/gate.mjs
 
-import { readFileSync, readdirSync } from "node:fs"
+import { readdirSync, readFileSync } from "node:fs"
 import { basename, join } from "node:path"
 
 const DIR = new URL(".", import.meta.url).pathname
@@ -237,7 +237,9 @@ for (const page of pages) {
 const behaviourOnly = (name) => name.startsWith("js-") || name === "ref"
 
 for (const file of [...pages, ...modules]) {
-  const text = file.endsWith(".html") ? read(file).replace(/<style>[\s\S]*?<\/style>/g, "") : read(file)
+  const text = file.endsWith(".html")
+    ? read(file).replace(/<style>[\s\S]*?<\/style>/g, "")
+    : read(file)
   const emitted = new Set()
   // Template literals interpolate, so a class attribute containing ${...} is skipped: its
   // value is not knowable here, and guessing produces the false failures that get gates muted.

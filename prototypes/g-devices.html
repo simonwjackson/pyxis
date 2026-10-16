@@ -63,7 +63,7 @@
     <main id="root"></main>
 
     <script type="module">
-      import { element, escape, loadLibrary } from "./common.js"
+      import { element, escape as escapeHtml, loadLibrary } from "./common.js"
       import { productNav } from "./nav.js"
       import { mountNowPlaying } from "./nowplaying.js"
       import { makeRooms } from "./rooms.js"
@@ -106,8 +106,8 @@
           <div class="row device-row ${device.gone ? "dimmed" : ""}">
             <span class="avatar">${device.glyph}</span>
             <span class="t">
-              <b>${escape(device.name)}</b>
-              <span class="${device.gone ? "trouble" : ""}">${escape(device.note)}</span>
+              <b>${escapeHtml(device.name)}</b>
+              <span class="${device.gone ? "trouble" : ""}">${escapeHtml(device.note)}</span>
             </span>
           </div>
         `)

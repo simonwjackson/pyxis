@@ -4,7 +4,7 @@
 // fact about a settings screen. It is a fact about the album you just tapped, so the wall and
 // the album sheet have to be able to ask.
 
-import { element, escape } from "./common.js"
+import { element, escape as escapeHtml } from "./common.js"
 
 // What a source needs before it can do anything is the plugin's business, not ours. The core
 // asks a plugin for a config schema and the plugin answers; an empty answer means it needs
@@ -66,7 +66,7 @@ export function openConnect(source, { onDone } = {}) {
   const sheet = element(`
     <dialog class="sheet js-connect">
       <div class="sheet-head">
-        <span class="label">Connect ${escape(source.name)}</span>
+        <span class="label">Connect ${escapeHtml(source.name)}</span>
         <button class="js-sheet-cancel">Cancel</button>
       </div>
       <form method="dialog"></form>
@@ -78,7 +78,7 @@ export function openConnect(source, { onDone } = {}) {
     form.append(
       element(`
         <label class="field">
-          <span>${escape(field.label)}</span>
+          <span>${escapeHtml(field.label)}</span>
           <input name="${field.key}" type="${field.type}" autocomplete="off" spellcheck="false" />
         </label>
       `),
@@ -107,7 +107,9 @@ export function openConnect(source, { onDone } = {}) {
     // banner at the top that leaves you to work out which field it meant.
     const box = form.querySelector(`[name="password"]`) ?? form.querySelector("input")
     box?.closest(".field")?.classList.add("bad")
-    box?.closest(".field")?.after(element(`<p class="field-error trouble">${escape(message)}</p>`))
+    box
+      ?.closest(".field")
+      ?.after(element(`<p class="field-error trouble">${escapeHtml(message)}</p>`))
   }
 
   form.addEventListener("submit", (event) => {

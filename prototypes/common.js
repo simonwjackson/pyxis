@@ -59,7 +59,8 @@ export async function loadLibrary(state = "live", { live = false } = {}) {
   }
 
   const seeded = albums.map((album) => seed(album, covers[album.id]))
-  for (const album of seeded) album.source = hash(`src${album.id}`) % 9 === 0 ? "pandora" : "ytmusic"
+  for (const album of seeded)
+    album.source = hash(`src${album.id}`) % 9 === 0 ? "pandora" : "ytmusic"
   assignPlacements(seeded)
   return seeded
 }
@@ -141,8 +142,8 @@ export function sleeve(album, className = "") {
   }
   return `
     <span class="sleeve blank ${className}" aria-hidden="true">
-      <em>${escape(album.artist)}</em>
-      <b>${escape(album.title)}</b>
+      <em>${escapeHtml(album.artist)}</em>
+      <b>${escapeHtml(album.title)}</b>
     </span>
   `
 }
@@ -171,12 +172,14 @@ export function policyLabel(album) {
     : `Not kept because it is in ${album.placement}`
 }
 
-export function escape(value) {
+function escapeHtml(value) {
   return String(value).replace(
     /[&<>"]/g,
     (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[character],
   )
 }
+
+export { escapeHtml as escape }
 
 export function duration(ms) {
   if (ms === null || ms === undefined) return "—"
@@ -339,7 +342,7 @@ function hsl(r, g, b) {
   if (max === r) h = ((g - b) / d) % 6
   else if (max === g) h = (b - r) / d + 2
   else h = (r - g) / d + 4
-  return { h: Math.round(((h * 60) + 360) % 360), s, l }
+  return { h: Math.round((h * 60 + 360) % 360), s, l }
 }
 
 /// Apply an album's colour to an element as custom properties the stylesheet composes from.

@@ -4,7 +4,7 @@
 // absence: it keeps its footprint so nothing below it moves, drops to a resting form, and
 // offers the one action that resolves it.
 
-import { duration, element, escape, runtime, sleeve, tintFrom } from "./common.js"
+import { duration, element, escape as escapeHtml, runtime, sleeve, tintFrom } from "./common.js"
 import { icon } from "./icons.js"
 import { liveRoom, makeRooms, openRooms, playingCount } from "./rooms.js"
 
@@ -70,7 +70,7 @@ export function mountNowPlaying(library, { state = "live" } = {}) {
         <span class="nowbar-text">
           <b>Nothing playing</b>
           <span class="truncate-1">${
-            resume ? `Last played ${escape(resume.title)}` : "Add an album to get started"
+            resume ? `Last played ${escapeHtml(resume.title)}` : "Add an album to get started"
           }</span>
         </span>
         ${resume ? `<button class="act inline">Resume</button>` : ""}
@@ -93,15 +93,15 @@ export function mountNowPlaying(library, { state = "live" } = {}) {
     const { album, room, rooms, others, trackIndex, next } = session
     const track = album.tracks[trackIndex]
     // With several rooms live, the bar follows the one you touched last and says so.
-    const roomLabel = others > 0 ? `${escape(room)} +${others}` : escape(room)
+    const roomLabel = others > 0 ? `${escapeHtml(room)} +${others}` : escapeHtml(room)
 
     const bar = element(`
       <div class="nowbar">
         <button class="nowbar-open" aria-label="Open player">
           <span class="frame object">${sleeve(album)}</span>
           <span class="nowbar-text">
-            <b class="truncate-1">${escape(album.title)}</b>
-            <span class="truncate-1">${escape(album.artist)}</span>
+            <b class="truncate-1">${escapeHtml(album.title)}</b>
+            <span class="truncate-1">${escapeHtml(album.artist)}</span>
           </span>
         </button>
         <button class="nowbar-room" aria-label="Rooms"><i></i>${roomLabel}</button>
@@ -121,11 +121,11 @@ export function mountNowPlaying(library, { state = "live" } = {}) {
         <div class="player-stage">
           <span class="frame object player-art">${sleeve(album)}</span>
         </div>
-        <h2 class="player-title">${escape(album.title)}</h2>
-        <p class="player-artist">${escape(album.artist)}<span> · ${album.year ?? "—"} · ${runtime(album)}</span></p>
+        <h2 class="player-title">${escapeHtml(album.title)}</h2>
+        <p class="player-artist">${escapeHtml(album.artist)}<span> · ${album.year ?? "—"} · ${runtime(album)}</span></p>
         <div class="player-bar"><div></div></div>
         <p class="player-position">
-          <span class="truncate-1">${escape(track.title)}</span>
+          <span class="truncate-1">${escapeHtml(track.title)}</span>
           <span>${trackIndex + 1} of ${album.tracks.length}</span>
           <span>1:12 <em>/ ${duration(track.durationMs)}</em></span>
         </p>
@@ -145,7 +145,10 @@ export function mountNowPlaying(library, { state = "live" } = {}) {
     const paint = () => {
       const state = playing ? icon.pause : icon.play
       const label = playing ? "Pause" : "Play"
-      for (const toggle of [bar.querySelector(".nowbar-toggle"), sheet.querySelector(".js-player-toggle")]) {
+      for (const toggle of [
+        bar.querySelector(".nowbar-toggle"),
+        sheet.querySelector(".js-player-toggle"),
+      ]) {
         toggle.innerHTML = state
         toggle.setAttribute("aria-label", label)
       }
@@ -203,8 +206,8 @@ export function mountNowPlaying(library, { state = "live" } = {}) {
             <span class="frame object">${sleeve(following)}</span>
             <span class="t">
               <span>Then</span>
-              <b class="truncate-1">${escape(following.title)}</b>
-              <span class="truncate-1">${escape(following.artist)}</span>
+              <b class="truncate-1">${escapeHtml(following.title)}</b>
+              <span class="truncate-1">${escapeHtml(following.artist)}</span>
             </span>
             <button class="quiet-link">Stop after this</button>
           </div>
@@ -244,7 +247,9 @@ export function mountNowPlaying(library, { state = "live" } = {}) {
     // is how a page ends up contradicting the bar three inches below it.
     document.dispatchEvent(
       new CustomEvent("pyxis:playing", {
-        detail: session ? { album: session.album, room: session.room } : { album: null, room: null },
+        detail: session
+          ? { album: session.album, room: session.room }
+          : { album: null, room: null },
       }),
     )
   }

@@ -7,7 +7,7 @@
 // deliberate trade: one line can only carry one session, and recency is the cheapest
 // honest guess.
 
-import { element, escape, sleeve, tintFrom } from "./common.js"
+import { element, escape as escapeHtml, sleeve, tintFrom } from "./common.js"
 
 export function makeRooms(library, mode = "live") {
   const played = library.filter((album) => album.playCount > 0)
@@ -18,7 +18,14 @@ export function makeRooms(library, mode = "live") {
     { id: "kitchen", name: "Kitchen", album: null, playing: false, touchedAt: 0, reachable: true },
     { id: "desk", name: "Desk", album: null, playing: false, touchedAt: 0, reachable: true },
     { id: "phone", name: "This phone", album: null, playing: false, touchedAt: 0, reachable: true },
-    { id: "living", name: "Living room", album: null, playing: false, touchedAt: 0, reachable: true },
+    {
+      id: "living",
+      name: "Living room",
+      album: null,
+      playing: false,
+      touchedAt: 0,
+      reachable: true,
+    },
   ]
   const byId = (id) => rooms.find((room) => room.id === id)
 
@@ -66,14 +73,14 @@ export function roomsPanel(rooms, { onChange, moving = null } = {}) {
       : !room.reachable
         ? "Unreachable"
         : room.album
-          ? `${escape(room.album.title)} — ${escape(room.album.artist)}`
+          ? `${escapeHtml(room.album.title)} — ${escapeHtml(room.album.artist)}`
           : "Nothing playing"
 
     const row = element(`
       <div class="row room ${room.reachable ? "" : "gone"}">
         ${art}
         <span class="t">
-          <b><span class="dot ${room.playing && room.reachable ? "live" : ""}"></span>${escape(room.name)}</b>
+          <b><span class="dot ${room.playing && room.reachable ? "live" : ""}"></span>${escapeHtml(room.name)}</b>
           <span class="truncate-1 ${room.failed ? "trouble" : ""}">${status}</span>
         </span>
       </div>

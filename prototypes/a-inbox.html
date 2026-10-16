@@ -109,7 +109,7 @@
     <main id="root"></main>
 
     <script type="module">
-      import { element, escape, loadLibrary, runtime, sleeve } from "./common.js"
+      import { element, escape as escapeHtml, loadLibrary, runtime, sleeve } from "./common.js"
       import { productNav } from "./nav.js"
       import { mountNowPlaying } from "./nowplaying.js"
       import { currentQuery, currentState, isLive } from "./states.js"
@@ -169,11 +169,11 @@
           element(`
             <article>
               <span class="frame cover">${sleeve(album)}</span>
-              <h1 class="album-title">${escape(album.title)}</h1>
-              <p class="credit">${escape(album.artist)} · ${album.year ?? "—"} · ${runtime(album)}</p>
+              <h1 class="album-title">${escapeHtml(album.title)}</h1>
+              <p class="credit">${escapeHtml(album.artist)} · ${album.year ?? "—"} · ${runtime(album)}</p>
               <p class="origin">
-                ${escape(album.capturedFrom)} · ${album.capturedDaysAgo}d ago${
-                  album.hook ? ` · ${escape(album.hook.title)}` : ""
+                ${escapeHtml(album.capturedFrom)} · ${album.capturedDaysAgo}d ago${
+                  album.hook ? ` · ${escapeHtml(album.hook.title)}` : ""
                 }
               </p>
             </article>
@@ -194,7 +194,7 @@
 
         if (undo) {
           const line = element(
-            `<p class="undo">${escape(undo.album.artist)} filed · <button>undo</button></p>`,
+            `<p class="undo">${escapeHtml(undo.album.artist)} filed · <button>undo</button></p>`,
           )
           line.querySelector("button").onclick = () => {
             undo.album.placement = undo.previous

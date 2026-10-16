@@ -66,7 +66,7 @@
     <main id="root"></main>
 
     <script type="module">
-      import { element, escape, loadLibrary, runtime, sleeve } from "./common.js"
+      import { element, escape as escapeHtml, loadLibrary, runtime, sleeve } from "./common.js"
       import { productNav } from "./nav.js"
       import { mountNowPlaying } from "./nowplaying.js"
       import { currentQuery, currentState, isLive } from "./states.js"
@@ -166,7 +166,7 @@
         source.textContent = `${matches.length} from ytmusic · pandora`
 
         if (matches.length === 0) {
-          results.append(element(`<p class="hint">Nothing found for “${escape(query)}”.</p>`))
+          results.append(element(`<p class="hint">Nothing found for “${escapeHtml(query)}”.</p>`))
           return
         }
 
@@ -176,8 +176,8 @@
             <div class="row result">
               <span class="frame">${sleeve(album)}</span>
               <span class="t">
-                <b class="truncate-1">${escape(album.title)}</b>
-                <span class="truncate-1">${escape(album.artist)} · ${album.year ?? "—"} · ${runtime(album)}</span>
+                <b class="truncate-1">${escapeHtml(album.title)}</b>
+                <span class="truncate-1">${escapeHtml(album.artist)} · ${album.year ?? "—"} · ${runtime(album)}</span>
               </span>
               ${
                 owned

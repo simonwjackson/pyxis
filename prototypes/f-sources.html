@@ -31,11 +31,11 @@
     <main id="root"></main>
 
     <script type="module">
-      import { element, escape, loadLibrary } from "./common.js"
+      import { element, escape as escapeHtml, loadLibrary } from "./common.js"
       import { productNav } from "./nav.js"
       import { mountNowPlaying } from "./nowplaying.js"
-      import { currentQuery, currentState, isLive } from "./states.js"
       import { openConnect, sourceStates } from "./sources.js"
+      import { currentQuery, currentState, isLive } from "./states.js"
 
       const root = document.getElementById("root")
       const mode = currentState()
@@ -60,8 +60,8 @@
           <div class="row source ${connected ? "" : "dimmed"}">
             <span class="avatar">${source.glyph}</span>
             <span class="t">
-              <b>${escape(source.name)}</b>
-              <span class="${expired ? "trouble" : ""}">${escape(
+              <b>${escapeHtml(source.name)}</b>
+              <span class="${expired ? "trouble" : ""}">${escapeHtml(
                 source.status === "connected" || expired ? source.note : source.detail,
               )}</span>
             </span>

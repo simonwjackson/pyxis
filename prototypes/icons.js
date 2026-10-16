@@ -10,7 +10,9 @@ const svg = (body, label) =>
   }>${body}</svg>`
 
 export const icon = {
-  play: svg(`<path d="M7 4.5v15a1 1 0 0 0 1.53.85l12-7.5a1 1 0 0 0 0-1.7l-12-7.5A1 1 0 0 0 7 4.5z"/>`),
+  play: svg(
+    `<path d="M7 4.5v15a1 1 0 0 0 1.53.85l12-7.5a1 1 0 0 0 0-1.7l-12-7.5A1 1 0 0 0 7 4.5z"/>`,
+  ),
   pause: svg(
     `<rect x="5" y="4" width="5" height="16" rx="1"/><rect x="14" y="4" width="5" height="16" rx="1"/>`,
   ),

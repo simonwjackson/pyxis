@@ -70,7 +70,7 @@
         clockTime,
         dayLabel,
         element,
-        escape,
+        escape as escapeHtml,
         listeningHistory,
         loadLibrary,
         sleeve,
@@ -142,10 +142,10 @@
               <div class="row play">
                 <span class="frame">${sleeve(event.album)}</span>
                 <span class="t">
-                  <b class="truncate-1">${escape(event.album.title)}</b>
-                  <span class="truncate-1">${escape(event.album.artist)} · ${escape(event.track?.title ?? "")}</span>
+                  <b class="truncate-1">${escapeHtml(event.album.title)}</b>
+                  <span class="truncate-1">${escapeHtml(event.album.artist)} · ${escapeHtml(event.track?.title ?? "")}</span>
                 </span>
-                <span class="end meta">${clockTime(event.at)}<i>${escape(event.room)}</i></span>
+                <span class="end meta">${clockTime(event.at)}<i>${escapeHtml(event.room)}</i></span>
               </div>
             `),
           )

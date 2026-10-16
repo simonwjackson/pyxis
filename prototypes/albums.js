@@ -5,7 +5,7 @@
 // uses it" is a statement about today. The row molecule was three copies by the time anyone
 // looked.
 
-import { availability, element, escape, sleeve, tintFrom } from "./common.js"
+import { availability, element, escape as escapeHtml, sleeve, tintFrom } from "./common.js"
 
 // An album as a cover: the art, what state it is in, and nothing else. Captions belong to the
 // surface, not to the tile, because the wall reads as art and the shelves read as art.
@@ -14,7 +14,7 @@ export function albumTile(album, { sounding = false, offline = false, onOpen } =
   const marks = [sounding ? "sounding" : "", state].join(" ").trim()
 
   // The label carries what the marks say visually, since a screen reader gets no art.
-  const name = `${escape(album.title)} by ${escape(album.artist)}${
+  const name = `${escapeHtml(album.title)} by ${escapeHtml(album.artist)}${
     sounding ? ", playing now" : ""
   }${offline && state !== "available" ? ", not on this device" : ""}`
 
@@ -36,13 +36,13 @@ export function albumTile(album, { sounding = false, offline = false, onOpen } =
 export function albumLead(album, { context, onOpen, onPlay } = {}) {
   const node = element(`
     <section class="lead">
-      <button class="lead-art frame object" aria-label="${escape(album.title)} by ${escape(
+      <button class="lead-art frame object" aria-label="${escapeHtml(album.title)} by ${escapeHtml(
         album.artist,
       )}">${sleeve(album)}</button>
       <div class="lead-say">
-        <p class="lead-context">${escape(context ?? "")}</p>
-        <h1 class="lead-title">${escape(album.title)}</h1>
-        <p class="credit">${escape(album.artist)}${
+        <p class="lead-context">${escapeHtml(context ?? "")}</p>
+        <h1 class="lead-title">${escapeHtml(album.title)}</h1>
+        <p class="credit">${escapeHtml(album.artist)}${
           album.year ? ` \u00b7 ${album.year}` : ""
         }</p>
       </div>
