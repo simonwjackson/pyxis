@@ -84,7 +84,9 @@ pub fn track_ended(
         });
     }
     *position_ms = 0;
-    let next = cursor.and_then(|at| at.checked_add(1)).filter(|at| *at < queue_len);
+    let next = cursor
+        .and_then(|at| at.checked_add(1))
+        .filter(|at| *at < queue_len);
     match next {
         Some(at) => {
             *cursor = Some(at);
