@@ -1,5 +1,6 @@
 use axum::body::{to_bytes, Body};
 use axum::http::{header, Request, StatusCode};
+use chrono::{Duration, SecondsFormat, Utc};
 use pyxis::api::{router, AppState};
 use pyxis::db::store::Store;
 use serde_json::{json, Value};
@@ -48,6 +49,10 @@ async fn batch_append_replay_history_and_hot_are_public_contracts() {
     let device_id = claim["outcome"]["value"]["device"]["id"]
         .as_str()
         .expect("device id");
+    // The RPC uses current UTC time; keep fixtures safely inside its 30-day window.
+    let now = Utc::now();
+    let listened_at = [3, 2, 1]
+        .map(|hours| (now - Duration::hours(hours)).to_rfc3339_opts(SecondsFormat::Secs, true));
     let events = json!([
         {
             "id": "01M0K00000000000000000000C",
@@ -55,7 +60,7 @@ async fn batch_append_replay_history_and_hot_are_public_contracts() {
             "albumId": "album-1",
             "deviceId": device_id,
             "sourcePluginId": "ytmusic",
-            "listenedAt": "2026-08-21T09:00:00Z",
+            "listenedAt": listened_at[0],
             "playedMs": 180000,
             "completed": true,
             "context": "album",
@@ -67,7 +72,7 @@ async fn batch_append_replay_history_and_hot_are_public_contracts() {
             "albumId": "album-1",
             "deviceId": device_id,
             "sourcePluginId": "ytmusic",
-            "listenedAt": "2026-08-21T10:00:00Z",
+            "listenedAt": listened_at[1],
             "playedMs": 180000,
             "completed": true,
             "context": "album",
@@ -79,7 +84,7 @@ async fn batch_append_replay_history_and_hot_are_public_contracts() {
             "albumId": "album-1",
             "deviceId": device_id,
             "sourcePluginId": "ytmusic",
-            "listenedAt": "2026-08-21T11:00:00Z",
+            "listenedAt": listened_at[2],
             "playedMs": 180000,
             "completed": true,
             "context": "album",
@@ -118,10 +123,7 @@ async fn batch_append_replay_history_and_hot_are_public_contracts() {
     )
     .await;
     assert_eq!(history["outcome"]["value"].as_array().unwrap().len(), 3);
-    assert_eq!(
-        history["outcome"]["value"][0]["listenedAt"],
-        "2026-08-21T11:00:00Z"
-    );
+    assert_eq!(history["outcome"]["value"][0]["listenedAt"], listened_at[2]);
 
     let hot = rpc(
         &app,
