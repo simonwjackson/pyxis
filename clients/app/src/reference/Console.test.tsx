@@ -1123,44 +1123,75 @@ describe("console mode", () => {
     },
   )
 
-  test("a same-revision disconnect removes a remote session without a full sync", async () => {
-    let deliver: RealtimeHandlers["onEvent"] | undefined
-    const base = persistent(createDirectWorkerClient())
-    const sync = vi.fn(base.sync)
-    const configured: ReferenceClient = {
-      ...client([]),
-      connectRealtime: (_token, handlers) => {
-        deliver = handlers.onEvent
-        return () => {}
-      },
-    }
-    render(
-      <ReferenceApp client={configured} worker={{ ...base, sync }}>
-        <ReferenceRemote />
-        <ReferencePlugins />
-      </ReferenceApp>,
-    )
-    await screen.findByText("Status: ready")
-    const remote = session()
-    await act(async () => {
-      await deliver?.({
-        topic: RpcRealtimeTopic.Sessions,
-        resumeToken: "one",
-        state: { _tag: "session.state", payload: remote },
+  test.each(["connected", "connecting"] as const)(
+    "a same-revision disconnect removes a remote session without a full sync (%s)",
+    async (connection) => {
+      const handlersReady = deferred<RealtimeHandlers>()
+      const welcome = deferred()
+      let closed = false
+      // Match the public welcome lifecycle: resync and persist its cursor before
+      // announcing connection readiness. Returning a disconnector does not await it.
+      const deliveryReady = handlersReady.promise.then(async (handlers) => {
+        await welcome.promise
+        if (closed) throw new Error("connection closed before welcome")
+        await handlers.onResync()
+        await handlers.onResumeToken("welcome")
+        handlers.onConnected?.()
+        return handlers.onEvent
       })
-    })
-    expect(screen.getByText(/Kitchen/)).toBeTruthy()
-    sync.mockClear()
-    await act(async () => {
-      await deliver?.({
-        topic: RpcRealtimeTopic.Sessions,
-        resumeToken: "two",
-        state: { _tag: "session.state", payload: { ...remote, reachable: false } },
-      })
-    })
-    expect(screen.queryByText(/Kitchen/)).toBeNull()
-    expect(sync).not.toHaveBeenCalled()
-  })
+      if (connection === "connected") welcome.resolve()
+      const base = persistent(createDirectWorkerClient())
+      const sync = vi.fn(base.sync)
+      const configured: ReferenceClient = {
+        ...client([]),
+        connectRealtime: (_token, handlers) => {
+          handlersReady.resolve(handlers)
+          return () => {
+            closed = true
+          }
+        },
+      }
+      render(
+        <ReferenceApp client={configured} worker={{ ...base, sync }}>
+          <ReferenceRemote />
+          <ReferencePlugins />
+        </ReferenceApp>,
+      )
+      await screen.findByText("Status: ready")
+      const remote = session()
+      try {
+        if (connection === "connected") await deliveryReady
+        const firstDelivery = deliveryReady.then((deliver) =>
+          deliver({
+            topic: RpcRealtimeTopic.Sessions,
+            resumeToken: "one",
+            state: { _tag: "session.state", payload: remote },
+          }),
+        )
+        await act(async () => {
+          welcome.resolve()
+          await firstDelivery
+        })
+        expect(screen.getByText(/Kitchen/)).toBeTruthy()
+        sync.mockClear()
+        const deliver = await deliveryReady
+        await act(async () => {
+          await deliver({
+            topic: RpcRealtimeTopic.Sessions,
+            resumeToken: "two",
+            state: { _tag: "session.state", payload: { ...remote, reachable: false } },
+          })
+        })
+        expect(screen.queryByText(/Kitchen/)).toBeNull()
+        expect(sync).not.toHaveBeenCalled()
+      } finally {
+        welcome.resolve()
+        await act(async () => {
+          await deliveryReady
+        })
+      }
+    },
+  )
 
   test("realtime resync keeps a queued hosted-session command", async () => {
     let resync: (() => void | Promise<void>) | undefined

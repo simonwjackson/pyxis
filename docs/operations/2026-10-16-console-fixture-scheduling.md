@@ -3,8 +3,10 @@
 ## Result and limit
 
 Two Console test families now use explicit fixture readiness and completion promises instead
-of one-second callback polling. Production code, public contracts, dependencies, renderer
-confirmation, durable outbox handling, account fences and event retirement are unchanged.
+of one-second callback polling. A separate follow-up makes the same-revision disconnect fixture
+await realtime welcome readiness before delivering events. Production code, public contracts,
+dependencies, renderer confirmation, durable outbox handling, account fences and event retirement
+are unchanged.
 
 This proves a **bounded-fixture-wait scheduling defect**, not the cause of the historical
 Cargo-load failures. Current `ca37cd0` passed the two original cases once without artificial
@@ -44,7 +46,7 @@ an upgrade. Cases use normal collection order, not randomized order; there is no
 
 | Check | Result |
 |---|---|
-| App/reference/worker tests | 337 passed, exit 0 |
+| App/reference/worker tests | 337 passed initially; final combined tree 338 passed, exit 0 |
 | Player tests | 274 passed, exit 0 |
 | Player architecture tests | 12 passed, exit 0 |
 | Player architecture gate | clean, exit 0 |
@@ -67,13 +69,56 @@ Five full Console runs used eight CPU burners and Vitest pinned to CPUs 0–1, p
 All four target cases passed in all five runs (**20/20**). Four full runs passed **86/86**.
 The first failed a different case, **`a same-revision disconnect removes a remote session
 without a full sync`**, at `getByText(/Kitchen/)`: **85 passed / 1 failed**. That separate
-fixture needs follow-up; this patch does not claim a fully load-stable Console file.
+failure was investigated below. Its original untraced cause remains unresolved; no general
+load-stability claim is made.
 
 Full-run wall times were 36.964, 32.849, 39.598, 39.992 and 32.085 seconds. The first load-average
 values were 10.98, 17.98, 18.97, 19.79 and 30.37. Cargo completed with exit 101 at the already
 recorded date-dependent `listen_rpc` test. All eight burners and the storage writer were stopped;
 the temporary storage directory was removed. No shared server, service or live provider was
 started or contacted.
+
+## Follow-up: asynchronous realtime welcome
+
+The primary third-case failure remains `console-load-after-0.log`: an immediate missing-`Kitchen`
+assertion with `Status: ready` and no remote row. It has no handler/application trace. It does not
+prove missing handlers, startup overwrite, renderer lag, or leakage from the preceding virtual-time
+case. It is **not** classified as inherited or causally resolved.
+
+Five isolated and five adjacent probes on `247c70a` used eight burners, CPU affinity 0–1 and the
+storage writer, without Cargo. All passed. Each trace showed real timers, the same undefined
+`IS_REACT_ACT_ENVIRONMENT`, installed handlers, one event application and two startup snapshots.
+These probes did not reproduce persistent timer/act leakage; they do not exclude an intermittent
+ordering problem. Instrumentation was removed. The first correction's restored-polling negative
+control contains one act-environment warning; it remains in the raw evidence, not hidden.
+
+A separate deterministic regression now holds a valid asynchronous welcome at the actual
+`ReferenceClient.connectRealtime` seam. It returns the disconnector synchronously. After welcome
+release it calls `onResync`, persists the welcome cursor through `onResumeToken`, calls
+`onConnected`, then exposes event delivery. This matches the documented public welcome sequence.
+The test covers both an already-established connection and welcome still pending when the page
+reports ready. It uses no fake timers or real sleeps.
+
+The corrected test requires the connection-ready delivery function and awaits each event. The
+original visible-row, same-revision removal and no-full-sync assertions remain. `finally` releases
+welcome and drains its work, including failure propagation.
+
+| Isolated control | Result |
+|---|---|
+| Old optional delivery, same welcome fixture | connecting case fails at the exact missing-`Kitchen` assertion; connected case passes; exit 1, 2.198 s |
+| Required connection-ready delivery | both pass; exit 0, 2.038 s |
+| Restore optional delivery on the final fixture | exact missing-`Kitchen` failure again; connected case passes; exit 1, 1.895 s |
+
+Both isolated negative controls have zero act-environment warnings. They skip all preceding test
+cases, so this deterministic readiness weakness does not require the new virtual-time case.
+This does **not** prove that weakness caused `console-load-after-0.log`.
+
+After this last test-only correction, two complete Console runs under the same CPU/storage load
+passed **87/87**, in 20.981 and 19.475 seconds. The final app run passed **338/338** in 7.205 seconds.
+Owned Biome passes. Explicit Console TSX checking still reports exactly the original 18 diagnostics,
+with no additions after ignoring line positions. Player, Rust, architecture and whole-repository
+gates above were not unnecessarily rerun for this second test-only correction. All load processes
+were stopped. No production behavior was changed.
 
 ## Evidence and rerun
 
@@ -85,7 +130,10 @@ Nix-shebang harnesses are under the coordinator's ignored artifact directory:
 Key files: `baseline.*`, `cargo-before-*`, `scheduled-before.*`, `scheduled-refined.*`,
 `negative-control-final.*`, `console-after.*`, `console-load-after-*`, `checks.json`,
 `console-typecheck-comparison.json`, `root-typecheck-linked.*`, `root-biome-final.*` and
-`verify-final.*`.
+`verify-final.*`. Follow-up evidence: `disconnect-trace-*`, `disconnect-scheduled-old.*`,
+`disconnect-scheduled-new.*`, `disconnect-negative-final.*`, `console-combined-load-*`,
+`app-tests-combined.*`, `owned-biome-combined.*`, `console-typecheck-combined.*` and
+`combined-check-comparison.json`.
 
 From `clients/app` with the supported Node runtime and installed dependencies:
 

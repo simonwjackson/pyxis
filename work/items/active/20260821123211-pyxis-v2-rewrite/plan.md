@@ -191,7 +191,14 @@ everything provider-shaped lives at the edge behind a plugin protocol.
   `a same-revision disconnect removes a remote session without a full sync` failed once in five
   full-file runs with eight CPU burners, a temporary-storage writer and concurrent Cargo work.
   It failed at `getByText(/Kitchen/)`; the two scheduling-correction targets passed. Four runs
-  passed all 86 cases. This separate fixture remains open; no broader load-stability claim is made.
+  passed all 86 cases. Follow-up controls now hold the public asynchronous welcome sequence before
+  fixture event delivery. Original optional delivery fails the exact missing-Kitchen assertion in
+  isolation; required connection readiness passes; restoring optional delivery fails again without
+  fake timers or act warnings. All original assertions remain. The final combined app suite passes
+  338/338 and two loaded Console runs pass 87/87. Five isolated and five adjacent traced probes
+  did not reproduce timer/act leakage. The original load failure has no trace and is not classified
+  as inherited or causally resolved. No broader load-stability claim is made. See the evidence
+  document above for this distinction.
 - **A dependency's test suite was being run as ours.** `clients/app/.cache/proseql` is a symlink
   into the Nix store, and the vitest config had no `exclude`, so 172 unresolvable ProseQL test
   files were collected on every run. Environment setup took 166 seconds. U33 excludes `.cache`,
