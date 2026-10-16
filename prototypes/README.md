@@ -1,7 +1,8 @@
 # Design reference
 
-Working reference pages for the Pyxis client. Not shipped, not built, not tested — they exist
-so a designer can see the product behave with real data before the real client is written.
+Working reference pages for the Pyxis client. They are not shipped as the product interface.
+They exist so a designer can see the product behave with fixture data before the real client
+is written.
 
 Start at `index.html`.
 
@@ -83,6 +84,13 @@ cannot see: the first shipped a broken Rooms sheet to a designer, and the second
 component exist three times with 15/15/14px titles that nobody chose.
 
 Add a surface and it will tell you what you copied.
+
+`common.test.mjs` checks the shared HTML escaping and blank-sleeve output without a browser.
+The root `just test-ts` recipe includes these contract tests. Run them alone with:
+
+```sh
+bun test prototypes/common.test.mjs
+```
 
 ## Decisions these pages encode
 
