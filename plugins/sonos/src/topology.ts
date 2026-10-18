@@ -20,7 +20,7 @@ export interface SonosGroup {
 export interface SonosTopology {
   readonly groups: readonly SonosGroup[]
   readonly refreshedAt: number
-  /// False only when descriptions were reachable but no room answered ZoneGroupTopology.
+  /// Whether the groups come from a room's ZoneGroupTopology response.
   readonly authoritative: boolean
 }
 
@@ -65,7 +65,7 @@ export async function discoverTopology(
     }),
   )
 
-  return queryKnownTopology(devices, config, environment, false)
+  return queryKnownTopology(devices, config, environment)
 }
 
 export async function refreshKnownTopology(
@@ -78,14 +78,13 @@ export async function refreshKnownTopology(
     const { coordinator: _coordinator, ...device } = room
     devices.set(device.id, device)
   }
-  return queryKnownTopology(devices, config, environment, false)
+  return queryKnownTopology(devices, config, environment)
 }
 
 async function queryKnownTopology(
   devices: Map<string, SonosDevice>,
   config: SonosConfig,
   environment: TopologyEnvironment,
-  allowStandaloneFallback: boolean,
 ): Promise<SonosTopology> {
   for (const device of [...devices.values()].sort((left, right) =>
     left.id.localeCompare(right.id),
@@ -111,19 +110,7 @@ async function queryKnownTopology(
     }
   }
 
-  if (!allowStandaloneFallback) throw new Error("no Sonos room answered topology refresh")
-  return {
-    groups: [...devices.values()]
-      .sort((left, right) => left.name.localeCompare(right.name))
-      .map((device) => ({
-        id: `standalone:${device.id}`,
-        coordinatorId: device.id,
-        coordinatorName: device.name,
-        rooms: [{ ...device, coordinator: true }],
-      })),
-    refreshedAt: environment.now(),
-    authoritative: false,
-  }
+  throw new Error("no Sonos room answered topology refresh")
 }
 
 async function addTopologyMembers(
