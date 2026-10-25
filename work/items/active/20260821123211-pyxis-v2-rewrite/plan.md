@@ -449,7 +449,7 @@ milestone below answers a question the user can only answer by using the thing.
 | M7 | **Someone else could build a client** | U26 | Can a third party integrate from documentation alone? |
 | M8 | **Search finds albums, artists and songs** | U28, U29 | Does discovery return real catalog identity instead of general video results? |
 | M9 | **A station plays, whatever the source is behind it** | U30, U31, U32, U33 | Is one generic station model honest against two very different providers? |
-| M11 | **Pyxamp can browse and host Pyxis** | U34, U35, U36, U37 | Can a source-neutral remote browse groups, seek, and restore playback modes? |
+| M11 | **Pyxamp can browse and host Pyxis** | U34, U35, U36, U37, U38 | Can a source-neutral remote browse groups, seek, restore playback modes, and play next? |
 
 Notes on sequencing:
 
