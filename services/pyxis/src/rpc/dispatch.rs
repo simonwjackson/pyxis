@@ -2103,6 +2103,9 @@ fn domain_command(command: RpcSessionCommand) -> DomainSessionCommand {
     match command {
         RpcSessionCommand::QueueAdd(command) => DomainSessionCommand::QueueAdd {
             track_ids: command.track_ids,
+            index: command
+                .index
+                .map(|index| usize::try_from(index).unwrap_or(usize::MAX)),
         },
         RpcSessionCommand::QueueRemove(command) => DomainSessionCommand::QueueRemove {
             index: usize::try_from(command.index).unwrap_or(usize::MAX),

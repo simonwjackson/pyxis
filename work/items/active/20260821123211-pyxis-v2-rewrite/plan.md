@@ -93,6 +93,16 @@ everything provider-shaped lives at the edge behind a plugin protocol.
 
 ### Deferred to Follow-Up Work
 
+- **Token to device identity, 2026-10-25 (Pyxamp workflow 342063fb).** No call tells a bearer
+  token which device it is. A desktop host that only holds a device token (Pyxamp) finds its own
+  session by name and a host-only no-op probe (`volume.set` to the current volume), which bumps
+  the revision once per start. A read such as `auth.whoami` returning the principal kind and
+  device id would remove the probe.
+- **Track metadata by id, 2026-10-25 (Pyxamp workflow 342063fb).** Session queues carry core
+  track ids only. A client can name library tracks from `library.albums.list`, and tracks it saw
+  in search, source albums or station batches. A station or search track queued by another
+  device stays unnamed. A bounded `library.tracks.get {trackIds}` (or metadata on registered
+  candidates) would let every console name every queue row.
 - **Verification closure, 2026-10-16.** The maintenance and Console fixture changes are
   integrated on one verification branch. Expired listen-test dates, Rust wrapping and root
   JPEG typing are corrected. Thirty blocking Biome errors are repaired without disabling
@@ -281,6 +291,7 @@ Settled. Do not re-open without the user asking.
 | D20 | A `Station` is the one generic radio object, and every source maps its own mechanism onto it | User requirement, 2026-09-07: discovery and radio are a core concept, and YouTube Music and Pandora are only source plugins beneath it. A seed produces a station; a station yields bounded batches. Pandora station tokens and YouTube Music `RDAMVM` watch queues both fit that shape, so no provider needs its own operation, RPC or client surface. Cost: a provider concept that does not fit, such as Pandora thumbs or YouTube mood chips, stays unavailable until the generic model grows to hold it |
 | D21 | `Discovery` keeps its existing meaning as a library placement, and the browse space stays unnamed until it is built | The placement model in `VISION.md` already owns the word, and `Station` is already the vision's word for a discovery engine. Naming a third concept before building it would put a guess into the generated contract and the client store, where renaming is expensive. Charts, moods and sections are not in M9, so the noun is not needed yet |
 | D22 | A source declares its supported seed kinds in the handshake manifest, and the SDK refuses a declaration that its handlers do not back | User requirement, 2026-09-07: sources declare what they support so partial support degrades honestly. R10 needs a third-party client to adapt without probing every source. Declaring in the manifest keeps `plugin.list` the single place a client looks. The SDK check is what stops a declaration from drifting away from the implementation. Cost: adding a seed kind is a manifest change, not only a handler change |
+| D23 | `queue.add` takes an optional effective `index` for "play next", and seek is bounded by the session's host-reported duration when the current track has no library record | Pyxamp workflow 342063fb, approved by its parent: a desktop host needs Winamp's "play next" and seek on station and search tracks. An insert is not reshuffled, keeps the cursor on its occurrence and does not stop transport; new occurrences follow the preceding occurrence in original order, so later ordinals shift up by the inserted count. The wire stays `pyxis-rpc-v3` because v3 was not deployed and the field is additive (absent appends). Cost: occurrence ordinals after an insert point change, so a client that keys rows on ordinals sees those rows as new |
 
 ---
 
@@ -1762,6 +1773,23 @@ replay across track changes and restart. Domain cases check unchanged-revision p
 stale confirmation and an interrupted unfenced receipt. Twenty focused Rust cases, related
 compilation/Clippy, formatting and diff checks pass. The parent owns combined review-stage
 gates after all fixes. No physical Sonos, live mutation, deployment or full verification here.
+
+### U38. Insert after current, and seek on non-library tracks (D23)
+
+**Goal:** `queue.add {trackIds, index?}` inserts at an effective queue position; absent
+appends as before. The insert does not reshuffle, keeps the cursor on its occurrence, does not
+stop transport and places the new occurrences after the preceding occurrence in original order
+(`queue::insert`). The offline worker (`applySessionCommand`) mirrors it exactly. An index past
+the end is rejected. `transport.seek` is accepted for a current track without a library record
+when the session already holds a positive host-reported duration; with no duration it is still
+refused. Contract ID stays `pyxis-rpc-v3` (additive, v3 undeployed). A d4d1b0aa core rejects
+`index` at decode time (`request.invalidPayload`); Pyxamp reports that as "play next needs a
+newer Pyxis", so deploying d4d1b0aa first stays safe.
+**Verification:** `queue` unit case (insert during shuffle, restore, empty queue, bad index),
+one RPC case in `session_modes_rpc` (insert while playing under shuffle, restore, rejected
+index, seek refused without duration and accepted after `position.report` on a non-library
+track, bound enforced), one worker case in `session-local.test.ts`; existing session, output,
+snapshot and mode suites; contract generation `--check`, Clippy and formatting.
 
 ---
 

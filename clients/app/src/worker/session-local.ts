@@ -46,6 +46,23 @@ export function applySessionCommand(
 
   switch (command._tag) {
     case "queue.add": {
+      const { index } = command.payload
+      if (index !== undefined) {
+        // Mirrors the core insert: no reshuffle, the cursor stays on its occurrence, and the
+        // new occurrences follow the preceding occurrence in original order.
+        if (!Number.isSafeInteger(index) || index < 0 || index > queue.length)
+          throw new Error("queue index is outside the queue")
+        const count = command.payload.trackIds.length
+        const base = index === 0 ? 0 : (order[index - 1] ?? 0) + 1
+        const maximum = order.reduce((highest, id) => Math.max(highest, id), -1)
+        if (maximum + count > 0xffff_ffff) throw new Error("queue occurrence order exhausted")
+        order = order.map((id) => (id >= base ? id + count : id))
+        order.splice(index, 0, ...command.payload.trackIds.map((_, offset) => base + offset))
+        queue.splice(index, 0, ...command.payload.trackIds)
+        if (cursor !== undefined && cursor >= index) cursor += count
+        else if (cursor === undefined && queue.length > 0) cursor = 0
+        break
+      }
       const start =
         order.length === 0 ? 0 : order.reduce((maximum, id) => Math.max(maximum, id), -1) + 1
       if (start + command.payload.trackIds.length > 0xffff_ffff)

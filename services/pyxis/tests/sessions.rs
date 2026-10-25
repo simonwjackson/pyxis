@@ -26,6 +26,7 @@ fn transport_transitions_are_explicit_and_preserve_one_host_owner() {
             &session.id,
             SessionCommand::QueueAdd {
                 track_ids: vec!["track-1".into(), "track-2".into()],
+                index: None,
             },
         )
         .expect("queue");
@@ -102,6 +103,7 @@ fn replacing_an_album_starts_at_track_one_after_sync_and_reopen() {
         let commands = [
             SessionCommand::QueueAdd {
                 track_ids: (1..=10).map(|index| format!("old-{index}")).collect(),
+                index: None,
             },
             SessionCommand::CursorJump { index: 6 },
             SessionCommand::Play,
@@ -112,6 +114,7 @@ fn replacing_an_album_starts_at_track_one_after_sync_and_reopen() {
             SessionCommand::QueueClear,
             SessionCommand::QueueAdd {
                 track_ids: (1..=14).map(|index| format!("new-{index}")).collect(),
+                index: None,
             },
             SessionCommand::Play,
         ];
@@ -173,6 +176,7 @@ fn queue_edits_persist_and_survive_a_store_reopen() {
                 &session.id,
                 SessionCommand::QueueAdd {
                     track_ids: vec!["a".into(), "b".into(), "c".into()],
+                    index: None,
                 },
             )
             .expect("add");
@@ -228,6 +232,7 @@ fn reserved_command_ids_bind_content_and_apply_once() {
             &session.id,
             SessionCommand::QueueAdd {
                 track_ids: vec!["track-1".into()],
+                index: None,
             },
             Some(("01COMMAND", "queue-track-1")),
         )
@@ -238,6 +243,7 @@ fn reserved_command_ids_bind_content_and_apply_once() {
             &session.id,
             SessionCommand::QueueAdd {
                 track_ids: vec!["track-1".into()],
+                index: None,
             },
             Some(("01COMMAND", "queue-track-1")),
         )
@@ -266,6 +272,7 @@ fn handoff_durably_clears_source_fields_without_resetting_the_target_cursor() {
             &source.id,
             SessionCommand::QueueAdd {
                 track_ids: vec!["one".into(), "two".into(), "three".into()],
+                index: None,
             },
         )
         .expect("queue");
@@ -383,6 +390,7 @@ fn output_sessions_prepare_effects_before_committing_state() {
 
     let command = SessionCommand::QueueAdd {
         track_ids: vec!["track-1".into()],
+        index: None,
     };
     let prepared = sessions
         .prepare_output_command(&actor, &session.id, &command, "COMMAND", "queue-one")
@@ -456,6 +464,7 @@ fn output_seek_receipt_fences_both_preparation_and_commit() {
         .unwrap();
     let queue = SessionCommand::QueueAdd {
         track_ids: vec!["track-1".into()],
+        index: None,
     };
     sessions
         .prepare_output_command(&actor, &session.id, &queue, "queue", "queue-content")
@@ -637,6 +646,7 @@ fn sessions_persist_track_identity_never_a_stream_url() {
             &session.id,
             SessionCommand::QueueAdd {
                 track_ids: vec!["track-1".into()],
+                index: None,
             },
         )
         .expect("queue");
@@ -664,6 +674,7 @@ fn a_retried_unapplied_seek_keeps_its_original_reserved_revision() {
             &session.id,
             SessionCommand::QueueAdd {
                 track_ids: vec!["new-track".into()],
+                index: None,
             },
         )
         .unwrap();

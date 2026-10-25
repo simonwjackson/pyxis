@@ -1139,6 +1139,15 @@
           "items": {
             "type": "string"
           }
+        },
+        "index": {
+          "description": "Effective-queue position for the first added track. Absent appends. An insert keeps\nthe cursor on its occurrence, does not stop transport and is not reshuffled; the new\noccurrences follow the preceding occurrence in original order.",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint32",
+          "minimum": 0
         }
       },
       "additionalProperties": false,

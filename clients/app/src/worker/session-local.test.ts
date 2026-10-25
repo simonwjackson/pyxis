@@ -181,3 +181,32 @@ test("effective shuffle order matches the Rust wire vector", () => {
   expect(shuffled.queueOrder).toEqual([0, 1, 5, 3, 4, 2])
   expect(shuffled.cursor).toBe(1)
 })
+
+test("an indexed add inserts after the current occurrence like the core", () => {
+  let current = applySessionCommand(session({ id: "session-1", transport: RpcTransport.Playing }), {
+    _tag: "queue.add",
+    payload: { trackIds: ["a", "b", "c", "d"] },
+  })
+  current = applySessionCommand(current, { _tag: "cursor.jump", payload: { index: 1 } })
+  current = applySessionCommand(current, { _tag: "transport.play", payload: {} })
+  current = applySessionCommand(current, { _tag: "shuffle.set", payload: { enabled: true } })
+  const inserted = applySessionCommand(current, {
+    _tag: "queue.add",
+    payload: { trackIds: ["x", "y"], index: 2 },
+  })
+  expect(inserted).toMatchObject({
+    cursor: 1,
+    currentTrackId: "b",
+    transport: RpcTransport.Playing,
+  })
+  expect(inserted.queue.slice(2, 4)).toEqual(["x", "y"])
+  expect(inserted.queueOrder?.[1]).toBe(1)
+  const restored = applySessionCommand(inserted, {
+    _tag: "shuffle.set",
+    payload: { enabled: false },
+  })
+  expect(restored.queue).toEqual(["a", "b", "x", "y", "c", "d"])
+  expect(() =>
+    applySessionCommand(restored, { _tag: "queue.add", payload: { trackIds: ["z"], index: 9 } }),
+  ).toThrow("queue index is outside the queue")
+})

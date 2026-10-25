@@ -289,6 +289,12 @@ export interface PositionReportCommand {
 
 export interface QueueAddCommand {
 	trackIds: string[];
+	/**
+	 * Effective-queue position for the first added track. Absent appends. An insert keeps
+	 * the cursor on its occurrence, does not stop transport and is not reshuffled; the new
+	 * occurrences follow the preceding occurrence in original order.
+	 */
+	index?: number;
 }
 
 export interface QueueRemoveCommand {

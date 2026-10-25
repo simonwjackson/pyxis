@@ -113,6 +113,8 @@ impl Session {
 pub enum SessionCommand {
     QueueAdd {
         track_ids: Vec<String>,
+        /// Effective insert position; `None` appends.
+        index: Option<usize>,
     },
     QueueRemove {
         index: usize,
@@ -844,6 +846,11 @@ impl Sessions {
             .cursor
             .and_then(|cursor| record.queue.get(cursor))
             .ok_or(machine::MachineError::InvalidSeek)?;
+        // A host-reported duration bounds the seek. Station and search tracks are playable
+        // media candidates without a library record, and only that duration can bound them.
+        if record.duration_ms.is_some_and(|duration| duration > 0) {
+            return Ok(());
+        }
         let track = crate::library::Library::open(self.store.clone())
             .get_track(account, track_id)
             .map_err(|_| machine::MachineError::InvalidSeek)?
@@ -917,7 +924,20 @@ fn apply_command(record: &mut SessionRecord, command: &SessionCommand) -> Result
     }
     queue::validate_order(&record.queue, &record.queue_order)?;
     match command {
-        SessionCommand::QueueAdd { track_ids } => {
+        SessionCommand::QueueAdd {
+            track_ids,
+            index: Some(index),
+        } => queue::insert(
+            &mut record.queue,
+            &mut record.queue_order,
+            &mut record.cursor,
+            *index,
+            track_ids.clone(),
+        )?,
+        SessionCommand::QueueAdd {
+            track_ids,
+            index: None,
+        } => {
             let start = record
                 .queue_order
                 .iter()

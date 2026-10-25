@@ -395,3 +395,103 @@ async fn shuffled_order_and_modes_persist_and_handoff_with_the_current_occurrenc
     assert_eq!(restored["queue"], json!(["a", "b", "a", "c", "d"]));
     assert_eq!(restored["cursor"], 2);
 }
+
+#[tokio::test]
+async fn play_next_inserts_after_the_current_occurrence_and_seek_uses_the_reported_duration() {
+    let dir = tempfile::tempdir().unwrap();
+    let app = router(AppState::open(Store::open(dir.path()).unwrap()).unwrap());
+    let claim = rpc(
+        &app,
+        json!({"_tag":"auth.device.claim","payload":{"name":"Insert"}}),
+        None,
+    )
+    .await;
+    let token = claim["outcome"]["value"]["bearerToken"].as_str().unwrap();
+    let created = rpc(
+        &app,
+        json!({"_tag":"session.create","payload":{"name":"Insert"}}),
+        Some(token),
+    )
+    .await;
+    let id = created["outcome"]["value"]["id"].as_str().unwrap();
+    for step in [
+        json!({"_tag":"queue.add","payload":{"trackIds":["a","b","c","d"]}}),
+        json!({"_tag":"cursor.jump","payload":{"index":1}}),
+        json!({"_tag":"transport.play","payload":{}}),
+        json!({"_tag":"shuffle.set","payload":{"enabled":true}}),
+    ] {
+        command(&app, token, id, step).await;
+    }
+    let inserted = command(
+        &app,
+        token,
+        id,
+        json!({"_tag":"queue.add","payload":{"trackIds":["x","y"],"index":2}}),
+    )
+    .await;
+    assert_eq!(inserted["cursor"], 1);
+    assert_eq!(inserted["currentTrackId"], "b");
+    assert_eq!(
+        inserted["transport"], "playing",
+        "insert does not stop playback"
+    );
+    assert_eq!(inserted["queue"][2], "x");
+    assert_eq!(inserted["queue"][3], "y");
+    assert_eq!(
+        inserted["queueOrder"][1], 1,
+        "the current occurrence keeps its ordinal"
+    );
+    let restored = command(
+        &app,
+        token,
+        id,
+        json!({"_tag":"shuffle.set","payload":{"enabled":false}}),
+    )
+    .await;
+    assert_eq!(restored["queue"], json!(["a", "b", "x", "y", "c", "d"]));
+    let outside = rpc(
+        &app,
+        json!({"_tag":"session.command.run","payload":{"sessionId":id,
+            "command":{"_tag":"queue.add","payload":{"trackIds":["z"],"index":9}}}}),
+        Some(token),
+    )
+    .await;
+    assert_eq!(outside["outcome"]["status"], "rejected", "{outside}");
+
+    // "b" is a station/search-style track with no library record: the host-reported
+    // duration is what bounds the seek.
+    let refused = rpc(
+        &app,
+        json!({"_tag":"session.command.run","payload":{"sessionId":id,
+            "command":{"_tag":"transport.seek","payload":{"positionMs":5000}}}}),
+        Some(token),
+    )
+    .await;
+    assert_eq!(
+        refused["outcome"]["status"], "rejected",
+        "no duration yet: {refused}"
+    );
+    command(
+        &app,
+        token,
+        id,
+        json!({"_tag":"position.report","payload":{"positionMs":1000,"durationMs":180000}}),
+    )
+    .await;
+    let sought = command(
+        &app,
+        token,
+        id,
+        json!({"_tag":"transport.seek","payload":{"positionMs":5000}}),
+    )
+    .await;
+    assert_eq!(sought["positionMs"], 5000);
+    let beyond = rpc(
+        &app,
+        json!({"_tag":"session.command.run","payload":{"sessionId":id,
+            "command":{"_tag":"transport.seek","payload":{"positionMs":190000}}}}),
+        Some(token),
+    )
+    .await;
+    assert_eq!(beyond["outcome"]["status"], "rejected", "{beyond}");
+}

@@ -15,6 +15,53 @@ pub fn add(queue: &mut Vec<String>, cursor: &mut Option<usize>, track_ids: Vec<S
     }
 }
 
+/// Insert at an effective position without reshuffling or moving the current occurrence.
+///
+/// The new occurrences follow the occurrence before `index` in original order, so turning
+/// shuffle off later keeps them where they were inserted. Later ordinals shift up by the
+/// inserted count; ordinals stay unique.
+pub fn insert(
+    queue: &mut Vec<String>,
+    order: &mut Vec<u32>,
+    cursor: &mut Option<usize>,
+    index: usize,
+    track_ids: Vec<String>,
+) -> Result<(), QueueError> {
+    validate_order(queue, order)?;
+    if index > queue.len() {
+        return Err(QueueError::Index {
+            index,
+            length: queue.len(),
+        });
+    }
+    let count = u32::try_from(track_ids.len()).map_err(|_| QueueError::InvalidOrder)?;
+    let base = match index.checked_sub(1) {
+        Some(before) => order[before]
+            .checked_add(1)
+            .ok_or(QueueError::InvalidOrder)?,
+        None => 0,
+    };
+    if order
+        .iter()
+        .max()
+        .is_some_and(|max| max.checked_add(count).is_none())
+    {
+        return Err(QueueError::InvalidOrder);
+    }
+    for ordinal in order.iter_mut().filter(|ordinal| **ordinal >= base) {
+        *ordinal += count;
+    }
+    let added = track_ids.len();
+    order.splice(index..index, base..base + count);
+    queue.splice(index..index, track_ids);
+    *cursor = match *cursor {
+        Some(current) if current >= index => Some(current + added),
+        None if !queue.is_empty() => Some(0),
+        current => current,
+    };
+    Ok(())
+}
+
 /// Returns true when the removed item was the current track.
 pub fn remove(
     queue: &mut Vec<String>,
@@ -119,6 +166,46 @@ mod tests {
 
         assert_eq!(queue, ["b", "c"]);
         assert_eq!(cursor, Some(1));
+    }
+
+    #[test]
+    fn insert_after_the_current_track_keeps_it_current_and_restores_in_place() {
+        let mut queue: Vec<String> = vec!["a".into(), "b".into(), "c".into(), "d".into()];
+        let mut order = vec![0, 1, 2, 3];
+        let mut cursor = Some(1);
+        reorder(&mut queue, &mut order, &mut cursor, true, 17).unwrap();
+        let current = order[1];
+        insert(
+            &mut queue,
+            &mut order,
+            &mut cursor,
+            2,
+            vec!["x".into(), "y".into()],
+        )
+        .unwrap();
+        assert_eq!(cursor, Some(1));
+        assert_eq!(
+            order[1], current,
+            "the current occurrence keeps its ordinal"
+        );
+        assert_eq!(&queue[2..4], ["x", "y"]);
+        validate_order(&queue, &order).unwrap();
+        reorder(&mut queue, &mut order, &mut cursor, false, 17).unwrap();
+        assert_eq!(queue, ["a", "b", "x", "y", "c", "d"]);
+        assert_eq!(queue[cursor.unwrap()], "b");
+
+        let mut empty = vec![];
+        let mut none = vec![];
+        let mut no_cursor = None;
+        insert(&mut empty, &mut none, &mut no_cursor, 0, vec!["z".into()]).unwrap();
+        assert_eq!((empty.len(), no_cursor), (1, Some(0)));
+        assert_eq!(
+            insert(&mut empty, &mut none, &mut no_cursor, 3, vec!["z".into()]),
+            Err(QueueError::Index {
+                index: 3,
+                length: 1
+            })
+        );
     }
 
     #[test]

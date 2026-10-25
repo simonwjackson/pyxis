@@ -743,6 +743,11 @@ pub struct SessionIdRequest {
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct QueueAddCommand {
     pub track_ids: Vec<String>,
+    /// Effective-queue position for the first added track. Absent appends. An insert keeps
+    /// the cursor on its occurrence, does not stop transport and is not reshuffled; the new
+    /// occurrences follow the preceding occurrence in original order.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub index: Option<u32>,
 }
 
 #[typeshare]

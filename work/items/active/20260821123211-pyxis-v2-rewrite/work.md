@@ -23,6 +23,12 @@ requirements and decisions were captured directly into `plan.md` sections
 
 ## Current position
 
+**U38 (Pyxamp workflow 342063fb): insert after current and seek on non-library tracks.**
+`queue.add` takes an optional effective `index`; seek accepts a host-reported duration when
+the current track has no library record (D23). Additive on `pyxis-rpc-v3`; a d4d1b0aa core
+rejects `index`, which Pyxamp reports as needing a newer Pyxis. Focused Rust, worker and
+contract checks pass; the parent owns the combined `just verify`. Not deployed.
+
 **Contract review round 1, output seek receipt fence.** The parent confirmed full verification
 and the separate player gates at `a0b1e7b`. Contract review then found the separate output
 path did not reserve seek revisions. Two real isolated RPC/plugin cases reproduce a failed
