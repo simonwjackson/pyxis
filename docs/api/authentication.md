@@ -88,6 +88,17 @@ authorization: Bearer <token>
 The realtime socket cannot use a header, because browsers do not allow one on a WebSocket
 handshake. It authenticates with a hello frame instead. See [realtime.md](realtime.md).
 
+### Browser clients on another origin
+
+A web app served from a different origin than Pyxis works only after the operator lists
+its exact origin in `PYXIS_ALLOWED_ORIGINS` (see [install](../install.md#browser-apps-on-another-origin)).
+Then `/rpc` and `/stream/:trackId` answer CORS for it. Send the bearer header yourself and
+leave fetch credentials at their default: Pyxis never allows credentialed CORS, because it
+uses no cookies. An `<audio>` element cannot add a header, so play `/stream/:trackId`
+through a service worker that adds `authorization` and passes `range` through. A host
+session needs a **device** token from `auth.device.claim` or `auth.device.pair`: an API
+token cannot create a session (`notDevice`).
+
 ## Scopes
 
 Scopes constrain API tokens only. A device principal is always allowed, because a device

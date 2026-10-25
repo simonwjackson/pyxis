@@ -29,6 +29,11 @@ the current track has no library record (D23). Additive on `pyxis-rpc-v3`; a d4d
 rejects `index`, which Pyxamp reports as needing a newer Pyxis. Focused Rust, worker and
 contract checks pass; the parent owns the combined `just verify`. Not deployed.
 
+**M12/U39, Vela cross-origin access (branch `vela-cors`).** D24 records the exact-origin
+allowlist from Vela ADR 0001. `PYXIS_ALLOWED_ORIGINS` grants CORS on `/rpc` and `/stream`
+and realtime upgrades; foreign realtime origins are refused even with an empty allowlist.
+Not deployed. The M11 notes below are unchanged by this unit.
+
 **Contract review round 1, output seek receipt fence.** The parent confirmed full verification
 and the separate player gates at `a0b1e7b`. Contract review then found the separate output
 path did not reserve seek revisions. Two real isolated RPC/plugin cases reproduce a failed

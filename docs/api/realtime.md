@@ -16,6 +16,12 @@ must hold this socket.
 Frames use the same tagged-union convention as RPC. Types are in
 `contracts/generated/pyxis.ts` as `RealtimeClientMessage` and `RealtimeServerMessage`.
 
+A browser page may open the socket only from Pyxis's own origin or from an origin the
+operator allowed (see [install](../install.md#browser-apps-on-another-origin)). Any other
+`Origin` is refused before the upgrade with HTTP 403 and a `realtime.failure` body,
+code `realtime.originRefused`. Clients that send no `Origin`, which is every non-browser
+WebSocket library by default, are not affected.
+
 ## Say hello first
 
 The first frame must be `realtime.hello`:
@@ -169,6 +175,7 @@ Rules for a conforming host:
 
 | Code | Meaning |
 |---|---|
+| `realtime.originRefused` | HTTP 403 before the upgrade: the page's origin is not allowed. Not retryable |
 | `realtime.helloTimeout` | No hello in time |
 | `realtime.helloRequired` | First frame was not a hello |
 | `realtime.alreadyAuthenticated` | A second hello on a live socket |

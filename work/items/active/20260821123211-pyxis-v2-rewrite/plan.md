@@ -292,6 +292,7 @@ Settled. Do not re-open without the user asking.
 | D21 | `Discovery` keeps its existing meaning as a library placement, and the browse space stays unnamed until it is built | The placement model in `VISION.md` already owns the word, and `Station` is already the vision's word for a discovery engine. Naming a third concept before building it would put a guess into the generated contract and the client store, where renaming is expensive. Charts, moods and sections are not in M9, so the noun is not needed yet |
 | D22 | A source declares its supported seed kinds in the handshake manifest, and the SDK refuses a declaration that its handlers do not back | User requirement, 2026-09-07: sources declare what they support so partial support degrades honestly. R10 needs a third-party client to adapt without probing every source. Declaring in the manifest keeps `plugin.list` the single place a client looks. The SDK check is what stops a declaration from drifting away from the implementation. Cost: adding a seed kind is a manifest change, not only a handler change |
 | D23 | `queue.add` takes an optional effective `index` for "play next", and seek is bounded by the session's host-reported duration when the current track has no library record | Pyxamp workflow 342063fb, approved by its parent: a desktop host needs Winamp's "play next" and seek on station and search tracks. An insert is not reshuffled, keeps the cursor on its occurrence and does not stop transport; new occurrences follow the preceding occurrence in original order, so later ordinals shift up by the inserted count. The wire stays `pyxis-rpc-v3` because v3 was not deployed and the field is additive (absent appends). Cost: occurrence ordinals after an insert point change, so a client that keys rows on ordinals sees those rows as new |
+| D24 | Browsers on another origin use Pyxis through an operator-configured exact-origin allowlist, never `*` | User decision, recorded as Vela ADR 0001 (`~/code/sandbox/vela/docs/adr/0001-call-services-directly-with-cors.md`), 2026-10-25: the car dashboard PWA calls Pyxis directly instead of through a proxy service. Bearer headers, not cookies, carry credentials, so credentialed CORS is never enabled. Browsers do not preflight WebSockets, so `/realtime` checks `Origin` on upgrade and accepts no-`Origin`, same-origin and allowlisted clients. Cost: each new browser client origin is an operator configuration change and a restart |
 
 ---
 
@@ -450,6 +451,7 @@ milestone below answers a question the user can only answer by using the thing.
 | M8 | **Search finds albums, artists and songs** | U28, U29 | Does discovery return real catalog identity instead of general video results? |
 | M9 | **A station plays, whatever the source is behind it** | U30, U31, U32, U33 | Is one generic station model honest against two very different providers? |
 | M11 | **Pyxamp can browse and host Pyxis** | U34, U35, U36, U37, U38 | Can a source-neutral remote browse groups, seek, restore playback modes, and play next? |
+| M12 | **Vela hosts a Pyxis session from its own origin** | U39 | Can a browser app on another origin claim a device, host a session and stream audio without a proxy? |
 
 Notes on sequencing:
 
@@ -1791,6 +1793,55 @@ index, seek refused without duration and accepted after `position.report` on a n
 track, bound enforced), one worker case in `session-local.test.ts`; existing session, output,
 snapshot and mode suites; contract generation `--check`, Clippy and formatting.
 
+
+## Vela support (D24)
+
+Vela is a car dashboard PWA on its own origin. It claims a device token, hosts its own
+session over `/realtime`, and plays `/stream/:trackId` through a service worker that adds
+the bearer header. The Vela-side work ships in the Vela repository.
+
+### U39. Exact-origin browser allowlist for `/rpc`, `/stream` and `/realtime`
+
+**Goal:** an allowlisted browser origin can call `/rpc`, read ranged `/stream/:trackId` and
+open `/realtime`; an empty allowlist changes no HTTP response.
+
+**Requirements:** R10
+
+**Dependencies:** U4, U5, U14
+
+**Files:**
+- Create: `services/pyxis/src/origins.rs`, `services/pyxis/tests/cross_origin.rs`
+- Modify: `services/pyxis/src/settings.rs`, `services/pyxis/src/main.rs`,
+  `services/pyxis/src/api.rs`, `services/pyxis/src/rpc/realtime.rs`, `services/pyxis/src/lib.rs`,
+  `docs/install.md`, `docs/api/authentication.md`, `docs/api/realtime.md`
+
+**Approach:**
+- Configuration follows `Settings`: `PYXIS_ALLOWED_ORIGINS` or `--allowed-origins`, a
+  comma-separated list, empty by default. v2 has no config file; the v1-era
+  `~/.config/pyxis/config.yaml` (`web.allowedHosts`) is not read and is not revived.
+- Entries must be serialized origins exactly as browsers send them. `*`, paths and default
+  ports fail startup with the corrected form. Matching is byte-exact.
+- `/rpc` and `/stream/:trackId` answer preflight and add the exact origin, `Vary: origin`,
+  allow `authorization, content-type, range, x-pyxis-contract` and expose `content-range,
+  accept-ranges, content-length, x-pyxis-candidate-id`. `x-pyxis-contract` is required by
+  every authenticated RPC, so it is allowed although the original brief did not list it.
+  No `Access-Control-Allow-Credentials`: credentials are bearer headers.
+- `/realtime` refuses a foreign `Origin` with 403 `realtime.originRefused` before upgrade.
+  No `Origin` and same-origin (`Origin` authority equals `Host`) stay accepted, also with an
+  empty allowlist. The tailnet edge's `httputil.NewSingleHostReverseProxy` and the Vite dev
+  proxies do not rewrite `Host`, so existing same-origin clients keep matching.
+- No contract change: the refusal reuses `RpcFailure` in the `realtime.failure` shape.
+
+**Test scenarios:**
+- Happy path: allowed-origin preflight and actual requests on `/rpc` and `/stream`.
+- Happy path: a cross-origin `Range` request is still 206 with readable range headers.
+- Edge case: an empty allowlist adds no CORS or `Vary` header.
+- Edge case: realtime accepts allowed, same-origin and no-`Origin` clients.
+- Error path: unknown and lookalike origins get no grant on HTTP and 403 on realtime.
+- Error path: `*`, paths, default ports and non-HTTP schemes are refused at startup.
+
+**Verification:** `just verify`. Not deployed; deployment adds the drop-in from
+`docs/install.md` with Vela's real origin.
 ---
 
 ## System-Wide Impact

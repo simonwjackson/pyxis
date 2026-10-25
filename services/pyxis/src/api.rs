@@ -1,8 +1,9 @@
 //! HTTP application boundary.
 //!
-//! RPC and health are the only U4 routes. Media bytes join later at `/stream/:trackId`,
-//! and the PWA shell joins at its own milestone. Keeping this router small makes it a real
-//! public-contract test target instead of hiding behavior behind a running process.
+//! RPC, realtime, health and media bytes at `/stream/:trackId`, plus the optional PWA
+//! shell. Keeping this router small makes it a real public-contract test target instead of
+//! hiding behavior behind a running process. `/rpc` and `/stream/:trackId` answer browsers
+//! on allowlisted origins (`crate::origins`); the other routes stay same-origin only.
 
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -25,6 +26,7 @@ use crate::listen::{ListenLog, Projections};
 use crate::matching::Matcher;
 use crate::media::probe::FfprobeAudioProbe;
 use crate::media::Media;
+use crate::origins::{self, AllowedOrigins, Cors};
 use crate::output_catalog::OutputCatalog;
 use crate::plugin_credentials::CredentialVault;
 use crate::plugins::host::PluginHost;
@@ -55,6 +57,7 @@ pub struct AppState {
     pub(crate) stations: Stations,
     pub(crate) group_pages: crate::rpc::library_groups::GroupPages,
     pub(crate) stream: StreamService,
+    pub(crate) allowed_origins: AllowedOrigins,
 }
 
 impl AppState {
@@ -134,7 +137,15 @@ impl AppState {
             stations,
             group_pages: Default::default(),
             stream,
+            allowed_origins: AllowedOrigins::default(),
         })
+    }
+
+    /// Allow browsers on these exact origins, besides the core's own. The composition root
+    /// passes the operator's setting; the default allows none.
+    pub fn with_allowed_origins(mut self, allowed_origins: AllowedOrigins) -> Self {
+        self.allowed_origins = allowed_origins;
+        self
     }
 }
 
@@ -149,11 +160,21 @@ pub fn stream_router(state: AppState) -> Router {
 }
 
 pub fn router_with_web(state: AppState, web_root: Option<PathBuf>) -> Router {
+    // The layer wraps the whole method router, including its 405 fallback, so OPTIONS
+    // preflight reaches it on routes that otherwise accept only POST or GET.
+    let rpc_cors = Cors::new(state.allowed_origins.clone(), "POST");
+    let stream_cors = Cors::new(state.allowed_origins.clone(), "GET, HEAD");
     let app = Router::new()
         .route("/healthz", get(healthz))
-        .route("/rpc", post(transport::rpc))
+        .route(
+            "/rpc",
+            post(transport::rpc).layer(middleware::from_fn_with_state(rpc_cors, origins::cors)),
+        )
         .route("/realtime", get(realtime::realtime))
-        .route("/stream/:track_id", get(stream::stream))
+        .route(
+            "/stream/:track_id",
+            get(stream::stream).layer(middleware::from_fn_with_state(stream_cors, origins::cors)),
+        )
         // RPC payloads are metadata and commands, never media bytes. A 1 MiB request is
         // already pathological and should be rejected before it enters the contract parser.
         .layer(DefaultBodyLimit::max(1024 * 1024))

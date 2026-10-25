@@ -5,6 +5,7 @@ use clap::Parser;
 use pyxis::api::{self, AppState};
 use pyxis::db::store::Store;
 use pyxis::instance_lock::InstanceLock;
+use pyxis::origins::AllowedOrigins;
 use pyxis::plugins::host::{HostPolicy, PluginHost};
 use pyxis::settings::{ProcessEnv, Settings};
 
@@ -26,6 +27,11 @@ struct Args {
     /// Built web client root. Omit in API-only deployments and development with Vite.
     #[arg(long, env = "PYXIS_WEB_ROOT")]
     web_root: Option<PathBuf>,
+
+    /// Comma-separated exact browser origins, besides this server's own, that may call
+    /// /rpc, read /stream and open /realtime. Example: https://vela.example. Never `*`.
+    #[arg(long, env = "PYXIS_ALLOWED_ORIGINS")]
+    allowed_origins: Option<AllowedOrigins>,
 }
 
 #[tokio::main]
@@ -43,6 +49,7 @@ async fn main() -> anyhow::Result<()> {
         args.port,
         args.state_dir,
         args.web_root,
+        args.allowed_origins,
         &ProcessEnv,
     );
 
@@ -56,6 +63,7 @@ async fn main() -> anyhow::Result<()> {
         host = %settings.host,
         port = settings.port,
         state_dir = %settings.state_dir.display(),
+        allowed_origins = ?settings.allowed_origins.iter().collect::<Vec<_>>(),
         "pyxis starting"
     );
 
@@ -64,7 +72,8 @@ async fn main() -> anyhow::Result<()> {
         std::env::var_os("PATH").as_deref(),
         HostPolicy::default(),
     )?;
-    let state = AppState::open_with_plugins(store.clone(), plugins)?;
+    let state = AppState::open_with_plugins(store.clone(), plugins)?
+        .with_allowed_origins(settings.allowed_origins.clone());
     let served = api::serve(&settings, state).await;
     store.close()?;
     served

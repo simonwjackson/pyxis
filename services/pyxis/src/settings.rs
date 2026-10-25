@@ -3,10 +3,13 @@
 //! Resolution is defaults, then environment, then explicit arguments. There is no config
 //! file in v1: every value here is either a safe default or an operational override, and
 //! secrets belong to per-account plugin credentials in the store rather than to a file on
-//! disk.
+//! disk. Operators set overrides in a `systemctl --user` drop-in, as `docs/install.md`
+//! shows.
 
 use std::net::{IpAddr, Ipv4Addr};
 use std::path::PathBuf;
+
+use crate::origins::AllowedOrigins;
 
 /// Loopback by default. The tailnet edge is a separate process, so the core never needs to
 /// bind a routable address itself. Binding wider is an explicit operator choice.
@@ -19,6 +22,9 @@ pub struct Settings {
     pub port: u16,
     pub state_dir: PathBuf,
     pub web_root: Option<PathBuf>,
+    /// Exact browser origins, besides the core's own, that may call `/rpc`, read
+    /// `/stream/:trackId` and open `/realtime`. Empty by default.
+    pub allowed_origins: AllowedOrigins,
 }
 
 impl Settings {
@@ -29,6 +35,7 @@ impl Settings {
         port: Option<u16>,
         state_dir: Option<PathBuf>,
         web_root: Option<PathBuf>,
+        allowed_origins: Option<AllowedOrigins>,
         env: &impl EnvSource,
     ) -> Self {
         Settings {
@@ -36,6 +43,7 @@ impl Settings {
             port: port.unwrap_or(DEFAULT_PORT),
             state_dir: state_dir.unwrap_or_else(|| default_state_dir(env)),
             web_root,
+            allowed_origins: allowed_origins.unwrap_or_default(),
         }
     }
 }
@@ -93,11 +101,18 @@ mod tests {
 
     #[test]
     fn defaults_to_loopback_so_the_core_is_never_exposed_accidentally() {
-        let settings =
-            Settings::resolve(None, None, None, None, &MapEnv::new(&[("HOME", "/home/x")]));
+        let settings = Settings::resolve(
+            None,
+            None,
+            None,
+            None,
+            None,
+            &MapEnv::new(&[("HOME", "/home/x")]),
+        );
 
         assert_eq!(settings.host, DEFAULT_HOST);
         assert_eq!(settings.port, DEFAULT_PORT);
+        assert!(settings.allowed_origins.is_empty());
     }
 
     #[test]
@@ -107,6 +122,7 @@ mod tests {
             Some(9000),
             Some(PathBuf::from("/tmp/pyxis")),
             Some(PathBuf::from("/tmp/web")),
+            Some("https://vela.example".parse().expect("origin")),
             &MapEnv::new(&[("HOME", "/home/x")]),
         );
 
@@ -114,6 +130,7 @@ mod tests {
         assert_eq!(settings.port, 9000);
         assert_eq!(settings.state_dir, PathBuf::from("/tmp/pyxis"));
         assert_eq!(settings.web_root, Some(PathBuf::from("/tmp/web")));
+        assert!(settings.allowed_origins.contains("https://vela.example"));
     }
 
     #[test]

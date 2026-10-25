@@ -87,6 +87,47 @@ Plugin credentials are encrypted with XChaCha20-Poly1305. The owner-only
 `credentials.key` file is required to decrypt them. Back up the whole state directory, not
 only the ProseQL source file.
 
+## Browser apps on another origin
+
+By default only pages on Pyxis's own origin can use it from a browser. To let a web app on
+another origin, such as a car dashboard PWA, call `/rpc`, read `/stream/:trackId` and open
+`/realtime`, list its exact origin in `PYXIS_ALLOWED_ORIGINS` (or `--allowed-origins`):
+
+```ini
+[Service]
+Environment=PYXIS_ALLOWED_ORIGINS=https://vela.example,http://car.local:8080
+```
+
+```sh
+systemctl --user daemon-reload
+systemctl --user restart pyxis.service
+```
+
+| Rule | Detail |
+|---|---|
+| Format | Comma-separated. Spaces around entries are ignored. Unset or empty allows no other origin |
+| Exact origins only | Scheme, host and a non-default port, exactly as the browser sends `Origin`. No path, no trailing `/`, no `:443` on https |
+| No wildcard | `*` is refused. So is any malformed entry: the service does not start and names the entry and its correct form |
+| Matching | Byte-for-byte. `http://` versus `https://`, another port, or `vela.example.evil.test` never match `https://vela.example` |
+
+What an allowed origin gets:
+
+- `/rpc` and `/stream/:trackId` answer CORS preflight and add
+  `Access-Control-Allow-Origin` with that exact origin. Requests may send `Authorization`,
+  `Content-Type`, `Range` and `x-pyxis-contract`. Responses expose `Content-Range`,
+  `Accept-Ranges`, `Content-Length` and `x-pyxis-candidate-id`.
+- `Access-Control-Allow-Credentials` is never sent. Pyxis authenticates with a bearer
+  header, not cookies, so the app must set the header itself and must not use
+  `credentials: "include"`.
+- `/realtime` accepts the upgrade. Browsers do not preflight WebSockets, so the core checks
+  `Origin` instead: no `Origin` (non-browser clients), the same origin as the `Host` the
+  request reached, or an allowed origin is accepted. Any other origin is refused with HTTP
+  403 and a `realtime.failure` body with code `realtime.originRefused`. This check applies
+  even when the allowlist is empty.
+
+The allowlist does not authenticate anything. Every call still needs a valid token. It only
+decides which other sites' pages the browser lets read Pyxis responses.
+
 ## Sonos discovery
 
 The Sonos plugin uses SSDP multicast plus an Avahi mDNS fallback and does not require credentials.

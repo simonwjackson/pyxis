@@ -16,7 +16,9 @@ use std::time::Duration;
 
 use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
 use axum::extract::State;
-use axum::response::Response;
+use axum::http::{header, HeaderMap, StatusCode};
+use axum::response::{IntoResponse, Response};
+use axum::Json;
 use futures_util::stream::{SplitSink, SplitStream};
 use futures_util::{SinkExt, StreamExt};
 use tokio::sync::{broadcast, mpsc};
@@ -315,7 +317,27 @@ impl Realtime {
     }
 }
 
-pub async fn realtime(State(state): State<Arc<AppState>>, upgrade: WebSocketUpgrade) -> Response {
+pub async fn realtime(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    upgrade: WebSocketUpgrade,
+) -> Response {
+    // Browsers never preflight a WebSocket, so a page on any site could otherwise open
+    // this socket. Refuse before upgrading; the hello token check still follows.
+    if !state.allowed_origins.allows_socket(&headers) {
+        tracing::warn!(
+            origin = ?headers.get(header::ORIGIN),
+            host = ?headers.get(header::HOST),
+            "realtime upgrade refused for origin"
+        );
+        let failure = RpcFailure::permanent(
+            "realtime.originRefused",
+            "this origin is not allowed to open the realtime socket",
+        );
+        // Same shape as a `realtime.failure` frame, so a client branches on one type.
+        let body = serde_json::json!({ "_tag": "realtime.failure", "payload": failure });
+        return (StatusCode::FORBIDDEN, Json(body)).into_response();
+    }
     upgrade
         .max_frame_size(MAX_FRAME_BYTES)
         .max_message_size(MAX_FRAME_BYTES)
