@@ -27,6 +27,7 @@ function album(
     title: "Heroes",
     artist: "David Bowie",
     placement,
+    tags: [],
     placementUpdatedAt: updatedAt,
     addedAt: "2026-01-01",
     revision,

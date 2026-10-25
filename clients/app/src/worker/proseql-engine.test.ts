@@ -79,6 +79,7 @@ function album(id: string, revision = 1, title = "Heroes"): WorkerAlbum {
     title,
     artist: "David Bowie",
     placement: RpcPlacement.Discovery,
+    tags: [],
     placementUpdatedAt: "now",
     addedAt: "now",
     revision,
@@ -961,4 +962,19 @@ describe("the real ProseQL engine", () => {
     expect(await database.albums()).toHaveLength(0)
     expect(await database.album("album-1")).toBeUndefined()
   })
+})
+
+test("tags survive a real persisted album snapshot and placement acknowledgement", async () => {
+  const cells = new Map<string, string>()
+  const first = await open(cells)
+  const tagged = { ...album("tagged"), tags: ["favorite"] }
+  await first.putAlbum(tagged)
+  await first.applyPlacementVerdict(
+    { ...tagged, placement: RpcPlacement.Collection, revision: 2 },
+    "write-1",
+  )
+  await first.close()
+  const reopened = await open(cells)
+  expect((await reopened.albums())[0]?.tags).toEqual(["favorite"])
+  await reopened.close()
 })

@@ -16,6 +16,7 @@ function album(placement = RpcPlacement.Discovery, revision = 1): WorkerAlbum {
     placement,
     revision,
     addedAt: "2026-01-01",
+    tags: [],
     placementUpdatedAt: "2026-01-01",
   }
 }

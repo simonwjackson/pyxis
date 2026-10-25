@@ -28,6 +28,7 @@ const album = (
   title,
   artist: "HEALTH",
   placement: RpcPlacement.Collection,
+  tags: [],
   placementUpdatedAt: "2026-01-01T00:00:00Z",
   addedAt,
   revision: 1,

@@ -21,11 +21,12 @@ import { spawnWorkerClient } from "../worker/client.ts"
 import type { OfflineOverview, WorkerSettings } from "../worker/contract.ts"
 import { createReferenceClient, type ReferenceClient } from "./api.ts"
 import { ReferenceConsole } from "./Console.tsx"
+import { ReferenceGroups } from "./Groups.tsx"
 import { ReferenceLibrary } from "./Library.tsx"
 import { ReferenceOffline } from "./Offline.tsx"
 import { ReferenceOutputs } from "./Outputs.tsx"
-import { ReferencePlugins } from "./Plugins.tsx"
 import { ReferencePlaylists } from "./Playlists.tsx"
+import { ReferencePlugins } from "./Plugins.tsx"
 import { type ConsoleCommand, type LocalState, ReferenceContext } from "./Reference.context.tsx"
 import { ReferenceAudio } from "./ReferenceAudio.tsx"
 import { ReferenceRemote } from "./Remote.tsx"
@@ -1076,6 +1077,7 @@ export function ReferenceApp({
           <ReferencePlugins />
           <ReferenceOutputs />
           <ReferenceLibrary />
+          <ReferenceGroups key={grant?.account.id} />
           <ReferenceStations />
           <ReferencePlaylists key={grant?.account.id} />
           <ReferenceSessions />

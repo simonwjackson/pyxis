@@ -359,6 +359,38 @@
           "properties": {
             "_tag": {
               "type": "string",
+              "const": "library.groups.list"
+            },
+            "payload": {
+              "$ref": "#/$defs/EmptyRequest"
+            }
+          },
+          "required": [
+            "_tag",
+            "payload"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "_tag": {
+              "type": "string",
+              "const": "library.group.items.list"
+            },
+            "payload": {
+              "$ref": "#/$defs/GroupItemsListRequest"
+            }
+          },
+          "required": [
+            "_tag",
+            "payload"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "_tag": {
+              "type": "string",
               "const": "library.albums.list"
             },
             "payload": {
@@ -1284,6 +1316,30 @@
         "artist"
       ]
     },
+    "GroupItemsListRequest": {
+      "type": "object",
+      "properties": {
+        "groupId": {
+          "type": "string"
+        },
+        "cursor": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "limit": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "groupId",
+        "limit"
+      ]
+    },
     "AlbumCommandRequest": {
       "type": "object",
       "properties": {
@@ -1302,6 +1358,22 @@
     },
     "RpcAlbumCommand": {
       "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "_tag": {
+              "type": "string",
+              "const": "tags.set"
+            },
+            "payload": {
+              "$ref": "#/$defs/TagsSetCommand"
+            }
+          },
+          "required": [
+            "_tag",
+            "payload"
+          ]
+        },
         {
           "type": "object",
           "properties": {
@@ -1350,6 +1422,21 @@
             "payload"
           ]
         }
+      ]
+    },
+    "TagsSetCommand": {
+      "type": "object",
+      "properties": {
+        "tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "tags"
       ]
     },
     "PlacementSetCommand": {
@@ -2185,6 +2272,38 @@
             },
             "outcome": {
               "$ref": "#/$defs/AlbumAddOutcome"
+            }
+          },
+          "required": [
+            "_tag",
+            "outcome"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "_tag": {
+              "type": "string",
+              "const": "library.groups.list"
+            },
+            "outcome": {
+              "$ref": "#/$defs/GroupsListOutcome"
+            }
+          },
+          "required": [
+            "_tag",
+            "outcome"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "_tag": {
+              "type": "string",
+              "const": "library.group.items.list"
+            },
+            "outcome": {
+              "$ref": "#/$defs/GroupItemsListOutcome"
             }
           },
           "required": [
@@ -4221,6 +4340,12 @@
     "RpcLibraryAlbum": {
       "type": "object",
       "properties": {
+        "tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
         "id": {
           "type": "string"
         },
@@ -4267,6 +4392,7 @@
       },
       "additionalProperties": false,
       "required": [
+        "tags",
         "id",
         "title",
         "artist",
@@ -4322,6 +4448,379 @@
         "id",
         "title",
         "artist",
+        "revision"
+      ]
+    },
+    "GroupsListOutcome": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "const": "ready"
+            },
+            "value": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/RpcLibraryGroup"
+              }
+            }
+          },
+          "required": [
+            "status",
+            "value"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "const": "unavailable"
+            },
+            "value": {
+              "$ref": "#/$defs/RpcFailure"
+            }
+          },
+          "required": [
+            "status",
+            "value"
+          ]
+        }
+      ]
+    },
+    "RpcLibraryGroup": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        },
+        "kind": {
+          "$ref": "#/$defs/RpcLibraryGroupKind"
+        },
+        "count": {
+          "description": "Absent when one or more sources could not answer. Never an invented zero.",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint32",
+          "minimum": 0
+        },
+        "availability": {
+          "$ref": "#/$defs/RpcGroupAvailability"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "label",
+        "kind",
+        "availability"
+      ]
+    },
+    "RpcLibraryGroupKind": {
+      "type": "string",
+      "enum": [
+        "albums",
+        "bookmarks",
+        "stations",
+        "playlists"
+      ]
+    },
+    "RpcGroupAvailability": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "const": "ready"
+            }
+          },
+          "required": [
+            "status"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "const": "partial"
+            },
+            "value": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/RpcSourceFailure"
+              }
+            }
+          },
+          "required": [
+            "status",
+            "value"
+          ]
+        }
+      ]
+    },
+    "GroupItemsListOutcome": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "const": "ready"
+            },
+            "value": {
+              "$ref": "#/$defs/RpcGroupPage"
+            }
+          },
+          "required": [
+            "status",
+            "value"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "const": "unknownGroup"
+            }
+          },
+          "required": [
+            "status"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "const": "rejected"
+            },
+            "value": {
+              "$ref": "#/$defs/RpcFailure"
+            }
+          },
+          "required": [
+            "status",
+            "value"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "const": "unavailable"
+            },
+            "value": {
+              "$ref": "#/$defs/RpcFailure"
+            }
+          },
+          "required": [
+            "status",
+            "value"
+          ]
+        }
+      ]
+    },
+    "RpcGroupPage": {
+      "type": "object",
+      "properties": {
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/RpcGroupMember"
+          }
+        },
+        "cursor": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "availability": {
+          "$ref": "#/$defs/RpcGroupAvailability"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "items",
+        "availability"
+      ]
+    },
+    "RpcGroupMember": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "_tag": {
+              "type": "string",
+              "const": "album"
+            },
+            "payload": {
+              "$ref": "#/$defs/RpcLibraryAlbum"
+            }
+          },
+          "required": [
+            "_tag",
+            "payload"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "_tag": {
+              "type": "string",
+              "const": "bookmark"
+            },
+            "payload": {
+              "$ref": "#/$defs/RpcBookmarkMember"
+            }
+          },
+          "required": [
+            "_tag",
+            "payload"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "_tag": {
+              "type": "string",
+              "const": "station"
+            },
+            "payload": {
+              "$ref": "#/$defs/RpcStation"
+            }
+          },
+          "required": [
+            "_tag",
+            "payload"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "_tag": {
+              "type": "string",
+              "const": "playlist"
+            },
+            "payload": {
+              "$ref": "#/$defs/RpcPlaylist"
+            }
+          },
+          "required": [
+            "_tag",
+            "payload"
+          ]
+        }
+      ]
+    },
+    "RpcBookmarkMember": {
+      "type": "object",
+      "properties": {
+        "bookmark": {
+          "$ref": "#/$defs/RpcBookmark"
+        },
+        "track": {
+          "description": "Missing when the bookmarked track is no longer available in this account.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/RpcLibraryTrack"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "bookmark"
+      ]
+    },
+    "RpcBookmark": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "trackId": {
+          "type": "string"
+        },
+        "createdAt": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "trackId",
+        "createdAt"
+      ]
+    },
+    "RpcStation": {
+      "description": "A radio object owned by a source.\n\nOne shape covers a Pandora station token and a YouTube Music watch queue, which is the\npoint: a client renders a station without knowing which provider produced it. Provider\nconcepts that do not fit, such as Pandora's QuickMix flag, are deliberately absent until\nthe model grows to hold them.",
+      "type": "object",
+      "properties": {
+        "externalId": {
+          "description": "The source's own reference. Opaque to the core and to clients; only the owning plugin\ninterprets it.",
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "artworkUrl": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "sourcePluginId": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "externalId",
+        "name",
+        "sourcePluginId"
+      ]
+    },
+    "RpcPlaylist": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "trackIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "revision": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "title",
+        "trackIds",
         "revision"
       ]
     },
@@ -4463,26 +4962,6 @@
         }
       ]
     },
-    "RpcBookmark": {
-      "type": "object",
-      "properties": {
-        "id": {
-          "type": "string"
-        },
-        "trackId": {
-          "type": "string"
-        },
-        "createdAt": {
-          "type": "string"
-        }
-      },
-      "additionalProperties": false,
-      "required": [
-        "id",
-        "trackId",
-        "createdAt"
-      ]
-    },
     "BookmarkCommandOutcome": {
       "oneOf": [
         {
@@ -4605,35 +5084,6 @@
             "value"
           ]
         }
-      ]
-    },
-    "RpcPlaylist": {
-      "type": "object",
-      "properties": {
-        "id": {
-          "type": "string"
-        },
-        "title": {
-          "type": "string"
-        },
-        "trackIds": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
-        },
-        "revision": {
-          "type": "integer",
-          "format": "uint32",
-          "minimum": 0
-        }
-      },
-      "additionalProperties": false,
-      "required": [
-        "id",
-        "title",
-        "trackIds",
-        "revision"
       ]
     },
     "PlaylistCreateOutcome": {
@@ -5279,34 +5729,6 @@
       "required": [
         "stations",
         "failures"
-      ]
-    },
-    "RpcStation": {
-      "description": "A radio object owned by a source.\n\nOne shape covers a Pandora station token and a YouTube Music watch queue, which is the\npoint: a client renders a station without knowing which provider produced it. Provider\nconcepts that do not fit, such as Pandora's QuickMix flag, are deliberately absent until\nthe model grows to hold them.",
-      "type": "object",
-      "properties": {
-        "externalId": {
-          "description": "The source's own reference. Opaque to the core and to clients; only the owning plugin\ninterprets it.",
-          "type": "string"
-        },
-        "name": {
-          "type": "string"
-        },
-        "artworkUrl": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "sourcePluginId": {
-          "type": "string"
-        }
-      },
-      "additionalProperties": false,
-      "required": [
-        "externalId",
-        "name",
-        "sourcePluginId"
       ]
     },
     "SourceStationCreateOutcome": {

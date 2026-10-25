@@ -438,3 +438,43 @@ async fn a_search_result_carries_the_id_that_seeds_its_station() {
         "a station seeded from a search result must play something"
     );
 }
+
+#[tokio::test]
+async fn station_group_partial_failure_never_invents_a_count() {
+    let failing =
+        PluginCandidate::new(PathBuf::from(env!("CARGO_BIN_EXE_pyxis-plugin-laboratory")))
+            .with_env("PYXIS_LAB_ID", "broken")
+            .with_env("PYXIS_LAB_BEHAVIOR", "station-unavailable")
+            .with_env("PYXIS_LAB_STATION_LIST", "broken-station|Broken Radio");
+    let (app, token, _dir) = app_with(vec![station_source("healthy"), failing]).await;
+    let groups = rpc(
+        &app,
+        json!({"_tag":"library.groups.list","payload":{}}),
+        Some(&token),
+    )
+    .await;
+    let station = groups["outcome"]["value"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|group| group["kind"] == "stations")
+        .unwrap();
+    assert!(station.get("count").is_none());
+    assert_eq!(station["availability"]["status"], "partial");
+    assert_eq!(station["availability"]["value"][0]["pluginId"], "broken");
+    let page = rpc(
+        &app,
+        json!({"_tag":"library.group.items.list","payload":{"groupId":station["id"],"limit":10}}),
+        Some(&token),
+    )
+    .await;
+    assert_eq!(
+        page["outcome"]["value"]["items"].as_array().unwrap().len(),
+        1
+    );
+    assert_eq!(page["outcome"]["value"]["items"][0]["_tag"], "station");
+    assert_eq!(
+        page["outcome"]["value"]["availability"]["status"],
+        "partial"
+    );
+}

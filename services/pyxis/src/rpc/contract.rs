@@ -967,6 +967,7 @@ pub struct RpcLibraryTrack {
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct RpcLibraryAlbum {
+    pub tags: Vec<String>,
     pub id: String,
     pub title: String,
     pub artist: String,
@@ -992,6 +993,8 @@ pub struct PlacementSetCommand {
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
 #[serde(tag = "_tag", content = "payload")]
 pub enum RpcAlbumCommand {
+    #[serde(rename = "tags.set")]
+    TagsSet(TagsSetCommand),
     #[serde(rename = "placement.set")]
     PlacementSet(PlacementSetCommand),
     #[serde(rename = "artwork.refresh")]
@@ -1077,6 +1080,102 @@ pub enum BookmarkCommandOutcome {
 #[serde(tag = "status", content = "value", rename_all = "camelCase")]
 pub enum BookmarkListOutcome {
     Ready(Vec<RpcBookmark>),
+    Unavailable(RpcFailure),
+}
+
+#[typeshare]
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct TagsSetCommand {
+    pub tags: Vec<String>,
+}
+
+#[typeshare]
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct GroupItemsListRequest {
+    pub group_id: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cursor: Option<String>,
+    pub limit: u32,
+}
+
+#[typeshare]
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub enum RpcLibraryGroupKind {
+    Albums,
+    Bookmarks,
+    Stations,
+    Playlists,
+}
+
+#[typeshare]
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(tag = "status", content = "value", rename_all = "camelCase")]
+pub enum RpcGroupAvailability {
+    Ready,
+    Partial(Vec<RpcSourceFailure>),
+}
+
+#[typeshare]
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct RpcLibraryGroup {
+    pub id: String,
+    pub label: String,
+    pub kind: RpcLibraryGroupKind,
+    /// Absent when one or more sources could not answer. Never an invented zero.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub count: Option<u32>,
+    pub availability: RpcGroupAvailability,
+}
+
+#[typeshare]
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct RpcBookmarkMember {
+    pub bookmark: RpcBookmark,
+    /// Missing when the bookmarked track is no longer available in this account.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub track: Option<RpcLibraryTrack>,
+}
+
+#[typeshare]
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(tag = "_tag", content = "payload", rename_all = "camelCase")]
+pub enum RpcGroupMember {
+    Album(RpcLibraryAlbum),
+    Bookmark(RpcBookmarkMember),
+    Station(RpcStation),
+    Playlist(RpcPlaylist),
+}
+
+#[typeshare]
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct RpcGroupPage {
+    pub items: Vec<RpcGroupMember>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cursor: Option<String>,
+    pub availability: RpcGroupAvailability,
+}
+
+#[typeshare]
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(tag = "status", content = "value", rename_all = "camelCase")]
+pub enum GroupsListOutcome {
+    Ready(Vec<RpcLibraryGroup>),
+    Unavailable(RpcFailure),
+}
+
+#[typeshare]
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(tag = "status", content = "value", rename_all = "camelCase")]
+pub enum GroupItemsListOutcome {
+    Ready(RpcGroupPage),
+    UnknownGroup,
+    Rejected(RpcFailure),
     Unavailable(RpcFailure),
 }
 
@@ -1503,6 +1602,10 @@ pub enum RpcRequest {
     SourceSearchRun(SourceSearchRequest),
     #[serde(rename = "library.album.add")]
     LibraryAlbumAdd(LibraryAlbumAddRequest),
+    #[serde(rename = "library.groups.list")]
+    LibraryGroupsList(EmptyRequest),
+    #[serde(rename = "library.group.items.list")]
+    LibraryGroupItemsList(GroupItemsListRequest),
     #[serde(rename = "library.albums.list")]
     LibraryAlbumsList(EmptyRequest),
     #[serde(rename = "library.album.command.run")]
@@ -1600,6 +1703,10 @@ pub enum RpcResponse {
     SourceSearchRun(SourceSearchOutcome),
     #[serde(rename = "library.album.add")]
     LibraryAlbumAdd(AlbumAddOutcome),
+    #[serde(rename = "library.groups.list")]
+    LibraryGroupsList(GroupsListOutcome),
+    #[serde(rename = "library.group.items.list")]
+    LibraryGroupItemsList(GroupItemsListOutcome),
     #[serde(rename = "library.albums.list")]
     LibraryAlbumsList(AlbumListOutcome),
     #[serde(rename = "library.album.command.run")]
@@ -1647,7 +1754,7 @@ pub enum RpcResponse {
 }
 
 impl RpcRequest {
-    pub const KNOWN_TAGS: [&'static str; 41] = [
+    pub const KNOWN_TAGS: [&'static str; 43] = [
         "system.status.get",
         "auth.device.claim",
         "auth.device.pair",
@@ -1669,6 +1776,8 @@ impl RpcRequest {
         "source.search.run",
         "library.album.add",
         "library.albums.list",
+        "library.groups.list",
+        "library.group.items.list",
         "library.album.command.run",
         "library.bookmarks.list",
         "library.bookmark.command.run",
@@ -1714,6 +1823,8 @@ impl RpcRequest {
             RpcRequest::SessionHandoff(_) => "session.handoff",
             RpcRequest::SourceSearchRun(_) => "source.search.run",
             RpcRequest::LibraryAlbumAdd(_) => "library.album.add",
+            RpcRequest::LibraryGroupsList(_) => "library.groups.list",
+            RpcRequest::LibraryGroupItemsList(_) => "library.group.items.list",
             RpcRequest::LibraryAlbumsList(_) => "library.albums.list",
             RpcRequest::LibraryAlbumCommandRun(_) => "library.album.command.run",
             RpcRequest::LibraryBookmarksList(_) => "library.bookmarks.list",
@@ -1766,7 +1877,9 @@ impl RpcRequest {
             | RpcRequest::SessionCommandSend(_)
             | RpcRequest::SessionHandoff(_) => Some("session:control"),
             RpcRequest::SourceSearchRun(_) => Some("source:read"),
-            RpcRequest::LibraryAlbumsList(_)
+            RpcRequest::LibraryGroupsList(_)
+            | RpcRequest::LibraryGroupItemsList(_)
+            | RpcRequest::LibraryAlbumsList(_)
             | RpcRequest::LibraryBookmarksList(_)
             | RpcRequest::LibraryPlaylistsList(_) => Some("library:read"),
             RpcRequest::LibraryAlbumAdd(_)
@@ -1800,7 +1913,7 @@ impl RpcRequest {
 }
 
 impl RpcResponse {
-    pub const KNOWN_OPERATION_TAGS: [&'static str; 41] = RpcRequest::KNOWN_TAGS;
+    pub const KNOWN_OPERATION_TAGS: [&'static str; 43] = RpcRequest::KNOWN_TAGS;
 
     pub fn tag(&self) -> &'static str {
         match self {
@@ -1824,6 +1937,8 @@ impl RpcResponse {
             RpcResponse::SessionHandoff(_) => "session.handoff",
             RpcResponse::SourceSearchRun(_) => "source.search.run",
             RpcResponse::LibraryAlbumAdd(_) => "library.album.add",
+            RpcResponse::LibraryGroupsList(_) => "library.groups.list",
+            RpcResponse::LibraryGroupItemsList(_) => "library.group.items.list",
             RpcResponse::LibraryAlbumsList(_) => "library.albums.list",
             RpcResponse::LibraryAlbumCommandRun(_) => "library.album.command.run",
             RpcResponse::LibraryBookmarksList(_) => "library.bookmarks.list",

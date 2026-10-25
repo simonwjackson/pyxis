@@ -16,6 +16,7 @@ export interface AccountCreateRequest {
 }
 
 export type RpcAlbumCommand =
+	| { _tag: "tags.set", payload: TagsSetCommand }
 	| { _tag: "placement.set", payload: PlacementSetCommand }
 	| { _tag: "artwork.refresh", payload: EmptyRequest }
 	| { _tag: "remove", payload: EmptyRequest };
@@ -57,6 +58,12 @@ export interface DevicePairRequest {
 }
 
 export interface EmptyRequest {
+}
+
+export interface GroupItemsListRequest {
+	groupId: string;
+	cursor?: string;
+	limit: number;
 }
 
 export interface HotAlbumsListRequest {
@@ -390,6 +397,22 @@ export interface RpcBookmark {
 	createdAt: string;
 }
 
+export interface RpcLibraryTrack {
+	id: string;
+	title: string;
+	artist: string;
+	durationMs?: number;
+	trackNumber?: number;
+	artworkUrl?: string;
+	revision: number;
+}
+
+export interface RpcBookmarkMember {
+	bookmark: RpcBookmark;
+	/** Missing when the bookmarked track is no longer available in this account. */
+	track?: RpcLibraryTrack;
+}
+
 /**
  * Uniform failure envelope.
  *
@@ -408,6 +431,22 @@ export interface RpcFidelity {
 	sampleRateHz?: number;
 }
 
+export type RpcGroupMember =
+	| { _tag: "album", payload: RpcLibraryAlbum }
+	| { _tag: "bookmark", payload: RpcBookmarkMember }
+	| { _tag: "station", payload: RpcStation }
+	| { _tag: "playlist", payload: RpcPlaylist };
+
+export type RpcGroupAvailability =
+	| { status: "ready", value?: undefined }
+	| { status: "partial", value: RpcSourceFailure[] };
+
+export interface RpcGroupPage {
+	items: RpcGroupMember[];
+	cursor?: string;
+	availability: RpcGroupAvailability;
+}
+
 export interface RpcHotAlbum {
 	albumId: string;
 	listenCount: number;
@@ -415,17 +454,8 @@ export interface RpcHotAlbum {
 	computedAt: string;
 }
 
-export interface RpcLibraryTrack {
-	id: string;
-	title: string;
-	artist: string;
-	durationMs?: number;
-	trackNumber?: number;
-	artworkUrl?: string;
-	revision: number;
-}
-
 export interface RpcLibraryAlbum {
+	tags: string[];
 	id: string;
 	title: string;
 	artist: string;
@@ -436,6 +466,22 @@ export interface RpcLibraryAlbum {
 	addedAt: string;
 	revision: number;
 	tracks: RpcLibraryTrack[];
+}
+
+export enum RpcLibraryGroupKind {
+	Albums = "albums",
+	Bookmarks = "bookmarks",
+	Stations = "stations",
+	Playlists = "playlists",
+}
+
+export interface RpcLibraryGroup {
+	id: string;
+	label: string;
+	kind: RpcLibraryGroupKind;
+	/** Absent when one or more sources could not answer. Never an invented zero. */
+	count?: number;
+	availability: RpcGroupAvailability;
 }
 
 export interface RpcListenAppendResult {
@@ -803,6 +849,10 @@ export interface SourceStationSearchRequest {
 	limit?: number;
 }
 
+export interface TagsSetCommand {
+	tags: string[];
+}
+
 export interface VolumeSetCommand {
 	volume: number;
 }
@@ -860,6 +910,16 @@ export type DevicePairOutcome =
 	| { status: "ready", value: RpcAuthGrant }
 	| { status: "invalidCode", value?: undefined }
 	| { status: "expired", value?: undefined }
+	| { status: "unavailable", value: RpcFailure };
+
+export type GroupItemsListOutcome =
+	| { status: "ready", value: RpcGroupPage }
+	| { status: "unknownGroup", value?: undefined }
+	| { status: "rejected", value: RpcFailure }
+	| { status: "unavailable", value: RpcFailure };
+
+export type GroupsListOutcome =
+	| { status: "ready", value: RpcLibraryGroup[] }
 	| { status: "unavailable", value: RpcFailure };
 
 export type HotAlbumsListOutcome =
@@ -969,6 +1029,8 @@ export type RpcRequest =
 	| { _tag: "session.handoff", payload: SessionHandoffRequest }
 	| { _tag: "source.search.run", payload: SourceSearchRequest }
 	| { _tag: "library.album.add", payload: LibraryAlbumAddRequest }
+	| { _tag: "library.groups.list", payload: EmptyRequest }
+	| { _tag: "library.group.items.list", payload: GroupItemsListRequest }
 	| { _tag: "library.albums.list", payload: EmptyRequest }
 	| { _tag: "library.album.command.run", payload: AlbumCommandRequest }
 	| { _tag: "library.bookmarks.list", payload: EmptyRequest }
@@ -1012,6 +1074,8 @@ export type RpcResponse =
 	| { _tag: "session.handoff", outcome: SessionHandoffOutcome }
 	| { _tag: "source.search.run", outcome: SourceSearchOutcome }
 	| { _tag: "library.album.add", outcome: AlbumAddOutcome }
+	| { _tag: "library.groups.list", outcome: GroupsListOutcome }
+	| { _tag: "library.group.items.list", outcome: GroupItemsListOutcome }
 	| { _tag: "library.albums.list", outcome: AlbumListOutcome }
 	| { _tag: "library.album.command.run", outcome: AlbumCommandOutcome }
 	| { _tag: "library.bookmarks.list", outcome: BookmarkListOutcome }

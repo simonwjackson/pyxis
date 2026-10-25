@@ -33,6 +33,8 @@ Read [README.md](README.md) first for the envelope rules, and
 | `source.album.get` | `source:read` | `ready`, `unavailable` |
 | `library.album.add` | `library:write` | `ready`, `invalid`, `unavailable` |
 | `library.albums.list` | `library:read` | `ready`, `unavailable` |
+| `library.groups.list` | `library:read` | `ready`, `unavailable` |
+| `library.group.items.list` | `library:read` | `ready`, `unknownGroup`, `rejected`, `unavailable` |
 | `library.album.command.run` | `library:write` | `applied`, `removed`, `unknown`, `unavailable` |
 | `library.bookmarks.list` | `library:read` | `ready`, `unavailable` |
 | `library.bookmark.command.run` | `library:write` | `added`, `removed`, `unknown`, `unavailable` |
@@ -51,6 +53,26 @@ Read [README.md](README.md) first for the envelope rules, and
 Exact payload and value shapes are in `contracts/generated/pyxis.ts`. This document explains
 the parts a type cannot tell you.
 
+## Groups and tags
+
+`library.groups.list {}` orders Albums, placements, Hot albums, normalized tag groups,
+Bookmarks, Stations, then Playlists. IDs are opaque and account scoped. Do not parse
+labels or IDs. Counts are true membership counts. A partially failed station list omits
+`count` and carries `availability: {status:"partial",value:[...]}` with source failures.
+Zero source plugins produces a ready empty Stations group.
+
+`library.group.items.list {groupId,cursor?,limit}` accepts limits 1–100 and returns tagged
+album/bookmark/station/playlist members. A bookmark without `track` is unavailable.
+The first page observes current membership. Continuations hold that immutable snapshot,
+are account/group fenced, expire after 30 minutes and can be evicted (512 retained cursors).
+Restart loses cursors; refetch the first page. Separate list/page calls can observe an
+intervening edit. Failed providers never contribute an invented zero or fabricated items.
+
+`tags.set {tags:string[]}` uses `library.album.command.run`. At most 64 labels, each
+1–64 characters after trim/lowercase; control characters are refused. Tags are sorted and
+deduplicated. An identical set is a no-op. Tags persist on the album and its public snapshot,
+revise and fan out with album state, survive placement changes, and create/remove groups.
+
 ## Playlist append
 
 `library.playlist.tracks.add` takes `{playlistId, trackIds, commandId}`. It accepts
@@ -62,7 +84,8 @@ A new command ID deliberately appends again. Create/list keep their existing con
 
 ## Result sizes
 
-There is no pagination anywhere in v2. Two calls need care:
+`library.group.items.list` is paginated. Older list calls remain unpaginated.
+Two calls need care:
 
 | Call | Behaviour |
 |---|---|

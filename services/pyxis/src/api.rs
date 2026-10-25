@@ -53,6 +53,7 @@ pub struct AppState {
     pub sessions: Sessions,
     pub(crate) sources: SourceCatalog,
     pub(crate) stations: Stations,
+    pub(crate) group_pages: crate::rpc::library_groups::GroupPages,
     pub(crate) stream: StreamService,
 }
 
@@ -131,6 +132,7 @@ impl AppState {
             sessions,
             sources,
             stations,
+            group_pages: Default::default(),
             stream,
         })
     }

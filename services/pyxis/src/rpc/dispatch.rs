@@ -755,6 +755,20 @@ pub fn dispatch(state: &AppState, request: RpcRequest, auth: Option<AuthContext>
                 )),
             }
         }
+        RpcRequest::LibraryGroupsList(_) => {
+            let Some(auth) = auth else {
+                return auth_required();
+            };
+            RpcResponse::LibraryGroupsList(crate::rpc::library_groups::list(state, &auth))
+        }
+        RpcRequest::LibraryGroupItemsList(request) => {
+            let Some(auth) = auth else {
+                return auth_required();
+            };
+            RpcResponse::LibraryGroupItemsList(crate::rpc::library_groups::items(
+                state, &auth, request,
+            ))
+        }
         RpcRequest::LibraryAlbumsList(_) => {
             let Some(auth) = auth else {
                 return auth_required();
@@ -773,6 +787,15 @@ pub fn dispatch(state: &AppState, request: RpcRequest, auth: Option<AuthContext>
                 return auth_required();
             };
             match request.command {
+                RpcAlbumCommand::TagsSet(command) => {
+                    let outcome = match state.library.set_tags(&auth.account_id, &request.album_id, command.tags, auth.principal_id()) {
+                        Ok(Some(album)) => { let album = rpc_album(album); publish_album(state, &auth, &album); AlbumCommandOutcome::Applied(album) }
+                        Ok(None) => AlbumCommandOutcome::Unknown,
+                        Err(LibraryError::InvalidTags) => AlbumCommandOutcome::Unavailable(RpcFailure::permanent("library.invalidTags", "tags must contain at most 64 nonempty labels of at most 64 characters without control characters")),
+                        Err(error) => AlbumCommandOutcome::Unavailable(library_failure(error)),
+                    };
+                    RpcResponse::LibraryAlbumCommandRun(outcome)
+                }
                 RpcAlbumCommand::PlacementSet(command) => {
                     let placement = placement(command.placement);
                     match state.library.set_placement(
@@ -1341,7 +1364,7 @@ fn rpc_source_failure(failure: crate::source_catalog::SearchFailure) -> RpcSourc
     }
 }
 
-fn rpc_station(station: crate::stations::Station) -> RpcStation {
+pub(crate) fn rpc_station(station: crate::stations::Station) -> RpcStation {
     RpcStation {
         external_id: station.external_id,
         name: station.name,
@@ -2074,8 +2097,9 @@ fn match_item(item: RpcMatchItem) -> MatchItem {
     }
 }
 
-fn rpc_album(album: Album) -> RpcLibraryAlbum {
+pub(crate) fn rpc_album(album: Album) -> RpcLibraryAlbum {
     RpcLibraryAlbum {
+        tags: album.tags,
         id: album.id,
         title: album.title,
         artist: album.artist,
@@ -2123,7 +2147,7 @@ fn rpc_bookmark(bookmark: Bookmark) -> RpcBookmark {
     }
 }
 
-fn rpc_playlist(playlist: Playlist) -> RpcPlaylist {
+pub(crate) fn rpc_playlist(playlist: Playlist) -> RpcPlaylist {
     RpcPlaylist {
         id: playlist.id,
         title: playlist.title,

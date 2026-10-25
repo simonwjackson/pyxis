@@ -41,6 +41,7 @@ pub struct Track {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Album {
+    pub tags: Vec<String>,
     pub id: String,
     pub title: String,
     pub artist: String,
@@ -56,6 +57,8 @@ pub struct Album {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct AlbumRecord {
+    #[serde(default)]
+    pub tags: Vec<String>,
     pub id: String,
     pub account_id: String,
     pub title: String,

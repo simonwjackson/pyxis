@@ -171,6 +171,7 @@ describe("worker client", () => {
       title: "Heroes",
       artist: "David Bowie",
       placement: RpcPlacement.Discovery,
+      tags: [],
       placementUpdatedAt: "now",
       addedAt: "now",
       revision: 1,

@@ -46,6 +46,7 @@ function scenario(seed: number): Scenario {
       title: `Album ${index}`,
       artist: "David Bowie",
       placement: RpcPlacement.Discovery,
+      tags: [],
       placementUpdatedAt: "2026-01-01",
       addedAt: "2026-01-01",
       revision: 1,
@@ -140,6 +141,7 @@ function server(initial: readonly RpcLibraryAlbum[]): Server {
         revision: existing.revision + 1,
         // Stamped from the write that is landing, so ordering follows the generated
         // sequence rather than a fixed future date that always wins a conflict.
+        tags: [],
         placementUpdatedAt: `2026-06-${String(Math.min(28, state.writes)).padStart(2, "0")}`,
       }
       albums.set(albumId, updated)

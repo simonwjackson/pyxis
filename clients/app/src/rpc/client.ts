@@ -223,6 +223,8 @@ function album(value: unknown): RpcLibraryAlbum {
     typeof value.id !== "string" ||
     typeof value.revision !== "number" ||
     typeof value.placement !== "string" ||
+    !Array.isArray(value.tags) ||
+    !value.tags.every((tag) => typeof tag === "string") ||
     typeof value.placementUpdatedAt !== "string"
   ) {
     throw new RpcError("album was missing its identity, placement, or revision", true)

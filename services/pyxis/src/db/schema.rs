@@ -161,6 +161,12 @@ pub fn albums() -> CollectionDescriptor {
             field("normalizedTitle", SchemaNode::Str),
             field("normalizedArtist", SchemaNode::Str),
             field("placement", SchemaNode::Str),
+            field(
+                "tags",
+                optional(SchemaNode::Array {
+                    item: Box::new(SchemaNode::Str),
+                }),
+            ),
             field("placementUpdatedAt", SchemaNode::Str),
             field("year", optional(SchemaNode::Num)),
             field("addedAt", SchemaNode::Str),

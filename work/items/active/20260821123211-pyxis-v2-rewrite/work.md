@@ -28,7 +28,10 @@ U34 implements account-owned playlist append, durable content-bound receipts and
 reference-client affordance. Focused library tests pass 14/14; append/retry UI test passes;
 contract generation/drift, root typecheck, owned Biome and library Clippy pass.
 No deployment, push, landing, live mutation or physical Sonos command is allowed in this stage.
-U35 dynamic groups/tags is next, then U36 seek and U37 reversible modes/wire v3.
+U35 implements ordered groups, fenced immutable cursor pages and persisted normalized album
+tags. Focused Rust library/station tests pass 28/28; 136 selected client/worker tests pass,
+including real-WASM tag reopen. Generated contracts, Clippy, root typecheck and owned Biome
+pass. U36 seek is next, followed by U37 reversible modes/wire v3.
 The parent runs combined full verification once. Old deployment notes below are historical.
 
 **Shared renderer-confirmed commands, 2026-10-01.** Both clients use one non-React playback

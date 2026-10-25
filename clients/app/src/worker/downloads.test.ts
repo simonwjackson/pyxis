@@ -71,6 +71,7 @@ function album(id = "album-1", tracks = ["track-1"]): RpcLibraryAlbum {
     title: "Heroes",
     artist: "David Bowie",
     placement: RpcPlacement.Collection,
+    tags: [],
     placementUpdatedAt: "now",
     addedAt: "now",
     revision: 1,

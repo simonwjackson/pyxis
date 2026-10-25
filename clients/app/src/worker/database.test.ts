@@ -33,6 +33,7 @@ function album(id: string, revision = 1, title = "Heroes"): WorkerAlbum {
     title,
     artist: "David Bowie",
     placement: RpcPlacement.Discovery,
+    tags: [],
     placementUpdatedAt: "now",
     addedAt: "now",
     revision,
@@ -855,4 +856,18 @@ describe("single realtime session snapshots", () => {
       session: { ...newer, reachable: false },
     })
   })
+})
+
+test("album tags survive snapshots, placement verdicts and local reopen", async () => {
+  const engine = createMemoryEngine()
+  const database = await openWorkerDatabase({ engine })
+  const tagged = { ...album("tagged"), tags: ["favorite", "road trip"] }
+  await database.putAlbum(tagged)
+  await database.applyPlacementVerdict(
+    { ...tagged, placement: RpcPlacement.Collection, revision: 2 },
+    "placement-1",
+  )
+  await database.close()
+  const reopened = await openWorkerDatabase({ engine })
+  expect((await reopened.albums())[0]?.tags).toEqual(["favorite", "road trip"])
 })

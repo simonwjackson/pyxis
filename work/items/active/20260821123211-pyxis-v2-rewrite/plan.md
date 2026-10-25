@@ -1682,7 +1682,11 @@ No rename, delete or reorder. VISION records the approved album-centric playlist
 
 **Goal:** ordered opaque groups, typed account/group-fenced pages, truthful station failures;
 album tags persist, revise and sync through `tags.set`. No enrichers or saved filters.
-**Verification:** focused public RPC, reopen and client/worker tests; codegen/static checks.
+**Verification:** 28 focused Rust library/station tests; 136 selected client/worker tests,
+including real-WASM tag reopen; contract drift, Clippy, typecheck and owned Biome.
+First pages observe current membership; continuations retain an immutable snapshot.
+Separate list/page requests can observe intervening edits. Station failure omits count
+and carries source failures. Tags normalize trim/lowercase, sort/deduplicate, limit 64×64.
 
 ### U36. Renderer-confirmed absolute seek
 

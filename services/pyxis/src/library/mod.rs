@@ -37,6 +37,8 @@ pub enum LibraryError {
     Artwork(#[from] ArtworkStoreError),
     #[error("album title and artist are required")]
     InvalidAlbum,
+    #[error("tags must contain at most 64 distinct nonempty labels of at most 64 characters without control characters")]
+    InvalidTags,
     #[error("{0}")]
     InvalidPlaylistCommand(String),
     #[error("commandId was already used for different playlist content")]
@@ -152,6 +154,7 @@ impl Library {
         let timestamp = now();
         let artwork_url = input.artwork_url.clone();
         let album = AlbumRecord {
+            tags: Vec::new(),
             id: id.clone(),
             account_id: String::new(),
             title: input.title.trim().into(),
@@ -443,6 +446,42 @@ impl Library {
                 .then_with(|| left.title.cmp(&right.title))
         });
         Ok(albums)
+    }
+
+    pub fn set_tags(
+        &self,
+        account: &AccountId,
+        album_id: &str,
+        tags: Vec<String>,
+        updated_by: &str,
+    ) -> Result<Option<Album>, LibraryError> {
+        if tags.len() > 64 {
+            return Err(LibraryError::InvalidTags);
+        }
+        let mut normalized = std::collections::BTreeSet::new();
+        for tag in tags {
+            let tag = tag.trim().to_lowercase();
+            if tag.is_empty() || tag.chars().count() > 64 || tag.chars().any(char::is_control) {
+                return Err(LibraryError::InvalidTags);
+            }
+            normalized.insert(tag);
+        }
+        let tags: Vec<_> = normalized.into_iter().collect();
+        let _guard = self.mutation.lock().expect("library mutation poisoned");
+        let Some(mut record) = self
+            .store
+            .get::<AlbumRecord>(schema::ALBUMS, account, album_id)?
+        else {
+            return Ok(None);
+        };
+        if record.tags != tags {
+            record.tags = tags;
+            record.revision += 1;
+            record.updated_by = updated_by.into();
+            record.updated_at = now();
+            self.store.put(schema::ALBUMS, account, album_id, &record)?;
+        }
+        Ok(Some(self.album(account, record)?))
     }
 
     pub fn set_placement(
@@ -746,6 +785,7 @@ fn album_from_records(
         })
         .collect::<Result<Vec<_>, LibraryError>>()?;
     Ok(Album {
+        tags: record.tags,
         id: record.id,
         title: record.title,
         artist: record.artist,

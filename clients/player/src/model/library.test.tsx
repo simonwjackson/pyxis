@@ -9,6 +9,7 @@ const album = (id: string, patch: Partial<RpcLibraryAlbum> = {}): RpcLibraryAlbu
   title: id,
   artist: "HEALTH",
   placement: RpcPlacement.Collection,
+  tags: [],
   placementUpdatedAt: "2026-01-01T00:00:00Z",
   addedAt: "2026-01-01T00:00:00Z",
   revision: 1,

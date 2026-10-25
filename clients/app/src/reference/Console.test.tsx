@@ -62,6 +62,7 @@ function album(overrides: Partial<RpcLibraryAlbum> = {}): RpcLibraryAlbum {
     title: "Heroes",
     artist: "David Bowie",
     placement: RpcPlacement.Discovery,
+    tags: [],
     placementUpdatedAt: "now",
     addedAt: "now",
     revision: 1,
@@ -246,6 +247,7 @@ describe("local store", () => {
         title: "Heroes",
         artist: "David Bowie",
         placement: RpcPlacement.Discovery,
+        tags: [],
         placementUpdatedAt: "now",
         addedAt: "now",
         revision: 1,
@@ -3105,6 +3107,7 @@ describe("reference client", () => {
         remote = {
           ...remote,
           placement,
+          tags: [],
           placementUpdatedAt: "later",
           revision: 2,
         }
