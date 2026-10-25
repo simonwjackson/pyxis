@@ -30,7 +30,7 @@ sed -i -e 's/[[:space:]]\+$//' "$output/pyxis.ts"
 perl -0pi -e 's/\n+\z/\n/' "$output/pyxis.ts"
 
 cargo run --quiet --manifest-path "$crate_dir/Cargo.toml" \
-  --example generate-contract -- "$output/pyxis.schema.json"
+  --example generate-contract -- "$output/pyxis.schema.json" "$output/pyxis.ts"
 
 if $check; then
   diff -u "$committed/pyxis.ts" "$output/pyxis.ts"

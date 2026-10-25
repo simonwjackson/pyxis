@@ -124,6 +124,14 @@ pub fn sessions() -> CollectionDescriptor {
         vec![
             field("name", SchemaNode::Str),
             field("hostDeviceId", SchemaNode::Str),
+            field("repeat", optional(SchemaNode::Str)),
+            field("shuffle", optional(SchemaNode::Bool)),
+            field(
+                "queueOrder",
+                optional(SchemaNode::Array {
+                    item: Box::new(SchemaNode::Num),
+                }),
+            ),
             field("transport", SchemaNode::Str),
             field("positionMs", SchemaNode::Num),
             field("durationMs", optional(SchemaNode::Num)),
@@ -148,6 +156,7 @@ pub fn session_command_receipts() -> CollectionDescriptor {
             field("commandId", SchemaNode::Str),
             field("fingerprint", SchemaNode::Str),
             field("applied", SchemaNode::Bool),
+            field("expectedRevision", optional(SchemaNode::Num)),
         ],
     ))
 }

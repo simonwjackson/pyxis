@@ -9,7 +9,8 @@ async fn rpc(app: &axum::Router, request: Value, bearer: Option<&str>) -> Value 
     let mut builder = Request::builder()
         .method("POST")
         .uri("/rpc")
-        .header(header::CONTENT_TYPE, "application/json");
+        .header(header::CONTENT_TYPE, "application/json")
+        .header("x-pyxis-contract", pyxis::rpc::contract::CONTRACT_ID);
     if let Some(bearer) = bearer {
         builder = builder.header(header::AUTHORIZATION, format!("Bearer {bearer}"));
     }

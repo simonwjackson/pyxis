@@ -1,3 +1,5 @@
+import { RPC_CONTRACT_ID } from "../../../../contracts/generated/pyxis"
+
 /// Typed RPC to the core.
 ///
 /// Everything the client asks the core for that is not media bytes goes through here. It
@@ -21,6 +23,7 @@ import type {
   RpcSession,
   RpcSessionCommand,
 } from "../../../../contracts/generated/pyxis"
+import { assertRpcRequest, assertRpcResponse } from "../../../app/src/rpc/validation"
 
 export interface RpcTransportConfig {
   /// The composition root passes the platform's `fetch`. A test passes a function.
@@ -66,10 +69,12 @@ export function createRpcTransport(config: RpcTransportConfig): RpcTransport {
   const { request } = config
 
   const call = async (payload: RpcRequest, bearer?: string): Promise<RpcResponse> => {
+    assertRpcRequest(payload)
     const response = await request("/rpc", {
       method: "POST",
       headers: {
         "content-type": "application/json",
+        "x-pyxis-contract": RPC_CONTRACT_ID,
         ...(bearer === undefined ? {} : { authorization: `Bearer ${bearer}` }),
       },
       body: JSON.stringify(payload),
@@ -91,7 +96,8 @@ export function createRpcTransport(config: RpcTransportConfig): RpcTransport {
     if (value._tag !== payload._tag) {
       throw new Error(`RPC answered '${value._tag}' when asked '${payload._tag}'`)
     }
-    return value as RpcResponse
+    assertRpcResponse(value)
+    return value
   }
 
   return {

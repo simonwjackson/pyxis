@@ -169,6 +169,15 @@ fn main() -> anyhow::Result<()> {
                 }
             }
             if call.operation == "transport.play" {
+                if let Ok(path) = std::env::var("PYXIS_LAB_OUTPUT_STATE_FILE") {
+                    std::fs::write(path, "")?;
+                }
+                if let Ok(path) = std::env::var("PYXIS_LAB_PLAY_POSITION_FILE") {
+                    output_position_ms = std::fs::read_to_string(path)
+                        .ok()
+                        .and_then(|text| text.trim().parse().ok())
+                        .unwrap_or(12_000);
+                }
                 if let PluginValue::Object(input) = &call.input {
                     if let Some(PluginValue::String(stream_url)) = input.get("streamUrl") {
                         output_stream_url = Some(stream_url.clone());
@@ -189,6 +198,19 @@ fn main() -> anyhow::Result<()> {
             );
         }
         if call.operation == "transport.state" && capability == PluginCapability::Output {
+            if let Ok(path) = std::env::var("PYXIS_LAB_OUTPUT_STATE_FILE") {
+                if let Some(state) = std::fs::read_to_string(path)
+                    .ok()
+                    .and_then(|text| serde_json::from_str::<serde_json::Value>(&text).ok())
+                {
+                    if let Some(transport) = state["state"].as_str() {
+                        output_transport = transport.into();
+                    }
+                    if let Some(position) = state["positionMs"].as_u64() {
+                        output_position_ms = position;
+                    }
+                }
+            }
             value.insert(
                 "state".into(),
                 PluginValue::String(output_transport.clone()),

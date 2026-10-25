@@ -1,5 +1,5 @@
 import { describe, expect, test, vi } from "vitest"
-import { RpcPlacement, RpcTransport } from "../../../../contracts/generated/pyxis"
+import { RpcPlacement, RpcRepeatMode, RpcTransport } from "../../../../contracts/generated/pyxis"
 import type { WorkerRpc } from "../rpc/client"
 import {
   createDirectWorkerClient,
@@ -56,6 +56,8 @@ describe("worker client", () => {
       id: "session-1",
       name: "Browser",
       hostDeviceId: "device-1",
+      repeat: RpcRepeatMode.Off,
+      shuffle: false,
       queue: [],
       transport: RpcTransport.Stopped,
       positionMs: 0,
@@ -344,6 +346,8 @@ describe("worker client", () => {
         id: "session-1",
         name: "Browser",
         hostDeviceId: "device-1",
+        repeat: RpcRepeatMode.Off,
+        shuffle: false,
         queue: [],
         transport: RpcTransport.Stopped,
         positionMs: 0,

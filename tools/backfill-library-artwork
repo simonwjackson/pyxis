@@ -15,7 +15,7 @@ def rpc(base_url, tag, payload, bearer=None):
     request = urllib.request.Request(
         f"{base_url.rstrip('/')}/rpc",
         data=json.dumps({"_tag": tag, "payload": payload}).encode(),
-        headers={"Content-Type": "application/json"},
+        headers={"Content-Type": "application/json", "x-pyxis-contract": "pyxis-rpc-v3"},
         method="POST",
     )
     if bearer:

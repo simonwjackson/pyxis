@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import {
   type RpcLibraryAlbum,
   RpcPlacement,
+  RpcRepeatMode,
   type RpcSession,
   type RpcSessionCommand,
   RpcTransport,
@@ -59,6 +60,8 @@ const session = (patch: Partial<RpcSession> = {}): RpcSession => ({
   id: "session-1",
   name: "This device",
   hostDeviceId: "device-1",
+  repeat: RpcRepeatMode.Off,
+  shuffle: false,
   queue: [],
   transport: RpcTransport.Stopped,
   positionMs: 0,

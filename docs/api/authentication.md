@@ -71,6 +71,7 @@ Every non-public operation takes a bearer token:
 POST /rpc
 authorization: Bearer <token>
 content-type: application/json
+x-pyxis-contract: pyxis-rpc-v3
 ```
 
 Three operations are public and need no token: `system.status.get`, `auth.device.claim`,

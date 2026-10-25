@@ -412,13 +412,61 @@ impl OutputCatalog {
             SessionCommand::QueueAdd { .. }
             | SessionCommand::QueueRemove { .. }
             | SessionCommand::QueueClear
-            | SessionCommand::QueueShuffle
+            | SessionCommand::RepeatSet { .. }
+            | SessionCommand::ShuffleSet { .. }
             | SessionCommand::CursorJump { .. } => Ok(OutputEffect::default()),
-            SessionCommand::TrackEnded | SessionCommand::PositionReport { .. } => {
-                Err(OutputError::InvalidOutput(
-                    "output sessions accept renderer reports only from the core".into(),
-                ))
+            SessionCommand::TrackEnded => {
+                let state = self.state(auth, output)?;
+                self.ensure_stream_owner(session_id, output, &state)?;
+                if next.transport != Transport::Playing {
+                    return Ok(OutputEffect::default());
+                }
+                let result = self
+                    .play_session(auth, session_id, output, next)
+                    .and_then(|()| {
+                        let confirmed = self.state(auth, output)?;
+                        if confirmed.state != "PLAYING"
+                            || !self.stream_belongs_to(
+                                session_id,
+                                output,
+                                confirmed.stream_url.as_deref(),
+                            )
+                            || confirmed.position_ms.is_none_or(|position| position > 2000)
+                        {
+                            return Err(OutputError::InvalidOutput(
+                                "renderer did not confirm next/repeated track".into(),
+                            ));
+                        }
+                        Ok(confirmed)
+                    });
+                let confirmed = match result {
+                    Ok(confirmed) => confirmed,
+                    Err(error) => {
+                        let mut previous = current.clone();
+                        previous.transport = output_transport(&state).unwrap_or(Transport::Stopped);
+                        previous.position_ms = state.position_ms.unwrap_or(current.position_ms);
+                        if let Err(rollback) =
+                            self.restore_session(auth, session_id, output, &previous)
+                        {
+                            return Err(OutputError::RollbackFailed(format!(
+                                "{error}; {rollback}"
+                            )));
+                        }
+                        return Err(error);
+                    }
+                };
+                Ok(OutputEffect {
+                    physical: true,
+                    commit_position_ms: confirmed.position_ms,
+                    commit_duration_ms: confirmed.duration_ms,
+                    rollback_transport: output_transport(&state),
+                    rollback_position_ms: state.position_ms,
+                    rollback_duration_ms: state.duration_ms,
+                })
             }
+            SessionCommand::PositionReport { .. } => Err(OutputError::InvalidOutput(
+                "output sessions accept renderer reports only from the core".into(),
+            )),
         }
     }
 

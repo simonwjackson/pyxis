@@ -48,6 +48,9 @@ mod tests {
 
     fn session(reachable: bool) -> Session {
         Session {
+            repeat: super::super::Repeat::Off,
+            shuffle: false,
+            queue_order: Vec::new(),
             id: "session-1".into(),
             name: "Desk".into(),
             host_device_id: "device-a".into(),

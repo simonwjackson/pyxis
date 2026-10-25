@@ -16,7 +16,7 @@ use serde_json::Value;
 
 use crate::accounts::AuthContext;
 use crate::api::AppState;
-use crate::rpc::contract::{RpcFailure, RpcRequest, RpcResponse};
+use crate::rpc::contract::{RpcFailure, RpcRequest, RpcResponse, CONTRACT_ID};
 use crate::rpc::dispatch::dispatch;
 
 pub async fn rpc(
@@ -24,6 +24,23 @@ pub async fn rpc(
     headers: HeaderMap,
     body: Bytes,
 ) -> Json<RpcResponse> {
+    let public = serde_json::from_slice::<Value>(&body)
+        .ok()
+        .and_then(|value| value.get("_tag").and_then(Value::as_str).map(str::to_owned))
+        .is_some_and(|tag| {
+            matches!(
+                tag.as_str(),
+                "system.status.get" | "auth.device.claim" | "auth.device.pair"
+            )
+        });
+    if !public
+        && headers
+            .get("x-pyxis-contract")
+            .and_then(|value| value.to_str().ok())
+            != Some(CONTRACT_ID)
+    {
+        return Json(RpcResponse::rejected(RpcFailure::retryable("contract.mismatch", format!("this service requires x-pyxis-contract: {CONTRACT_ID}; preserve pending writes and update the client"))));
+    }
     let request = match decode_request(&body) {
         Ok(request) => request,
         Err(response) => return Json(*response),

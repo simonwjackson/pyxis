@@ -15,6 +15,7 @@ import type {
   WorkerSettlementResult,
 } from "./contract"
 import { submitListens } from "./listen-sync"
+import { hasRetiredSessionIntent, RETIRED_SESSION_INTENT_BLOCKER } from "./retired-session-intent"
 
 type RemoteAlbums = Map<string, RpcLibraryAlbum>
 type RemoteSessions = Map<string, RpcSession>
@@ -174,7 +175,9 @@ async function drain(
     for (const entry of entries) {
       if (entry.kind !== kind || authRequired) continue
       let result: WorkerSettlementResult
-      if (entry.settlement !== undefined) {
+      if (hasRetiredSessionIntent(entry)) {
+        result = { outcome: "deferred", reason: "storage", failure: RETIRED_SESSION_INTENT_BLOCKER }
+      } else if (entry.settlement !== undefined) {
         result = await settle(database, entry.id, resumeAction(entry, albums, sessions))
       } else if (entry.kind === "album.placement" && albums !== undefined) {
         result = await pushPlacement(database, rpc, entry, albums)

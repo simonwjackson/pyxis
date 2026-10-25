@@ -1,5 +1,6 @@
 import { afterEach, expect, test, vi } from "vitest"
 import {
+  RpcRepeatMode,
   type RpcSession,
   type RpcSessionCommand,
   RpcTransport,
@@ -38,6 +39,8 @@ async function fixture(
     id: "selected",
     name: "Phone",
     hostDeviceId: "phone",
+    repeat: RpcRepeatMode.Off,
+    shuffle: false,
     queue: ["track"],
     cursor: 0,
     currentTrackId: "track",
@@ -600,6 +603,8 @@ test("durable ownership loss during confirmation fences revision retry and stops
       await source.database.putSession({
         ...current,
         hostDeviceId: "other-host",
+        repeat: RpcRepeatMode.Off,
+        shuffle: false,
         revision: current.revision + 1,
       })
     },
@@ -767,4 +772,82 @@ test("a late seek directive cannot scrub a newer session revision", async () => 
   expect(source.loads).toEqual([])
   expect(await source.database.outbox()).toEqual([])
   expect((await source.database.session("selected"))?.positionMs).toBe(0)
+})
+
+test("repeat-one confirms a real replay before publishing the next session revision", async () => {
+  const source = await fixture()
+  await source.host.execute("selected", play, "start")
+  await source.host.execute(
+    "selected",
+    { _tag: "repeat.set", payload: { mode: RpcRepeatMode.One } },
+    "mode",
+  )
+  const audio = source.media()
+  if (audio === undefined) throw new Error("audio missing")
+  audio.currentTime = 10
+  const priorPlays = source.plays()
+  await source.host.execute("selected", { _tag: "transport.trackEnded", payload: {} }, "ended")
+  expect(source.plays()).toBe(priorPlays + 1)
+  expect(audio.currentTime).toBe(0)
+  expect(await source.database.session("selected")).toMatchObject({
+    cursor: 0,
+    positionMs: 0,
+    repeat: RpcRepeatMode.One,
+    transport: RpcTransport.Playing,
+  })
+})
+
+test("mode toggles do not seek or restart the current renderer", async () => {
+  const source = await fixture({ positionMs: 7000 })
+  await source.host.execute("selected", play, "start")
+  const plays = source.plays()
+  await source.host.execute(
+    "selected",
+    { _tag: "repeat.set", payload: { mode: RpcRepeatMode.All } },
+    "repeat",
+  )
+  await source.host.execute(
+    "selected",
+    { _tag: "shuffle.set", payload: { enabled: true } },
+    "shuffle",
+  )
+  expect(source.plays()).toBe(plays)
+  expect(source.media()?.currentTime).toBe(7)
+  expect(await source.database.session("selected")).toMatchObject({
+    repeat: RpcRepeatMode.All,
+    shuffle: true,
+    positionMs: 7000,
+  })
+})
+
+test("a refused repeat renderer transition has no receipt and can retry the same intent", async () => {
+  let refused = false
+  const source = await fixture({
+    play: async () => {
+      if (refused) throw new Error("native repeat refused")
+    },
+  })
+  await source.host.execute("selected", play, "start")
+  await source.host.execute(
+    "selected",
+    { _tag: "repeat.set", payload: { mode: RpcRepeatMode.One } },
+    "mode",
+  )
+  const prior = await source.database.session("selected")
+  refused = true
+  const ended = { _tag: "transport.trackEnded", payload: {} } as const
+  await expect(source.host.execute("selected", ended, "repeat-end")).rejects.toThrow(
+    "native repeat refused",
+  )
+  expect(await source.database.session("selected")).toEqual(prior)
+  expect(
+    (await source.database.outbox()).some(
+      (entry) => entry.kind === "session.command" && entry.commandId === "repeat-end",
+    ),
+  ).toBe(false)
+  refused = false
+  expect(await source.host.execute("selected", ended, "repeat-end")).toMatchObject({
+    _tag: "Applied",
+    replayed: false,
+  })
 })

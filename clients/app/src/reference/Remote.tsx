@@ -1,9 +1,10 @@
 import { useReference } from "./Reference.context.tsx"
+import { ReferenceSessionControls } from "./SessionControls"
 
 /// Console surface: live browser hosts and known output sessions. An unavailable output
 /// remains visible, but cannot be driven until a fresh observation confirms reachability.
 export function ReferenceRemote() {
-  const { remoteSessions, session, driveRemote, handOffTo } = useReference()
+  const { remoteSessions, session, driveRemote, driveSessionCommand, handOffTo } = useReference()
   // Realtime replacement can change array order even when the visible state is unchanged.
   // Keep existing controls stationary during a pointer press; names and revisions can change.
   const orderedSessions = [...remoteSessions].sort((left, right) => left.id.localeCompare(right.id))
@@ -44,6 +45,11 @@ export function ReferenceRemote() {
               >
                 stop
               </button>
+              <ReferenceSessionControls
+                session={remote}
+                disabled={!remote.reachable}
+                command={(command) => driveSessionCommand(remote.id, command)}
+              />
               {session === undefined ? null : (
                 <button
                   type="button"

@@ -1,5 +1,10 @@
 import { expect, test } from "vitest"
-import { RpcPlacement, type RpcSession, RpcTransport } from "../../../../contracts/generated/pyxis"
+import {
+  RpcPlacement,
+  RpcRepeatMode,
+  type RpcSession,
+  RpcTransport,
+} from "../../../../contracts/generated/pyxis"
 import { RpcError, type WorkerRpc } from "../rpc/client"
 import { accountFencedDatabase } from "./account-fenced-database"
 import type { WorkerAlbum, WorkerOutboxEntry } from "./contract"
@@ -43,6 +48,8 @@ function session(): RpcSession {
     id: "session-1",
     name: "Browser",
     hostDeviceId: "device-1",
+    repeat: RpcRepeatMode.Off,
+    shuffle: false,
     queue: [],
     transport: RpcTransport.Stopped,
     positionMs: 0,

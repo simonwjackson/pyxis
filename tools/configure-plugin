@@ -28,6 +28,7 @@ rpc() {
   # The body arrives on stdin so a credential never becomes a curl argument.
   curl -sS -m 30 -X POST "$origin/rpc" \
     -H 'content-type: application/json' \
+    -H 'x-pyxis-contract: pyxis-rpc-v3' \
     ${BEARER:+-H "authorization: Bearer $BEARER"} \
     --data-binary @-
 }

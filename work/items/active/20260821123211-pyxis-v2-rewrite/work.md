@@ -35,8 +35,21 @@ pass. U36 adds host-owned renderer-confirmed seek, revision-fenced seek directiv
 native Sonos seek/confirmation/rollback, product scrub integration and reference affordance.
 Twenty focused Rust tests, 61 app/worker tests, 36 product binding tests and 25 Sonos tests
 pass, plus contract/static gates. Focused reference TSX checking also corrected new outcome
-narrowing and a browser album fixture omitted by root checking. U37 reversible modes/wire v3
-is next.
+narrowing and a browser album fixture omitted by root checking. U37 implements persistent
+repeat/reversible shuffle, occurrence-aware order, renderer-confirmed natural end, output-host
+advancement and wire-only `pyxis-rpc-v3`. HTTP/realtime version fences reject cached old
+clients before they can lose pending writes or gain host authority. Old one-shot shuffle
+outboxes remain unchanged with an explicit update blocker. Current-v2 session defaults and
+interrupted receipt fingerprints preserve queues; seek retries retain their reserved revision.
+
+M11 is implemented on the isolated workflow branch, awaiting parent combined verification,
+Review and Land. Final focused checks pass: 68 Rust, 208 app/worker and 87 product tests;
+contract drift, Clippy, formatting, typechecks, owned Biome and shell checks. Native Chromium
+confirms real seek/receipt ordering, reversible duplicate order and repeat-one at natural end.
+A fresh real HTTP process exercises new library/playback operations with zero plugins.
+No live outbox inventory was taken: deployment remains blocked until affected v2 intent is
+drained with matching clients/service on every device. No physical Sonos acceptance is claimed.
+See `docs/operations/2026-10-24-pyxamp-support-update.md`.
 The parent runs combined full verification once. Old deployment notes below are historical.
 
 **Shared renderer-confirmed commands, 2026-10-01.** Both clients use one non-React playback

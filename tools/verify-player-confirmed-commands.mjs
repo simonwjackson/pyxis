@@ -206,6 +206,61 @@ try {
     beforeCancellation.sent.filter((tag) => tag === "transport.pause").length,
   )
   assert.equal(await inert("document.querySelector('audio')?.paused ?? true"), true)
+  // Real decoded media and native seeked/ended events, without a service or speaker.
+  await click({ kind: "Album", track: "mode-album" })
+  await waitFor(async () => {
+    const state = await inspect()
+    return state.transport === "playing" && state.durationMs === 30000 && state.pending === 0
+  }, "native metadata must establish seek duration")
+  await direct("native-repeat-mode", { _tag: "repeat.set", payload: { mode: "one" } })
+  await direct("native-shuffle-mode", { _tag: "shuffle.set", payload: { enabled: true } })
+  await waitFor(async () => {
+    const state = await inspect()
+    return state.repeat === "one" && state.shuffle === true && state.pending === 0
+  }, "native host mode commands")
+  await direct("native-seek", { _tag: "transport.seek", payload: { positionMs: 5000 } })
+  await waitFor(async () => {
+    const state = await inspect()
+    return (
+      state.positionMs === 5000 &&
+      state.nativeAudio?.currentTime >= 5 &&
+      state.nativeAudio.currentTime < 7 &&
+      state.pending === 0
+    )
+  }, "native seek confirmation must precede durable state")
+  assert.equal(
+    await inert(
+      `window.confirmedCommandProbe.receipt("native-seek", ${JSON.stringify({ _tag: "transport.seek", payload: { positionMs: 5000 } })})`,
+    ),
+    true,
+  )
+  await direct("native-duplicates", {
+    _tag: "queue.add",
+    payload: { trackIds: ["mode-album", "tail"] },
+  })
+  await direct("native-restore-order", { _tag: "shuffle.set", payload: { enabled: false } })
+  await waitFor(async () => {
+    const state = await inspect()
+    return state.shuffle === false && state.queue?.length === 3 && state.pending === 0
+  }, "native host restores duplicate queue order")
+  const ordered = await inspect()
+  assert.deepEqual(ordered.queue, ["mode-album", "mode-album", "tail"])
+  assert.deepEqual(ordered.queueOrder, [0, 1, 2])
+  assert.equal(ordered.cursor, 0)
+  assert.equal(ordered.positionMs, 5000)
+  const endedBefore = ordered.sent.filter((tag) => tag === "transport.trackEnded").length
+  await direct("native-seek-near-end", { _tag: "transport.seek", payload: { positionMs: 29500 } })
+  await waitFor(async () => {
+    const state = await inspect()
+    return (
+      state.sent.filter((tag) => tag === "transport.trackEnded").length > endedBefore &&
+      state.transport === "playing" &&
+      state.nativeAudio?.paused === false &&
+      state.nativeAudio.currentTime < 5
+    )
+  }, "native repeat-one must restart decoded audio at natural end")
+  assert.equal((await inspect()).cursor, 0)
+
   assert.deepEqual(forbidden, [])
   assert.deepEqual(errors, [])
   console.log(
@@ -219,6 +274,9 @@ try {
       failedPlayKeepsSelectedAlbum: true,
       storageRollbackPausesAudio: true,
       pauseCancelsUnresolvedPlay: true,
+      nativeSeekConfirmedBeforeReceipt: true,
+      reversibleDuplicateQueueOrder: true,
+      nativeRepeatOneAtNaturalEnd: true,
       forbiddenRequests: 0,
     }),
   )

@@ -18,6 +18,7 @@ import type {
   RpcSession,
   RpcSessionDirective,
 } from "../../../../contracts/generated/pyxis"
+import { RPC_CONTRACT_ID } from "../../../../contracts/generated/pyxis"
 
 /// The part of `WebSocket` this needs. Narrow so a test can stand in for it honestly.
 export interface RealtimeSocket {
@@ -119,6 +120,7 @@ export function connectRealtime(
           // first connection has no cursor to resume from.
           payload: {
             bearerToken: token,
+            contractId: RPC_CONTRACT_ID,
             topics,
             ...(resumeToken === undefined ? {} : { resumeToken }),
           },
@@ -137,6 +139,12 @@ export function connectRealtime(
       }
       if (frame._tag === "realtime.welcome") {
         const welcome = frame.payload as RealtimeWelcome
+        if (welcome.contractId !== RPC_CONTRACT_ID) {
+          refused = true
+          handlers.onRefused?.("contract.mismatch", "Update this client before reconnecting")
+          live.close()
+          return
+        }
         resumeToken = welcome.resumeToken
         attempt = 0
         handlers.onReady?.()

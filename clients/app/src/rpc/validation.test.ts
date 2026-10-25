@@ -1,4 +1,5 @@
 import { describe, expect, test } from "vitest"
+import { RpcRepeatMode } from "../../../../contracts/generated/pyxis"
 import { assertRpcRequest, assertRpcResponse } from "./validation"
 
 describe("generated RPC schema validation", () => {
@@ -23,6 +24,8 @@ describe("generated RPC schema validation", () => {
               id: "session-1",
               name: "Browser",
               hostDeviceId: "device-1",
+              repeat: RpcRepeatMode.Off,
+              shuffle: false,
               queue: [],
               transport: "stopped",
               positionMs: 0,

@@ -1,3 +1,4 @@
+import { RPC_CONTRACT_ID } from "../../../../contracts/generated/pyxis"
 /// Tests for the socket-holding binding.
 ///
 /// The behaviour worth protecting here is not "it connects" but "it does not lie about
@@ -33,7 +34,7 @@ class FakeSocket implements RealtimeSocket {
         _tag: "realtime.welcome",
         payload: {
           accountId: "account-1",
-          contractId: "contract-1",
+          contractId: RPC_CONTRACT_ID,
           topics: [RpcRealtimeTopic.Sessions],
           resumeToken: "epoch:1",
           resumed: false,

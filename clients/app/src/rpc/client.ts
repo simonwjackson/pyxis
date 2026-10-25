@@ -1,3 +1,4 @@
+import { RPC_CONTRACT_ID } from "../../../../contracts/generated/pyxis"
 /// RPC for the worker.
 ///
 /// The worker cannot share the page's validators, so it re-checks every shape it consumes
@@ -65,6 +66,7 @@ export function createWorkerRpc(config: WorkerRpcConfig): WorkerRpc {
         method: "POST",
         headers: {
           "content-type": "application/json",
+          "x-pyxis-contract": RPC_CONTRACT_ID,
           authorization: `Bearer ${config.token}`,
         },
         body: JSON.stringify(body),
@@ -241,6 +243,14 @@ function session(value: unknown): RpcSession {
     !Array.isArray(value.queue) ||
     !value.queue.every((trackId) => typeof trackId === "string") ||
     typeof value.transport !== "string" ||
+    !["off", "all", "one"].includes(String(value.repeat)) ||
+    typeof value.shuffle !== "boolean" ||
+    (value.queueOrder !== undefined &&
+      (!Array.isArray(value.queueOrder) ||
+        value.queueOrder.length !== value.queue.length ||
+        !value.queueOrder.every((id) => Number.isSafeInteger(id) && id >= 0 && id <= 0xffff_ffff) ||
+        new Set(value.queueOrder).size !== value.queueOrder.length)) ||
+    (value.shuffle && value.queueOrder === undefined) ||
     typeof value.positionMs !== "number" ||
     typeof value.volume !== "number" ||
     typeof value.reachable !== "boolean" ||

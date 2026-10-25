@@ -961,6 +961,15 @@ export function ReferenceApp({
     }
   }, [grant, persistHostCommand, reconcileWorker, session, store, tracks])
 
+  const driveSessionCommand = useCallback(
+    async (sessionId: string, command: RpcSessionCommand) => {
+      await run(async () => {
+        await client.sendCommand(currentToken(), sessionId, command, nextClientEventId())
+      })
+    },
+    [client, currentToken, run],
+  )
+
   const driveRemote = useCallback(
     async (sessionId: string, command: ConsoleCommand) => {
       await run(async () => {
@@ -1047,6 +1056,7 @@ export function ReferenceApp({
       clearQueue,
       reportLoaded,
       reportEnded,
+      driveSessionCommand,
       driveRemote,
       handOffTo,
       attachAudio,
@@ -1096,6 +1106,7 @@ export function ReferenceApp({
       clearQueue,
       reportLoaded,
       reportEnded,
+      driveSessionCommand,
       driveRemote,
       handOffTo,
       attachAudio,

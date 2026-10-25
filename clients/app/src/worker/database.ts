@@ -35,7 +35,8 @@ import {
   type WorkerSettlementAction,
   type WorkerSettlementResult,
 } from "./contract"
-import { applySessionCommand } from "./session-local"
+import { hasRetiredSessionIntent } from "./retired-session-intent"
+import { applySessionCommand, normalizeSessionModes } from "./session-local"
 import { settleOutbox } from "./sync-settlement"
 
 const nextOutboxId = monotonicFactory()
@@ -425,11 +426,12 @@ class LocalWorkerDatabase implements WorkerDatabase {
   }
 
   async sessions(): Promise<readonly WorkerSession[]> {
-    return this.engine.sessions.all()
+    return (await this.engine.sessions.all()).map(normalizeSessionModes)
   }
 
   async session(id: string): Promise<WorkerSession | undefined> {
-    return this.engine.sessions.findById(id)
+    const stored = await this.engine.sessions.findById(id)
+    return stored === undefined ? undefined : normalizeSessionModes(stored)
   }
 
   async applyRemoteSessions(sessions: readonly WorkerSession[]): Promise<number> {
@@ -473,10 +475,7 @@ class LocalWorkerDatabase implements WorkerDatabase {
   }
 
   async applyRemoteSession(session: WorkerSession): Promise<WorkerSessionEventResult> {
-    const [local, outbox] = await Promise.all([
-      this.engine.sessions.findById(session.id),
-      this.engine.outbox.all(),
-    ])
+    const [local, outbox] = await Promise.all([this.session(session.id), this.engine.outbox.all()])
     if (
       outbox.some((entry) => entry.kind === "session.command" && entry.sessionId === session.id)
     ) {
@@ -495,7 +494,7 @@ class LocalWorkerDatabase implements WorkerDatabase {
   }
 
   async putSession(session: WorkerSession): Promise<WorkerSession> {
-    const existing = await this.engine.sessions.findById(session.id)
+    const existing = await this.session(session.id)
     if (existing !== undefined && existing.revision > session.revision) return existing
     return this.engine.sessions.upsert(session)
   }
@@ -518,6 +517,7 @@ class LocalWorkerDatabase implements WorkerDatabase {
     let visible = session
     const replayed: typeof pending = []
     for (const entry of pending) {
+      if (hasRetiredSessionIntent(entry)) break
       try {
         visible = applySessionCommand(visible, entry.command, visible.updatedAt)
         replayed.push(entry)
@@ -596,7 +596,7 @@ class LocalWorkerDatabase implements WorkerDatabase {
     command: RpcSessionCommand,
     commandId: string,
   ): Promise<WorkerSessionCommandPreview> {
-    const current = await this.engine.sessions.findById(sessionId)
+    const current = await this.session(sessionId)
     if (current === undefined) throw new Error("session is not in the local store")
     const commandIdLength = [...commandId].length
     if (commandIdLength === 0 || commandIdLength > 128) {
@@ -626,9 +626,7 @@ class LocalWorkerDatabase implements WorkerDatabase {
       ) {
         throw new Error(`command ID ${commandId} already belongs to a different session command`)
       }
-      const resultIsStored =
-        existing.resultFingerprint !== undefined &&
-        existing.resultFingerprint === canonicalJson(current)
+      const resultIsStored = sessionResultMatches(existing.resultFingerprint, current)
       const supersededLocally = outbox.some(
         (entry) =>
           entry.kind === "session.command" &&
@@ -651,7 +649,7 @@ class LocalWorkerDatabase implements WorkerDatabase {
     commandId?: string,
     expectedRevision?: number,
   ): Promise<WorkerSession> {
-    const current = (await this.engine.sessions.findById(session.id)) ?? session
+    const current = (await this.session(session.id)) ?? session
     if (expectedRevision !== undefined && current.revision !== expectedRevision) {
       throw new Error(SESSION_CHANGED_DURING_CONFIRMATION)
     }
@@ -681,9 +679,7 @@ class LocalWorkerDatabase implements WorkerDatabase {
         existing.sessionId === session.id &&
         canonicalJson(existing.command) === fingerprint
       ) {
-        const resultIsStored =
-          existing.resultFingerprint !== undefined &&
-          existing.resultFingerprint === canonicalJson(current)
+        const resultIsStored = sessionResultMatches(existing.resultFingerprint, current)
         const supersededLocally = outbox.some(
           (entry) =>
             entry.kind === "session.command" &&
@@ -868,5 +864,33 @@ class MemoryCollection<T extends { readonly id: string }> implements WorkerColle
 
   async delete(id: string): Promise<boolean> {
     return this.rows.delete(id)
+  }
+}
+
+// Current-v2 receipts can be interrupted after the optimistic snapshot but before the
+// durable receipt. New mode defaults must not make that exact snapshot look unapplied.
+function sessionResultMatches(fingerprint: string | undefined, current: WorkerSession): boolean {
+  if (fingerprint === undefined) return false
+  if (fingerprint === canonicalJson(current)) return true
+  const withDefaults = (value: unknown): unknown => {
+    if (
+      typeof value !== "object" ||
+      value === null ||
+      !("queue" in value) ||
+      !Array.isArray(value.queue)
+    )
+      return value
+    return {
+      ...value,
+      repeat: "repeat" in value ? value.repeat : "off",
+      shuffle: "shuffle" in value ? value.shuffle : false,
+      queueOrder: "queueOrder" in value ? value.queueOrder : value.queue.map((_, index) => index),
+    }
+  }
+  try {
+    const saved: unknown = JSON.parse(fingerprint)
+    return canonicalJson(withDefaults(saved)) === canonicalJson(withDefaults(current))
+  } catch {
+    return false
   }
 }

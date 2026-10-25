@@ -4,11 +4,14 @@
 //! to whoever is playing, so they move together. Volume does not move, because it belongs
 //! to the speaker rather than to the music.
 
-use super::machine::Transport;
+use super::machine::{Repeat, Transport};
 
 /// The part of a session that follows the listener rather than the device.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Playback {
+    pub repeat: Repeat,
+    pub shuffle: bool,
+    pub queue_order: Vec<u32>,
     pub queue: Vec<String>,
     pub cursor: Option<usize>,
     pub position_ms: u64,
@@ -20,6 +23,9 @@ impl Playback {
     /// An idle session: nothing queued, nothing playing.
     pub fn idle() -> Self {
         Playback {
+            repeat: Repeat::Off,
+            shuffle: false,
+            queue_order: Vec::new(),
             queue: Vec::new(),
             cursor: None,
             position_ms: 0,
@@ -47,6 +53,9 @@ mod tests {
 
     fn playing() -> Playback {
         Playback {
+            repeat: Repeat::All,
+            shuffle: true,
+            queue_order: vec![0, 1],
             queue: vec!["track-a".into(), "track-b".into()],
             cursor: Some(1),
             position_ms: 42_000,

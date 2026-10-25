@@ -89,6 +89,7 @@ export interface ReferenceContextValue {
   reportLoaded(): Promise<void>
   reportEnded(): Promise<void>
   applyUpdate(): void
+  driveSessionCommand(sessionId: string, command: RpcSessionCommand): Promise<void>
   driveRemote(sessionId: string, command: ConsoleCommand): Promise<void>
   handOffTo(targetSessionId: string): Promise<void>
   attachAudio(element: HTMLAudioElement | null): void

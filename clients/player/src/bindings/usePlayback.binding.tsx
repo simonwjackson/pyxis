@@ -1,3 +1,4 @@
+import { RpcRepeatMode } from "../../../../contracts/generated/pyxis"
 /// Playback's only state reader.
 ///
 /// This device is the host. It owns two things nobody else can know: where the audio
@@ -101,6 +102,8 @@ export interface PlaybackBinding {
   readonly next: () => void
   readonly previous: () => void
   /// Move within the current track through the shared renderer-confirmed seek command.
+  readonly setRepeat: (mode: RpcRepeatMode) => void
+  readonly setShuffle: (enabled: boolean) => void
   readonly seek: (positionMs: number) => void
   readonly refresh: () => void
   /// Accept a session record pushed by the core rather than asked for.
@@ -471,7 +474,9 @@ export function usePlayback(edge: PlaybackEdge, options: PlaybackOptions = {}): 
       run(async () => {
         const on = session.current
         if (on === undefined || on.cursor === undefined) return
-        const index = on.cursor + by
+        let index = on.cursor + by
+        if (on.queue.length === 0) return
+        if (on.repeat === RpcRepeatMode.All) index = (index + on.queue.length) % on.queue.length
         if (index < 0 || index >= on.queue.length) return
         await playbackHost().execute(on.id, { _tag: "cursor.jump", payload: { index } })
         await command({ _tag: "transport.play", payload: {} })
@@ -480,6 +485,22 @@ export function usePlayback(edge: PlaybackEdge, options: PlaybackOptions = {}): 
     [command, playbackHost, run],
   )
 
+  const setRepeat = useCallback(
+    (mode: RpcRepeatMode) => {
+      run(async () => {
+        await command({ _tag: "repeat.set", payload: { mode } })
+      })
+    },
+    [command, run],
+  )
+  const setShuffle = useCallback(
+    (enabled: boolean) => {
+      run(async () => {
+        await command({ _tag: "shuffle.set", payload: { enabled } })
+      })
+    },
+    [command, run],
+  )
   const next = useCallback(() => skip(1), [skip])
   const previous = useCallback(() => skip(-1), [skip])
 
@@ -617,6 +638,8 @@ export function usePlayback(edge: PlaybackEdge, options: PlaybackOptions = {}): 
     pause,
     next,
     previous,
+    setRepeat,
+    setShuffle,
     seek,
     refresh,
     applySession,

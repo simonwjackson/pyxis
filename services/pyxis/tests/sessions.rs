@@ -474,3 +474,49 @@ fn sessions_persist_track_identity_never_a_stream_url() {
     assert!(!source.contains("http://"));
     assert!(!source.contains("https://"));
 }
+
+#[test]
+fn a_retried_unapplied_seek_keeps_its_original_reserved_revision() {
+    let dir = tempfile::tempdir().unwrap();
+    let store = Store::open(dir.path()).unwrap();
+    let sessions = Sessions::open(store.clone());
+    let host = auth("account-a", "device-a");
+    let session = sessions.create(&host, "Desk").unwrap();
+    let reserved = sessions
+        .reserve_command(&host, &session.id, "old-seek", "seek-content")
+        .unwrap();
+    let changed = sessions
+        .command(
+            &host,
+            &session.id,
+            SessionCommand::QueueAdd {
+                track_ids: vec!["new-track".into()],
+            },
+        )
+        .unwrap();
+    drop(sessions);
+    drop(store);
+    let sessions = Sessions::open(Store::open(dir.path()).unwrap());
+    assert_eq!(
+        sessions
+            .reserve_command(&host, &session.id, "old-seek", "seek-content")
+            .unwrap(),
+        reserved
+    );
+    let refused = sessions.command_once(
+        &host,
+        &session.id,
+        SessionCommand::Seek { position_ms: 0 },
+        Some(("old-seek", "seek-content")),
+    );
+    assert!(matches!(
+        refused,
+        Err(SessionError::Machine(
+            pyxis::sessions::machine::MachineError::StaleSeek
+        ))
+    ));
+    assert_eq!(
+        sessions.get(&host, &session.id).unwrap().unwrap().revision,
+        changed.revision
+    );
+}

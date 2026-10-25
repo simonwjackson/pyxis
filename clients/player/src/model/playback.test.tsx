@@ -1,11 +1,13 @@
 import { describe, expect, it } from "vitest"
-import { type RpcSession, RpcTransport } from "../../../../contracts/generated/pyxis"
+import { RpcRepeatMode, type RpcSession, RpcTransport } from "../../../../contracts/generated/pyxis"
 import { chooseLocalSession, currentPlayback, playedFraction, readSession } from "./playback"
 
 const session = (patch: Partial<RpcSession> = {}): RpcSession => ({
   id: "session-1",
   name: "Living Room",
   hostDeviceId: "device-1",
+  repeat: RpcRepeatMode.Off,
+  shuffle: false,
   queue: [],
   transport: RpcTransport.Stopped,
   positionMs: 0,

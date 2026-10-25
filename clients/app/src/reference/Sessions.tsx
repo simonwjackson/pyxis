@@ -1,4 +1,5 @@
 import { useReference } from "./Reference.context.tsx"
+import { ReferenceSessionControls } from "./SessionControls"
 
 export function ReferenceSessions() {
   const { grant, session, clearQueue, runSessionCommand } = useReference()
@@ -25,31 +26,7 @@ export function ReferenceSessions() {
             <dt>Current track</dt>
             <dd>{session.currentTrackId ?? "none"}</dd>
           </dl>
-          <form
-            onSubmit={(event) => {
-              event.preventDefault()
-              const positionMs = Number(new FormData(event.currentTarget).get("positionMs"))
-              void runSessionCommand({ _tag: "transport.seek", payload: { positionMs } })
-            }}
-          >
-            <label>
-              Seek position (ms){" "}
-              <input
-                name="positionMs"
-                type="number"
-                min="0"
-                max={session.durationMs}
-                step="1"
-                required
-              />
-            </label>
-            <button
-              type="submit"
-              disabled={session.currentTrackId === undefined || session.durationMs === undefined}
-            >
-              Seek
-            </button>
-          </form>
+          <ReferenceSessionControls session={session} command={runSessionCommand} />
           <ol>
             {session.queue.map((trackId, index) => (
               // biome-ignore lint/suspicious/noArrayIndexKey: queue commands address entries by index in M1.

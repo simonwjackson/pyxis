@@ -24,7 +24,8 @@ fn rpc_request(body: Value, bearer: Option<&str>) -> Request<Body> {
     let mut request = Request::builder()
         .method("POST")
         .uri("/rpc")
-        .header("content-type", "application/json");
+        .header("content-type", "application/json")
+        .header("x-pyxis-contract", pyxis::rpc::contract::CONTRACT_ID);
     if let Some(bearer) = bearer {
         request = request.header("authorization", format!("Bearer {bearer}"));
     }
@@ -289,6 +290,7 @@ async fn malformed_json_is_a_typed_failure_not_a_panic_or_html_error() {
         .method("POST")
         .uri("/rpc")
         .header("content-type", "application/json")
+        .header("x-pyxis-contract", pyxis::rpc::contract::CONTRACT_ID)
         .body(Body::from("{this is not json"))
         .expect("request");
 

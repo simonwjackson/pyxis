@@ -465,6 +465,13 @@ async fn accept(
         }
     };
 
+    if hello.contract_id.as_deref() != Some(crate::rpc::contract::CONTRACT_ID) {
+        return refuse(
+            sink,
+            RpcFailure::permanent("contract.mismatch", "update the client before reconnecting"),
+        )
+        .await;
+    }
     let authenticated = {
         let state = Arc::clone(state);
         let bearer = hello.bearer_token.clone();

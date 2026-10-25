@@ -174,6 +174,7 @@ async fn claim(app: &Router) -> String {
                 .method("POST")
                 .uri("/rpc")
                 .header(header::CONTENT_TYPE, "application/json")
+                .header("x-pyxis-contract", pyxis::rpc::contract::CONTRACT_ID)
                 .body(Body::from(
                     json!({
                         "_tag": "auth.device.claim",

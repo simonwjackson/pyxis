@@ -6,7 +6,7 @@
 /// and a transport control that pretends otherwise will silently do nothing.
 
 import type { RpcSession } from "../../../../contracts/generated/pyxis"
-import { RpcTransport } from "../../../../contracts/generated/pyxis"
+import { RpcRepeatMode, RpcTransport } from "../../../../contracts/generated/pyxis"
 
 /// `ended` is a real resting state, not a transient. An album finishing leaves silence and
 /// waits to be continued, so it must survive in the model rather than collapsing to
@@ -23,6 +23,8 @@ const TRANSPORTS: Record<RpcTransport, Transport> = {
 export const readTransport = (transport: RpcTransport): Transport => TRANSPORTS[transport]
 
 export interface PlaybackView {
+  readonly repeat: RpcRepeatMode
+  readonly shuffle: boolean
   readonly sessionId: string
   readonly name: string
   readonly hostDeviceId: string
@@ -51,6 +53,8 @@ export function readSession(session: RpcSession): PlaybackView {
   const cursor = session.cursor
   const queueLength = session.queue.length
   return {
+    repeat: session.repeat,
+    shuffle: session.shuffle,
     sessionId: session.id,
     name: session.name,
     hostDeviceId: session.hostDeviceId,
@@ -62,8 +66,12 @@ export function readSession(session: RpcSession): PlaybackView {
     ...(session.currentTrackId === undefined ? {} : { currentTrackId: session.currentTrackId }),
     queueLength,
     ...(cursor === undefined ? {} : { cursor }),
-    hasNext: cursor !== undefined && cursor + 1 < queueLength,
-    hasPrevious: cursor !== undefined && cursor > 0,
+    hasNext:
+      cursor !== undefined &&
+      (cursor + 1 < queueLength || (session.repeat === RpcRepeatMode.All && queueLength > 0)),
+    hasPrevious:
+      cursor !== undefined &&
+      (cursor > 0 || (session.repeat === RpcRepeatMode.All && queueLength > 0)),
     ...(session.output === undefined ? {} : { output: session.output }),
     awaitingContinue: transport === "ended",
     controllable: session.reachable,

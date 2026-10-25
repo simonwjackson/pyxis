@@ -6,6 +6,7 @@ import {
 } from "../../../../contracts/generated/pyxis"
 import type { WorkerClient } from "../worker/client"
 import { SESSION_CHANGED_DURING_CONFIRMATION } from "../worker/contract"
+import { applySessionCommand } from "../worker/session-local"
 
 export type HostCommandOutcome =
   | { readonly _tag: "Applied"; readonly session: RpcSession; readonly replayed: boolean }
@@ -261,6 +262,9 @@ export function createConfirmedPlaybackHost(ports: ConfirmedHostPorts): Confirme
         await confirmSeek(loaded, command.payload.positionMs, signal)
         return
       }
+      case "transport.trackEnded":
+        await restore(applySessionCommand(target, command), signal)
+        return
       case "transport.pause":
         interrupt()
         return
@@ -433,7 +437,8 @@ export function createConfirmedPlaybackHost(ports: ConfirmedHostPorts): Confirme
             command._tag === "transport.play" ||
             command._tag === "transport.pause" ||
             command._tag === "transport.stop" ||
-            command._tag === "transport.seek"
+            command._tag === "transport.seek" ||
+            command._tag === "transport.trackEnded"
           )
             lastRendered = renderKey(committed)
           ports.publishSession(committed)

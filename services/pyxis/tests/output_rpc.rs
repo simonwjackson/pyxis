@@ -14,7 +14,8 @@ async fn rpc(app: &axum::Router, request: Value, bearer: Option<&str>) -> Value 
     let mut builder = Request::builder()
         .method("POST")
         .uri("/rpc")
-        .header(header::CONTENT_TYPE, "application/json");
+        .header(header::CONTENT_TYPE, "application/json")
+        .header("x-pyxis-contract", pyxis::rpc::contract::CONTRACT_ID);
     if let Some(bearer) = bearer {
         builder = builder.header(header::AUTHORIZATION, format!("Bearer {bearer}"));
     }
@@ -42,6 +43,14 @@ async fn sonos_target_hosts_a_core_session_and_applies_console_transport() {
         PluginCandidate::new(PathBuf::from(env!("CARGO_BIN_EXE_pyxis-plugin-laboratory")))
             .with_env("PYXIS_LAB_ID", "sonos")
             .with_env("PYXIS_LAB_CAPABILITY", "output")
+            .with_env(
+                "PYXIS_LAB_OUTPUT_STATE_FILE",
+                dir.path().join("output-state"),
+            )
+            .with_env(
+                "PYXIS_LAB_PLAY_POSITION_FILE",
+                dir.path().join("play-position"),
+            )
             .with_env("PYXIS_LAB_CALL_LOG", call_log.as_os_str())
             .with_env(
                 "PYXIS_LAB_SEEK_BEHAVIOR_FILE",
@@ -376,11 +385,99 @@ async fn sonos_target_hosts_a_core_session_and_applies_console_transport() {
         .expect("LAN RPC response");
     assert_eq!(rpc_on_lan.status(), StatusCode::NOT_FOUND);
 
+    // Core-hosted repeat and advancement use real plugin state/commands, never speakers.
+    std::fs::write(dir.path().join("play-position"), "0").unwrap();
+    for (mode, expected_cursor) in [("one", 0), ("all", 1), ("off", 1)] {
+        if mode == "all" {
+            let appended = rpc(&app, json!({"_tag":"session.command.send","payload":{"sessionId":session_id,"command":{"_tag":"queue.add","payload":{"trackIds":["track-1"]}}}}), Some(token)).await;
+            assert_eq!(appended["outcome"]["status"], "dispatched");
+        }
+        let changed = rpc(&app, json!({"_tag":"session.command.send","payload":{"sessionId":session_id,"command":{"_tag":"repeat.set","payload":{"mode":mode}}}}), Some(token)).await;
+        assert_eq!(changed["outcome"]["status"], "dispatched");
+        if mode == "off" {
+            rpc(&app, json!({"_tag":"session.command.send","payload":{"sessionId":session_id,"command":{"_tag":"cursor.jump","payload":{"index":1}}}}), Some(token)).await;
+        }
+        let played = rpc(&app, json!({"_tag":"session.command.send","payload":{"sessionId":session_id,"command":{"_tag":"transport.play","payload":{}}}}), Some(token)).await;
+        assert_eq!(played["outcome"]["status"], "dispatched");
+        std::fs::write(
+            dir.path().join("output-state"),
+            r#"{"state":"STOPPED","positionMs":180000}"#,
+        )
+        .unwrap();
+        let ended = rpc(
+            &app,
+            json!({"_tag":"session.state.get","payload":{"sessionId":session_id}}),
+            Some(token),
+        )
+        .await;
+        assert_eq!(
+            ended["outcome"]["value"]["transport"],
+            if mode == "off" { "ended" } else { "playing" },
+            "{ended}"
+        );
+        assert_eq!(ended["outcome"]["value"]["cursor"], expected_cursor);
+        if mode != "off" {
+            assert_eq!(ended["outcome"]["value"]["positionMs"], 0);
+        }
+        if mode == "all" {
+            std::fs::write(
+                dir.path().join("output-state"),
+                r#"{"state":"STOPPED","positionMs":180000}"#,
+            )
+            .unwrap();
+            let wrapped = rpc(
+                &app,
+                json!({"_tag":"session.state.get","payload":{"sessionId":session_id}}),
+                Some(token),
+            )
+            .await;
+            assert_eq!(wrapped["outcome"]["value"]["cursor"], 0);
+        }
+    }
+
+    rpc(&app, json!({"_tag":"session.command.send","payload":{"sessionId":session_id,"command":{"_tag":"repeat.set","payload":{"mode":"one"}}}}), Some(token)).await;
+    rpc(&app, json!({"_tag":"session.command.send","payload":{"sessionId":session_id,"command":{"_tag":"transport.play","payload":{}}}}), Some(token)).await;
+    let before_refusal = rpc(
+        &app,
+        json!({"_tag":"session.state.get","payload":{"sessionId":session_id}}),
+        Some(token),
+    )
+    .await;
+    std::fs::write(dir.path().join("play-position"), "10000").unwrap();
+    std::fs::write(
+        dir.path().join("output-state"),
+        r#"{"state":"STOPPED","positionMs":180000}"#,
+    )
+    .unwrap();
+    let refused = rpc(
+        &app,
+        json!({"_tag":"session.state.get","payload":{"sessionId":session_id}}),
+        Some(token),
+    )
+    .await;
+    assert_eq!(
+        refused["outcome"]["value"]["revision"],
+        before_refusal["outcome"]["value"]["revision"]
+    );
+    assert_eq!(
+        refused["outcome"]["value"]["cursor"],
+        before_refusal["outcome"]["value"]["cursor"]
+    );
+    assert_eq!(refused["outcome"]["value"]["reachable"], false);
+
     drop(app);
     let restarted_candidate =
         PluginCandidate::new(PathBuf::from(env!("CARGO_BIN_EXE_pyxis-plugin-laboratory")))
             .with_env("PYXIS_LAB_ID", "sonos")
             .with_env("PYXIS_LAB_CAPABILITY", "output")
+            .with_env(
+                "PYXIS_LAB_OUTPUT_STATE_FILE",
+                dir.path().join("output-state"),
+            )
+            .with_env(
+                "PYXIS_LAB_PLAY_POSITION_FILE",
+                dir.path().join("play-position"),
+            )
             .with_env("PYXIS_LAB_CALL_LOG", call_log.as_os_str())
             .with_env(
                 "PYXIS_LAB_SEEK_BEHAVIOR_FILE",

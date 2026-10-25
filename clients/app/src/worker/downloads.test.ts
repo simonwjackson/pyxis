@@ -2,6 +2,7 @@ import { describe, expect, test, vi } from "vitest"
 import {
   type RpcLibraryAlbum,
   RpcPlacement,
+  RpcRepeatMode,
   type RpcSession,
   RpcTransport,
 } from "../../../../contracts/generated/pyxis"
@@ -90,6 +91,8 @@ function session(trackId: string): RpcSession {
     id: "session-1",
     name: "Browser",
     hostDeviceId: "device-1",
+    repeat: RpcRepeatMode.Off,
+    shuffle: false,
     queue: [trackId],
     cursor: 0,
     currentTrackId: trackId,

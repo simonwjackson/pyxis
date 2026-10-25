@@ -1,4 +1,5 @@
 import type { RpcRequest, RpcResponse } from "../../../../contracts/generated/pyxis"
+import { RPC_CONTRACT_ID } from "../../../../contracts/generated/pyxis"
 import { assertRpcRequest, assertRpcResponse } from "./validation"
 
 // New library primitives use the same generated trust boundary as the worker and page.
@@ -12,7 +13,11 @@ export function createSupportRpc(
     assertRpcRequest(operation)
     const response = await request("/rpc", {
       method: "POST",
-      headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
+      headers: {
+        "content-type": "application/json",
+        "x-pyxis-contract": RPC_CONTRACT_ID,
+        authorization: `Bearer ${token}`,
+      },
       body: JSON.stringify(operation),
     })
     if (!response.ok) throw new Error(`RPC HTTP ${response.status}`)

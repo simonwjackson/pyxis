@@ -1,5 +1,10 @@
 import { describe, expect, test, vi } from "vitest"
-import { RpcPlacement, RpcRealtimeTopic } from "../../../../contracts/generated/pyxis"
+import {
+  RPC_CONTRACT_ID,
+  RpcPlacement,
+  RpcRealtimeTopic,
+  RpcRepeatMode,
+} from "../../../../contracts/generated/pyxis"
 import { createReferenceClient } from "./api"
 
 class FakeSocket {
@@ -119,6 +124,8 @@ describe("reference output client", () => {
             id: "session-output",
             name: "Kitchen",
             hostDeviceId: "output:sonos:RINCON_KITCHEN",
+            repeat: RpcRepeatMode.Off,
+            shuffle: false,
             queue: [],
             transport: "stopped",
             positionMs: 0,
@@ -227,7 +234,7 @@ describe("reference realtime client", () => {
         await vi.advanceTimersByTimeAsync(1000)
         socketAt(sockets, 1).emit("open")
         expect(JSON.parse(socketAt(sockets, 1).sent[0] ?? "{}")).toMatchObject({
-          payload: { resumeToken: "durable" },
+          payload: { contractId: RPC_CONTRACT_ID, resumeToken: "durable" },
         })
       } finally {
         disconnect()
@@ -286,7 +293,7 @@ describe("reference realtime client", () => {
         await vi.advanceTimersByTimeAsync(1000)
         socketAt(sockets, 2).emit("open")
         expect(JSON.parse(socketAt(sockets, 2).sent[0] ?? "{}")).toMatchObject({
-          payload: { resumeToken: "current" },
+          payload: { contractId: RPC_CONTRACT_ID, resumeToken: "current" },
         })
       } finally {
         disconnect()
@@ -383,7 +390,7 @@ describe("reference realtime client", () => {
         await vi.advanceTimersByTimeAsync(1000)
         socketAt(sockets, 2).emit("open")
         expect(JSON.parse(socketAt(sockets, 2).sent[0] ?? "{}")).toMatchObject({
-          payload: { resumeToken: "current" },
+          payload: { contractId: RPC_CONTRACT_ID, resumeToken: "current" },
         })
       } finally {
         disconnect()
@@ -420,7 +427,7 @@ describe("reference realtime client", () => {
     )
     socket.emit("open")
     expect(JSON.parse(socket.sent[0] ?? "{}")).toMatchObject({
-      payload: { resumeToken: "resume-old" },
+      payload: { contractId: RPC_CONTRACT_ID, resumeToken: "resume-old" },
     })
 
     socket.message({
@@ -543,7 +550,12 @@ describe("reference realtime client", () => {
     socket.emit("open")
     socket.message({
       _tag: "realtime.welcome",
-      payload: { resumeToken: "resume-first", missedEventsDropped: false, topics: [] },
+      payload: {
+        contractId: RPC_CONTRACT_ID,
+        resumeToken: "resume-first",
+        missedEventsDropped: false,
+        topics: [],
+      },
     })
 
     await vi.waitFor(() => expect(socket.closed).toBe(true))
@@ -584,7 +596,12 @@ describe("reference realtime client", () => {
       first.emit("open")
       first.message({
         _tag: "realtime.welcome",
-        payload: { resumeToken: "resume-new", missedEventsDropped: false, topics: [] },
+        payload: {
+          contractId: RPC_CONTRACT_ID,
+          resumeToken: "resume-new",
+          missedEventsDropped: false,
+          topics: [],
+        },
       })
       await vi.waitFor(() => expect(connected).toHaveBeenCalledTimes(1))
       first.emit("close")
@@ -596,11 +613,16 @@ describe("reference realtime client", () => {
       expect(opened).toBe(2)
       second.emit("open")
       expect(JSON.parse(second.sent[0] ?? "{}")).toMatchObject({
-        payload: { resumeToken: "resume-new" },
+        payload: { contractId: RPC_CONTRACT_ID, resumeToken: "resume-new" },
       })
       second.message({
         _tag: "realtime.welcome",
-        payload: { resumeToken: "resume-next", missedEventsDropped: false, topics: [] },
+        payload: {
+          contractId: RPC_CONTRACT_ID,
+          resumeToken: "resume-next",
+          missedEventsDropped: false,
+          topics: [],
+        },
       })
       await vi.waitFor(() => expect(connected).toHaveBeenCalledTimes(2))
       expect(persisted).toEqual(["resume-new", "resume-next"])
@@ -630,7 +652,12 @@ describe("reference realtime client", () => {
     socket.emit("open")
     socket.message({
       _tag: "realtime.welcome",
-      payload: { resumeToken: "resume-first", missedEventsDropped: false, topics: [] },
+      payload: {
+        contractId: RPC_CONTRACT_ID,
+        resumeToken: "resume-first",
+        missedEventsDropped: false,
+        topics: [],
+      },
     })
 
     await vi.waitFor(() => expect(order).toEqual(["resync", "cursor", "connected"]))
@@ -649,7 +676,10 @@ function realtimeEvent(resumeToken: string) {
 }
 
 function realtimeWelcome(resumeToken: string, missedEventsDropped = false) {
-  return { _tag: "realtime.welcome", payload: { resumeToken, missedEventsDropped, topics: [] } }
+  return {
+    _tag: "realtime.welcome",
+    payload: { contractId: RPC_CONTRACT_ID, resumeToken, missedEventsDropped, topics: [] },
+  }
 }
 
 function socketAt(sockets: readonly FakeSocket[], index: number): FakeSocket {
@@ -657,3 +687,36 @@ function socketAt(sockets: readonly FakeSocket[], index: number): FakeSocket {
   if (socket === undefined) throw new Error(`socket ${index} was not opened`)
   return socket
 }
+
+test("a foreign realtime contract never publishes readiness or a durable cursor", async () => {
+  const socket = new FakeSocket()
+  const connected = vi.fn()
+  const cursor = vi.fn()
+  const failed = vi.fn()
+  const client = createReferenceClient({ createWebSocket: () => socket as unknown as WebSocket })
+  const stop = client.connectRealtime("token", {
+    onConnected: connected,
+    onResumeToken: cursor,
+    onFailure: failed,
+    onEvent: () => {},
+    onDirective: () => {},
+    onResync: () => {},
+  })
+  socket.emit("open")
+  socket.message({
+    _tag: "realtime.welcome",
+    payload: {
+      contractId: "pyxis-rpc-v2",
+      resumeToken: "old",
+      topics: [],
+      missedEventsDropped: false,
+    },
+  })
+  await vi.waitFor(() => expect(socket.closed).toBe(true))
+  expect(connected).not.toHaveBeenCalled()
+  expect(cursor).not.toHaveBeenCalled()
+  expect(failed).toHaveBeenCalledWith(
+    expect.objectContaining({ message: expect.stringContaining("contract.mismatch") }),
+  )
+  stop()
+})

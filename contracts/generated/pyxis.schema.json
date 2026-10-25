@@ -974,10 +974,26 @@
           "properties": {
             "_tag": {
               "type": "string",
-              "const": "queue.shuffle"
+              "const": "repeat.set"
             },
             "payload": {
-              "$ref": "#/$defs/EmptyRequest"
+              "$ref": "#/$defs/RepeatSetCommand"
+            }
+          },
+          "required": [
+            "_tag",
+            "payload"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "_tag": {
+              "type": "string",
+              "const": "shuffle.set"
+            },
+            "payload": {
+              "$ref": "#/$defs/ShuffleSetCommand"
             }
           },
           "required": [
@@ -1142,6 +1158,38 @@
       "additionalProperties": false,
       "required": [
         "index"
+      ]
+    },
+    "RepeatSetCommand": {
+      "type": "object",
+      "properties": {
+        "mode": {
+          "$ref": "#/$defs/RpcRepeatMode"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "mode"
+      ]
+    },
+    "RpcRepeatMode": {
+      "type": "string",
+      "enum": [
+        "off",
+        "all",
+        "one"
+      ]
+    },
+    "ShuffleSetCommand": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "enabled"
       ]
     },
     "CursorJumpCommand": {
@@ -3502,6 +3550,24 @@
     "RpcSession": {
       "type": "object",
       "properties": {
+        "repeat": {
+          "$ref": "#/$defs/RpcRepeatMode"
+        },
+        "shuffle": {
+          "type": "boolean"
+        },
+        "queueOrder": {
+          "description": "Occurrence ordinals in effective queue order. Ascending order restores the original\nqueue, even when the same track occurs more than once. Absent implies 0..queue.len.",
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0
+          }
+        },
         "id": {
           "type": "string"
         },
@@ -3583,6 +3649,8 @@
       },
       "additionalProperties": false,
       "required": [
+        "repeat",
+        "shuffle",
         "id",
         "name",
         "hostDeviceId",
@@ -5962,6 +6030,12 @@
       "description": "The first message on every socket.\n\nBrowsers cannot set an `Authorization` header when opening a WebSocket, and a query\nstring would copy the bearer token into proxy and server logs. An explicit hello frame\nkeeps the token in the message body, where the RPC transport already keeps it.",
       "type": "object",
       "properties": {
+        "contractId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "bearerToken": {
           "type": "string"
         },
@@ -6574,5 +6648,6 @@
         }
       ]
     }
-  }
+  },
+  "$comment": "Wire contract: pyxis-rpc-v3"
 }

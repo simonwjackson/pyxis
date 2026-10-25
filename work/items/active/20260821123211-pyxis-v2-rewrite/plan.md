@@ -1110,7 +1110,7 @@ seeds it accepts.
 - Batches are perishable. Pandora's `stream.resolve` needs its own `station.tracks` call to have
   filled a process-local cache first, and re-resolves URLs older than 60 seconds. The core must
   therefore not persist a batch and assume it stays playable across a plugin restart. This bounds
-  prefetch depth in U34 and is recorded here because it is a provider fact, not a design choice.
+  prefetch depth in the deferred M10 and is recorded here because it is a provider fact, not a design choice.
 
 **Test scenarios:**
 - Happy path: a source implementing all four operations answers all four.
@@ -1708,7 +1708,27 @@ current occurrence and edits across replay/handoff. Remove `queue.shuffle` from 
 Use `pyxis-rpc-v3`; cached clients reject mismatches. Preserve pending old shuffle intent,
 with explicit update/deployment handling. Existing current-v2 records default new modes,
 without v1 compatibility. Both browser hosts and Sonos obey modes.
-**Verification:** focused session/RPC/worker/shared-host/output tests, contract/static checks.
+**Verification:** 68 focused Rust cases, 208 app/worker cases and 87 product cases pass;
+contract generation/drift, library Clippy, Rust formatting, root/product/new-reference
+TypeScript, owned Biome and changed-shell checks pass. Native Chromium confirms actual
+seek-before-receipt, duplicate-order restoration and repeat-one at natural end with zero
+forbidden network requests. An isolated real HTTP process exercises groups/tags, playlist
+append/replay, seek and modes with zero plugins. No physical Sonos or live service mutation.
+
+**Implementation facts:** `pyxis-rpc-v3` is wire-only. Authenticated RPC requires
+`x-pyxis-contract`; realtime hello requires `contractId`. Cached old HTTP clients get a
+retryable mismatch before obsolete commands decode. Old sockets cannot gain host authority.
+Core snapshots publish original occurrence ordinals as `queueOrder`; clients retain them.
+The core and worker share a session-seeded permutation and a golden wire vector. Repeat
+natural-end effects are renderer-confirmed, including the core-hosted output adapter.
+Current-v2 sessions default modes without changing queue/cursor/position; interrupted result
+fingerprints apply equivalent defaults so an old optimistic add cannot duplicate on repair.
+Seek reservations persist their original revision, so an unapplied retry cannot retarget a
+newer session. Old one-shot shuffle outboxes stay unchanged and block session replay.
+Deployment is blocked until matching v2 clients/service drain them on all devices. This stage
+did not inspect live outboxes. See `docs/operations/2026-10-24-pyxamp-support-update.md`.
+The old U30 reference to a future U34 prefetch unit now names deferred M10; U34 is the approved
+playlist append unit. The parent owns one combined full verification after this boundary.
 
 ---
 

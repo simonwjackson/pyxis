@@ -1,6 +1,6 @@
 # Operations
 
-Every operation in `pyxis-rpc-v2`. Unknown tags are rejected with
+Every operation in `pyxis-rpc-v3`. Unknown tags are rejected with
 `request.unknownOperation`, so this list is exhaustive by construction.
 
 Read [README.md](README.md) first for the envelope rules, and
@@ -52,6 +52,24 @@ Read [README.md](README.md) first for the envelope rules, and
 
 Exact payload and value shapes are in `contracts/generated/pyxis.ts`. This document explains
 the parts a type cannot tell you.
+
+## Session modes
+
+`repeat.set {mode:"off"|"all"|"one"}` and `shuffle.set {enabled:boolean}` are session
+commands. Every session publishes `repeat` and `shuffle`; `queueOrder` carries original
+ordinals in effective queue order. Omitted order means sequential ordinals for an
+unshuffled snapshot. Clients must preserve these fields when storing or handing off state.
+A shuffled snapshot must carry its occurrence order. Do not identify queue occurrences by
+track ID: intentionally duplicated tracks are distinct entries.
+
+Shuffle affects the future suffix and preserves current occurrence, position and duration.
+Disable it to restore ascending original ordinals, including queue additions/removals.
+Core and worker share the same session-seeded permutation so offline replay agrees.
+Repeat-one restarts at natural end, all advances/wraps, off ends. Explicit cursor jumps
+ignore repeat-one. Clear retains modes. Handoff moves modes and occurrence order.
+The removed one-shot shuffle operation is not accepted by wire v3. Pending current-v2
+intent is retained with an explicit update blocker, never translated or silently dropped.
+See [update handling](../operations/2026-10-24-pyxamp-support-update.md).
 
 ## Absolute seek
 

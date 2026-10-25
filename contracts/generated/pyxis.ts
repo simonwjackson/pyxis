@@ -330,6 +330,7 @@ export interface RealtimeEvent {
  * keeps the token in the message body, where the RPC transport already keeps it.
  */
 export interface RealtimeHello {
+	contractId?: string;
 	bearerToken: string;
 	topics: RpcRealtimeTopic[];
 	/** Opaque cursor from a previous `welcome` or `event`. Absent on a first connection. */
@@ -353,6 +354,16 @@ export interface RealtimeWelcome {
 	 * refetch state through RPC instead of trusting the replay to be complete.
 	 */
 	missedEventsDropped: boolean;
+}
+
+export enum RpcRepeatMode {
+	Off = "off",
+	All = "all",
+	One = "one",
+}
+
+export interface RepeatSetCommand {
+	mode: RpcRepeatMode;
 }
 
 export interface RpcAccount {
@@ -628,6 +639,13 @@ export enum RpcTransport {
 }
 
 export interface RpcSession {
+	repeat: RpcRepeatMode;
+	shuffle: boolean;
+	/**
+	 * Occurrence ordinals in effective queue order. Ascending order restores the original
+	 * queue, even when the same track occurs more than once. Absent implies 0..queue.len.
+	 */
+	queueOrder?: number[];
 	id: string;
 	name: string;
 	hostDeviceId: string;
@@ -649,7 +667,8 @@ export type RpcSessionCommand =
 	| { _tag: "queue.add", payload: QueueAddCommand }
 	| { _tag: "queue.remove", payload: QueueRemoveCommand }
 	| { _tag: "queue.clear", payload: EmptyRequest }
-	| { _tag: "queue.shuffle", payload: EmptyRequest }
+	| { _tag: "repeat.set", payload: RepeatSetCommand }
+	| { _tag: "shuffle.set", payload: ShuffleSetCommand }
 	| { _tag: "cursor.jump", payload: CursorJumpCommand }
 	| { _tag: "transport.seek", payload: SeekCommand }
 	| { _tag: "transport.play", payload: EmptyRequest }
@@ -821,6 +840,10 @@ export interface SessionIdRequest {
  */
 export interface SessionListRequest {
 	includeUnreachable?: boolean;
+}
+
+export interface ShuffleSetCommand {
+	enabled: boolean;
 }
 
 export interface SourceAlbumGetRequest {
@@ -1208,3 +1231,5 @@ export type SourceStationNextOutcome =
 export type SystemStatusOutcome =
 	| { status: "ready", value: RpcSystemStatus }
 	| { status: "unavailable", value: RpcFailure };
+
+export const RPC_CONTRACT_ID = "pyxis-rpc-v3" as const;

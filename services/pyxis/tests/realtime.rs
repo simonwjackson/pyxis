@@ -42,6 +42,7 @@ async fn rpc(server: &Server, request: Value, bearer: Option<&str>) -> Value {
     let mut builder = reqwest::Client::new()
         .post(format!("http://{}/rpc", server.address))
         .header("content-type", "application/json")
+        .header("x-pyxis-contract", pyxis::rpc::contract::CONTRACT_ID)
         .body(request.to_string());
     if let Some(bearer) = bearer {
         builder = builder.bearer_auth(bearer);
@@ -76,7 +77,7 @@ async fn open(server: &Server) -> Socket {
 }
 
 async fn hello(socket: &mut Socket, bearer: &str, topics: Value, resume: Option<&str>) {
-    let mut payload = json!({ "bearerToken": bearer, "topics": topics });
+    let mut payload = json!({ "bearerToken": bearer, "topics": topics, "contractId": pyxis::rpc::contract::CONTRACT_ID });
     if let Some(resume) = resume {
         payload["resumeToken"] = json!(resume);
     }
@@ -131,7 +132,7 @@ async fn a_subscriber_receives_state_published_on_its_topic() {
 
     let welcome = next(&mut socket).await.expect("welcome");
     assert_eq!(welcome["_tag"], "realtime.welcome");
-    assert_eq!(welcome["payload"]["contractId"], "pyxis-rpc-v2");
+    assert_eq!(welcome["payload"]["contractId"], "pyxis-rpc-v3");
     assert_eq!(welcome["payload"]["resumed"], false);
 
     add_album(&server, &bearer, "Heroes").await;
@@ -1060,4 +1061,15 @@ async fn handoff_to_an_unreachable_device_is_refused() {
     )
     .await;
     assert_eq!(itself["outcome"]["status"], "sameSession");
+}
+
+#[tokio::test]
+async fn stale_realtime_clients_never_gain_host_authority() {
+    let server = serve().await;
+    let token = claim(&server, "old client").await;
+    let mut socket = open(&server).await;
+    socket.send(Message::Text(json!({"_tag":"realtime.hello","payload":{"bearerToken":token,"topics":["sessions"],"contractId":"pyxis-rpc-v2"}}).to_string())).await.unwrap();
+    let failure = next(&mut socket).await.unwrap();
+    assert_eq!(failure["_tag"], "realtime.failure");
+    assert_eq!(failure["payload"]["code"], "contract.mismatch");
 }

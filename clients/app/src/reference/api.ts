@@ -17,7 +17,7 @@ import type {
   RpcSourceArtistSummary,
   RpcStation,
 } from "../../../../contracts/generated/pyxis"
-import { StationSeedKind } from "../../../../contracts/generated/pyxis"
+import { RPC_CONTRACT_ID, StationSeedKind } from "../../../../contracts/generated/pyxis"
 import { assertRpcRequest, assertRpcResponse } from "../rpc/validation"
 
 export interface RealtimeHandlers {
@@ -157,6 +157,7 @@ export function createReferenceClient(config: ReferenceClientConfig = {}): Refer
       method: "POST",
       headers: {
         "content-type": "application/json",
+        "x-pyxis-contract": RPC_CONTRACT_ID,
         ...(bearer === undefined ? {} : { authorization: `Bearer ${bearer}` }),
       },
       body: JSON.stringify(payload),
@@ -453,6 +454,7 @@ export function createReferenceClient(config: ReferenceClientConfig = {}): Refer
               _tag: "realtime.hello",
               payload: {
                 bearerToken: token,
+                contractId: RPC_CONTRACT_ID,
                 topics: ["sessions", "library"],
                 ...(helloResumeToken === undefined ? {} : { resumeToken: helloResumeToken }),
               },
@@ -476,6 +478,8 @@ export function createReferenceClient(config: ReferenceClientConfig = {}): Refer
               }
               const frame = parsed as RealtimeServerMessage
               if (frame._tag === "realtime.welcome") {
+                if (frame.payload.contractId !== RPC_CONTRACT_ID)
+                  throw new Error("contract.mismatch: update this client before reconnecting")
                 const nextResumeToken = frame.payload.resumeToken
                 // Persist a cursor only after the state it covers is durable.
                 if (frame.payload.missedEventsDropped || helloResumeToken === undefined) {

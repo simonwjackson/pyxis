@@ -3,6 +3,7 @@ import {
   type ListenTrackEventInput,
   type RpcLibraryAlbum,
   RpcPlacement,
+  RpcRepeatMode,
   type RpcSession,
   type RpcSessionCommand,
   RpcTransport,
@@ -14,6 +15,7 @@ import type { WorkerAlbum, WorkerDatabase, WorkerOutboxEntry } from "./contract"
 import { createMemoryEngine, openWorkerDatabase } from "./database"
 import { browserOfflineExclusive } from "./downloads"
 import { LISTEN_BATCH_SIZE } from "./listen-sync"
+import { applySessionCommand } from "./session-local"
 import { sync } from "./sync"
 
 function album(
@@ -40,6 +42,8 @@ function hostedSession(overrides: Partial<RpcSession> = {}): RpcSession {
     id: "session-1",
     name: "Browser",
     hostDeviceId: "device-1",
+    repeat: RpcRepeatMode.Off,
+    shuffle: false,
     queue: [],
     transport: RpcTransport.Stopped,
     positionMs: 0,
@@ -1248,4 +1252,73 @@ describe("session-scoped synchronization", () => {
       })
     },
   )
+})
+
+test("retired current-v2 shuffle outbox intent survives sync without network replay or dequeue", async () => {
+  const pending: WorkerOutboxEntry = JSON.parse(
+    JSON.stringify({
+      ...sessionWrite("old-shuffle", { _tag: "transport.play", payload: {} }),
+      command: { _tag: "queue.shuffle", payload: {} },
+    }),
+  )
+  const initial = hostedSession({ queue: ["a", "b"], cursor: 0, currentTrackId: "a" })
+  const store = await database([pending], [], [initial])
+  let calls = 0
+  const rpc: WorkerRpc = {
+    listAlbums: async () => [],
+    listSessions: async () => [initial],
+    runSessionCommand: async () => {
+      calls += 1
+      return initial
+    },
+    setPlacement: async () => undefined,
+    appendListen: async () => ({ accepted: 0, duplicates: 0 }),
+  }
+  const result = await sync(store, rpc)
+  expect(result.deferred).toBe(1)
+  expect(result.dropped).toEqual([])
+  expect(result.failure).toContain("matching v2 client and service")
+  expect(calls).toBe(0)
+  expect(await store.outbox()).toEqual([pending])
+})
+
+test("offline mode replay retains the confirmed occurrence order and restores the original queue", async () => {
+  let remote = hostedSession({
+    queue: ["a", "b", "a", "c", "d"],
+    cursor: 2,
+    currentTrackId: "a",
+    positionMs: 42000,
+  })
+  const store = await database([], [], [remote])
+  const local = await store.queueSessionCommand(
+    remote,
+    { _tag: "shuffle.set", payload: { enabled: true } },
+    "shuffle-1",
+  )
+  const rpc: WorkerRpc = {
+    listAlbums: async () => [],
+    listSessions: async () => [remote],
+    runSessionCommand: async (_id, command) => {
+      remote = applySessionCommand(remote, command)
+      return remote
+    },
+    setPlacement: async () => undefined,
+    appendListen: async () => ({ accepted: 0, duplicates: 0 }),
+  }
+  await sync(store, rpc)
+  expect(remote.queue).toEqual(local.queue)
+  expect(remote.queueOrder).toEqual(local.queueOrder)
+  expect(await store.outbox()).toEqual([])
+  await store.queueSessionCommand(
+    remote,
+    { _tag: "shuffle.set", payload: { enabled: false } },
+    "shuffle-2",
+  )
+  await sync(store, rpc)
+  expect(remote).toMatchObject({
+    queue: ["a", "b", "a", "c", "d"],
+    cursor: 2,
+    positionMs: 42000,
+    shuffle: false,
+  })
 })

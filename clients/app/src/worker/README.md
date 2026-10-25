@@ -137,3 +137,22 @@ not touch the dedicated worker database.
 - Show conflicts and dropped-write reasons.
 - Do not report Playing until browser playback succeeds.
 - Do not offer pinning when `offlineOverview().available` is false.
+
+
+## Wire v3 and playback modes
+
+Generated `RPC_CONTRACT_ID` is `pyxis-rpc-v3`. Worker HTTP writes carry it as
+`x-pyxis-contract`. Repeat (`off/all/one`), reversible shuffle and `queueOrder` belong to
+session truth. Queue occurrence ordinals keep duplicate track IDs separate. Do not drop
+these fields in a view adapter. The shared confirmed host applies seek and natural-end
+renderer effects before `queueSessionCommand` commits their receipts.
+
+Persisted current-v2 sessions default repeat off/shuffle false without losing queue/cursor.
+Interrupted result fingerprints compare those same defaults; an old optimistic queue add
+must not be applied twice just because the session gained mode fields. No schema reset is
+needed for opaque bodies. Album tags pass through snapshots and placement verdicts.
+
+A pending current-v2 one-shot shuffle remains unchanged in the outbox and blocks session
+replay with an explicit failure. It is not a public command in v3. Drain such intent with
+matching v2 clients/service before deployment. Never clear storage or manufacture a new
+mode command under the old receipt. See `docs/operations/2026-10-24-pyxamp-support-update.md`.

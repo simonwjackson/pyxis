@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest"
 import {
+  RpcRepeatMode,
   type RpcRequest,
   type RpcSession,
   RpcTransport as RpcTransportKind,
@@ -10,6 +11,8 @@ const session = (patch: Partial<RpcSession> = {}): RpcSession => ({
   id: "session-1",
   name: "This device",
   hostDeviceId: "device-1",
+  repeat: RpcRepeatMode.Off,
+  shuffle: false,
   queue: [],
   transport: RpcTransportKind.Stopped,
   positionMs: 0,

@@ -19,7 +19,11 @@ reference client at `/`, and falls back to it for any unmatched path.
 
 ## Contract identity
 
-Every server reports a `contractId`. This document describes `pyxis-rpc-v2`.
+Every server reports a `contractId`. This document describes `pyxis-rpc-v3`. Authenticated requests must send
+`x-pyxis-contract: pyxis-rpc-v3`. Realtime hello carries the same `contractId`.
+A mismatch fails closed. A missing/old HTTP version returns retryable `contract.mismatch`
+so cached clients retain pending intent. See the [update fence](../operations/2026-10-24-pyxamp-support-update.md)
+before deploying; old one-shot shuffle outboxes must be drained with matching v2 clients.
 
 ```sh
 curl -fsS -X POST https://your-host/rpc \
@@ -34,7 +38,7 @@ curl -fsS -X POST https://your-host/rpc \
     "status": "ready",
     "value": {
       "version": "2.0.0",
-      "contractId": "pyxis-rpc-v2",
+      "contractId": "pyxis-rpc-v3",
       "accountCount": 1,
       "pluginCount": 2,
       "capabilities": ["source"]
@@ -126,6 +130,7 @@ async function rpc(request: unknown, bearer?: string): Promise<any> {
     method: "POST",
     headers: {
       "content-type": "application/json",
+      "x-pyxis-contract": "pyxis-rpc-v3",
       ...(bearer === undefined ? {} : { authorization: `Bearer ${bearer}` }),
     },
     body: JSON.stringify(request),

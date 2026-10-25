@@ -2,6 +2,7 @@ import { describe, expect, test } from "vitest"
 import {
   type ListenTrackEventInput,
   RpcPlacement,
+  RpcRepeatMode,
   type RpcSession,
   type RpcSessionCommand,
   RpcTransport,
@@ -16,6 +17,8 @@ function session(overrides: Partial<RpcSession> = {}): RpcSession {
     id: "session-1",
     name: "Browser",
     hostDeviceId: "device-1",
+    repeat: RpcRepeatMode.Off,
+    shuffle: false,
     queue: [],
     transport: RpcTransport.Stopped,
     positionMs: 0,

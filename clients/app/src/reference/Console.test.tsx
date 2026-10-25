@@ -5,6 +5,7 @@ import {
   type RpcLibraryAlbum,
   RpcPlacement,
   RpcRealtimeTopic,
+  RpcRepeatMode,
   type RpcSession,
   type RpcSessionDirective,
   RpcTransport,
@@ -76,6 +77,8 @@ function session(overrides: Partial<RpcSession> = {}): RpcSession {
     id: "session-remote",
     name: "Kitchen",
     hostDeviceId: "device-2",
+    repeat: RpcRepeatMode.Off,
+    shuffle: false,
     queue: [],
     transport: "stopped",
     positionMs: 0,
@@ -614,6 +617,8 @@ describe("console mode", () => {
       session({
         id: "mine",
         hostDeviceId: "device-1",
+        repeat: RpcRepeatMode.Off,
+        shuffle: false,
         queue: ["track-1"],
         cursor: 0,
         currentTrackId: "track-1",
@@ -650,6 +655,8 @@ describe("console mode", () => {
       session({
         id: "mine",
         hostDeviceId: "device-1",
+        repeat: RpcRepeatMode.Off,
+        shuffle: false,
         queue: ["track-1"],
         cursor: 0,
         currentTrackId: "track-1",
@@ -694,6 +701,8 @@ describe("console mode", () => {
       session({
         id: "mine",
         hostDeviceId: "device-1",
+        repeat: RpcRepeatMode.Off,
+        shuffle: false,
         queue: ["track-1"],
         cursor: 0,
         currentTrackId: "track-1",
@@ -739,6 +748,8 @@ describe("console mode", () => {
       session({
         id: "mine",
         hostDeviceId: "device-1",
+        repeat: RpcRepeatMode.Off,
+        shuffle: false,
         queue: ["track-1"],
         cursor: 0,
         currentTrackId: "track-1",
@@ -971,6 +982,8 @@ describe("console mode", () => {
     const updated = session({
       id: "mine",
       hostDeviceId: "device-1",
+      repeat: RpcRepeatMode.Off,
+      shuffle: false,
       queue: ["track-new"],
       currentTrackId: "track-new",
       cursor: 0,
@@ -1014,6 +1027,8 @@ describe("console mode", () => {
       const original = session({
         id: "mine",
         hostDeviceId: "device-1",
+        repeat: RpcRepeatMode.Off,
+        shuffle: false,
         queue: ["track-1"],
         cursor: 0,
         currentTrackId: "track-1",
@@ -1239,6 +1254,8 @@ describe("console mode", () => {
       session({
         id: "mine",
         hostDeviceId: "device-1",
+        repeat: RpcRepeatMode.Off,
+        shuffle: false,
         queue: ["track-1"],
         cursor: 0,
         currentTrackId: "track-1",
@@ -1289,6 +1306,8 @@ describe("console mode", () => {
       session({
         id: "mine",
         hostDeviceId: "device-1",
+        repeat: RpcRepeatMode.Off,
+        shuffle: false,
         queue: ["track-1"],
         cursor: 0,
         currentTrackId: "track-1",
@@ -1334,6 +1353,8 @@ describe("console mode", () => {
     const stopped = session({
       id: "mine",
       hostDeviceId: "device-1",
+      repeat: RpcRepeatMode.Off,
+      shuffle: false,
       queue: ["track-1"],
       cursor: 0,
       currentTrackId: "track-1",
@@ -1387,6 +1408,8 @@ describe("console mode", () => {
     const output = session({
       id: "a-output",
       hostDeviceId: "output-kitchen",
+      repeat: RpcRepeatMode.Off,
+      shuffle: false,
       queue: ["track-1"],
       output: { pluginId: "sonos", targetId: "kitchen" },
     })
@@ -1394,6 +1417,8 @@ describe("console mode", () => {
       id: "z-output",
       name: "Living Room",
       hostDeviceId: "output-living",
+      repeat: RpcRepeatMode.Off,
+      shuffle: false,
       output: { pluginId: "sonos", targetId: "living" },
     })
     const browser = session({ id: "browser", name: "Other browser", hostDeviceId: "device-3" })
@@ -1476,6 +1501,8 @@ describe("console mode", () => {
       const output = session({
         id: "output",
         hostDeviceId: "output-kitchen",
+        repeat: RpcRepeatMode.Off,
+        shuffle: false,
         output: { pluginId: "sonos", targetId: "kitchen" },
       })
       await database.putSession(output)
@@ -1601,6 +1628,8 @@ describe("console mode", () => {
     const output = session({
       id: "output",
       hostDeviceId: "output-kitchen",
+      repeat: RpcRepeatMode.Off,
+      shuffle: false,
       queue: ["track-1"],
       output: { pluginId: "sonos", targetId: "kitchen" },
     })
@@ -1636,6 +1665,8 @@ describe("console mode", () => {
       id: "z-target",
       name: "Destination browser",
       hostDeviceId: "device-3",
+      repeat: RpcRepeatMode.Off,
+      shuffle: false,
     })
     for (const row of [own, other, target]) await database.putSession(row)
     const base = persistent(createDirectWorkerClient(async () => database))
@@ -1705,6 +1736,8 @@ describe("console mode", () => {
       const source = session({
         id: "mine",
         hostDeviceId: "device-1",
+        repeat: RpcRepeatMode.Off,
+        shuffle: false,
         queue: ["track-1"],
         cursor: 0,
         currentTrackId: "track-1",
@@ -1788,6 +1821,8 @@ describe("console mode", () => {
       const source = session({
         id: "mine",
         hostDeviceId: "device-1",
+        repeat: RpcRepeatMode.Off,
+        shuffle: false,
         queue: ["track-1"],
         cursor: 0,
         currentTrackId: "track-1",
@@ -1873,6 +1908,8 @@ describe("console mode", () => {
           session({
             id: "mine",
             hostDeviceId: "device-1",
+            repeat: RpcRepeatMode.Off,
+            shuffle: false,
             queue: ["track-1"],
             cursor: 0,
             currentTrackId: "track-1",
@@ -1958,6 +1995,8 @@ describe("console mode", () => {
       session({
         id: "mine",
         hostDeviceId: "device-1",
+        repeat: RpcRepeatMode.Off,
+        shuffle: false,
         queue: ["track-1"],
         cursor: 0,
         currentTrackId: "track-1",
@@ -2030,6 +2069,8 @@ describe("console mode", () => {
       session({
         id: "mine",
         hostDeviceId: "device-1",
+        repeat: RpcRepeatMode.Off,
+        shuffle: false,
         queue: ["track-1"],
         cursor: 0,
         currentTrackId: "track-1",
@@ -2151,6 +2192,8 @@ describe("console mode", () => {
       session({
         id: "mine",
         hostDeviceId: "device-1",
+        repeat: RpcRepeatMode.Off,
+        shuffle: false,
         queue: ["track-1"],
         cursor: 0,
         currentTrackId: "track-1",
@@ -2218,6 +2261,8 @@ describe("console mode", () => {
       session({
         id: "mine",
         hostDeviceId: "device-1",
+        repeat: RpcRepeatMode.Off,
+        shuffle: false,
         queue: ["track-1"],
         cursor: 0,
         currentTrackId: "track-1",
@@ -2271,6 +2316,8 @@ describe("console mode", () => {
       session({
         id: "mine",
         hostDeviceId: "device-1",
+        repeat: RpcRepeatMode.Off,
+        shuffle: false,
         queue: ["track-1"],
         cursor: 0,
         currentTrackId: "track-1",
@@ -2319,6 +2366,8 @@ describe("console mode", () => {
     const playing = session({
       id: "mine",
       hostDeviceId: "device-1",
+      repeat: RpcRepeatMode.Off,
+      shuffle: false,
       queue: ["track-1"],
       cursor: 0,
       currentTrackId: "track-1",
@@ -2347,6 +2396,8 @@ describe("console mode", () => {
       session({
         id: "mine",
         hostDeviceId: "device-1",
+        repeat: RpcRepeatMode.Off,
+        shuffle: false,
         queue: ["track-1"],
         cursor: 0,
         currentTrackId: "track-1",
@@ -2384,6 +2435,8 @@ describe("console mode", () => {
       session({
         id: "mine",
         hostDeviceId: "device-1",
+        repeat: RpcRepeatMode.Off,
+        shuffle: false,
         queue: ["track-1"],
         cursor: 0,
         currentTrackId: "track-1",
@@ -2456,6 +2509,8 @@ describe("console mode", () => {
       session({
         id: "mine",
         hostDeviceId: "device-1",
+        repeat: RpcRepeatMode.Off,
+        shuffle: false,
         queue: ["track-1"],
         cursor: 0,
         currentTrackId: "track-1",
@@ -2496,6 +2551,8 @@ describe("console mode", () => {
       session({
         id: "mine",
         hostDeviceId: "device-1",
+        repeat: RpcRepeatMode.Off,
+        shuffle: false,
         queue: ["track-1"],
         cursor: 0,
         currentTrackId: "track-1",
@@ -2532,6 +2589,8 @@ describe("console mode", () => {
       session({
         id: "mine",
         hostDeviceId: "device-1",
+        repeat: RpcRepeatMode.Off,
+        shuffle: false,
         queue: ["track-1"],
         cursor: 0,
         currentTrackId: "track-1",
@@ -2595,6 +2654,8 @@ describe("console mode", () => {
       session({
         id: "mine",
         hostDeviceId: "device-1",
+        repeat: RpcRepeatMode.Off,
+        shuffle: false,
         queue: ["track-1", "track-2"],
         cursor: 0,
         currentTrackId: "track-1",
@@ -2668,6 +2729,8 @@ describe("console mode", () => {
         session({
           id: "mine",
           hostDeviceId: "device-1",
+          repeat: RpcRepeatMode.Off,
+          shuffle: false,
           queue: ["track-1"],
           cursor: 0,
           currentTrackId: "track-1",
@@ -2744,6 +2807,8 @@ describe("console mode", () => {
       session({
         id: "mine",
         hostDeviceId: "device-1",
+        repeat: RpcRepeatMode.Off,
+        shuffle: false,
         queue: ["track-1"],
         cursor: 0,
         currentTrackId: "track-1",
@@ -2846,6 +2911,8 @@ describe("reference client", () => {
         id: "sonos-session",
         name: "Kitchen",
         hostDeviceId: "output:sonos:RINCON_KITCHEN",
+        repeat: RpcRepeatMode.Off,
+        shuffle: false,
         queue: ["existing-track"],
         output: { pluginId: "sonos", targetId: "RINCON_KITCHEN" },
       }),
@@ -3142,6 +3209,8 @@ describe("reference client", () => {
       session({
         id: "mine",
         hostDeviceId: "device-1",
+        repeat: RpcRepeatMode.Off,
+        shuffle: false,
         queue: ["track-1"],
         cursor: 0,
         currentTrackId: "track-1",
@@ -3207,6 +3276,8 @@ describe("reference client", () => {
         session({
           id: "mine",
           hostDeviceId: "device-1",
+          repeat: RpcRepeatMode.Off,
+          shuffle: false,
           queue: ["track-1"],
           cursor: 0,
           currentTrackId: "track-1",
@@ -3356,6 +3427,8 @@ describe("reference client", () => {
           id: "session-1",
           name: "Reference browser",
           hostDeviceId: "device-1",
+          repeat: RpcRepeatMode.Off,
+          shuffle: false,
           queue: [],
           transport: "stopped",
           positionMs: 0,

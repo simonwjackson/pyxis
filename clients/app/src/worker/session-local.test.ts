@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest"
-import { type RpcSession, RpcTransport } from "../../../../contracts/generated/pyxis"
+import { RpcRepeatMode, type RpcSession, RpcTransport } from "../../../../contracts/generated/pyxis"
 import { applySessionCommand } from "./session-local"
 
 function session(overrides: Partial<RpcSession> = {}): RpcSession {
@@ -7,6 +7,8 @@ function session(overrides: Partial<RpcSession> = {}): RpcSession {
     id: "session-1",
     name: "Browser",
     hostDeviceId: "device-1",
+    repeat: RpcRepeatMode.Off,
+    shuffle: false,
     queue: [],
     transport: RpcTransport.Stopped,
     positionMs: 0,
@@ -126,4 +128,56 @@ describe("a track running out", () => {
       ),
     ).toThrow()
   })
+})
+
+test("shuffle restores duplicate occurrences and edits without moving playback", () => {
+  let current = session({
+    queue: ["a", "b", "a", "c", "d"],
+    cursor: 2,
+    currentTrackId: "a",
+    transport: RpcTransport.Playing,
+    positionMs: 42000,
+    durationMs: 180000,
+  })
+  current = applySessionCommand(current, { _tag: "shuffle.set", payload: { enabled: true } })
+  expect(current.queueOrder?.[current.cursor ?? -1]).toBe(2)
+  current = applySessionCommand(current, { _tag: "queue.remove", payload: { index: 0 } })
+  current = applySessionCommand(current, { _tag: "queue.add", payload: { trackIds: ["a", "e"] } })
+  current = applySessionCommand(current, { _tag: "shuffle.set", payload: { enabled: false } })
+  expect(current.queue).toEqual(["b", "a", "c", "d", "a", "e"])
+  expect(current.cursor).toBe(1)
+  expect(current.positionMs).toBe(42000)
+  expect(current.durationMs).toBe(180000)
+})
+
+test("repeat modes distinguish natural completion from explicit skips", () => {
+  const initial = session({
+    queue: ["a", "b"],
+    cursor: 0,
+    currentTrackId: "a",
+    transport: RpcTransport.Playing,
+    positionMs: 4000,
+    repeat: RpcRepeatMode.One,
+  })
+  const one = applySessionCommand(initial, { _tag: "transport.trackEnded", payload: {} })
+  expect(one).toMatchObject({ cursor: 0, positionMs: 0, transport: RpcTransport.Playing })
+  const skipped = applySessionCommand(one, { _tag: "cursor.jump", payload: { index: 1 } })
+  expect(skipped).toMatchObject({ cursor: 1, currentTrackId: "b", repeat: RpcRepeatMode.One })
+  const all = applySessionCommand(
+    { ...initial, cursor: 1, currentTrackId: "b", repeat: RpcRepeatMode.All },
+    { _tag: "transport.trackEnded", payload: {} },
+  )
+  expect(all).toMatchObject({ cursor: 0, transport: RpcTransport.Playing })
+  const off = applySessionCommand(
+    { ...initial, cursor: 1, currentTrackId: "b", repeat: RpcRepeatMode.Off },
+    { _tag: "transport.trackEnded", payload: {} },
+  )
+  expect(off.transport).toBe(RpcTransport.Ended)
+})
+
+test("effective shuffle order matches the Rust wire vector", () => {
+  const current = session({ queue: ["a", "b", "a", "c", "d", "e"], cursor: 1, currentTrackId: "b" })
+  const shuffled = applySessionCommand(current, { _tag: "shuffle.set", payload: { enabled: true } })
+  expect(shuffled.queueOrder).toEqual([0, 1, 5, 3, 4, 2])
+  expect(shuffled.cursor).toBe(1)
 })

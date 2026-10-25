@@ -4,6 +4,7 @@
 /// under an idempotency key, then its returned session replaces this optimistic snapshot.
 
 import {
+  RpcRepeatMode,
   type RpcSession,
   type RpcSessionCommand,
   RpcTransport,
@@ -14,7 +15,29 @@ export function applySessionCommand(
   command: RpcSessionCommand,
   updatedAt = new Date().toISOString(),
 ): RpcSession {
+  session = normalizeSessionModes(session)
+  let repeat = session.repeat
+  let shuffle = session.shuffle
+  let order = [...(session.queueOrder ?? session.queue.map((_, index) => index))]
   let queue = [...session.queue]
+  validateOrder(queue, order)
+  const reorder = (enabled: boolean) => {
+    const current = cursor === undefined ? undefined : order[cursor]
+    const entries = queue.map((track, index) => ({ track, id: order[index] ?? index }))
+    const start = enabled ? (cursor === undefined ? 0 : cursor + 1) : 0
+    const seed = queueSeed(session.id)
+    const suffix = entries
+      .slice(start)
+      .sort((left, right) =>
+        enabled
+          ? queueRank(left.id ^ seed) - queueRank(right.id ^ seed) || left.id - right.id
+          : left.id - right.id,
+      )
+    const sorted = [...entries.slice(0, start), ...suffix]
+    queue = sorted.map((entry) => entry.track)
+    order = sorted.map((entry) => entry.id)
+    cursor = current === undefined ? undefined : order.indexOf(current)
+  }
   let cursor = session.cursor
   let transport = session.transport
   let positionMs = session.positionMs
@@ -22,15 +45,25 @@ export function applySessionCommand(
   let volume = session.volume
 
   switch (command._tag) {
-    case "queue.add":
-      queue.push(...command.payload.trackIds)
+    case "queue.add": {
+      const start =
+        order.length === 0 ? 0 : order.reduce((maximum, id) => Math.max(maximum, id), -1) + 1
+      if (start + command.payload.trackIds.length > 0xffff_ffff)
+        throw new Error("queue occurrence order exhausted")
+      for (const [index, track] of command.payload.trackIds.entries()) {
+        order.push(start + index)
+        queue.push(track)
+      }
       if (cursor === undefined && queue.length > 0) cursor = 0
+      if (shuffle) reorder(true)
       break
+    }
     case "queue.remove": {
       const { index } = command.payload
       if (index < 0 || index >= queue.length) throw new Error("queue index is outside the queue")
       const wasCurrent = cursor === index
       queue.splice(index, 1)
+      order.splice(index, 1)
       if (queue.length === 0) cursor = undefined
       else if (cursor !== undefined && index < cursor) cursor -= 1
       else if (cursor !== undefined && cursor >= queue.length) cursor = queue.length - 1
@@ -43,18 +76,21 @@ export function applySessionCommand(
     }
     case "queue.clear":
       queue = []
+      order = []
       cursor = undefined
       transport = RpcTransport.Stopped
       positionMs = 0
       durationMs = undefined
       break
-    case "queue.shuffle": {
-      // The core owns the final random order. Reverse the future suffix locally so the
-      // offline action is visible without moving the current track.
-      const start = cursor === undefined ? 0 : cursor + 1
-      queue = [...queue.slice(0, start), ...queue.slice(start).reverse()]
+    case "repeat.set":
+      repeat = command.payload.mode
       break
-    }
+    case "shuffle.set":
+      if (shuffle !== command.payload.enabled) {
+        reorder(command.payload.enabled)
+        shuffle = command.payload.enabled
+      }
+      break
     case "cursor.jump":
       if (command.payload.index < 0 || command.payload.index >= queue.length) {
         throw new Error("queue index is outside the queue")
@@ -92,7 +128,7 @@ export function applySessionCommand(
       break
     case "transport.trackEnded": {
       if (transport !== RpcTransport.Playing) throw new Error("cannot end unless playing")
-      // Mirrors `sessions::machine::track_ended` in the core, and must keep mirroring it.
+      // Mirrors the core session command application, including repeat policy.
       // Silence belongs at the end of a record, not between its tracks: the cursor moves
       // while the queue still has something on it, and only an exhausted queue ends.
       //
@@ -101,10 +137,13 @@ export function applySessionCommand(
       // every album after one song, whatever the core decides on reconnect.
       positionMs = 0
       const next = cursor === undefined ? undefined : cursor + 1
-      if (next !== undefined && next < queue.length) {
+      if (repeat === RpcRepeatMode.One) {
+        // Replaying this occurrence preserves its identity and duration.
+      } else if (next !== undefined && next < queue.length) {
         cursor = next
-        // A new track brings its own length; keeping the old one draws a progress bar
-        // against the wrong duration.
+        durationMs = undefined
+      } else if (repeat === RpcRepeatMode.All && queue.length > 0) {
+        cursor = 0
         durationMs = undefined
       } else {
         transport = RpcTransport.Ended
@@ -121,6 +160,8 @@ export function applySessionCommand(
       }
       volume = command.payload.volume
       break
+    default:
+      throw new Error("unsupported session command; pending intent must be retained")
   }
 
   const currentTrackId = cursor === undefined ? undefined : queue[cursor]
@@ -133,6 +174,9 @@ export function applySessionCommand(
   } = session
   return {
     ...required,
+    repeat,
+    shuffle,
+    queueOrder: order,
     queue,
     ...(cursor === undefined ? {} : { cursor }),
     ...(currentTrackId === undefined ? {} : { currentTrackId }),
@@ -144,4 +188,35 @@ export function applySessionCommand(
     revision: session.revision + 1,
     updatedAt,
   }
+}
+
+/// Only persisted current-rewrite sessions receive defaults. Network validators still
+/// require explicit modes, and a retired command is never converted into a mode command.
+export function normalizeSessionModes(session: RpcSession): RpcSession {
+  return {
+    ...session,
+    repeat: session.repeat ?? RpcRepeatMode.Off,
+    shuffle: session.shuffle ?? false,
+  }
+}
+
+function validateOrder(queue: readonly string[], order: readonly number[]): void {
+  if (
+    queue.length !== order.length ||
+    new Set(order).size !== order.length ||
+    order.some((id) => !Number.isSafeInteger(id) || id < 0 || id > 0xffff_ffff)
+  )
+    throw new Error("invalid queue occurrence order")
+}
+
+function queueSeed(id: string): number {
+  let seed = 2166136261
+  for (const character of id) seed = Math.imul(seed ^ character.charCodeAt(0), 16777619) >>> 0
+  return seed
+}
+
+function queueRank(value: number): number {
+  value = Math.imul(value ^ (value >>> 16), 0x7feb352d)
+  value = Math.imul(value ^ (value >>> 15), 0x846ca68b)
+  return (value ^ (value >>> 16)) >>> 0
 }

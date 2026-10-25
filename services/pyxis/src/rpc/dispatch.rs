@@ -273,7 +273,7 @@ pub fn dispatch(state: &AppState, request: RpcRequest, auth: Option<AuthContext>
                         }
                         if let Some(existing) = occupant {
                             return RpcResponse::OutputSessionCreate(
-                                OutputSessionCreateOutcome::Ready(rpc_session(existing)),
+                                OutputSessionCreateOutcome::Ready(Box::new(rpc_session(existing))),
                             );
                         }
                         let newly_claimed = match state
@@ -295,7 +295,7 @@ pub fn dispatch(state: &AppState, request: RpcRequest, auth: Option<AuthContext>
                                 let session = rpc_session(session);
                                 publish_session(state, &auth, &session);
                                 RpcResponse::OutputSessionCreate(OutputSessionCreateOutcome::Ready(
-                                    session,
+                                    Box::new(session),
                                 ))
                             }
                             Err(error) => {
@@ -427,7 +427,7 @@ pub fn dispatch(state: &AppState, request: RpcRequest, auth: Option<AuthContext>
                 Ok(session) => {
                     let session = rpc_session(session);
                     publish_session(state, &auth, &session);
-                    RpcResponse::SessionCreate(SessionCreateOutcome::Ready(session))
+                    RpcResponse::SessionCreate(SessionCreateOutcome::Ready(Box::new(session)))
                 }
                 Err(SessionError::NotDevice) => {
                     RpcResponse::SessionCreate(SessionCreateOutcome::NotDevice)
@@ -459,9 +459,9 @@ pub fn dispatch(state: &AppState, request: RpcRequest, auth: Option<AuthContext>
             };
             refresh_output_session(state, &auth, &request.session_id);
             match state.sessions.get(&auth, &request.session_id) {
-                Ok(Some(session)) => {
-                    RpcResponse::SessionStateGet(SessionStateOutcome::Ready(rpc_session(session)))
-                }
+                Ok(Some(session)) => RpcResponse::SessionStateGet(SessionStateOutcome::Ready(
+                    Box::new(rpc_session(session)),
+                )),
                 Ok(None) => RpcResponse::SessionStateGet(SessionStateOutcome::Unknown),
                 Err(error) => RpcResponse::SessionStateGet(SessionStateOutcome::Unavailable(
                     session_failure(error),
@@ -486,7 +486,9 @@ pub fn dispatch(state: &AppState, request: RpcRequest, auth: Option<AuthContext>
                 Ok(session) => {
                     let session = rpc_session(session);
                     publish_session(state, &auth, &session);
-                    RpcResponse::SessionCommandRun(SessionCommandOutcome::Applied(session))
+                    RpcResponse::SessionCommandRun(SessionCommandOutcome::Applied(Box::new(
+                        session,
+                    )))
                 }
                 Err(SessionError::UnknownSession) => {
                     RpcResponse::SessionCommandRun(SessionCommandOutcome::UnknownSession)
@@ -552,29 +554,33 @@ pub fn dispatch(state: &AppState, request: RpcRequest, auth: Option<AuthContext>
                     RpcResponse::SessionCommandSend(SessionCommandSendOutcome::Unreachable)
                 }
                 console::Route::ToHost { device_id } => {
+                    let mut expected_revision = session.as_ref().map(|session| session.revision);
                     if let Some(command_id) = request.command_id.as_deref() {
                         let fingerprint = serde_json::to_string(&request.command)
                             .expect("session command serializes");
-                        if let Err(error) = state.sessions.reserve_command(
+                        match state.sessions.reserve_command(
                             &auth,
                             &request.session_id,
                             command_id,
                             &fingerprint,
                         ) {
-                            let failure = match error {
-                                SessionError::CommandIdConflict => RpcFailure::permanent(
-                                    "session.commandIdConflict",
-                                    "commandId was already used for different command content",
-                                ),
-                                SessionError::InvalidCommandId => RpcFailure::permanent(
-                                    "session.invalidCommandId",
-                                    "commandId must contain 1 to 128 characters",
-                                ),
-                                other => session_failure(other),
-                            };
-                            return RpcResponse::SessionCommandSend(
-                                SessionCommandSendOutcome::Unavailable(failure),
-                            );
+                            Ok(revision) => expected_revision = Some(revision),
+                            Err(error) => {
+                                let failure = match error {
+                                    SessionError::CommandIdConflict => RpcFailure::permanent(
+                                        "session.commandIdConflict",
+                                        "commandId was already used for different command content",
+                                    ),
+                                    SessionError::InvalidCommandId => RpcFailure::permanent(
+                                        "session.invalidCommandId",
+                                        "commandId must contain 1 to 128 characters",
+                                    ),
+                                    other => session_failure(other),
+                                };
+                                return RpcResponse::SessionCommandSend(
+                                    SessionCommandSendOutcome::Unavailable(failure),
+                                );
+                            }
                         }
                     }
                     match state.realtime.deliver(
@@ -585,9 +591,8 @@ pub fn dispatch(state: &AppState, request: RpcRequest, auth: Option<AuthContext>
                             auth.principal_id(),
                             request.command_id.as_deref(),
                             if matches!(request.command, RpcSessionCommand::Seek(_)) {
-                                session.as_ref().map(|session| {
-                                    u32::try_from(session.revision).unwrap_or(u32::MAX)
-                                })
+                                expected_revision
+                                    .map(|revision| u32::try_from(revision).unwrap_or(u32::MAX))
                             } else {
                                 None
                             },
@@ -642,7 +647,7 @@ pub fn dispatch(state: &AppState, request: RpcRequest, auth: Option<AuthContext>
                     let target = rpc_session(target);
                     publish_session(state, &auth, &source);
                     publish_session(state, &auth, &target);
-                    RpcResponse::SessionHandoff(SessionHandoffOutcome::Ready(target))
+                    RpcResponse::SessionHandoff(SessionHandoffOutcome::Ready(Box::new(target)))
                 }
                 Err(SessionError::UnknownSession) => {
                     RpcResponse::SessionHandoff(SessionHandoffOutcome::UnknownSession)
@@ -1751,7 +1756,22 @@ fn refresh_one_output_session_locked(
                             |(position, duration)| position.saturating_add(2_000) >= duration,
                         ) =>
                 {
-                    (Transport::Ended, physical.position_ms, physical.duration_ms)
+                    let request = SessionCommandRequest {
+                        session_id: session.id.clone(),
+                        command_id: Some(format!("track-ended-{}", session.revision)),
+                        command: RpcSessionCommand::TrackEnded(EmptyRequest {}),
+                    };
+                    let result = dispatch_output_command_locked(state, auth, &request);
+                    if !matches!(
+                        result,
+                        RpcResponse::SessionCommandSend(SessionCommandSendOutcome::Dispatched)
+                    ) {
+                        state
+                            .sessions
+                            .set_output_reachable(&auth.account_id, output, false);
+                        publish_output_session(state, auth, &session.id);
+                    }
+                    return;
                 }
                 "STOPPED" => (Transport::Stopped, Some(0), physical.duration_ms),
                 _ => return,
@@ -2015,6 +2035,13 @@ pub(crate) fn rpc_session(session: Session) -> RpcSession {
     let current_track_id = session.current_track_id().map(str::to_string);
     let stream_path = session.stream_path();
     RpcSession {
+        repeat: match session.repeat {
+            crate::sessions::Repeat::Off => crate::rpc::contract::RpcRepeatMode::Off,
+            crate::sessions::Repeat::All => crate::rpc::contract::RpcRepeatMode::All,
+            crate::sessions::Repeat::One => crate::rpc::contract::RpcRepeatMode::One,
+        },
+        shuffle: session.shuffle,
+        queue_order: Some(session.queue_order.clone()),
         id: session.id,
         name: session.name,
         host_device_id: session.host_device_id,
@@ -2081,7 +2108,16 @@ fn domain_command(command: RpcSessionCommand) -> DomainSessionCommand {
             index: usize::try_from(command.index).unwrap_or(usize::MAX),
         },
         RpcSessionCommand::QueueClear(_) => DomainSessionCommand::QueueClear,
-        RpcSessionCommand::QueueShuffle(_) => DomainSessionCommand::QueueShuffle,
+        RpcSessionCommand::RepeatSet(command) => DomainSessionCommand::RepeatSet {
+            mode: match command.mode {
+                crate::rpc::contract::RpcRepeatMode::Off => crate::sessions::Repeat::Off,
+                crate::rpc::contract::RpcRepeatMode::All => crate::sessions::Repeat::All,
+                crate::rpc::contract::RpcRepeatMode::One => crate::sessions::Repeat::One,
+            },
+        },
+        RpcSessionCommand::ShuffleSet(command) => DomainSessionCommand::ShuffleSet {
+            enabled: command.enabled,
+        },
         RpcSessionCommand::CursorJump(command) => DomainSessionCommand::CursorJump {
             index: usize::try_from(command.index).unwrap_or(usize::MAX),
         },

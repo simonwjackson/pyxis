@@ -1,3 +1,4 @@
+import { RPC_CONTRACT_ID, RpcRepeatMode } from "../../../../contracts/generated/pyxis"
 /// Tests for the realtime socket.
 ///
 /// The fake below is a MIRROR of the core, not an invention. Every behaviour it has was read
@@ -28,6 +29,8 @@ const session = (patch: Partial<RpcSession> = {}): RpcSession => ({
   id: "session-1",
   name: "Here",
   hostDeviceId: "device-1",
+  repeat: RpcRepeatMode.Off,
+  shuffle: false,
   queue: ["track-1"],
   cursor: 0,
   currentTrackId: "track-1",
@@ -91,7 +94,7 @@ class FakeSocket implements RealtimeSocket {
       _tag: "realtime.welcome",
       payload: {
         accountId: "account-1",
-        contractId: "contract-1",
+        contractId: RPC_CONTRACT_ID,
         topics: [RpcRealtimeTopic.Sessions],
         resumeToken,
         resumed: first.payload.resumeToken !== undefined,
@@ -180,7 +183,11 @@ test("the first frame is hello, carrying the credential and the topics", () => {
 
   expect(rig.sockets[0]?.hello()).toEqual({
     _tag: "realtime.hello",
-    payload: { bearerToken: "token-abc", topics: [RpcRealtimeTopic.Sessions] },
+    payload: {
+      contractId: RPC_CONTRACT_ID,
+      bearerToken: "token-abc",
+      topics: [RpcRealtimeTopic.Sessions],
+    },
   })
   // Absent, not undefined: the core rejects unknown fields, and a first connection has no
   // cursor to resume from.
@@ -367,4 +374,26 @@ test("the socket url follows the page's scheme", () => {
   // rather than fixed.
   expect(realtimeUrlFrom("https://pyxis.example.net")).toBe("wss://pyxis.example.net/realtime")
   expect(realtimeUrlFrom("http://127.0.0.1:4488")).toBe("ws://127.0.0.1:4488/realtime")
+})
+
+test("an incompatible welcome refuses playback authority and does not reconnect", () => {
+  const rig = harness()
+  rig.sockets[0]?.accept()
+  rig.sockets[0]?.deliver({
+    _tag: "realtime.welcome",
+    payload: {
+      contractId: "pyxis-rpc-v2",
+      resumeToken: "old",
+      accountId: "account-1",
+      topics: [],
+      resumed: false,
+      missedEventsDropped: false,
+    },
+  })
+  expect(rig.ready).toEqual([])
+  expect(rig.refusals[0]).toContain("contract.mismatch")
+  expect(rig.sockets[0]?.closed).toBe(true)
+  rig.flush()
+  expect(rig.sockets).toHaveLength(1)
+  rig.dispose()
 })

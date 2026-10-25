@@ -25,9 +25,9 @@ use crate::plugins::protocol::{
     PluginRequestEnvelope, PluginResponseEnvelope, PluginValue, StationSeedKind,
 };
 
-/// Wire identity. v2 shares no protocol lineage with v1, and a client that speaks the v1
-/// protocol must fail rather than half-work.
-pub const CONTRACT_ID: &str = "pyxis-rpc-v2";
+/// Wire identity, not a rewrite number. Incompatible clients fail closed before writes.
+/// Persisted current-rewrite sessions default new mode fields; v1 formats are never read.
+pub const CONTRACT_ID: &str = "pyxis-rpc-v3";
 
 /// Uniform failure envelope.
 ///
@@ -286,7 +286,7 @@ pub enum OutputTargetsListOutcome {
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
 #[serde(tag = "status", content = "value", rename_all = "camelCase")]
 pub enum OutputSessionCreateOutcome {
-    Ready(RpcSession),
+    Ready(Box<RpcSession>),
     UnknownTarget,
     Unavailable(RpcFailure),
 }
@@ -646,8 +646,37 @@ pub struct RpcOutputTopology {
 
 #[typeshare]
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub enum RpcRepeatMode {
+    Off,
+    All,
+    One,
+}
+
+#[typeshare]
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct RepeatSetCommand {
+    pub mode: RpcRepeatMode,
+}
+
+#[typeshare]
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct ShuffleSetCommand {
+    pub enabled: bool,
+}
+
+#[typeshare]
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct RpcSession {
+    pub repeat: RpcRepeatMode,
+    pub shuffle: bool,
+    /// Occurrence ordinals in effective queue order. Ascending order restores the original
+    /// queue, even when the same track occurs more than once. Absent implies 0..queue.len.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub queue_order: Option<Vec<u32>>,
     pub id: String,
     pub name: String,
     pub host_device_id: String,
@@ -763,8 +792,10 @@ pub enum RpcSessionCommand {
     QueueRemove(QueueRemoveCommand),
     #[serde(rename = "queue.clear")]
     QueueClear(EmptyRequest),
-    #[serde(rename = "queue.shuffle")]
-    QueueShuffle(EmptyRequest),
+    #[serde(rename = "repeat.set")]
+    RepeatSet(RepeatSetCommand),
+    #[serde(rename = "shuffle.set")]
+    ShuffleSet(ShuffleSetCommand),
     #[serde(rename = "cursor.jump")]
     CursorJump(CursorJumpCommand),
     #[serde(rename = "transport.seek")]
@@ -858,7 +889,7 @@ pub enum SessionCommandSendOutcome {
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
 #[serde(tag = "status", content = "value", rename_all = "camelCase")]
 pub enum SessionHandoffOutcome {
-    Ready(RpcSession),
+    Ready(Box<RpcSession>),
     UnknownSession,
     UnknownTarget,
     /// The source host is not connected, so it cannot be told to stop. Its audio may still
@@ -878,7 +909,7 @@ pub enum SessionHandoffOutcome {
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
 #[serde(tag = "status", content = "value", rename_all = "camelCase")]
 pub enum SessionCreateOutcome {
-    Ready(RpcSession),
+    Ready(Box<RpcSession>),
     NotDevice,
     Unavailable(RpcFailure),
 }
@@ -895,7 +926,7 @@ pub enum SessionListOutcome {
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
 #[serde(tag = "status", content = "value", rename_all = "camelCase")]
 pub enum SessionStateOutcome {
-    Ready(RpcSession),
+    Ready(Box<RpcSession>),
     Unknown,
     Unavailable(RpcFailure),
 }
@@ -904,7 +935,7 @@ pub enum SessionStateOutcome {
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
 #[serde(tag = "status", content = "value", rename_all = "camelCase")]
 pub enum SessionCommandOutcome {
-    Applied(RpcSession),
+    Applied(Box<RpcSession>),
     UnknownSession,
     NotHost,
     NotDevice,
@@ -1478,6 +1509,8 @@ impl RpcRealtimeTopic {
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct RealtimeHello {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub contract_id: Option<String>,
     pub bearer_token: String,
     pub topics: Vec<RpcRealtimeTopic>,
     /// Opaque cursor from a previous `welcome` or `event`. Absent on a first connection.
@@ -1998,7 +2031,7 @@ mod tests {
 
     #[test]
     fn contract_id_declares_v2_and_shares_no_lineage_with_v1() {
-        assert_eq!(CONTRACT_ID, "pyxis-rpc-v2");
+        assert_eq!(CONTRACT_ID, "pyxis-rpc-v3");
     }
 
     #[test]

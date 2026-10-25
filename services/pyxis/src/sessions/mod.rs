@@ -21,7 +21,7 @@ use crate::accounts::{AuthContext, Principal};
 use crate::db::schema;
 use crate::db::store::{Store, StoreError};
 
-pub use machine::Transport;
+pub use machine::{Repeat, Transport};
 
 use machine::MachineError;
 use queue::QueueError;
@@ -78,6 +78,9 @@ impl OutputBinding {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Session {
+    pub repeat: Repeat,
+    pub shuffle: bool,
+    pub queue_order: Vec<u32>,
     pub id: String,
     pub name: String,
     pub host_device_id: String,
@@ -115,7 +118,12 @@ pub enum SessionCommand {
         index: usize,
     },
     QueueClear,
-    QueueShuffle,
+    RepeatSet {
+        mode: Repeat,
+    },
+    ShuffleSet {
+        enabled: bool,
+    },
     CursorJump {
         index: usize,
     },
@@ -154,6 +162,12 @@ pub struct OutputConfirmation {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct SessionRecord {
+    #[serde(default)]
+    repeat: Repeat,
+    #[serde(default)]
+    shuffle: bool,
+    #[serde(default)]
+    queue_order: Vec<u32>,
     id: String,
     account_id: String,
     name: String,
@@ -176,6 +190,8 @@ struct SessionRecord {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct CommandReceiptRecord {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    expected_revision: Option<u64>,
     id: String,
     account_id: String,
     session_id: String,
@@ -195,6 +211,13 @@ struct AccountIdentity {
 impl SessionRecord {
     fn playback(&self) -> handoff::Playback {
         handoff::Playback {
+            repeat: self.repeat,
+            shuffle: self.shuffle,
+            queue_order: if self.queue_order.is_empty() {
+                (0..self.queue.len() as u32).collect()
+            } else {
+                self.queue_order.clone()
+            },
             queue: self.queue.clone(),
             cursor: self.cursor,
             position_ms: self.position_ms,
@@ -204,6 +227,9 @@ impl SessionRecord {
     }
 
     fn apply(&mut self, playback: handoff::Playback, actor: &str) {
+        self.repeat = playback.repeat;
+        self.shuffle = playback.shuffle;
+        self.queue_order = playback.queue_order;
         self.queue = playback.queue;
         self.cursor = playback.cursor;
         self.position_ms = playback.position_ms;
@@ -258,6 +284,9 @@ impl Sessions {
         let _guard = self.mutation.lock().expect("session mutation poisoned");
         let timestamp = now();
         let record = SessionRecord {
+            repeat: Repeat::Off,
+            shuffle: false,
+            queue_order: Vec::new(),
             id: Ulid::new().to_string(),
             account_id: String::new(),
             name: name.to_string(),
@@ -369,16 +398,13 @@ impl Sessions {
         session_id: &str,
         command_id: &str,
         fingerprint: &str,
-    ) -> Result<(), SessionError> {
+    ) -> Result<u64, SessionError> {
         validate_command_id(command_id)?;
         let _guard = self.mutation.lock().expect("session mutation poisoned");
-        if self
+        let record = self
             .store
             .get::<SessionRecord>(schema::SESSIONS, &auth.account_id, session_id)?
-            .is_none()
-        {
-            return Err(SessionError::UnknownSession);
-        }
+            .ok_or(SessionError::UnknownSession)?;
         let receipt_id = command_receipt_id(session_id, command_id);
         if let Some(existing) = self.store.get::<CommandReceiptRecord>(
             schema::SESSION_COMMAND_RECEIPTS,
@@ -386,13 +412,14 @@ impl Sessions {
             &receipt_id,
         )? {
             return if existing.fingerprint == fingerprint {
-                Ok(())
+                Ok(existing.expected_revision.unwrap_or(record.revision))
             } else {
                 Err(SessionError::CommandIdConflict)
             };
         }
         let timestamp = now();
         let receipt = CommandReceiptRecord {
+            expected_revision: Some(record.revision),
             id: receipt_id,
             account_id: String::new(),
             session_id: session_id.to_string(),
@@ -409,7 +436,7 @@ impl Sessions {
             &receipt.id,
             &receipt,
         )?;
-        Ok(())
+        Ok(record.revision)
     }
 
     pub fn command(
@@ -451,8 +478,17 @@ impl Sessions {
                     return Err(SessionError::CommandIdConflict)
                 }
                 Some(existing) if existing.applied => return Ok(self.session(record)),
+                Some(existing)
+                    if matches!(command, SessionCommand::Seek { .. })
+                        && existing
+                            .expected_revision
+                            .is_some_and(|revision| revision != record.revision) =>
+                {
+                    return Err(MachineError::StaleSeek.into())
+                }
                 Some(existing) => Some(existing),
                 None => Some(CommandReceiptRecord {
+                    expected_revision: None,
                     id: receipt_id,
                     account_id: String::new(),
                     session_id: session_id.to_string(),
@@ -532,6 +568,7 @@ impl Sessions {
             Some(_) => {}
             None => {
                 let receipt = CommandReceiptRecord {
+                    expected_revision: None,
                     id: receipt_id,
                     account_id: String::new(),
                     session_id: session_id.to_string(),
@@ -838,6 +875,13 @@ impl Sessions {
             .contains_key(&record.host_device_id);
         let output = output_binding(&record);
         Session {
+            repeat: record.repeat,
+            shuffle: record.shuffle,
+            queue_order: if record.queue_order.is_empty() {
+                (0..record.queue.len() as u32).collect()
+            } else {
+                record.queue_order
+            },
             id: record.id,
             name: record.name,
             host_device_id: record.host_device_id,
@@ -856,22 +900,61 @@ impl Sessions {
 }
 
 fn apply_command(record: &mut SessionRecord, command: &SessionCommand) -> Result<(), SessionError> {
+    // Current rewrite records predate modes. Their existing effective queue is original order.
+    if record.queue_order.is_empty() && !record.queue.is_empty() {
+        record.queue_order = (0..record.queue.len() as u32).collect();
+    }
+    queue::validate_order(&record.queue, &record.queue_order)?;
     match command {
         SessionCommand::QueueAdd { track_ids } => {
+            let start = record
+                .queue_order
+                .iter()
+                .max()
+                .map_or(Some(0), |id| id.checked_add(1))
+                .ok_or(QueueError::InvalidOrder)?;
+            let end = start
+                .checked_add(u32::try_from(track_ids.len()).map_err(|_| QueueError::InvalidOrder)?)
+                .ok_or(QueueError::InvalidOrder)?;
+            record.queue_order.extend(start..end);
             queue::add(&mut record.queue, &mut record.cursor, track_ids.clone());
+            if record.shuffle {
+                queue::reorder(
+                    &mut record.queue,
+                    &mut record.queue_order,
+                    &mut record.cursor,
+                    true,
+                    queue::seed(&record.id),
+                )?;
+            }
         }
         SessionCommand::QueueRemove { index } => {
-            if queue::remove(&mut record.queue, &mut record.cursor, *index)? {
+            let removed_current = queue::remove(&mut record.queue, &mut record.cursor, *index)?;
+            record.queue_order.remove(*index);
+            if removed_current {
                 machine::stop(&mut record.transport, &mut record.position_ms);
                 record.duration_ms = None;
             }
         }
         SessionCommand::QueueClear => {
             queue::clear(&mut record.queue, &mut record.cursor);
+            record.queue_order.clear();
             machine::stop(&mut record.transport, &mut record.position_ms);
             record.duration_ms = None;
         }
-        SessionCommand::QueueShuffle => queue::shuffle(&mut record.queue, record.cursor),
+        SessionCommand::RepeatSet { mode } => record.repeat = *mode,
+        SessionCommand::ShuffleSet { enabled } => {
+            if record.shuffle != *enabled {
+                queue::reorder(
+                    &mut record.queue,
+                    &mut record.queue_order,
+                    &mut record.cursor,
+                    *enabled,
+                    queue::seed(&record.id),
+                )?;
+                record.shuffle = *enabled;
+            }
+        }
         SessionCommand::CursorJump { index } => {
             queue::jump(&record.queue, &mut record.cursor, *index)?;
             machine::stop(&mut record.transport, &mut record.position_ms);
@@ -898,15 +981,26 @@ fn apply_command(record: &mut SessionRecord, command: &SessionCommand) -> Result
         SessionCommand::Pause => machine::pause(&mut record.transport)?,
         SessionCommand::Stop => machine::stop(&mut record.transport, &mut record.position_ms),
         SessionCommand::TrackEnded => {
-            // A new track brings its own length, and keeping the old one would let a client
-            // draw a progress bar against the wrong duration.
-            if machine::track_ended(
+            if record.repeat == Repeat::One {
+                if record.transport != Transport::Playing {
+                    return Err(machine::MachineError::InvalidTransition {
+                        action: "end track",
+                        transport: record.transport,
+                    }
+                    .into());
+                }
+                record.position_ms = 0;
+            } else if machine::track_ended(
                 &mut record.transport,
                 &mut record.position_ms,
                 &mut record.cursor,
                 record.queue.len(),
             )? == machine::TrackEnd::Advanced
             {
+                record.duration_ms = None;
+            } else if record.repeat == Repeat::All && !record.queue.is_empty() {
+                record.cursor = Some(0);
+                record.transport = Transport::Playing;
                 record.duration_ms = None;
             }
         }

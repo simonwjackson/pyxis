@@ -2,6 +2,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-libra
 import { afterEach, expect, test, vi } from "vitest"
 import {
   type ListenTrackEventInput,
+  RpcRepeatMode,
   type RpcSession,
   type RpcSessionCommand,
   type RpcSessionDirective,
@@ -19,6 +20,8 @@ const session = (patch: Partial<RpcSession> = {}): RpcSession => ({
   id: "session-1",
   name: "Here",
   hostDeviceId: "device-1",
+  repeat: RpcRepeatMode.Off,
+  shuffle: false,
   queue: ["track-1", "track-2"],
   cursor: 0,
   currentTrackId: "track-1",
@@ -487,6 +490,8 @@ test("a session hosted by another device is not taken", async () => {
   const elsewhere = session({
     id: "session-2",
     hostDeviceId: "device-2",
+    repeat: RpcRepeatMode.Off,
+    shuffle: false,
     currentTrackId: "track-9",
     queue: ["track-9"],
   })
@@ -612,6 +617,8 @@ test("another session on this same device cannot take the speakers", async () =>
   const sibling = session({
     id: "session-7",
     hostDeviceId: "device-1",
+    repeat: RpcRepeatMode.Off,
+    shuffle: false,
     currentTrackId: "track-9",
     queue: ["track-9"],
   })
@@ -787,4 +794,20 @@ test("product seeking records the shared confirmed seek intent, not a fabricated
   )
   expect(audio.currentTime).toBe(5)
   expect(source.commands.some((command) => command._tag === "position.report")).toBe(false)
+})
+
+test.each([
+  { mode: RpcRepeatMode.One, cursor: 0, track: "track-1", next: 1 },
+  { mode: RpcRepeatMode.All, cursor: 1, track: "track-2", next: 0 },
+])("explicit next is not trapped by $mode", async ({ mode, cursor, track, next }) => {
+  const source = harness(session({ repeat: mode, cursor, currentTrackId: track }))
+  const { result } = renderHook(() => usePlayback(source.edge, { deviceId: "device-1" }))
+  await waitFor(() => expect(source.loads).toEqual([track]))
+  act(() => result.current.next())
+  await waitFor(() =>
+    expect(source.commands).toContainEqual({ _tag: "cursor.jump", payload: { index: next } }),
+  )
+  await waitFor(() =>
+    expect(source.commands.some((command) => command._tag === "transport.play")).toBe(true),
+  )
 })

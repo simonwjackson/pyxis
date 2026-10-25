@@ -1,11 +1,13 @@
 import { describe, expect, test, vi } from "vitest"
-import { RpcPlacement, RpcTransport } from "../../../../contracts/generated/pyxis"
+import { RpcPlacement, RpcRepeatMode, RpcTransport } from "../../../../contracts/generated/pyxis"
 import { createWorkerRpc } from "./client"
 
 const SESSION = {
   id: "session-1",
   name: "Browser",
   hostDeviceId: "device-1",
+  repeat: RpcRepeatMode.Off,
+  shuffle: false,
   queue: ["track-1"],
   cursor: 0,
   currentTrackId: "track-1",

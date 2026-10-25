@@ -1,3 +1,4 @@
+import { RpcRepeatMode } from "../../../../contracts/generated/pyxis"
 /// The adapter, against the real engine.
 ///
 /// This is the test that was missing. Every other worker test runs on the in-memory fake,
@@ -130,6 +131,8 @@ describe("the real ProseQL engine", () => {
         id: "session-1",
         name: "Browser",
         hostDeviceId: "device-1",
+        repeat: RpcRepeatMode.Off,
+        shuffle: false,
         queue: [],
         transport: RpcTransport.Stopped,
         positionMs: 0,
@@ -235,6 +238,8 @@ describe("the real ProseQL engine", () => {
       id: "session-1",
       name: "Browser",
       hostDeviceId: "device-1",
+      repeat: RpcRepeatMode.Off,
+      shuffle: false,
       queue: [],
       transport: RpcTransport.Stopped,
       positionMs: 0,
@@ -547,6 +552,8 @@ describe("the real ProseQL engine", () => {
       id: "session-1",
       name: "Browser",
       hostDeviceId: "device-1",
+      repeat: RpcRepeatMode.Off,
+      shuffle: false,
       queue: [],
       transport: RpcTransport.Stopped,
       positionMs: 0,
@@ -641,6 +648,8 @@ describe("the real ProseQL engine", () => {
       id: "session-1",
       name: "Browser",
       hostDeviceId: "device-1",
+      repeat: RpcRepeatMode.Off,
+      shuffle: false,
       queue: [] as string[],
       transport: RpcTransport.Stopped,
       positionMs: 0,
@@ -695,6 +704,8 @@ describe("the real ProseQL engine", () => {
       id: "session-1",
       name: "Browser",
       hostDeviceId: "device-1",
+      repeat: RpcRepeatMode.Off,
+      shuffle: false,
       queue: [],
       transport: RpcTransport.Stopped,
       positionMs: 0,
@@ -854,6 +865,8 @@ describe("the real ProseQL engine", () => {
       id: "session-1",
       name: "Browser",
       hostDeviceId: "device-1",
+      repeat: RpcRepeatMode.Off,
+      shuffle: false,
       transport: RpcTransport.Stopped,
       positionMs: 0,
       volume: 100,
@@ -883,6 +896,8 @@ describe("the real ProseQL engine", () => {
       id: "session-1",
       name: "Browser",
       hostDeviceId: "device-1",
+      repeat: RpcRepeatMode.Off,
+      shuffle: false,
       transport: RpcTransport.Stopped,
       positionMs: 0,
       volume: 100,
@@ -921,6 +936,8 @@ describe("the real ProseQL engine", () => {
       id: "session-1",
       name: "Browser",
       hostDeviceId: "device-1",
+      repeat: RpcRepeatMode.Off,
+      shuffle: false,
       queue: [],
       transport: RpcTransport.Stopped,
       positionMs: 0,
@@ -976,5 +993,101 @@ test("tags survive a real persisted album snapshot and placement acknowledgement
   await first.close()
   const reopened = await open(cells)
   expect((await reopened.albums())[0]?.tags).toEqual(["favorite"])
+  await reopened.close()
+})
+
+test("current-v2 session defaults and retired pending intent survive real-WASM reopen", async () => {
+  const cells = new Map<string, string>()
+  const first = await open(cells)
+  const existing = JSON.parse(
+    JSON.stringify({
+      id: "v2-session",
+      name: "Existing",
+      hostDeviceId: "device-1",
+      queue: ["a", "a", "b"],
+      cursor: 1,
+      currentTrackId: "a",
+      transport: "paused",
+      positionMs: 42000,
+      volume: 50,
+      revision: 7,
+      updatedAt: "now",
+      reachable: false,
+    }),
+  )
+  await first.putSession(existing)
+  const pending = JSON.parse(
+    JSON.stringify({
+      id: "old",
+      commandId: "old",
+      createdAt: "now",
+      attempts: 0,
+      kind: "session.command",
+      sessionId: "v2-session",
+      baseRevision: 7,
+      command: { _tag: "queue.shuffle", payload: {} },
+    }),
+  )
+  await first.enqueue(pending)
+  await first.close()
+  const reopened = await open(cells)
+  expect(await reopened.session("v2-session")).toMatchObject({
+    repeat: RpcRepeatMode.Off,
+    shuffle: false,
+    queue: ["a", "a", "b"],
+    cursor: 1,
+    positionMs: 42000,
+  })
+  expect(await reopened.outbox()).toEqual([pending])
+  await reopened.close()
+})
+
+test("current-v2 interrupted receipts do not duplicate queue additions after defaults and reopen", async () => {
+  const cells = new Map<string, string>()
+  const first = await open(cells)
+  const raw = JSON.parse(
+    JSON.stringify({
+      id: "v2-add",
+      name: "Existing",
+      hostDeviceId: "device-1",
+      queue: ["a", "b"],
+      cursor: 0,
+      currentTrackId: "a",
+      streamPath: "/stream/a",
+      transport: "stopped",
+      positionMs: 0,
+      volume: 50,
+      revision: 2,
+      updatedAt: "now",
+      reachable: false,
+    }),
+  )
+  const command = { _tag: "queue.add", payload: { trackIds: ["b"] } } as const
+  await first.putSession(raw)
+  await first.enqueue({
+    id: "interrupted-add",
+    commandId: "interrupted-add",
+    createdAt: "now",
+    attempts: 0,
+    kind: "session.command",
+    sessionId: "v2-add",
+    baseRevision: 1,
+    resultFingerprint: JSON.stringify(
+      raw,
+      Object.keys(raw).sort((left, right) => left.localeCompare(right)),
+    ),
+    command: { ...command, payload: { trackIds: [...command.payload.trackIds] } },
+  })
+  await first.close()
+  const reopened = await open(cells)
+  const intent = { _tag: "queue.add", payload: { trackIds: ["b"] } } as const
+  const publicCommand = { ...intent, payload: { trackIds: [...intent.payload.trackIds] } }
+  expect(
+    (await reopened.previewSessionCommand("v2-add", publicCommand, "interrupted-add")).replayed,
+  ).toBe(true)
+  const current = await reopened.session("v2-add")
+  if (current === undefined) throw new Error("session missing")
+  const repaired = await reopened.queueSessionCommand(current, publicCommand, "interrupted-add")
+  expect(repaired.queue).toEqual(["a", "b"])
   await reopened.close()
 })

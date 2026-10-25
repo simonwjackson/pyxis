@@ -1,4 +1,4 @@
-import { type RpcSession, RpcTransport } from "../../../contracts/generated/pyxis"
+import { RpcRepeatMode, type RpcSession, RpcTransport } from "../../../contracts/generated/pyxis"
 import type { WorkerRpc } from "../../app/src/rpc/client"
 import { accountFencedDatabase } from "../../app/src/worker/account-fenced-database"
 import { createDirectWorkerClient } from "../../app/src/worker/client"
@@ -10,6 +10,8 @@ export const initialSession = (): RpcSession => ({
   id: "selected",
   name: "Phone",
   hostDeviceId: "phone",
+  repeat: RpcRepeatMode.Off,
+  shuffle: false,
   queue: [],
   transport: RpcTransport.Stopped,
   positionMs: 0,

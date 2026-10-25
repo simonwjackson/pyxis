@@ -11,6 +11,15 @@ pub enum Transport {
     Ended,
 }
 
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum Repeat {
+    #[default]
+    Off,
+    All,
+    One,
+}
+
 #[derive(Debug, thiserror::Error, PartialEq, Eq)]
 pub enum MachineError {
     #[error("cannot play an empty queue")]
@@ -19,6 +28,8 @@ pub enum MachineError {
         "seek requires a known track, a positive duration and a position within that duration"
     )]
     InvalidSeek,
+    #[error("session changed since this seek command was reserved")]
+    StaleSeek,
     #[error("cannot {action} while transport is {transport:?}")]
     InvalidTransition {
         action: &'static str,
