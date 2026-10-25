@@ -17,10 +17,5 @@
     "allowImportingTsExtensions": true,
     "types": ["bun"]
   },
-  "include": [
-    "contracts/generated/**/*.ts",
-    "packages/**/*.ts",
-    "plugins/**/*.ts",
-    "clients/**/*.ts"
-  ]
+  "include": ["contracts/**/*.ts", "packages/**/*.ts", "plugins/**/*.ts", "clients/**/*.ts"]
 }

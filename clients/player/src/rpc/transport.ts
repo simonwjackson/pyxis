@@ -23,7 +23,7 @@ import type {
   RpcSession,
   RpcSessionCommand,
 } from "../../../../contracts/generated/pyxis"
-import { assertRpcRequest, assertRpcResponse } from "../../../app/src/rpc/validation"
+import { assertRpcRequest, assertRpcResponse } from "../../../../contracts/validation"
 
 export interface RpcTransportConfig {
   /// The composition root passes the platform's `fetch`. A test passes a function.

@@ -28,6 +28,15 @@ so a malformed or unrecognised payload is rejected instead of half-parsed. The s
 worker cannot load the page's validator bundle, so it re-validates the handful of shapes
 it consumes by hand, against this same schema as the reference.
 
+## Shared page validation
+
+`contracts/validation.ts` exposes pure `assertRpcRequest` and `assertRpcResponse` functions
+for both web clients. It compiles the generated JSON Schema and has no transport, storage,
+worker or view dependencies. Keep it outside either client's RPC/state-edge namespace.
+The root package owns its pinned Ajv runtime dependency, and the root TypeScript gate checks
+all contract source files. Neither client keeps a second validator or a re-export shim.
+Worker validation remains at its separate documented worker boundary.
+
 ## Wire conventions
 
 - Request: `{ "_tag": "entity.concept.action", "payload": { ... } }`

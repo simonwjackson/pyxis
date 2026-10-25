@@ -187,3 +187,11 @@ describe("sessions", () => {
     )
   })
 })
+
+it("rejects malformed session modes through the shared generated-schema validator", async () => {
+  const { rpc } = transportWith({
+    _tag: "session.list",
+    outcome: { status: "ready", value: [{ ...session(), repeat: "forever" }] },
+  })
+  await expect(rpc.listSessions("token")).rejects.toThrow("Invalid RPC response")
+})

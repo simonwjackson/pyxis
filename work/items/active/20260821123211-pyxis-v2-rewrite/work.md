@@ -27,8 +27,14 @@ requirements and decisions were captured directly into `plan.md` sections
 assertion failure. The fixture now distinguishes a seekable output from an empty output;
 effective fieldset disabling and all mode/seek controls are checked. A reproduced zero-duration
 seek affordance is also corrected. Focused regression/control tests and static checks pass.
-The separate pure-validator import boundary is the next repair. The parent owns the final
-combined rerun; no full verification or live mutation is performed per repair.
+The separate pure-validator import failure is also repaired without changing the architecture
+gate: `contracts/validation.ts` is a shared pure contract module, and the root package owns
+its existing pinned Ajv dependency. Both clients use it directly. Lock/closure metadata and
+contract typechecking are updated. Malformed mode responses still reject. Selected app tests
+pass 23/23; product transport tests pass 12/12; architecture meta-tests pass 12/12 and both
+architecture audits are clean. Related typechecks and owned Biome pass. The parent owns the
+final combined rerun, including the reference build not reached previously. No full
+verification or live/source operation is performed per repair.
 
 **Approved Pyxamp support, workflow 8145e018.** M11 extends this rewrite with U34–U37.
 U34 implements account-owned playlist append, durable content-bound receipts and a minimal

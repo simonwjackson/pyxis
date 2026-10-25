@@ -89,3 +89,25 @@ at natural end with zero forbidden network requests. A fresh isolated HTTP proce
 v3, zero plugins, 10 groups, one tagged album, two duplicate playlist tracks and a 5000 ms seek.
 The parent runs `just verify` and the separate
 product tests, typecheck and gates once on the completed branch. No flake-wide check is used.
+
+## Parent build-gate repairs
+
+The parent run on `6548f50` reached 356 passing app cases and one output-control failure.
+The fixture lacked a seekable current track/duration, while the older assertion expected
+all reachable controls to be enabled. It also inspected each button's own disabled property,
+not effective disabling inherited from a fieldset. The revised regression keeps stable-row
+and no-command assertions, supplies a seekable Kitchen and an empty Living Room, and checks
+effective disabling for all mode/seek controls. Five focused capability cases cover known,
+missing and zero durations, missing tracks, and unreachable hosts. The zero-duration case
+exposed and corrected a real enabled-Seek gap. Seven selected tests and static checks pass.
+
+The player run passed 278 unit cases and 12 architecture meta-tests, then the architecture
+audit rejected the new transport import from `app/src/rpc/validation`. The same unchanged
+checker accepts that file at base `a3be14a`. Pure schema validation now belongs to
+`contracts/validation.ts`, not either client's state-edge namespace. Both clients consume
+it directly. Its pinned Ajv dependency moved to the root package; lock and closure metadata
+were regenerated. No architecture rule, exception or coverage was changed. Generated
+contracts are unchanged. Twenty-three selected app cases, twelve product transport cases,
+twelve architecture meta-tests, both architecture audits, related typechecks and owned
+Biome pass. No full verification was rerun for these fixes. The parent's final combined
+run must still include `build-client`, which the earlier failing gate did not reach.

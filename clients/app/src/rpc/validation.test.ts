@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest"
 import { RpcRepeatMode } from "../../../../contracts/generated/pyxis"
-import { assertRpcRequest, assertRpcResponse } from "./validation"
+import { assertRpcRequest, assertRpcResponse } from "../../../../contracts/validation"
 
 describe("generated RPC schema validation", () => {
   test("accepts contract-shaped requests and responses", () => {

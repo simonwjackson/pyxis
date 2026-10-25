@@ -93,6 +93,12 @@
     url = "https://registry.npmjs.org/@oxc-project/types/-/types-0.146.0.tgz";
     hash = "sha512-XC0QsnnhVe7sLIWmYmdPw7x5P0h4W8vUU3Nv1ySgWXtvCz8NizoAEpGXA0sOYoJQV2Rl13LgURAHQ5cI5ILCSA==";
   };
+  "@pyxis/player" = {
+    out_path = "@pyxis/player";
+    name = "@pyxis/player@workspace:clients/player";
+    url = "https://registry.npmjs.org/@pyxis/player/-/player-workspace:clients/player.tgz";
+    hash = "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==";
+  };
   "@pyxis/plugin-pandora" = {
     out_path = "@pyxis/plugin-pandora";
     name = "@pyxis/plugin-pandora@workspace:plugins/pandora";

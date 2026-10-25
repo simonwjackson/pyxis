@@ -18,7 +18,7 @@ import type {
   RpcStation,
 } from "../../../../contracts/generated/pyxis"
 import { RPC_CONTRACT_ID, StationSeedKind } from "../../../../contracts/generated/pyxis"
-import { assertRpcRequest, assertRpcResponse } from "../rpc/validation"
+import { assertRpcRequest, assertRpcResponse } from "../../../../contracts/validation"
 
 export interface RealtimeHandlers {
   onEvent(event: RealtimeEvent): void | Promise<void>

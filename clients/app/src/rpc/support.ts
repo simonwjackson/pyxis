@@ -1,6 +1,6 @@
 import type { RpcRequest, RpcResponse } from "../../../../contracts/generated/pyxis"
 import { RPC_CONTRACT_ID } from "../../../../contracts/generated/pyxis"
-import { assertRpcRequest, assertRpcResponse } from "./validation"
+import { assertRpcRequest, assertRpcResponse } from "../../../../contracts/validation"
 
 // New library primitives use the same generated trust boundary as the worker and page.
 export function createSupportRpc(

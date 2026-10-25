@@ -1528,7 +1528,7 @@ See `docs/operations/2026-09-07-full-library-startup.md` for exact scope and ver
 **Dependencies:** U22
 
 **Files:**
-- Create: `clients/app/src/pwa/service-worker.ts`, `clients/app/src/pwa/register.ts`, `clients/app/src/pwa/offline-response.ts`, `clients/app/src/pwa/shell.ts`, `clients/app/public/manifest.webmanifest`, `clients/app/src/worker/README.md`, `clients/app/src/rpc/validation.ts`
+- Create: `clients/app/src/pwa/service-worker.ts`, `clients/app/src/pwa/register.ts`, `clients/app/src/pwa/offline-response.ts`, `clients/app/src/pwa/shell.ts`, `clients/app/public/manifest.webmanifest`, `clients/app/src/worker/README.md`, `contracts/validation.ts`
 - Modify: `clients/app/vite.config.ts`, `clients/app/src/reference/api.ts`
 
 **Approach:**
@@ -1737,7 +1737,19 @@ output and one without a loaded track/duration. The regression checks effective 
 `:disabled` state, including mode/seek inputs inside disabled fieldsets, and retains the
 no-command and stable-row assertions. Five capability cases also cover missing track,
 missing/zero duration and unreachable hosts. Zero-duration seek is now disabled, matching
-the host/core seek contract. Focused regression/control tests and related static checks pass.
+the host/core seek contract. Seven focused regression/control tests and related static checks pass.
+
+**Parent-gate repair, pure validation boundary.** The unchanged architecture checker accepts
+the base `a3be14a` transport and rejects the newly introduced import from the app's `rpc/`
+state-edge namespace. The validator implementation is pure, so it now lives in the shared
+`contracts/validation.ts` module with no transport/storage/worker/view dependencies. Both
+clients import it directly; no alias, shim, gate exception or rule change was added. The root
+package owns the existing pinned Ajv dependency, lock/closure metadata is regenerated, and
+root typechecking explicitly covers all contract source files. Generated schemas remain
+unchanged. A product transport regression confirms malformed session modes still reject.
+Twenty-three selected app cases, twelve product transport cases, twelve architecture
+meta-tests, both architecture audits, related typechecks and owned Biome pass. The parent
+still owns the final combined gate, including the reference build not reached previously.
 
 ---
 
