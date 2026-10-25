@@ -1411,6 +1411,9 @@ describe("console mode", () => {
       repeat: RpcRepeatMode.Off,
       shuffle: false,
       queue: ["track-1"],
+      cursor: 0,
+      currentTrackId: "track-1",
+      durationMs: 180000,
       output: { pluginId: "sonos", targetId: "kitchen" },
     })
     const second = session({
@@ -1458,6 +1461,13 @@ describe("console mode", () => {
     if (kitchen === null || kitchen === undefined || remote === null)
       throw new Error("missing kitchen rows")
     expect(kitchen.querySelector<HTMLButtonElement>("button")?.disabled).toBe(false)
+    const living = remotes.querySelector<HTMLLIElement>('[data-session-id="z-output"]')
+    if (living === null) throw new Error("missing living room row")
+    // Reachability is not seek support: an empty session has no known track/duration.
+    expect(within(living).getByRole("button", { name: "Seek" }).matches(":disabled")).toBe(true)
+    expect(within(living).getByRole("button", { name: "play" }).matches(":disabled")).toBe(false)
+    expect(within(living).getByLabelText("Repeat").matches(":disabled")).toBe(false)
+    expect(within(remote).getByRole("button", { name: "Seek" }).matches(":disabled")).toBe(false)
     for (const [index, reachable] of [false, true, false, true].entries()) {
       await act(async () => {
         await realtime.onEvent({
@@ -1471,9 +1481,13 @@ describe("console mode", () => {
       expect(outputRows()).toEqual(original)
       for (const row of [kitchen, remote])
         for (const button of row.querySelectorAll("button")) {
-          expect(button.disabled).toBe(!reachable)
+          expect(button.matches(":disabled")).toBe(!reachable)
           if (!reachable) fireEvent.click(button)
         }
+      // Fieldset disabling applies to every mode/seek control, even when its own disabled
+      // property is false. Match effective HTML semantics rather than only the attribute.
+      for (const control of remote.querySelectorAll("select, input"))
+        expect(control.matches(":disabled")).toBe(!reachable)
       if (!reachable) expect(kitchen.textContent).toContain("unavailable")
     }
     const onFailure = realtime.onFailure
@@ -1482,7 +1496,11 @@ describe("console mode", () => {
     expect(kitchen.isConnected).toBe(true)
     expect(remote.isConnected).toBe(true)
     for (const row of [kitchen, remote])
-      for (const button of row.querySelectorAll("button")) expect(button.disabled).toBe(true)
+      for (const button of row.querySelectorAll("button"))
+        expect(button.matches(":disabled")).toBe(true)
+    for (const row of [remote, living])
+      for (const control of row.querySelectorAll("button, select, input"))
+        expect(control.matches(":disabled")).toBe(true)
     expect(remotes.querySelector('[data-session-id="browser"]')).toBeNull()
     expect((await database.session(output.id))?.reachable).toBe(true)
     expect(sendCommand).not.toHaveBeenCalled()

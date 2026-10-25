@@ -52,3 +52,41 @@ it("issues typed seek and mode intents without changing the displayed authoritat
   expect(session.repeat).toBe(RpcRepeatMode.Off)
   expect(session.positionMs).toBe(1000)
 })
+
+it.each([
+  { track: "track", duration: 10000, unavailable: false, seekDisabled: false },
+  { track: "track", duration: undefined, unavailable: false, seekDisabled: true },
+  { track: undefined, duration: 10000, unavailable: false, seekDisabled: true },
+  { track: "track", duration: 0, unavailable: false, seekDisabled: true },
+  { track: "track", duration: 10000, unavailable: true, seekDisabled: true },
+])(
+  "keeps capability and reachability separate: $track/$duration/$unavailable",
+  ({ track, duration, unavailable, seekDisabled }) => {
+    const session: RpcSession = {
+      id: "session",
+      name: "Host",
+      hostDeviceId: "device",
+      queue: track === undefined ? [] : [track],
+      ...(track === undefined ? {} : { cursor: 0, currentTrackId: track }),
+      ...(duration === undefined ? {} : { durationMs: duration }),
+      repeat: RpcRepeatMode.Off,
+      shuffle: false,
+      transport: RpcTransport.Stopped,
+      positionMs: 0,
+      volume: 50,
+      reachable: !unavailable,
+      revision: 1,
+      updatedAt: "now",
+    }
+    render(
+      <ReferenceSessionControls
+        session={session}
+        disabled={unavailable}
+        command={async () => {}}
+      />,
+    )
+    expect(screen.getByRole("button", { name: "Seek" }).matches(":disabled")).toBe(seekDisabled)
+    for (const label of ["Repeat", "Shuffle", "Seek position (ms)"])
+      expect(screen.getByLabelText(label).matches(":disabled")).toBe(unavailable)
+  },
+)

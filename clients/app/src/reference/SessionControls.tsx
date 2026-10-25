@@ -65,7 +65,7 @@ export function ReferenceSessionControls({
         </label>
         <button
           type="submit"
-          disabled={session.currentTrackId === undefined || session.durationMs === undefined}
+          disabled={session.currentTrackId === undefined || (session.durationMs ?? 0) <= 0}
         >
           Seek
         </button>

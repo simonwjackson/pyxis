@@ -1730,6 +1730,15 @@ did not inspect live outboxes. See `docs/operations/2026-10-24-pyxamp-support-up
 The old U30 reference to a future U34 prefetch unit now names deferred M10; U34 is the approved
 playlist append unit. The parent owns one combined full verification after this boundary.
 
+**Parent-gate repair, output controls.** The combined app gate on `6548f50` found an
+older reachability assertion that treated every available output as seekable and inspected
+only each button's own disabled attribute. The fixture now has one explicitly seekable
+output and one without a loaded track/duration. The regression checks effective HTML
+`:disabled` state, including mode/seek inputs inside disabled fieldsets, and retains the
+no-command and stable-row assertions. Five capability cases also cover missing track,
+missing/zero duration and unreachable hosts. Zero-duration seek is now disabled, matching
+the host/core seek contract. Focused regression/control tests and related static checks pass.
+
 ---
 
 ## System-Wide Impact

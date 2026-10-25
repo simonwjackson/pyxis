@@ -23,6 +23,13 @@ requirements and decisions were captured directly into `plan.md` sections
 
 ## Current position
 
+**Parent-gate repairs after `6548f50`.** The combined app run found one output-control
+assertion failure. The fixture now distinguishes a seekable output from an empty output;
+effective fieldset disabling and all mode/seek controls are checked. A reproduced zero-duration
+seek affordance is also corrected. Focused regression/control tests and static checks pass.
+The separate pure-validator import boundary is the next repair. The parent owns the final
+combined rerun; no full verification or live mutation is performed per repair.
+
 **Approved Pyxamp support, workflow 8145e018.** M11 extends this rewrite with U34–U37.
 U34 implements account-owned playlist append, durable content-bound receipts and a minimal
 reference-client affordance. Focused library tests pass 14/14; append/retry UI test passes;
