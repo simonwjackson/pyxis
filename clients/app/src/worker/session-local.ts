@@ -64,6 +64,19 @@ export function applySessionCommand(
       positionMs = 0
       durationMs = undefined
       break
+    case "transport.seek":
+      if (
+        session.currentTrackId === undefined ||
+        durationMs === undefined ||
+        !Number.isSafeInteger(command.payload.positionMs) ||
+        command.payload.positionMs < 0 ||
+        durationMs <= 0 ||
+        command.payload.positionMs > durationMs
+      ) {
+        throw new Error("seek requires a known track, duration and bounded position")
+      }
+      positionMs = command.payload.positionMs
+      break
     case "transport.play":
       if (queue.length === 0) throw new Error("cannot play an empty queue")
       if (transport === RpcTransport.Ended) positionMs = 0

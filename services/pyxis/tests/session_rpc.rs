@@ -275,3 +275,52 @@ async fn another_device_can_read_but_cannot_report_host_transport_state() {
     .await;
     assert_eq!(rejected["outcome"]["status"], "notHost");
 }
+
+#[tokio::test]
+async fn seek_is_owned_bounded_track_aware_and_content_idempotent() {
+    let dir = tempfile::tempdir().unwrap();
+    let app = router(AppState::open(Store::open(dir.path()).unwrap()).unwrap());
+    let host = claim(&app, "seek host").await;
+    let bearer = token(&host);
+    rpc(&app, json!({"_tag":"library.album.add","payload":{"title":"Album","artist":"Artist","tracks":[{"id":"known","title":"Track","artist":"Artist","durationMs":10000}]}}), Some(bearer)).await;
+    let created = rpc(
+        &app,
+        json!({"_tag":"session.create","payload":{"name":"Seek"}}),
+        Some(bearer),
+    )
+    .await;
+    let id = created["outcome"]["value"]["id"].as_str().unwrap();
+    rpc(&app, json!({"_tag":"session.command.run","payload":{"sessionId":id,"command":{"_tag":"queue.add","payload":{"trackIds":["known"]}}}}), Some(bearer)).await;
+    let seek = json!({"_tag":"session.command.run","payload":{"sessionId":id,"commandId":"seek-1","command":{"_tag":"transport.seek","payload":{"positionMs":5000}}}});
+    let applied = rpc(&app, seek.clone(), Some(bearer)).await;
+    assert_eq!(applied["outcome"]["status"], "applied");
+    assert_eq!(applied["outcome"]["value"]["positionMs"], 5000);
+    assert_eq!(rpc(&app, seek.clone(), Some(bearer)).await, applied);
+    let mut invalid = seek.clone();
+    invalid["payload"]["commandId"] = json!("invalid");
+    invalid["payload"]["command"]["payload"]["positionMs"] = json!(10001);
+    assert_eq!(
+        rpc(&app, invalid.clone(), Some(bearer)).await["outcome"]["status"],
+        "rejected"
+    );
+    invalid["payload"]["command"]["payload"]["positionMs"] = json!(-1);
+    assert_eq!(
+        rpc(&app, invalid, Some(bearer)).await["outcome"]["value"]["code"],
+        "request.invalidPayload"
+    );
+    let other = claim(&app, "not host").await;
+    assert_eq!(
+        rpc(&app, seek.clone(), Some(token(&other))).await["outcome"]["status"],
+        "notHost"
+    );
+    let mut conflict = seek;
+    conflict["payload"]["command"]["payload"]["positionMs"] = json!(1);
+    assert_eq!(
+        rpc(&app, conflict, Some(bearer)).await["outcome"]["value"]["code"],
+        "session.commandIdConflict"
+    );
+    rpc(&app, json!({"_tag":"session.command.run","payload":{"sessionId":id,"command":{"_tag":"queue.clear","payload":{}}}}), Some(bearer)).await;
+    rpc(&app, json!({"_tag":"session.command.run","payload":{"sessionId":id,"command":{"_tag":"queue.add","payload":{"trackIds":["unknown"]}}}}), Some(bearer)).await;
+    let unknown = rpc(&app, json!({"_tag":"session.command.run","payload":{"sessionId":id,"command":{"_tag":"transport.seek","payload":{"positionMs":0}}}}), Some(bearer)).await;
+    assert_eq!(unknown["outcome"]["status"], "rejected");
+}

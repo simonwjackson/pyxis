@@ -43,6 +43,7 @@ const app = createElement(App, {
         artist: "Fixture artist",
         placement: RpcPlacement.Collection,
         addedAt: "2026-09-22T00:00:00Z",
+        tags: [],
         placementUpdatedAt: "2026-09-22T00:00:00Z",
         revision: 1,
         tracks: ["first-track", "second-track"].map((id, index) => ({

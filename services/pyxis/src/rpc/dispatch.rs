@@ -584,6 +584,13 @@ pub fn dispatch(state: &AppState, request: RpcRequest, auth: Option<AuthContext>
                             request.command.clone(),
                             auth.principal_id(),
                             request.command_id.as_deref(),
+                            if matches!(request.command, RpcSessionCommand::Seek(_)) {
+                                session.as_ref().map(|session| {
+                                    u32::try_from(session.revision).unwrap_or(u32::MAX)
+                                })
+                            } else {
+                                None
+                            },
                         ),
                     ) {
                         Delivery::Sent => {
@@ -627,6 +634,7 @@ pub fn dispatch(state: &AppState, request: RpcRequest, auth: Option<AuthContext>
                             &source.id,
                             RpcSessionCommand::Stop(EmptyRequest {}),
                             auth.principal_id(),
+                            None,
                             None,
                         ),
                     );
@@ -1806,6 +1814,9 @@ fn output_failure(error: OutputError) -> RpcFailure {
                 RpcFailure::retryable("output.unavailable", plugin_error.to_string())
             }
         },
+        OutputError::RollbackFailed(message) => {
+            RpcFailure::retryable("output.rollbackFailed", message)
+        }
         OutputError::InvalidOutput(message) => {
             RpcFailure::permanent("output.invalidResponse", message)
         }
@@ -1969,8 +1980,10 @@ fn directive(
     command: RpcSessionCommand,
     issued_by: &str,
     directive_id: Option<&str>,
+    expected_revision: Option<u32>,
 ) -> RealtimeServerMessage {
     RealtimeServerMessage::Command(RpcSessionDirective {
+        expected_revision,
         session_id: session_id.to_string(),
         command,
         issued_by: issued_by.to_string(),
@@ -2071,6 +2084,9 @@ fn domain_command(command: RpcSessionCommand) -> DomainSessionCommand {
         RpcSessionCommand::QueueShuffle(_) => DomainSessionCommand::QueueShuffle,
         RpcSessionCommand::CursorJump(command) => DomainSessionCommand::CursorJump {
             index: usize::try_from(command.index).unwrap_or(usize::MAX),
+        },
+        RpcSessionCommand::Seek(command) => DomainSessionCommand::Seek {
+            position_ms: u64::from(command.position_ms),
         },
         RpcSessionCommand::Play(_) => DomainSessionCommand::Play,
         RpcSessionCommand::Pause(_) => DomainSessionCommand::Pause,

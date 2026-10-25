@@ -7,6 +7,7 @@ import type {
   RpcPlugin,
   RpcSearchTrack,
   RpcSession,
+  RpcSessionCommand,
   RpcSourceAlbumSummary,
   RpcSourceArtistSummary,
   RpcStation,
@@ -83,7 +84,9 @@ export interface ReferenceContextValue {
   play(): Promise<void>
   pause(): Promise<void>
   stop(): Promise<void>
+  runSessionCommand(command: RpcSessionCommand): Promise<void>
   clearQueue(): Promise<void>
+  reportLoaded(): Promise<void>
   reportEnded(): Promise<void>
   applyUpdate(): void
   driveRemote(sessionId: string, command: ConsoleCommand): Promise<void>

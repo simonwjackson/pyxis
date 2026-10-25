@@ -53,6 +53,21 @@ Read [README.md](README.md) first for the envelope rules, and
 Exact payload and value shapes are in `contracts/generated/pyxis.ts`. This document explains
 the parts a type cannot tell you.
 
+## Absolute seek
+
+`transport.seek {positionMs}` is a session command, not a position report. Position is an
+integer within 0..known duration (and the wire's u32 bound). Missing track, missing/zero
+duration, wrong host and renderer refusal do not produce an applied state. The core checks
+that the current track exists in the account. The shared browser host waits for native
+`seeked`, confirms position, then stores the command/receipt; failure restores prior truth.
+Seek directives carry `expectedRevision` so a delayed command cannot scrub a newer session.
+Replay receipts skip renderer effects. Worker optimistic application validates the same bounds.
+
+The core-hosted output adapter seeks the owned stream, reads renderer position, and publishes
+that confirmed position only after it matches within 1000 ms (Sonos whole-second resolution).
+A failed confirmation attempts an ownership-checked rollback. Rollback failure is explicit
+`output.rollbackFailed`. No physical Sonos operation was used to test this behavior.
+
 ## Groups and tags
 
 `library.groups.list {}` orders Albums, placements, Hot albums, normalized tag groups,

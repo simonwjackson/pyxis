@@ -216,3 +216,11 @@ describe("Sonos transport", () => {
     ).toEqual(["A", "D"])
   })
 })
+
+test("absolute seek uses the coordinator without reloading or starting the stream", async () => {
+  const source = harness()
+  await source.controller.seek("A", 45000)
+  const calls = source.calls.filter((call) => call.action !== "GetZoneGroupState")
+  expect(calls.map((call) => call.action)).toEqual(["Seek"])
+  expect(calls[0]?.body).toContain("<Target>0:00:45</Target>")
+})

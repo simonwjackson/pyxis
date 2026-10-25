@@ -651,6 +651,7 @@ export type RpcSessionCommand =
 	| { _tag: "queue.clear", payload: EmptyRequest }
 	| { _tag: "queue.shuffle", payload: EmptyRequest }
 	| { _tag: "cursor.jump", payload: CursorJumpCommand }
+	| { _tag: "transport.seek", payload: SeekCommand }
 	| { _tag: "transport.play", payload: EmptyRequest }
 	| { _tag: "transport.pause", payload: EmptyRequest }
 	| { _tag: "transport.stop", payload: EmptyRequest }
@@ -666,6 +667,8 @@ export type RpcSessionCommand =
  * fans the new state back out.
  */
 export interface RpcSessionDirective {
+	/** Seek is fenced to the session revision observed when it was routed. */
+	expectedRevision?: number;
 	sessionId: string;
 	command: RpcSessionCommand;
 	/** The device or token that asked. Present so a host can show who is driving it. */
@@ -786,6 +789,10 @@ export interface RpcSystemStatus {
 	 * `source` or `output`. Empty is a valid, working state.
 	 */
 	capabilities: string[];
+}
+
+export interface SeekCommand {
+	positionMs: number;
 }
 
 export interface SessionCommandRequest {

@@ -15,6 +15,10 @@ pub enum Transport {
 pub enum MachineError {
     #[error("cannot play an empty queue")]
     EmptyQueue,
+    #[error(
+        "seek requires a known track, a positive duration and a position within that duration"
+    )]
+    InvalidSeek,
     #[error("cannot {action} while transport is {transport:?}")]
     InvalidTransition {
         action: &'static str,

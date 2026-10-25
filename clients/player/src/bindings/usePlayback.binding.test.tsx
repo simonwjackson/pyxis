@@ -139,6 +139,9 @@ function Probe({
       <button type="button" onClick={playback.refresh}>
         Refresh
       </button>
+      <button type="button" onClick={() => playback.seek(5000)}>
+        Seek to five seconds
+      </button>
       <span data-testid="transport">{view?.transport ?? "none"}</span>
       <span data-testid="awaiting">{String(view?.awaitingContinue ?? false)}</span>
       <AudioRenderer playback={playback} />
@@ -767,4 +770,21 @@ test("the previous audio element cannot end the newly selected album while it lo
   expect(source.commands.some((command) => command._tag === "transport.trackEnded")).toBe(false)
   expect(source.listens).toEqual([])
   await act(async () => release("/stream/track-9"))
+})
+
+test("product seeking records the shared confirmed seek intent, not a fabricated position report", async () => {
+  const source = harness(session({ durationMs: 10000 }))
+  const { container } = render(<Probe edge={source.edge} />)
+  await waitFor(() => expect(source.loads).toEqual(["track-1"]))
+  const audio = audioOf(container)
+  Object.defineProperty(audio, "duration", { value: 10, configurable: true })
+  fireEvent.click(screen.getByRole("button", { name: "Seek to five seconds" }))
+  await waitFor(() =>
+    expect(source.commands).toContainEqual({
+      _tag: "transport.seek",
+      payload: { positionMs: 5000 },
+    }),
+  )
+  expect(audio.currentTime).toBe(5)
+  expect(source.commands.some((command) => command._tag === "position.report")).toBe(false)
 })

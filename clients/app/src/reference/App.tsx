@@ -890,6 +890,16 @@ export function ReferenceApp({
     })
   }, [run, runConfirmedHostCommand, session])
 
+  const runSessionCommand = useCallback(
+    async (command: RpcSessionCommand) => {
+      if (session === undefined) return
+      await run(async () => {
+        setSession(await runConfirmedHostCommand(session, command))
+      })
+    },
+    [run, runConfirmedHostCommand, session],
+  )
+
   const clearQueue = useCallback(async () => {
     if (session === undefined) return
     await run(async () => {
@@ -897,6 +907,27 @@ export function ReferenceApp({
       setSession(await runConfirmedHostCommand(session, command))
     })
   }, [run, runConfirmedHostCommand, session])
+
+  const reportLoaded = useCallback(async () => {
+    const target = sessionRef.current
+    const media = audioElement.current
+    if (
+      target === undefined ||
+      media === null ||
+      !Number.isFinite(media.duration) ||
+      media.duration <= 0
+    )
+      return
+    await run(async () => {
+      await runHostCommand(target, {
+        _tag: "position.report",
+        payload: {
+          positionMs: Math.round(media.currentTime * 1000),
+          durationMs: Math.min(0xffffffff, Math.round(media.duration * 1000)),
+        },
+      })
+    })
+  }, [run, runHostCommand])
 
   const reportEnded = useCallback(async () => {
     if (session === undefined || grant === undefined || session.currentTrackId === undefined) return
@@ -1012,7 +1043,9 @@ export function ReferenceApp({
       play,
       pause,
       stop,
+      runSessionCommand,
       clearQueue,
+      reportLoaded,
       reportEnded,
       driveRemote,
       handOffTo,
@@ -1059,7 +1092,9 @@ export function ReferenceApp({
       play,
       pause,
       stop,
+      runSessionCommand,
       clearQueue,
+      reportLoaded,
       reportEnded,
       driveRemote,
       handOffTo,

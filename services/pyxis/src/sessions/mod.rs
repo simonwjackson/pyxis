@@ -119,6 +119,9 @@ pub enum SessionCommand {
     CursorJump {
         index: usize,
     },
+    Seek {
+        position_ms: u64,
+    },
     Play,
     Pause,
     Stop,
@@ -465,6 +468,7 @@ impl Sessions {
             None
         };
 
+        self.validate_seek(&auth.account_id, &mut record, &command)?;
         apply_command(&mut record, &command)?;
 
         record.revision += 1;
@@ -548,6 +552,7 @@ impl Sessions {
         }
         let current = self.session(record.clone());
         let mut next = record;
+        self.validate_seek(&auth.account_id, &mut next, command)?;
         apply_command(&mut next, command)?;
         next.revision += 1;
         next.updated_by = actor.to_string();
@@ -594,6 +599,7 @@ impl Sessions {
         if receipt.applied {
             return Ok(self.session(record));
         }
+        self.validate_seek(&auth.account_id, &mut record, command)?;
         apply_command(&mut record, command)?;
         if let Some(position_ms) = confirmation.position_ms {
             record.position_ms = position_ms;
@@ -777,6 +783,29 @@ impl Sessions {
     /// Reachability has exactly one meaning: the device is holding a live realtime socket
     /// right now. It is never persisted and never inferred from a past RPC call, so a
     /// crashed or sleeping host cannot leave a session looking controllable.
+    fn validate_seek(
+        &self,
+        account: &crate::db::store::AccountId,
+        record: &mut SessionRecord,
+        command: &SessionCommand,
+    ) -> Result<(), SessionError> {
+        if !matches!(command, SessionCommand::Seek { .. }) {
+            return Ok(());
+        }
+        let track_id = record
+            .cursor
+            .and_then(|cursor| record.queue.get(cursor))
+            .ok_or(machine::MachineError::InvalidSeek)?;
+        let track = crate::library::Library::open(self.store.clone())
+            .get_track(account, track_id)
+            .map_err(|_| machine::MachineError::InvalidSeek)?
+            .ok_or(machine::MachineError::InvalidSeek)?;
+        if record.duration_ms.is_none() {
+            record.duration_ms = track.duration_ms.map(u64::from);
+        }
+        Ok(())
+    }
+
     pub fn attach_device(&self, device_id: &str) {
         *self
             .reachable_devices
@@ -847,6 +876,19 @@ fn apply_command(record: &mut SessionRecord, command: &SessionCommand) -> Result
             queue::jump(&record.queue, &mut record.cursor, *index)?;
             machine::stop(&mut record.transport, &mut record.position_ms);
             record.duration_ms = None;
+        }
+        SessionCommand::Seek { position_ms } => {
+            if record
+                .cursor
+                .and_then(|cursor| record.queue.get(cursor))
+                .is_none()
+                || record
+                    .duration_ms
+                    .is_none_or(|duration| duration == 0 || *position_ms > duration)
+            {
+                return Err(machine::MachineError::InvalidSeek.into());
+            }
+            record.position_ms = *position_ms;
         }
         SessionCommand::Play => machine::play(
             &mut record.transport,

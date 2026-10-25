@@ -96,6 +96,12 @@ export class SonosController {
     return { targetId: input.targetId, coordinatorId: target.id }
   }
 
+  async seek(targetId: string, positionMs: number): Promise<void> {
+    validatePosition(positionMs)
+    const target = requiredCoordinator(await this.topology(), targetId)
+    await seek(target, positionMs, this.config.requestTimeoutMs, this.environment.fetch)
+  }
+
   async pause(targetId: string): Promise<void> {
     const target = requiredCoordinator(await this.topology(), targetId)
     await transportAction(

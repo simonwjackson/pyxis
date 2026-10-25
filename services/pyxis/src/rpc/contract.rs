@@ -733,6 +733,13 @@ pub struct CursorJumpCommand {
 #[typeshare]
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct SeekCommand {
+    pub position_ms: u32,
+}
+
+#[typeshare]
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct PositionReportCommand {
     pub position_ms: u32,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -760,6 +767,8 @@ pub enum RpcSessionCommand {
     QueueShuffle(EmptyRequest),
     #[serde(rename = "cursor.jump")]
     CursorJump(CursorJumpCommand),
+    #[serde(rename = "transport.seek")]
+    Seek(SeekCommand),
     #[serde(rename = "transport.play")]
     Play(EmptyRequest),
     #[serde(rename = "transport.pause")]
@@ -813,6 +822,9 @@ pub struct SessionHandoffRequest {
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct RpcSessionDirective {
+    /// Seek is fenced to the session revision observed when it was routed.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub expected_revision: Option<u32>,
     pub session_id: String,
     pub command: RpcSessionCommand,
     /// The device or token that asked. Present so a host can show who is driving it.

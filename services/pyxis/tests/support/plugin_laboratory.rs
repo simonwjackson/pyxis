@@ -62,6 +62,7 @@ fn main() -> anyhow::Result<()> {
     let mut stream_resolutions = 0_u32;
     let mut output_transport = "STOPPED".to_string();
     let mut output_stream_url: Option<String> = None;
+    let mut output_position_ms = 12_000;
     for line in lines {
         let envelope: PluginRequestEnvelope = serde_json::from_str(&line?)?;
         let PluginRequest::CapabilityCall(call) = envelope.request else {
@@ -134,6 +135,39 @@ fn main() -> anyhow::Result<()> {
             value.insert("authoritative".into(), PluginValue::Bool(true));
         }
         if capability == PluginCapability::Output {
+            if call.operation == "transport.seek" {
+                let seek_behavior = std::env::var("PYXIS_LAB_SEEK_BEHAVIOR_FILE")
+                    .ok()
+                    .and_then(|path| std::fs::read_to_string(path).ok())
+                    .unwrap_or_default();
+                if seek_behavior.trim() == "refused" {
+                    send(
+                        &mut stdout,
+                        PluginResponseEnvelope {
+                            id: envelope.id,
+                            response: PluginResponse::CapabilityCall(
+                                PluginCallOutcome::Unavailable(PluginFailure {
+                                    code: "output.seekRefused".into(),
+                                    message: "renderer refused seek".into(),
+                                    retryable: false,
+                                }),
+                            ),
+                        },
+                    )?;
+                    continue;
+                }
+                if seek_behavior.trim() != "ignored" {
+                    if let PluginValue::Object(input) = &call.input {
+                        if let Some(position) = input.get("positionMs") {
+                            if let Some(position) =
+                                serde_json::Value::from(position.clone()).as_u64()
+                            {
+                                output_position_ms = position;
+                            }
+                        }
+                    }
+                }
+            }
             if call.operation == "transport.play" {
                 if let PluginValue::Object(input) = &call.input {
                     if let Some(PluginValue::String(stream_url)) = input.get("streamUrl") {
@@ -159,7 +193,10 @@ fn main() -> anyhow::Result<()> {
                 "state".into(),
                 PluginValue::String(output_transport.clone()),
             );
-            value.insert("positionMs".into(), PluginValue::Unsigned(12_000));
+            value.insert(
+                "positionMs".into(),
+                PluginValue::Unsigned(output_position_ms),
+            );
             value.insert("durationMs".into(), PluginValue::Unsigned(180_000));
             if let Some(stream_url) = &output_stream_url {
                 value.insert("streamUrl".into(), PluginValue::String(stream_url.clone()));

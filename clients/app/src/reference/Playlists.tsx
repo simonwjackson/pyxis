@@ -104,7 +104,7 @@ export function ReferencePlaylistTools({
                   if (outcome.status !== "applied") {
                     if (outcome.status === "rejected" || outcome.status === "unknownPlaylist")
                       setPending(undefined)
-                    throw new Error("value" in outcome ? outcome.value.message : outcome.status)
+                    throw new Error(outcome.value?.message ?? outcome.status)
                   }
                   setPending(undefined)
                   setPlaylists((current) =>

@@ -176,12 +176,60 @@ export function createConfirmedPlaybackHost(ports: ConfirmedHostPorts): Confirme
     const loaded = await element(target, signal)
     requireHost(target.id)
     loaded.volume = target.volume / 100
-    loaded.currentTime = target.positionMs / 1000
+    await confirmSeek(loaded, target.positionMs, signal)
     pendingSeek = undefined
     if (target.transport === RpcTransport.Playing)
       await wait(Promise.resolve(loaded.play()), signal)
     else loaded.pause()
     lastRendered = renderKey(target)
+  }
+
+  async function confirmSeek(
+    loaded: HTMLAudioElement,
+    positionMs: number,
+    signal: AbortSignal,
+  ): Promise<void> {
+    // Browser time setters may return before the decoder applies the seek. Publish only
+    // after seeked (or a synchronous renderer) confirms the requested position.
+    if (signal.aborted) throw cancelled()
+    const sought = new Promise<void>((resolve, reject) => {
+      const finish = () => {
+        cleanup()
+        if (Math.abs(loaded.currentTime * 1000 - positionMs) > 250)
+          reject(new Error("renderer refused seek"))
+        else resolve()
+      }
+      const failed = () => {
+        cleanup()
+        reject(new Error("renderer failed seek"))
+      }
+      const aborted = () => {
+        cleanup()
+        reject(cancelled())
+      }
+      const timer = setTimeout(() => {
+        cleanup()
+        reject(new Error("renderer seek timed out"))
+      }, 5000)
+      const cleanup = () => {
+        clearTimeout(timer)
+        loaded.removeEventListener("seeked", finish)
+        loaded.removeEventListener("error", failed)
+        signal.removeEventListener("abort", aborted)
+      }
+      loaded.addEventListener("seeked", finish, { once: true })
+      loaded.addEventListener("error", failed, { once: true })
+      signal.addEventListener("abort", aborted, { once: true })
+      try {
+        loaded.currentTime = positionMs / 1000
+        if (!loaded.seeking) finish()
+      } catch (cause) {
+        cleanup()
+        reject(cause)
+      }
+    })
+    await wait(sought, signal)
+    requireHost(ports.selectedSession()?.id ?? "")
   }
 
   async function confirm(
@@ -199,6 +247,18 @@ export function createConfirmedPlaybackHost(ports: ConfirmedHostPorts): Confirme
         pendingSeek = undefined
         if (seek !== undefined) loaded.currentTime = seek / 1000
         await wait(Promise.resolve(loaded.play()), signal)
+        return
+      }
+      case "transport.seek": {
+        if (source?.trackId !== target.currentTrackId) throw new Error("seek track is not loaded")
+        const loaded = await element(target, signal)
+        if (
+          !Number.isFinite(loaded.duration) ||
+          loaded.duration <= 0 ||
+          command.payload.positionMs > loaded.duration * 1000
+        )
+          throw new Error("renderer has no bounded seek duration")
+        await confirmSeek(loaded, command.payload.positionMs, signal)
         return
       }
       case "transport.pause":
@@ -306,6 +366,7 @@ export function createConfirmedPlaybackHost(ports: ConfirmedHostPorts): Confirme
     id: string,
     command: RpcSessionCommand,
     commandId: string,
+    expectedRevision?: number,
   ): Promise<HostCommandOutcome> {
     requireHost(id)
     executing = true
@@ -313,6 +374,12 @@ export function createConfirmedPlaybackHost(ports: ConfirmedHostPorts): Confirme
       for (let attempt = 0; attempt < 3; attempt += 1) {
         const preview = await ports.store.previewSessionCommand(id, command, commandId)
         requireStoredHost(preview.session)
+        if (
+          !preview.replayed &&
+          expectedRevision !== undefined &&
+          preview.session.revision !== expectedRevision
+        )
+          throw new Error("stale session directive")
         if (preview.replayed) {
           const replay = await ports.store.queueSessionCommand(preview.session, command, commandId)
           requireStoredHost(replay)
@@ -365,7 +432,8 @@ export function createConfirmedPlaybackHost(ports: ConfirmedHostPorts): Confirme
           if (
             command._tag === "transport.play" ||
             command._tag === "transport.pause" ||
-            command._tag === "transport.stop"
+            command._tag === "transport.stop" ||
+            command._tag === "transport.seek"
           )
             lastRendered = renderKey(committed)
           ports.publishSession(committed)
@@ -422,6 +490,7 @@ export function createConfirmedPlaybackHost(ports: ConfirmedHostPorts): Confirme
     id: string,
     command: RpcSessionCommand,
     commandId = ports.newCommandId(),
+    expectedRevision?: number,
   ): Promise<HostCommandOutcome> {
     requireHost(id)
     let urgent = false
@@ -447,7 +516,9 @@ export function createConfirmedPlaybackHost(ports: ConfirmedHostPorts): Confirme
         return { _tag: "Cancelled", session: current }
       }
     }
-    const task = lane.catch(() => undefined).then(() => perform(id, command, commandId))
+    const task = lane
+      .catch(() => undefined)
+      .then(() => perform(id, command, commandId, expectedRevision))
     lane = task.then(
       () => undefined,
       () => undefined,
@@ -514,7 +585,12 @@ export function createConfirmedPlaybackHost(ports: ConfirmedHostPorts): Confirme
           )
         return prior.promise
       }
-      const task = execute(directive.sessionId, directive.command, directive.directiveId)
+      const task = execute(
+        directive.sessionId,
+        directive.command,
+        directive.directiveId,
+        directive.expectedRevision,
+      )
       directives.set(key, { fingerprint, promise: task })
       void task
         .finally(() => {

@@ -674,3 +674,97 @@ test("disposing a host fences pending stream publication", async () => {
   expect(source.plays()).toBe(0)
   expect(source.failures).toEqual([])
 })
+
+test("seek waits for renderer confirmation before recording its durable receipt", async () => {
+  const source = await fixture()
+  await source.host.execute("selected", play, "start")
+  const current = await source.database.session("selected")
+  if (current === undefined) throw new Error("session missing")
+  const known = { ...current, durationMs: 10000 }
+  await source.database.putSession(known)
+  source.select(known)
+  const audio = source.media()
+  if (audio === undefined) throw new Error("audio missing")
+  Object.defineProperty(audio, "duration", { value: 10, configurable: true })
+  let seeking = true
+  Object.defineProperty(audio, "seeking", { get: () => seeking, configurable: true })
+  const pending = source.host.execute(
+    "selected",
+    { _tag: "transport.seek", payload: { positionMs: 5000 } },
+    "seek-1",
+  )
+  await vi.waitFor(() => expect(audio.currentTime).toBe(5))
+  expect((await source.database.session("selected"))?.positionMs).toBe(0)
+  seeking = false
+  audio.dispatchEvent(new Event("seeked"))
+  expect(await pending).toMatchObject({ _tag: "Applied", session: { positionMs: 5000 } })
+  const writes = (await source.database.outbox()).length
+  await source.host.execute(
+    "selected",
+    { _tag: "transport.seek", payload: { positionMs: 5000 } },
+    "seek-1",
+  )
+  expect((await source.database.outbox()).length).toBe(writes)
+})
+
+test("a refused seek and a failed receipt write restore prior renderer and session truth", async () => {
+  const source = await fixture()
+  await source.host.execute("selected", play)
+  const current = await source.database.session("selected")
+  if (current === undefined) throw new Error("session missing")
+  const known = { ...current, durationMs: 10000 }
+  await source.database.putSession(known)
+  source.select(known)
+  const audio = source.media()
+  if (audio === undefined) throw new Error("audio missing")
+  Object.defineProperty(audio, "duration", { value: 10, configurable: true })
+  let position = 0
+  Object.defineProperty(audio, "currentTime", {
+    get: () => position,
+    set: (next: number) => {
+      if (next !== 5) position = next
+    },
+    configurable: true,
+  })
+  await expect(
+    source.host.execute(
+      "selected",
+      { _tag: "transport.seek", payload: { positionMs: 5000 } },
+      "refused",
+    ),
+  ).rejects.toThrow("refused seek")
+  expect((await source.database.session("selected"))?.positionMs).toBe(0)
+  source.setWrite(async () => {
+    throw new Error("receipt unavailable")
+  })
+  await expect(
+    source.host.execute(
+      "selected",
+      { _tag: "transport.seek", payload: { positionMs: 3000 } },
+      "storage-failure",
+    ),
+  ).rejects.toThrow("receipt unavailable")
+  expect(audio.currentTime).toBe(0)
+  expect((await source.database.session("selected"))?.positionMs).toBe(0)
+})
+
+test("a late seek directive cannot scrub a newer session revision", async () => {
+  const source = await fixture()
+  const current = await source.database.session("selected")
+  if (current === undefined) throw new Error("session missing")
+  const known = { ...current, durationMs: 10000, revision: 5 }
+  await source.database.putSession(known)
+  source.select(known)
+  await expect(
+    source.host.applyDirective({
+      sessionId: "selected",
+      command: { _tag: "transport.seek", payload: { positionMs: 3000 } },
+      directiveId: "stale",
+      issuedBy: "console",
+      expectedRevision: 4,
+    }),
+  ).rejects.toThrow("stale session directive")
+  expect(source.loads).toEqual([])
+  expect(await source.database.outbox()).toEqual([])
+  expect((await source.database.session("selected"))?.positionMs).toBe(0)
+})

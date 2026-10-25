@@ -1692,7 +1692,14 @@ and carries source failures. Tags normalize trim/lowercase, sort/deduplicate, li
 
 **Goal:** host-owned seek with known duration, bounded position, durable receipts, browser
 confirmation and core-hosted Sonos confirmation/rollback. No physical Sonos calls.
-**Verification:** focused RPC, shared host, worker and isolated output fixture tests.
+**Verification:** 20 Rust session/output/snapshot tests, 61 selected app/worker tests,
+36 product binding tests, 25 Sonos controller/plugin tests pass. Root/product typecheck,
+new reference TSX typecheck, contract drift, Clippy and owned Biome pass.
+Seek directives carry an optional expected revision; the host checks it inside its ordered
+lane before renderer effects. Browser seek waits for `seeked` and rolls back on failure.
+The output adapter confirms owned-stream position (1000 ms tolerance for whole-second Sonos)
+and attempts ownership-checked rollback. Unloaded browser tracks refuse seek rather than
+inventing a native result. Product scrub now sends seek instead of position reports.
 
 ### U37. Reversible shuffle and repeat modes; wire v3
 

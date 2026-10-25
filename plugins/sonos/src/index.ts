@@ -62,6 +62,15 @@ export function createSonosPlugin(
           const request = playInput(input)
           return providerCall(() => controller(context).play(request))
         },
+        "transport.seek": (input, context) =>
+          providerCall(async () => {
+            const record = object(input, "transport.seek input must be an object")
+            const positionMs = optionalNonNegativeInteger(record.positionMs, "positionMs")
+            if (positionMs === undefined) throw new SonosInputError("positionMs is required")
+            const targetId = targetIdOf(input)
+            await controller(context).seek(targetId, positionMs)
+            return { targetId }
+          }),
         "transport.pause": (input, context) =>
           providerCall(async () => {
             await controller(context).pause(targetIdOf(input))

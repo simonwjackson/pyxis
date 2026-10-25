@@ -31,6 +31,8 @@ pub enum OutputError {
     TargetInUse(String),
     #[error("the renderer is no longer playing this output session's stream")]
     RendererOwnershipLost,
+    #[error("speaker seek failed and rollback failed: {0}")]
+    RollbackFailed(String),
     #[error("PYXIS_LAN_BASE_URL must be an absolute LAN HTTP URL before an output can play")]
     LanUrlRequired,
 }
@@ -296,6 +298,46 @@ impl OutputCatalog {
         command: &SessionCommand,
     ) -> Result<OutputEffect, OutputError> {
         match command {
+            SessionCommand::Seek { position_ms } => {
+                let state = self.state(auth, output)?;
+                self.ensure_stream_owner(session_id, output, &state)?;
+                if !self.stream_belongs_to(session_id, output, state.stream_url.as_deref())
+                    || state
+                        .duration_ms
+                        .is_none_or(|duration| duration == 0 || *position_ms > duration)
+                    || state.position_ms.is_none()
+                {
+                    return Err(OutputError::InvalidOutput(
+                        "seek requires this session's loaded stream and known duration/position"
+                            .into(),
+                    ));
+                }
+                let sought = self.seek_confirmed(auth, session_id, output, *position_ms);
+                let confirmed = match sought {
+                    Ok(confirmed) => confirmed,
+                    Err(error) => {
+                        if let Err(rollback) = self.seek_confirmed(
+                            auth,
+                            session_id,
+                            output,
+                            state.position_ms.expect("checked position"),
+                        ) {
+                            return Err(OutputError::RollbackFailed(format!(
+                                "{error}; {rollback}"
+                            )));
+                        }
+                        return Err(error);
+                    }
+                };
+                Ok(OutputEffect {
+                    physical: true,
+                    commit_position_ms: confirmed.position_ms,
+                    commit_duration_ms: confirmed.duration_ms,
+                    rollback_transport: output_transport(&state),
+                    rollback_position_ms: state.position_ms,
+                    rollback_duration_ms: state.duration_ms,
+                })
+            }
             SessionCommand::Play => {
                 let state = self.state(auth, output)?;
                 self.ensure_stream_owner(session_id, output, &state)?;
@@ -378,6 +420,36 @@ impl OutputCatalog {
                 ))
             }
         }
+    }
+
+    fn seek_confirmed(
+        &self,
+        auth: &AuthContext,
+        session_id: &str,
+        output: &OutputBinding,
+        position_ms: u64,
+    ) -> Result<OutputTransportState, OutputError> {
+        let before = self.state(auth, output)?;
+        if !self.stream_belongs_to(session_id, output, before.stream_url.as_deref()) {
+            return Err(OutputError::RendererOwnershipLost);
+        }
+        self.call(
+            auth,
+            &output.plugin_id,
+            "transport.seek",
+            json!({ "targetId": output.target_id, "positionMs": position_ms }),
+        )?;
+        let confirmed = self.state(auth, output)?;
+        if !self.stream_belongs_to(session_id, output, confirmed.stream_url.as_deref())
+            || confirmed
+                .position_ms
+                .is_none_or(|actual| actual.abs_diff(position_ms) > 1000)
+        {
+            return Err(OutputError::InvalidOutput(
+                "renderer did not confirm requested seek".into(),
+            ));
+        }
+        Ok(confirmed)
     }
 
     fn ensure_stream_owner(

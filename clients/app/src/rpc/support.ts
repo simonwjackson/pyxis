@@ -2,7 +2,9 @@ import type { RpcRequest, RpcResponse } from "../../../../contracts/generated/py
 import { assertRpcRequest, assertRpcResponse } from "./validation"
 
 // New library primitives use the same generated trust boundary as the worker and page.
-export function createSupportRpc(request: typeof fetch = globalThis.fetch) {
+export function createSupportRpc(
+  request: (input: RequestInfo | URL, init?: RequestInit) => Promise<Response> = globalThis.fetch,
+) {
   return async <Tag extends RpcRequest["_tag"]>(
     token: string,
     operation: Extract<RpcRequest, { _tag: Tag }>,

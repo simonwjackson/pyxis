@@ -45,8 +45,7 @@ export function ReferenceGroupTools({
       _tag: "library.group.items.list",
       payload: { groupId, limit: 25, ...(cursor === undefined ? {} : { cursor }) },
     })
-    if (outcome.status !== "ready")
-      throw new Error("value" in outcome ? outcome.value.message : outcome.status)
+    if (outcome.status !== "ready") throw new Error(outcome.value?.message ?? outcome.status)
     setSelected(groupId)
     setPage(outcome.value)
   }
@@ -95,7 +94,7 @@ export function ReferenceGroupTools({
                       },
                     })
                     if (outcome.status !== "applied")
-                      throw new Error("value" in outcome ? outcome.value.message : outcome.status)
+                      throw new Error(outcome.value?.message ?? outcome.status)
                     await load()
                     if (selected !== undefined) await items(selected)
                   })

@@ -42,7 +42,11 @@ async fn sonos_target_hosts_a_core_session_and_applies_console_transport() {
         PluginCandidate::new(PathBuf::from(env!("CARGO_BIN_EXE_pyxis-plugin-laboratory")))
             .with_env("PYXIS_LAB_ID", "sonos")
             .with_env("PYXIS_LAB_CAPABILITY", "output")
-            .with_env("PYXIS_LAB_CALL_LOG", call_log.as_os_str());
+            .with_env("PYXIS_LAB_CALL_LOG", call_log.as_os_str())
+            .with_env(
+                "PYXIS_LAB_SEEK_BEHAVIOR_FILE",
+                dir.path().join("seek-behavior"),
+            );
     let host = PluginHost::start(vec![candidate], HostPolicy::default()).expect("host");
     let store = Store::open(dir.path()).expect("store");
     let library = Library::open(store.clone());
@@ -256,6 +260,40 @@ async fn sonos_target_hosts_a_core_session_and_applies_console_transport() {
     assert_eq!(session["outcome"]["value"]["transport"], "paused");
     assert_eq!(session["outcome"]["value"]["positionMs"], 12_000);
 
+    let seek = json!({"_tag":"session.command.send","payload":{"sessionId":session_id,"commandId":"SEEK","command":{"_tag":"transport.seek","payload":{"positionMs":45000}}}});
+    let sought = rpc(&app, seek.clone(), Some(token)).await;
+    assert_eq!(sought["outcome"]["status"], "dispatched", "{sought}");
+    let confirmed = rpc(
+        &app,
+        json!({"_tag":"session.state.get","payload":{"sessionId":session_id}}),
+        Some(token),
+    )
+    .await;
+    assert_eq!(confirmed["outcome"]["value"]["positionMs"], 45000);
+    let before_replay = std::fs::read_to_string(&call_log)
+        .unwrap()
+        .lines()
+        .filter(|line| line.starts_with("transport.seek|"))
+        .count();
+    rpc(&app, seek, Some(token)).await;
+    let after_replay = std::fs::read_to_string(&call_log)
+        .unwrap()
+        .lines()
+        .filter(|line| line.starts_with("transport.seek|"))
+        .count();
+    assert_eq!(before_replay, after_replay);
+    std::fs::write(dir.path().join("seek-behavior"), "ignored").unwrap();
+    let ignored = rpc(&app, json!({"_tag":"session.command.send","payload":{"sessionId":session_id,"commandId":"IGNORED-SEEK","command":{"_tag":"transport.seek","payload":{"positionMs":90000}}}}), Some(token)).await;
+    assert_eq!(ignored["outcome"]["status"], "unavailable");
+    let unchanged = rpc(
+        &app,
+        json!({"_tag":"session.state.get","payload":{"sessionId":session_id}}),
+        Some(token),
+    )
+    .await;
+    assert_eq!(unchanged["outcome"]["value"]["positionMs"], 45000);
+    std::fs::write(dir.path().join("seek-behavior"), "").unwrap();
+
     let resumed = rpc(
         &app,
         json!({
@@ -301,7 +339,7 @@ async fn sonos_target_hosts_a_core_session_and_applies_console_transport() {
     assert!(play.contains("http://192.168.1.2:4488/stream/track-1?outputToken="));
     assert!(play.contains("David Bowie"));
     assert!(play.contains("\"mimeType\":\"audio/mpeg\""));
-    assert!(play.contains("\"positionMs\":12000"));
+    assert!(play.contains("\"positionMs\":45000"));
     let input: Value =
         serde_json::from_str(play.split_once('|').expect("logged input").1).expect("play JSON");
     let stream_url = reqwest::Url::parse(input["streamUrl"].as_str().expect("stream URL"))
@@ -343,7 +381,11 @@ async fn sonos_target_hosts_a_core_session_and_applies_console_transport() {
         PluginCandidate::new(PathBuf::from(env!("CARGO_BIN_EXE_pyxis-plugin-laboratory")))
             .with_env("PYXIS_LAB_ID", "sonos")
             .with_env("PYXIS_LAB_CAPABILITY", "output")
-            .with_env("PYXIS_LAB_CALL_LOG", call_log.as_os_str());
+            .with_env("PYXIS_LAB_CALL_LOG", call_log.as_os_str())
+            .with_env(
+                "PYXIS_LAB_SEEK_BEHAVIOR_FILE",
+                dir.path().join("seek-behavior"),
+            );
     let restarted_host = PluginHost::start(vec![restarted_candidate], HostPolicy::default())
         .expect("restarted host");
     let restarted = AppState::open_with_plugins_and_lan_base(

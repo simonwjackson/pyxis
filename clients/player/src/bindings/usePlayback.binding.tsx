@@ -100,8 +100,7 @@ export interface PlaybackBinding {
   /// cursor jump followed by a play; see `skip`.
   readonly next: () => void
   readonly previous: () => void
-  /// Move within the current track. The core has no seek command, so this moves the element
-  /// and reports where it landed; see `seek`.
+  /// Move within the current track through the shared renderer-confirmed seek command.
   readonly seek: (positionMs: number) => void
   readonly refresh: () => void
   /// Accept a session record pushed by the core rather than asked for.
@@ -486,32 +485,14 @@ export function usePlayback(edge: PlaybackEdge, options: PlaybackOptions = {}): 
 
   /// Move within the current track.
   ///
-  /// The core has no seek command -- position is something the host reports, not something
-  /// it is told -- so this moves the element and then reports where it landed. Reporting
-  /// immediately rather than waiting for the next tick matters because a console watching
-  /// this session would otherwise show the old position for up to the whole interval.
-  ///
-  /// Clamped here rather than trusted from the caller: a dashboard's scrubber can ask for a
-  /// position past the end of a track, and setting `currentTime` beyond the duration ends
-  /// it, which would turn a scrub into an accidental skip.
+  // The shared host confirms native seek before the worker records the command.
   const seek = useCallback(
     (positionMs: number) => {
-      const audio = audioElement.current
-      if (audio === null || playbackHost().loadedTrack() !== session.current?.currentTrackId) return
-      const track = playbackHost().loadedTrack()
-      const durationMs =
-        Number.isFinite(audio.duration) && audio.duration > 0 ? audio.duration * 1000 : undefined
-      const target = Math.max(
-        0,
-        durationMs === undefined ? positionMs : Math.min(positionMs, durationMs - 1000),
-      )
-      audio.currentTime = target / 1000
       run(async () => {
-        if (track !== session.current?.currentTrackId) return
-        await command({ _tag: "position.report", payload: { positionMs: Math.round(target) } })
+        await command({ _tag: "transport.seek", payload: { positionMs: Math.round(positionMs) } })
       })
     },
-    [command, playbackHost, run],
+    [command, run],
   )
 
   const pause = useCallback(() => {
