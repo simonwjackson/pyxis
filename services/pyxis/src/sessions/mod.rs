@@ -565,10 +565,16 @@ impl Sessions {
                     self.session(record),
                 )))
             }
+            Some(existing)
+                if matches!(command, SessionCommand::Seek { .. })
+                    && existing.expected_revision != Some(record.revision) =>
+            {
+                return Err(MachineError::StaleSeek.into())
+            }
             Some(_) => {}
             None => {
                 let receipt = CommandReceiptRecord {
-                    expected_revision: None,
+                    expected_revision: Some(record.revision),
                     id: receipt_id,
                     account_id: String::new(),
                     session_id: session_id.to_string(),
@@ -635,6 +641,11 @@ impl Sessions {
         }
         if receipt.applied {
             return Ok(self.session(record));
+        }
+        if matches!(command, SessionCommand::Seek { .. })
+            && receipt.expected_revision != Some(record.revision)
+        {
+            return Err(MachineError::StaleSeek.into());
         }
         self.validate_seek(&auth.account_id, &mut record, command)?;
         apply_command(&mut record, command)?;

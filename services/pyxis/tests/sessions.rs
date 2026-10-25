@@ -1,5 +1,6 @@
 use pyxis::accounts::{AuthContext, Principal};
 use pyxis::db::store::{AccountId, Store};
+use pyxis::library::{AlbumInput, Library, TrackInput};
 use pyxis::sessions::{
     OutputBinding, OutputConfirmation, PreparedOutputCommand, SessionCommand, SessionError,
     Sessions, Transport,
@@ -415,6 +416,178 @@ fn output_sessions_prepare_effects_before_committing_state() {
             .expect("replay"),
         PreparedOutputCommand::Applied(_)
     ));
+}
+
+#[test]
+fn output_seek_receipt_fences_both_preparation_and_commit() {
+    let dir = tempfile::tempdir().unwrap();
+    let store = Store::open(dir.path()).unwrap();
+    let actor = auth("account-a", "device-a");
+    Library::open(store.clone())
+        .add_album(
+            &actor.account_id,
+            AlbumInput {
+                title: "Seek fixture".into(),
+                artist: "Fixture artist".into(),
+                year: None,
+                artwork_url: None,
+                source_reference: None,
+                tracks: vec![TrackInput {
+                    id: Some("track-1".into()),
+                    title: "Track one".into(),
+                    artist: "Fixture artist".into(),
+                    duration_ms: Some(180_000),
+                    track_number: Some(1),
+                }],
+            },
+            "fixture",
+        )
+        .unwrap();
+    let sessions = Sessions::open(store);
+    let session = sessions
+        .create_output(
+            &actor,
+            "Fixture output",
+            OutputBinding {
+                plugin_id: "renderer".into(),
+                target_id: "room".into(),
+            },
+        )
+        .unwrap();
+    let queue = SessionCommand::QueueAdd {
+        track_ids: vec!["track-1".into()],
+    };
+    sessions
+        .prepare_output_command(&actor, &session.id, &queue, "queue", "queue-content")
+        .unwrap();
+    sessions
+        .commit_output_command(
+            &actor,
+            &session.id,
+            &queue,
+            "queue",
+            "queue-content",
+            OutputConfirmation::default(),
+        )
+        .unwrap();
+    let seek = SessionCommand::Seek {
+        position_ms: 45_000,
+    };
+    for _ in 0..2 {
+        let prepared = sessions
+            .prepare_output_command(&actor, &session.id, &seek, "seek", "seek-content")
+            .unwrap();
+        let PreparedOutputCommand::Ready { current, next, .. } = prepared else {
+            panic!("an unapplied seek remains retryable at its original revision")
+        };
+        assert_eq!(current.position_ms, 0);
+        assert_eq!(next.position_ms, 45_000);
+    }
+
+    // A different accepted output command can advance the revision between preparation
+    // and confirmation. The old confirmation must not overwrite the newer snapshot.
+    sessions
+        .prepare_output_command(&actor, &session.id, &queue, "append", "queue-content")
+        .unwrap();
+    let changed = sessions
+        .commit_output_command(
+            &actor,
+            &session.id,
+            &queue,
+            "append",
+            "queue-content",
+            OutputConfirmation::default(),
+        )
+        .unwrap();
+    let committed = sessions.commit_output_command(
+        &actor,
+        &session.id,
+        &seek,
+        "seek",
+        "seek-content",
+        OutputConfirmation {
+            position_ms: Some(45_000),
+            duration_ms: Some(180_000),
+        },
+    );
+    assert!(matches!(
+        committed,
+        Err(SessionError::Machine(
+            pyxis::sessions::machine::MachineError::StaleSeek
+        ))
+    ));
+    let retried =
+        sessions.prepare_output_command(&actor, &session.id, &seek, "seek", "seek-content");
+    assert!(matches!(
+        retried,
+        Err(SessionError::Machine(
+            pyxis::sessions::machine::MachineError::StaleSeek
+        ))
+    ));
+    assert_eq!(sessions.get(&actor, &session.id).unwrap().unwrap(), changed);
+}
+
+#[test]
+fn an_unfenced_pending_output_seek_cannot_acquire_a_new_revision() {
+    let dir = tempfile::tempdir().unwrap();
+    let store = Store::open(dir.path()).unwrap();
+    let sessions = Sessions::open(store.clone());
+    let actor = auth("account-a", "device-a");
+    let session = sessions
+        .create_output(
+            &actor,
+            "Fixture output",
+            OutputBinding {
+                plugin_id: "renderer".into(),
+                target_id: "room".into(),
+            },
+        )
+        .unwrap();
+    let seek = SessionCommand::Seek { position_ms: 0 };
+    // An interrupted receipt from the unfenced output path has no original revision.
+    // Persist that current-v3 shape rather than silently assigning it today's revision.
+    let id = format!("{}:unfenced", session.id);
+    let receipt = serde_json::json!({
+        "id": id,
+        "sessionId": session.id,
+        "commandId": "unfenced",
+        "fingerprint": "seek-content",
+        "applied": false,
+        "revision": 1,
+        "updatedBy": "device-a",
+        "updatedAt": "2026-10-24T00:00:00Z",
+    });
+    store
+        .put(
+            pyxis::db::schema::SESSION_COMMAND_RECEIPTS,
+            &actor.account_id,
+            &id,
+            &receipt,
+        )
+        .unwrap();
+    let retried =
+        sessions.prepare_output_command(&actor, &session.id, &seek, "unfenced", "seek-content");
+    assert!(matches!(
+        retried,
+        Err(SessionError::Machine(
+            pyxis::sessions::machine::MachineError::StaleSeek
+        ))
+    ));
+    let committed = sessions.commit_output_command(
+        &actor,
+        &session.id,
+        &seek,
+        "unfenced",
+        "seek-content",
+        OutputConfirmation::default(),
+    );
+    assert!(matches!(
+        committed,
+        Err(SessionError::Machine(
+            pyxis::sessions::machine::MachineError::StaleSeek
+        ))
+    ));
+    assert_eq!(sessions.get(&actor, &session.id).unwrap().unwrap(), session);
 }
 
 #[test]

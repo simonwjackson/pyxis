@@ -23,6 +23,17 @@ requirements and decisions were captured directly into `plan.md` sections
 
 ## Current position
 
+**Contract review round 1, output seek receipt fence.** The parent confirmed full verification
+and the separate player gates at `a0b1e7b`. Contract review then found the separate output
+path did not reserve seek revisions. Two real isolated RPC/plugin cases reproduce a failed
+seek on A retargeting B, both before and after a core restart. Output preparation now persists
+the original revision before renderer work, refuses stale or unfenced unapplied receipts,
+and fences confirmation commit. Applied replay stays effect-free, including after restart.
+Four focused test files pass 20/20 cases; related Rust compilation/Clippy, formatting and diff
+checks pass. Evidence: `/tmp/pyxamp-wf8145-evidence/review-repairs/pyxis-output-seek`.
+The parent owns final combined review-stage gates after all repairs. No full verification,
+physical Sonos, live service, provider mutation, push, landing or deployment was performed.
+
 **Parent-gate repairs after `6548f50`.** The combined app run found one output-control
 assertion failure. The fixture now distinguishes a seekable output from an empty output;
 effective fieldset disabling and all mode/seek controls are checked. A reproduced zero-duration
@@ -55,8 +66,8 @@ clients before they can lose pending writes or gain host authority. Old one-shot
 outboxes remain unchanged with an explicit update blocker. Current-v2 session defaults and
 interrupted receipt fingerprints preserve queues; seek retries retain their reserved revision.
 
-M11 is implemented on the isolated workflow branch, awaiting parent combined verification,
-Review and Land. Final focused checks pass: 68 Rust, 208 app/worker and 87 product tests;
+M11 is implemented on the isolated workflow branch. Parent combined verification passed at
+`a0b1e7b`; the review repair above still needs final parent gates, Review and Land. Final focused checks pass: 68 Rust, 208 app/worker and 87 product tests;
 contract drift, Clippy, formatting, typechecks, owned Biome and shell checks. Native Chromium
 confirms real seek/receipt ordering, reversible duplicate order and repeat-one at natural end.
 A fresh real HTTP process exercises new library/playback operations with zero plugins.

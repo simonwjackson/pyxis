@@ -1751,6 +1751,18 @@ Twenty-three selected app cases, twelve product transport cases, twelve architec
 meta-tests, both architecture audits, related typechecks and owned Biome pass. The parent
 still owns the final combined gate, including the reference build not reached previously.
 
+**Contract review round 1, output seek fence.** The parent confirmed full verification and
+separate player gates at `a0b1e7b`. Review then found that prepared output receipts bypassed
+the browser reservation fence. Output preparation now durably records its original revision
+before renderer work and rejects stale or unfenced unapplied seeks. Commit rechecks the fence;
+applied replays remain effect-free. Two actual RPC/plugin regressions fail before the fix
+(the old seek reaches the new track), including after reopening the core store. They verify
+no renderer seek or snapshot change on stale retry, successful fresh-ID seek and applied
+replay across track changes and restart. Domain cases check unchanged-revision preparation,
+stale confirmation and an interrupted unfenced receipt. Twenty focused Rust cases, related
+compilation/Clippy, formatting and diff checks pass. The parent owns combined review-stage
+gates after all fixes. No physical Sonos, live mutation, deployment or full verification here.
+
 ---
 
 ## System-Wide Impact

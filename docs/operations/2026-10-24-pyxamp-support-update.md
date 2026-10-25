@@ -67,8 +67,11 @@ The worker applies session defaults at its read boundary and retains old outbox 
   second native queue or repeat state. Physical Sonos acceptance remains unverified.
 - An unloaded browser track refuses seek. A loaded renderer must have a known duration.
   Native Sonos seek is whole-second; confirmation tolerates 1000 ms and reports actual time.
-  Console reservations retain the original seek revision across retries and core restart;
-  an unapplied retry cannot retarget a newer session revision.
+  Browser reservations and prepared output receipts retain the original seek revision across
+  retries and core restart. Output preparation rejects a stale or unfenced unapplied seek
+  before renderer effects; commit rechecks the revision before publishing confirmation.
+  Applied receipts remain effect-free replays. After a session change, a fresh seek gesture
+  needs a new command ID.
 - Group first pages observe current membership. Continuations retain an immutable snapshot
   for up to 30 minutes with a bounded 512-cursor store. List and first-page calls can observe
   intervening edits. Partial station failures omit count and carry typed source failures.
@@ -109,5 +112,29 @@ it directly. Its pinned Ajv dependency moved to the root package; lock and closu
 were regenerated. No architecture rule, exception or coverage was changed. Generated
 contracts are unchanged. Twenty-three selected app cases, twelve product transport cases,
 twelve architecture meta-tests, both architecture audits, related typechecks and owned
-Biome pass. No full verification was rerun for these fixes. The parent's final combined
-run must still include `build-client`, which the earlier failing gate did not reach.
+Biome pass. No full verification was rerun by the worker for these fixes. The parent then
+confirmed `just verify` at `a0b1e7b`, including 362 app cases and the reference build/PWA gate.
+The separate player gates also passed on that SHA. Eighteen existing Biome warnings remain.
+
+## Contract review, round 1: output seek receipts
+
+The browser reservation fence did not cover the separate output preparation path. A failed
+renderer confirmation left an unapplied output receipt without an expected revision. Retrying
+its ID after selecting another track could seek the new track. Two isolated authenticated RPC
+regressions reproduced this on the unchanged `a0b1e7b` production code: both the running-core
+and reopened-core cases returned `dispatched` and sent a third seek after B was loaded, instead
+of retaining the two original failed-seek/rollback calls.
+
+Output preparation now persists its original revision before returning renderer work. It
+refuses stale or unfenced unapplied seek receipts without sending a seek. Commit also fences
+late confirmations. The regressions use the actual router, durable store, local media and a
+configured plugin subprocess. They check no seek or snapshot change on stale retry, successful
+fresh-ID seek on B, and effect-free applied replay after a track change. Both pending and
+applied receipts reopen from disk in the restart case. Domain cases cover repeated preparation
+at the original revision, a changed revision before commit, and an interrupted unfenced receipt.
+
+Twenty focused Rust cases pass across `output_seek_rpc`, `output_rpc`, `sessions` and
+`session_snapshots`. Related compilation/Clippy, Rust formatting and diff checks pass.
+No physical Sonos, live service, provider mutation, deployment or full verification is involved.
+The parent owns the final combined review-stage gates. Evidence is in
+`/tmp/pyxamp-wf8145-evidence/review-repairs/pyxis-output-seek`.
