@@ -169,6 +169,12 @@ export interface PlaylistCreateRequest {
 	trackIds: string[];
 }
 
+export interface PlaylistTracksAddRequest {
+	playlistId: string;
+	trackIds: string[];
+	commandId: string;
+}
+
 export enum PluginCapability {
 	Source = "source",
 	Output = "output",
@@ -899,6 +905,12 @@ export type PlaylistListOutcome =
 	| { status: "ready", value: RpcPlaylist[] }
 	| { status: "unavailable", value: RpcFailure };
 
+export type PlaylistTracksAddOutcome =
+	| { status: "applied", value: RpcPlaylist }
+	| { status: "unknownPlaylist", value?: undefined }
+	| { status: "rejected", value: RpcFailure }
+	| { status: "unavailable", value: RpcFailure };
+
 export type PluginCallOutcome =
 	| { status: "ready", value: PluginValue }
 	| { status: "unavailable", value: PluginFailure };
@@ -961,6 +973,7 @@ export type RpcRequest =
 	| { _tag: "library.album.command.run", payload: AlbumCommandRequest }
 	| { _tag: "library.bookmarks.list", payload: EmptyRequest }
 	| { _tag: "library.bookmark.command.run", payload: BookmarkCommandRequest }
+	| { _tag: "library.playlist.tracks.add", payload: PlaylistTracksAddRequest }
 	| { _tag: "library.playlist.create", payload: PlaylistCreateRequest }
 	| { _tag: "library.playlists.list", payload: EmptyRequest }
 	| { _tag: "listen.events.append", payload: ListenEventsAppendRequest }
@@ -1003,6 +1016,7 @@ export type RpcResponse =
 	| { _tag: "library.album.command.run", outcome: AlbumCommandOutcome }
 	| { _tag: "library.bookmarks.list", outcome: BookmarkListOutcome }
 	| { _tag: "library.bookmark.command.run", outcome: BookmarkCommandOutcome }
+	| { _tag: "library.playlist.tracks.add", outcome: PlaylistTracksAddOutcome }
 	| { _tag: "library.playlist.create", outcome: PlaylistCreateOutcome }
 	| { _tag: "library.playlists.list", outcome: PlaylistListOutcome }
 	| { _tag: "listen.events.append", outcome: ListenAppendOutcome }

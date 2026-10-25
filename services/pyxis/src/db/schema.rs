@@ -24,6 +24,7 @@ pub const ALBUM_SOURCE_REFS: &str = "albumSourceRefs";
 pub const ALBUM_TRACKS: &str = "albumTracks";
 pub const TRACKS: &str = "tracks";
 pub const TRACK_CANDIDATES: &str = "trackCandidates";
+pub const PLAYLIST_COMMAND_RECEIPTS: &str = "playlistCommandReceipts";
 pub const PLAYLISTS: &str = "playlists";
 pub const STATIONS: &str = "stations";
 pub const BOOKMARKS: &str = "bookmarks";
@@ -225,6 +226,17 @@ pub fn track_candidates() -> CollectionDescriptor {
     )
 }
 
+pub fn playlist_command_receipts() -> CollectionDescriptor {
+    added_after_m1(scoped(
+        PLAYLIST_COMMAND_RECEIPTS,
+        vec![
+            field("commandId", SchemaNode::Str),
+            field("fingerprint", SchemaNode::Str),
+            field("outcome", SchemaNode::Str),
+        ],
+    ))
+}
+
 pub fn playlists() -> CollectionDescriptor {
     scoped(
         PLAYLISTS,
@@ -414,6 +426,7 @@ pub fn all() -> Vec<CollectionDescriptor> {
         tracks(),
         track_candidates(),
         playlists(),
+        playlist_command_receipts(),
         stations(),
         bookmarks(),
         feedback(),

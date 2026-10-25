@@ -1083,6 +1083,25 @@ pub enum BookmarkListOutcome {
 #[typeshare]
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct PlaylistTracksAddRequest {
+    pub playlist_id: String,
+    pub track_ids: Vec<String>,
+    pub command_id: String,
+}
+
+#[typeshare]
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(tag = "status", content = "value", rename_all = "camelCase")]
+pub enum PlaylistTracksAddOutcome {
+    Applied(RpcPlaylist),
+    UnknownPlaylist,
+    Rejected(RpcFailure),
+    Unavailable(RpcFailure),
+}
+
+#[typeshare]
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct PlaylistCreateRequest {
     pub title: String,
     pub track_ids: Vec<String>,
@@ -1492,6 +1511,8 @@ pub enum RpcRequest {
     LibraryBookmarksList(EmptyRequest),
     #[serde(rename = "library.bookmark.command.run")]
     LibraryBookmarkCommandRun(BookmarkCommandRequest),
+    #[serde(rename = "library.playlist.tracks.add")]
+    LibraryPlaylistTracksAdd(PlaylistTracksAddRequest),
     #[serde(rename = "library.playlist.create")]
     LibraryPlaylistCreate(PlaylistCreateRequest),
     #[serde(rename = "library.playlists.list")]
@@ -1587,6 +1608,8 @@ pub enum RpcResponse {
     LibraryBookmarksList(BookmarkListOutcome),
     #[serde(rename = "library.bookmark.command.run")]
     LibraryBookmarkCommandRun(BookmarkCommandOutcome),
+    #[serde(rename = "library.playlist.tracks.add")]
+    LibraryPlaylistTracksAdd(PlaylistTracksAddOutcome),
     #[serde(rename = "library.playlist.create")]
     LibraryPlaylistCreate(PlaylistCreateOutcome),
     #[serde(rename = "library.playlists.list")]
@@ -1624,7 +1647,7 @@ pub enum RpcResponse {
 }
 
 impl RpcRequest {
-    pub const KNOWN_TAGS: [&'static str; 40] = [
+    pub const KNOWN_TAGS: [&'static str; 41] = [
         "system.status.get",
         "auth.device.claim",
         "auth.device.pair",
@@ -1651,6 +1674,7 @@ impl RpcRequest {
         "library.bookmark.command.run",
         "library.playlist.create",
         "library.playlists.list",
+        "library.playlist.tracks.add",
         "listen.events.append",
         "listen.history.list",
         "library.hotAlbums.list",
@@ -1694,6 +1718,7 @@ impl RpcRequest {
             RpcRequest::LibraryAlbumCommandRun(_) => "library.album.command.run",
             RpcRequest::LibraryBookmarksList(_) => "library.bookmarks.list",
             RpcRequest::LibraryBookmarkCommandRun(_) => "library.bookmark.command.run",
+            RpcRequest::LibraryPlaylistTracksAdd(_) => "library.playlist.tracks.add",
             RpcRequest::LibraryPlaylistCreate(_) => "library.playlist.create",
             RpcRequest::LibraryPlaylistsList(_) => "library.playlists.list",
             RpcRequest::ListenEventsAppend(_) => "listen.events.append",
@@ -1747,6 +1772,7 @@ impl RpcRequest {
             RpcRequest::LibraryAlbumAdd(_)
             | RpcRequest::LibraryAlbumCommandRun(_)
             | RpcRequest::LibraryBookmarkCommandRun(_)
+            | RpcRequest::LibraryPlaylistTracksAdd(_)
             | RpcRequest::LibraryPlaylistCreate(_) => Some("library:write"),
             RpcRequest::ListenEventsAppend(_) => Some("listen:write"),
             RpcRequest::ListenHistoryList(_) | RpcRequest::LibraryHotAlbumsList(_) => {
@@ -1774,7 +1800,7 @@ impl RpcRequest {
 }
 
 impl RpcResponse {
-    pub const KNOWN_OPERATION_TAGS: [&'static str; 40] = RpcRequest::KNOWN_TAGS;
+    pub const KNOWN_OPERATION_TAGS: [&'static str; 41] = RpcRequest::KNOWN_TAGS;
 
     pub fn tag(&self) -> &'static str {
         match self {
@@ -1802,6 +1828,7 @@ impl RpcResponse {
             RpcResponse::LibraryAlbumCommandRun(_) => "library.album.command.run",
             RpcResponse::LibraryBookmarksList(_) => "library.bookmarks.list",
             RpcResponse::LibraryBookmarkCommandRun(_) => "library.bookmark.command.run",
+            RpcResponse::LibraryPlaylistTracksAdd(_) => "library.playlist.tracks.add",
             RpcResponse::LibraryPlaylistCreate(_) => "library.playlist.create",
             RpcResponse::LibraryPlaylistsList(_) => "library.playlists.list",
             RpcResponse::ListenEventsAppend(_) => "listen.events.append",

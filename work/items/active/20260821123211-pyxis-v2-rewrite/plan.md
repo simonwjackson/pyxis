@@ -438,6 +438,7 @@ milestone below answers a question the user can only answer by using the thing.
 | M7 | **Someone else could build a client** | U26 | Can a third party integrate from documentation alone? |
 | M8 | **Search finds albums, artists and songs** | U28, U29 | Does discovery return real catalog identity instead of general video results? |
 | M9 | **A station plays, whatever the source is behind it** | U30, U31, U32, U33 | Is one generic station model honest against two very different providers? |
+| M11 | **Pyxamp can browse and host Pyxis** | U34, U35, U36, U37 | Can a source-neutral remote browse groups, seek, and restore playback modes? |
 
 Notes on sequencing:
 
@@ -1660,6 +1661,43 @@ U13, and U23 land.
 
 **Verification:** The library is repopulated, the unresolved list is reviewed, and
 `tools/import-legacy/` no longer exists in the tree.
+
+---
+
+## Pyxamp support (approved workflow 8145e018)
+
+These units extend this rewrite, not a new rewrite. D1–D22 remain settled. The user
+approved simple playlists and replacing one-shot shuffle with reversible session modes.
+M10 continuous radio remains deferred. No deployment or physical Sonos commands in this stage.
+The parent owns one combined full verification; each unit runs focused checks.
+
+### U34. Account-owned playlist append
+
+**Goal:** `library.playlist.tracks.add` appends ordered duplicates with account-scoped,
+content-bound durable command receipts and one atomic revision. Existing create/list remain.
+No rename, delete or reorder. VISION records the approved album-centric playlist principle.
+**Verification:** focused library RPC and persistence tests, contract drift, Rust static gates.
+
+### U35. Dynamic groups and persisted album tags
+
+**Goal:** ordered opaque groups, typed account/group-fenced pages, truthful station failures;
+album tags persist, revise and sync through `tags.set`. No enrichers or saved filters.
+**Verification:** focused public RPC, reopen and client/worker tests; codegen/static checks.
+
+### U36. Renderer-confirmed absolute seek
+
+**Goal:** host-owned seek with known duration, bounded position, durable receipts, browser
+confirmation and core-hosted Sonos confirmation/rollback. No physical Sonos calls.
+**Verification:** focused RPC, shared host, worker and isolated output fixture tests.
+
+### U37. Reversible shuffle and repeat modes; wire v3
+
+**Goal:** persistent off/all/one repeat and reversible shuffle preserving queue occurrences,
+current occurrence and edits across replay/handoff. Remove `queue.shuffle` from the wire.
+Use `pyxis-rpc-v3`; cached clients reject mismatches. Preserve pending old shuffle intent,
+with explicit update/deployment handling. Existing current-v2 records default new modes,
+without v1 compatibility. Both browser hosts and Sonos obey modes.
+**Verification:** focused session/RPC/worker/shared-host/output tests, contract/static checks.
 
 ---
 

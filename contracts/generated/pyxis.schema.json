@@ -423,6 +423,22 @@
           "properties": {
             "_tag": {
               "type": "string",
+              "const": "library.playlist.tracks.add"
+            },
+            "payload": {
+              "$ref": "#/$defs/PlaylistTracksAddRequest"
+            }
+          },
+          "required": [
+            "_tag",
+            "payload"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "_tag": {
+              "type": "string",
               "const": "library.playlist.create"
             },
             "payload": {
@@ -1409,6 +1425,29 @@
         }
       ]
     },
+    "PlaylistTracksAddRequest": {
+      "type": "object",
+      "properties": {
+        "playlistId": {
+          "type": "string"
+        },
+        "trackIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "commandId": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "playlistId",
+        "trackIds",
+        "commandId"
+      ]
+    },
     "PlaylistCreateRequest": {
       "type": "object",
       "properties": {
@@ -2210,6 +2249,22 @@
             },
             "outcome": {
               "$ref": "#/$defs/BookmarkCommandOutcome"
+            }
+          },
+          "required": [
+            "_tag",
+            "outcome"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "_tag": {
+              "type": "string",
+              "const": "library.playlist.tracks.add"
+            },
+            "outcome": {
+              "$ref": "#/$defs/PlaylistTracksAddOutcome"
             }
           },
           "required": [
@@ -4488,17 +4543,45 @@
         }
       ]
     },
-    "PlaylistCreateOutcome": {
+    "PlaylistTracksAddOutcome": {
       "oneOf": [
         {
           "type": "object",
           "properties": {
             "status": {
               "type": "string",
-              "const": "ready"
+              "const": "applied"
             },
             "value": {
               "$ref": "#/$defs/RpcPlaylist"
+            }
+          },
+          "required": [
+            "status",
+            "value"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "const": "unknownPlaylist"
+            }
+          },
+          "required": [
+            "status"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "const": "rejected"
+            },
+            "value": {
+              "$ref": "#/$defs/RpcFailure"
             }
           },
           "required": [
@@ -4551,6 +4634,42 @@
         "title",
         "trackIds",
         "revision"
+      ]
+    },
+    "PlaylistCreateOutcome": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "const": "ready"
+            },
+            "value": {
+              "$ref": "#/$defs/RpcPlaylist"
+            }
+          },
+          "required": [
+            "status",
+            "value"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "const": "unavailable"
+            },
+            "value": {
+              "$ref": "#/$defs/RpcFailure"
+            }
+          },
+          "required": [
+            "status",
+            "value"
+          ]
+        }
       ]
     },
     "PlaylistListOutcome": {

@@ -37,6 +37,10 @@ pub enum LibraryError {
     Artwork(#[from] ArtworkStoreError),
     #[error("album title and artist are required")]
     InvalidAlbum,
+    #[error("{0}")]
+    InvalidPlaylistCommand(String),
+    #[error("commandId was already used for different playlist content")]
+    PlaylistCommandConflict,
     #[error("library relationship is corrupt: {0}")]
     Corrupt(String),
 }
@@ -81,6 +85,19 @@ struct PlaylistRecord {
     account_id: String,
     title: String,
     track_ids: Vec<String>,
+    revision: u64,
+    updated_by: String,
+    updated_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct PlaylistCommandReceipt {
+    id: String,
+    account_id: String,
+    command_id: String,
+    fingerprint: String,
+    outcome: String,
     revision: u64,
     updated_by: String,
     updated_at: String,
@@ -559,6 +576,81 @@ impl Library {
         };
         self.store.put(schema::PLAYLISTS, account, &id, &record)?;
         Ok(playlist(record))
+    }
+
+    /// Receipt and playlist revision commit together. Replays return the original value.
+    pub fn add_playlist_tracks(
+        &self,
+        account: &AccountId,
+        playlist_id: &str,
+        track_ids: Vec<String>,
+        command_id: &str,
+        updated_by: &str,
+    ) -> Result<Option<Playlist>, LibraryError> {
+        if command_id.trim().is_empty()
+            || command_id.chars().count() > 128
+            || track_ids.is_empty()
+            || track_ids.len() > 1000
+        {
+            return Err(LibraryError::InvalidPlaylistCommand(
+                "commandId must be 1..128 characters and trackIds must contain 1..1000 tracks"
+                    .into(),
+            ));
+        }
+        let _guard = self.mutation.lock().expect("library mutation poisoned");
+        let id = short_hash(&format!(
+            "playlist-command\0{}\0{command_id}",
+            account.as_str()
+        ));
+        let fingerprint =
+            serde_json::to_string(&(playlist_id, &track_ids)).expect("playlist content serializes");
+        if let Some(receipt) = self.store.get::<PlaylistCommandReceipt>(
+            schema::PLAYLIST_COMMAND_RECEIPTS,
+            account,
+            &id,
+        )? {
+            if receipt.command_id != command_id || receipt.fingerprint != fingerprint {
+                return Err(LibraryError::PlaylistCommandConflict);
+            }
+            let record: PlaylistRecord = serde_json::from_str(&receipt.outcome)
+                .map_err(|error| LibraryError::Corrupt(error.to_string()))?;
+            return Ok(Some(playlist(record)));
+        }
+        let Some(mut record) =
+            self.store
+                .get::<PlaylistRecord>(schema::PLAYLISTS, account, playlist_id)?
+        else {
+            return Ok(None);
+        };
+        for track_id in &track_ids {
+            if self.get_track(account, track_id)?.is_none() {
+                return Err(LibraryError::InvalidPlaylistCommand(
+                    "trackIds must reference tracks owned by this account".into(),
+                ));
+            }
+        }
+        record.track_ids.extend(track_ids);
+        record.revision += 1;
+        record.updated_by = updated_by.into();
+        record.updated_at = now();
+        let receipt = PlaylistCommandReceipt {
+            id: id.clone(),
+            account_id: String::new(),
+            command_id: command_id.into(),
+            fingerprint,
+            outcome: serde_json::to_string(&record).expect("playlist serializes"),
+            revision: 1,
+            updated_by: updated_by.into(),
+            updated_at: record.updated_at.clone(),
+        };
+        self.store.put_mixed_batch(
+            account,
+            &[
+                Store::write(schema::PLAYLISTS, playlist_id, &record)?,
+                Store::write(schema::PLAYLIST_COMMAND_RECEIPTS, id, &receipt)?,
+            ],
+        )?;
+        Ok(Some(playlist(record)))
     }
 
     pub fn list_playlists(&self, account: &AccountId) -> Result<Vec<Playlist>, LibraryError> {

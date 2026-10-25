@@ -296,7 +296,7 @@ That separation is the point. The interface can be redesigned, or replaced entir
 ## What Pyxis Is Not
 
 - **Not a social platform**: No sharing, no friends, no public profiles. This is a personal system.
-- **Not a playlist manager**: No user-created playlists. Placements are the organizational primitive. Stations and source playlists are discovery tools, not curated lists.
+- Not a playlist manager: playlists exist as a simple primitive, a named list of tracks, but albums are the unit and placements organise the library. No surface promotes playlists or makes them the hub. Stations and source playlists are discovery tools.
 - **Not a music acquisition tool**: Background fidelity upgrades improve copies of music you already chose. There is no search, browse, or download surface for acquiring new music that way, and there never will be.
 - **Not a recommendation engine**: Pyxis uses upstream algorithms (Pandora, YouTube Music) for discovery. It doesn't build its own recommendation model (though the architecture leaves room for a hybrid approach in the future).
 - **Not a music player**: Pyxis is a music *system*. The player is one interface into it. The API is the primary contract; the web UI is one client.

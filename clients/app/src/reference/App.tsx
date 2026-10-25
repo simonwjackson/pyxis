@@ -25,6 +25,7 @@ import { ReferenceLibrary } from "./Library.tsx"
 import { ReferenceOffline } from "./Offline.tsx"
 import { ReferenceOutputs } from "./Outputs.tsx"
 import { ReferencePlugins } from "./Plugins.tsx"
+import { ReferencePlaylists } from "./Playlists.tsx"
 import { type ConsoleCommand, type LocalState, ReferenceContext } from "./Reference.context.tsx"
 import { ReferenceAudio } from "./ReferenceAudio.tsx"
 import { ReferenceRemote } from "./Remote.tsx"
@@ -1076,6 +1077,7 @@ export function ReferenceApp({
           <ReferenceOutputs />
           <ReferenceLibrary />
           <ReferenceStations />
+          <ReferencePlaylists key={grant?.account.id} />
           <ReferenceSessions />
           <ReferenceOffline />
           <ReferenceRemote />

@@ -933,6 +933,36 @@ pub fn dispatch(state: &AppState, request: RpcRequest, auth: Option<AuthContext>
                 }
             }
         }
+        RpcRequest::LibraryPlaylistTracksAdd(request) => {
+            use crate::rpc::contract::PlaylistTracksAddOutcome;
+            let Some(auth) = auth else {
+                return auth_required();
+            };
+            let outcome = match state.library.add_playlist_tracks(
+                &auth.account_id,
+                &request.playlist_id,
+                request.track_ids,
+                &request.command_id,
+                auth.principal_id(),
+            ) {
+                Ok(Some(playlist)) => PlaylistTracksAddOutcome::Applied(rpc_playlist(playlist)),
+                Ok(None) => PlaylistTracksAddOutcome::UnknownPlaylist,
+                Err(LibraryError::InvalidPlaylistCommand(message)) => {
+                    PlaylistTracksAddOutcome::Rejected(RpcFailure::permanent(
+                        "library.invalidPlaylistCommand",
+                        message,
+                    ))
+                }
+                Err(LibraryError::PlaylistCommandConflict) => {
+                    PlaylistTracksAddOutcome::Rejected(RpcFailure::permanent(
+                        "library.commandIdConflict",
+                        "commandId was already used for different playlist content",
+                    ))
+                }
+                Err(error) => PlaylistTracksAddOutcome::Unavailable(library_failure(error)),
+            };
+            RpcResponse::LibraryPlaylistTracksAdd(outcome)
+        }
         RpcRequest::LibraryPlaylistCreate(request) => {
             let Some(auth) = auth else {
                 return auth_required();

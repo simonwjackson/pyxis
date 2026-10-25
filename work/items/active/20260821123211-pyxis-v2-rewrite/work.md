@@ -23,6 +23,14 @@ requirements and decisions were captured directly into `plan.md` sections
 
 ## Current position
 
+**Approved Pyxamp support, workflow 8145e018.** M11 extends this rewrite with U34–U37.
+U34 implements account-owned playlist append, durable content-bound receipts and a minimal
+reference-client affordance. Focused library tests pass 14/14; append/retry UI test passes;
+contract generation/drift, root typecheck, owned Biome and library Clippy pass.
+No deployment, push, landing, live mutation or physical Sonos command is allowed in this stage.
+U35 dynamic groups/tags is next, then U36 seek and U37 reversible modes/wire v3.
+The parent runs combined full verification once. Old deployment notes below are historical.
+
 **Shared renderer-confirmed commands, 2026-10-01.** Both clients use one non-React playback
 host. It owns renderer confirmation, durable receipts, revisions, rollback, cancellation and
 later audio-failure correction. Remote errors stay on the host. Successful album selection

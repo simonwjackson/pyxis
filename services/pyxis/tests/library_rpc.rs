@@ -181,3 +181,65 @@ async fn bookmark_and_playlist_operations_are_account_scoped() {
     .await;
     assert_eq!(playlists["outcome"]["value"][0]["title"], "Bowie");
 }
+
+#[tokio::test]
+async fn playlist_append_preserves_duplicates_receipts_and_account_boundaries() {
+    let dir = tempfile::tempdir().unwrap();
+    let store = Store::open(dir.path()).unwrap();
+    let app = router(AppState::open(store.clone()).unwrap());
+    let bearer = token(&app).await;
+    rpc(&app, add_request(), Some(&bearer)).await;
+    let created = rpc(
+        &app,
+        json!({"_tag":"library.playlist.create", "payload":{"title":"Bowie", "trackIds":[]}}),
+        Some(&bearer),
+    )
+    .await;
+    let id = created["outcome"]["value"]["id"].as_str().unwrap();
+    let append = json!({"_tag":"library.playlist.tracks.add", "payload":{"playlistId":id,"trackIds":["track-heroes","track-heroes"],"commandId":"append-1"}});
+    let first = rpc(&app, append.clone(), Some(&bearer)).await;
+    assert_eq!(first["outcome"]["status"], "applied");
+    assert_eq!(
+        first["outcome"]["value"]["trackIds"],
+        json!(["track-heroes", "track-heroes"])
+    );
+    assert_eq!(first["outcome"]["value"]["revision"], 2);
+    assert_eq!(rpc(&app, append.clone(), Some(&bearer)).await, first);
+    let mut different = append.clone();
+    different["payload"]["trackIds"] = json!(["track-heroes"]);
+    assert_eq!(
+        rpc(&app, different, Some(&bearer)).await["outcome"]["value"]["code"],
+        "library.commandIdConflict"
+    );
+    let mut second = append.clone();
+    second["payload"]["commandId"] = json!("append-2");
+    assert_eq!(
+        rpc(&app, second, Some(&bearer)).await["outcome"]["value"]["trackIds"]
+            .as_array()
+            .unwrap()
+            .len(),
+        4
+    );
+    let mut invalid = append.clone();
+    invalid["payload"]["commandId"] = json!("missing-track");
+    invalid["payload"]["trackIds"] = json!(["not-owned"]);
+    assert_eq!(
+        rpc(&app, invalid, Some(&bearer)).await["outcome"]["status"],
+        "rejected"
+    );
+    let other = rpc(
+        &app,
+        json!({"_tag":"account.create", "payload":{"name":"Other", "deviceName":"Other"}}),
+        Some(&bearer),
+    )
+    .await;
+    let other_token = other["outcome"]["value"]["bearerToken"].as_str().unwrap();
+    assert_eq!(
+        rpc(&app, append.clone(), Some(other_token)).await["outcome"]["status"],
+        "unknownPlaylist"
+    );
+    drop(app);
+    drop(store);
+    let app = router(AppState::open(Store::open(dir.path()).unwrap()).unwrap());
+    assert_eq!(rpc(&app, append, Some(&bearer)).await, first);
+}

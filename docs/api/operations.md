@@ -38,6 +38,7 @@ Read [README.md](README.md) first for the envelope rules, and
 | `library.bookmark.command.run` | `library:write` | `added`, `removed`, `unknown`, `unavailable` |
 | `library.playlist.create` | `library:write` | `ready`, `unavailable` |
 | `library.playlists.list` | `library:read` | `ready`, `unavailable` |
+| `library.playlist.tracks.add` | `library:write` | `applied`, `unknownPlaylist`, `rejected`, `unavailable` |
 | `library.hotAlbums.list` | `listen:read` | `ready`, `unavailable` |
 | `listen.events.append` | `listen:write` | `ready`, `invalid`, `conflict`, `unavailable` |
 | `listen.history.list` | `listen:read` | `ready`, `unavailable` |
@@ -49,6 +50,15 @@ Read [README.md](README.md) first for the envelope rules, and
 
 Exact payload and value shapes are in `contracts/generated/pyxis.ts`. This document explains
 the parts a type cannot tell you.
+
+## Playlist append
+
+`library.playlist.tracks.add` takes `{playlistId, trackIds, commandId}`. It accepts
+1–1000 account-owned tracks and a nonempty command ID of at most 128 characters.
+Ordered duplicates are preserved. The account-scoped command ID binds both playlist
+and track IDs. An identical retry returns the original playlist outcome. Different
+content returns `library.commandIdConflict`. The receipt and revision commit together.
+A new command ID deliberately appends again. Create/list keep their existing contracts.
 
 ## Result sizes
 
