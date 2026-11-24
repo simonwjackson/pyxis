@@ -313,6 +313,7 @@ Settled. Do not re-open without the user asking.
 | D32 | VISION parity, 2026-11-24 grilling: VISION names shelves as the one stored view (D28). The journal gains date-range paged reads, station-session events and capture events (no location). Accounts gain a settings RPC whose first setting is a source priority order that breaks quality ties. Lean-back mode is verified and built if missing. The browse space is marked "not in the first release" in VISION | User decisions. Today `listen.history.list` takes only `limit`, only `trackPlayed` exists, and every candidate has `source_priority` 0, so VISION's tie-break rule had no effect. Cost: new listen event kinds and an account settings surface in the contract. |
 | D33 | Drop all first-party UI for now: delete the player client, the reference client and the prototypes, keep the worker data plane. VISION configuration is env and flags plus account settings; the fidelity target and runtime log level are removed from VISION | User decisions, 2026-11-24 grilling. Supersedes the reference-client part of R13 and every UI unit's client surface. Cost: the phone loses its installed player, and renderer-side correctness work (confirmed playback, media session) leaves with the clients unless kept separately. |
 | D34 | After the UI deletion, `clients/app` keeps `worker/`, `rpc/`, `pwa/` and `playback/confirmed-host.ts` as a headless host library. The package drops `PYXIS_WEB_ROOT`, so `/` answers 404, while the optional web-root flag stays in the core. Device-side sleep timers become a documented worker helper, and the core keeps the backstop Stop directive. `pyxis-prototypes.service` on zao is removed with `prototypes/` | User decisions, 2026-11-24 grilling. Narrows D31's device clause and U45. Cost: the phone's installed PWA stops loading after the next deploy, and `pwa/` stays without an app shell to install. |
+| D35 | Lean-back is data, not UI: the worker offers "resume for this device" and "takeover candidates" with a handoff helper. Sessions gain `session.retire`, plus automatic retirement of unreachable, idle device sessions after 30 days. Output sessions never expire. A one-time cleanup retires today's stale live sessions. M15 (U50–U56) carries D32–D35 and runs before M13 | User decisions, 2026-11-24 grilling. The resume rule moves out of the deleted player's `chooseLocalSession`. Cost: a device offline for more than 30 days loses its session and starts fresh. |
 
 ---
 
@@ -472,6 +473,7 @@ milestone below answers a question the user can only answer by using the thing.
 | M9 | **A station plays, whatever the source is behind it** | U30, U31, U32, U33 | Is one generic station model honest against two very different providers? |
 | M11 | **Pyxamp can browse and host Pyxis** | U34, U35, U36, U37, U38 | Can a source-neutral remote browse groups, seek, restore playback modes, and play next? |
 | M12 | **Vela hosts a Pyxis session from its own origin** | U39 | Can a browser app on another origin claim a device, host a session and stream audio without a proxy? |
+| M15 | **No UI, and the primitives match VISION** (built before M13) | U50, U51, U52, U53, U54, U55, U56 | Does Pyxis run cleanly as a service plus data plane, with a journal that answers time travel, honest source priority, lean-back as data and no stale sessions? |
 | M13 | **The core has what an agent needs** | U40, U41, U42, U43, U44, U45 | Can every MCP tool be built on public RPC alone, with names, queries, shelves, regrouping and sleep timers that tell the truth? |
 | M14 | **My agents drive Pyxis over MCP** | U46, U47, U48, U49 | Can my own agents play, queue, search, tag and run the speakers through a stateless `2026-07-28` MCP server? |
 
@@ -505,6 +507,9 @@ Notes on sequencing:
   the generic contract tests the abstraction against real provider behavior with the least new
   provider research. YouTube Music needs a watch-next request and continuations that no code in
   this repo has ever made.
+- **M15 was added on 2026-11-24** from the VISION parity grilling (D32–D35) and runs **before
+  M13**. Deleting the UI first shrinks every later verify run and keeps M13 and M14 off client UI.
+  MCP's history and session tools depend on U51 and U55.
 - **M13 and M14 were added on 2026-11-24** from the MCP grilling session (D26–D31). The user
   chose core prerequisites first, then the MCP server, then continuous radio. **M10 now follows
   M14.** MCP v1 radio is batch-based. Play takeover, live renderer volume and the narrower
@@ -1892,6 +1897,109 @@ open `/realtime`; an empty allowlist changes no HTTP response.
 `docs/install.md` with Vela's real origin.
 ---
 
+## UI removal and VISION parity (D32–D35)
+
+M15 runs before M13. Each unit runs focused checks; the stage owner runs one `just verify` on
+the combined result. Core changes are additive on `pyxis-rpc-v4` unless a unit says otherwise.
+
+### U50. Delete the first-party UI
+
+**Goal:** per D33 and D34, delete `clients/player`, `clients/app/src/reference`,
+`clients/app/src/main.tsx` and `prototypes/`. Keep `worker/`, `rpc/`, `pwa/` and
+`playback/confirmed-host.ts`. The nix package stops building the player and drops
+`PYXIS_WEB_ROOT`. Remove the player and reference recipes from the `justfile`, Vite and Vitest
+configs, and the verify tools that drive them (`tools/verify-player-*`, `tools/verify-pwa-build`).
+Update the README, `docs/install.md`, `docs/design/player-plan.md` (mark it retired) and the
+architecture checks. On zao, stop, disable and delete `pyxis-prototypes.service`.
+
+**Dependencies:** D33, D34
+
+**Test scenarios:** the worker, rpc, pwa and confirmed-host tests still pass alone; the core
+serves 404 at `/` with no web root while `/healthz`, `/rpc` and `/stream` work; Fallow reports
+no new dead code from the removal.
+
+**Verification:** `just verify`; `nix build .#pyxis`. Deploying stops the phone's installed
+player, so tell the user before the deploy.
+
+### U51. History date ranges and paging
+
+**Goal:** `listen.history.list` accepts `from`, `to` and an opaque cursor, newest first, with a
+bounded page size. `limit` stays. This makes time travel answerable without downloading all
+history.
+
+**Dependencies:** U9
+
+**Test scenarios:** range edges are inclusive and exclusive as documented; cursor stability under
+concurrent appends; empty range; account fencing.
+
+**Verification:** focused listen RPC tests with fixed dates (not wall-clock dates), contract drift.
+
+### U52. Station-session and capture events
+
+**Goal:** per D32, two new journal kinds. A `stationSession` records the station, its start and end,
+and the hosting session. A `capture` records an album add with its entry context (station track,
+search, or other) and is emitted by `library.album.add` when the caller supplies that context.
+Both are append-only, merge like `trackPlayed`, and return through U51. No location.
+
+**Dependencies:** U9, U30, U51
+
+**Test scenarios:** duplicate event ids; a station session left open by a crash; a capture
+without context; offline replay through the worker outbox.
+
+**Verification:** focused listen and library tests, worker replay tests, contract drift.
+
+### U53. Account settings and source priority
+
+**Goal:** per D32, `account.settings.get` and `account.settings.set` for behavioural settings, with
+a revision. The first setting is a source priority order (a list of plugin ids). Candidate ranking
+uses it to break ties between copies of equal quality, replacing the constant `source_priority`
+of 0 (`media/candidates.rs`, `source_catalog.rs`). Local copies still win ties of equal quality.
+
+**Dependencies:** U15, U19
+
+**Test scenarios:** a tie is broken by the order; quality still beats priority; an unknown plugin id
+is kept but ignored; revision conflict; account fencing.
+
+**Verification:** focused media and RPC tests, contract drift.
+
+### U54. Lean-back in the worker
+
+**Goal:** per D35, the worker offers "resume for this device" (the device's own session with
+queue, cursor and position, using the rule from the deleted `chooseLocalSession`: the sounding
+session, else the most recently updated) and "takeover candidates" (other devices' active,
+reachable sessions), with a helper that calls `session.handoff`. The host decides how to offer it.
+
+**Dependencies:** U20, U55
+
+**Test scenarios:** resume offline; no session for this device; candidates exclude retired and
+unreachable sessions; handoff failure is surfaced, not swallowed.
+
+**Verification:** focused worker tests.
+
+### U55. Session retire and expiry
+
+**Goal:** per D35, `session.retire` lets the owner or host retire a session. Retired sessions leave
+`session.list`, even with `includeUnreachable`, and publish a realtime update. The core
+automatically retires unreachable, idle device sessions older than 30 days. Output sessions never
+expire automatically.
+
+**Dependencies:** U5, U13
+
+**Test scenarios:** retire by host, by owner, and by a stranger (refused); expiry boundary at 30 days
+with a controlled clock; an output session never expires; retiring a playing session stops it first.
+
+**Verification:** focused session tests, contract drift.
+
+### U56. One-time cleanup on unzen
+
+**Goal:** after U55 is deployed, back up `/var/lib/pyxis/data/db` and retire the stale sessions on
+the live server (about 45, mostly "Reference browser"), keeping Sonos output sessions and any
+session reachable at that moment. Record the before and after counts in `docs/operations/`.
+
+**Dependencies:** U55 deployed
+
+**Verification:** `session.list includeUnreachable` before and after; the backup path recorded.
+
 ## MCP support (D26–D31)
 
 These units extend this rewrite. M13 builds core prerequisites; M14 builds the MCP server
@@ -1967,18 +2075,20 @@ with a pending deadline; deadline in the past is refused; backstop directive to 
 
 **Verification:** focused session tests with a controlled clock, contract drift.
 
-### U45. Local sleep timer in device clients
+### U45. Sleep timer helper in the worker
 
-**Goal:** per D31, the worker reads the deadline from session state and both clients stop
-playback at that time even while offline or backgrounded, fading when requested, then report
-Stop. A cancel or a replaced deadline that arrives later wins.
+**Goal:** per D31 as narrowed by D34, the worker exposes the session's deadline and fade and a
+helper that tells a host when to fade and stop, so a third-party host (Vela, Pyxamp) stops on
+time while offline. The core's Stop directive stays the backstop. A later cancel or replaced
+deadline wins. Document the host contract in `clients/app/src/worker/README.md` and
+`docs/api/operations.md`.
 
-**Dependencies:** U44, U20
+**Dependencies:** U44, U20, U50
 
-**Test scenarios:** fires offline; cancel received before the deadline; duplicate Stop from the
-core backstop is harmless; fade restores volume.
+**Test scenarios:** the helper fires offline; a cancel received before the deadline; a duplicate
+Stop from the backstop is harmless; the fade schedule restores volume.
 
-**Verification:** focused app and player tests.
+**Verification:** focused worker tests.
 
 ### U46. MCP server skeleton and deployment
 

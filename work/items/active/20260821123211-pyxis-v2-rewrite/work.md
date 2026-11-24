@@ -23,6 +23,14 @@ requirements and decisions were captured directly into `plan.md` sections
 
 ## Current position
 
+**2026-11-24, next work: M15, then M13, then M14, then M10.** Two grilling sessions settled
+D26–D35. M15 (U50–U56) deletes the first-party UI, keeping the worker, rpc, pwa and the
+headless confirmed-host, and closes the VISION gaps: history ranges, station-session and capture
+events, account settings with source priority, lean-back in the worker, and session retire and
+expiry. M13 (U40–U45) and M14 (U46–U49) build the core prerequisites and the `clients/mcp`
+server. v4 with D25 is deployed on unzen (`edae24c`, includes `35585ee` and `c879ff7`). Nothing in
+M13–M15 is built yet.
+
 **2026-11-24, D25: primitives-only Pyxis (`pyxis-rpc-v4`).** Placement, library groups,
 hot albums and Stacks are removed across core, contract, worker and both clients. All albums
 is the player route at `/`. Album tags and raw listen append/history remain. Store open
