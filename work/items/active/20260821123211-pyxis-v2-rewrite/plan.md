@@ -309,6 +309,7 @@ Settled. Do not re-open without the user asking.
 | D28 | A `Shelf` is a named, account-owned saved album query over tags (AND, OR, NOT) with a sort order (added, artist, title, last played). It is a core primitive and amends D25 | User decision, 2026-11-24 grilling. RPC under `library.shelf.*` / `library.shelves.list`. A shelf filters on primitives only: no fixed buckets, no history filters, and no offline worker sync in v1. Cost: some organization returns to the core, and a shelf query language becomes contract that is expensive to change. |
 | D29 | The MCP server forwards the client's Bearer Pyxis API token to Pyxis and holds no secrets; network placement is deployment config only | User decision, 2026-11-24: no coupling to the tailnet. The service binds a configurable host and port; on unzen it uses the service-app tsnet sidecar purely as transport. Pyxis scopes and revocation are the only access control. Cost: every agent needs its own `auth.token.create` token. |
 | D30 | Output Play always takes over a renderer that plays a foreign stream; regrouping releases any output session that owned a moved room; the core sleep timer stops a session at a time or after N minutes, optionally fading first, and can be cancelled and read back | User decisions, 2026-11-24 grilling. Supersedes the `output.rendererOwnershipLost` refusal on Play and the `output.groupBusy` refusal. A released session is stopped and loses ownership of the room, with a realtime event. Fade steps volume down, stops, then restores the prior volume. MCP name resolution ignores unreachable sessions and asks through MRTR when several match; without MRTR it picks the most recently updated match. Status: `35585ee` already makes Play the takeover, reads live renderer volume, and narrows `groupBusy`; it still refuses a regroup that moves the caller's own session to another coordinator, so release-on-regroup remains to build. Cost: someone's radio on a speaker stops without warning when an agent presses Play. |
+| D31 | The sleep timer covers every session. The core owns the deadline and fires it for output sessions; device clients also run the same timer locally | User decision, 2026-11-24 grilling. The core persists the deadline and fade on the session and publishes it in session state. An output session is stopped by the core. A device host receives the deadline through session state and stops itself at that time even when offline or asleep in the background, then reports Stop; the core also sends a Stop directive at the deadline as a backstop. Cost: timer logic in the core, the worker and both clients, and a host clock that differs from the core's can stop a little early or late. |
 
 ---
 
@@ -468,6 +469,8 @@ milestone below answers a question the user can only answer by using the thing.
 | M9 | **A station plays, whatever the source is behind it** | U30, U31, U32, U33 | Is one generic station model honest against two very different providers? |
 | M11 | **Pyxamp can browse and host Pyxis** | U34, U35, U36, U37, U38 | Can a source-neutral remote browse groups, seek, restore playback modes, and play next? |
 | M12 | **Vela hosts a Pyxis session from its own origin** | U39 | Can a browser app on another origin claim a device, host a session and stream audio without a proxy? |
+| M13 | **The core has what an agent needs** | U40, U41, U42, U43, U44, U45 | Can every MCP tool be built on public RPC alone, with names, queries, shelves, regrouping and sleep timers that tell the truth? |
+| M14 | **My agents drive Pyxis over MCP** | U46, U47, U48, U49 | Can my own agents play, queue, search, tag and run the speakers through a stateless `2026-07-28` MCP server? |
 
 Notes on sequencing:
 
@@ -499,6 +502,10 @@ Notes on sequencing:
   the generic contract tests the abstraction against real provider behavior with the least new
   provider research. YouTube Music needs a watch-next request and continuations that no code in
   this repo has ever made.
+- **M13 and M14 were added on 2026-11-24** from the MCP grilling session (D26–D31). The user
+  chose core prerequisites first, then the MCP server, then continuous radio. **M10 now follows
+  M14.** MCP v1 radio is batch-based. Play takeover, live renderer volume and the narrower
+  `groupBusy` already landed in `35585ee`; Avahi discovery on unzen already landed in mountainous.
 
 ## Implementation Units
 
@@ -1880,6 +1887,159 @@ open `/realtime`; an empty allowlist changes no HTTP response.
 
 **Verification:** `just verify`. Not deployed; deployment adds the drop-in from
 `docs/install.md` with Vela's real origin.
+---
+
+## MCP support (D26–D31)
+
+These units extend this rewrite. M13 builds core prerequisites; M14 builds the MCP server
+in `clients/mcp`. The MCP server uses only documented public RPC, as an R10 third-party client.
+Every core change is additive on `pyxis-rpc-v4` unless a unit says otherwise. Each unit runs
+focused checks; the stage owner runs one `just verify` on the combined result.
+
+### U40. `library.tracks.get`
+
+**Goal:** a bounded read returns title, artist, album id, album title and duration for up to 200
+core track ids, including station and search tracks registered as candidates. Unknown ids come
+back as explicit misses. This closes the deferred "Track metadata by id" item.
+
+**Dependencies:** U8, U10
+
+**Test scenarios:** library track; registered station track; unknown id; another account's id
+is a miss; the 200 limit is enforced.
+
+**Verification:** focused library RPC tests, contract drift.
+
+### U41. Album query and paging
+
+**Goal:** `library.albums.query` filters albums by text (artist or title), artist, and a tag
+expression (AND, OR, NOT), sorts by added, artist, title or last played, and pages with an opaque
+cursor. `library.albums.list` stays. The tag-expression evaluator is shared with U43.
+
+**Dependencies:** U8, U9, D28
+
+**Test scenarios:** each sort; tag AND/OR/NOT and nesting; cursor stability across a concurrent
+edit; empty result; invalid expression is `invalid`, not an empty page.
+
+**Verification:** focused library tests including the expression evaluator, contract drift.
+
+### U42. Release an output session on regroup
+
+**Goal:** per D30, `output.group.set` no longer refuses a regroup that moves the caller's own
+output session to another coordinator. The moved room's session is stopped, loses ownership of
+the room and publishes a realtime update. Another account's session still refuses with
+`groupBusy`.
+
+**Dependencies:** U18, `35585ee`
+
+**Test scenarios:** release of own session; other account still refused; rollback when the
+plugin regroup fails; realtime event published once.
+
+**Verification:** focused output tests against the Sonos plugin fixtures. No physical Sonos command
+without the user present.
+
+### U43. Shelves
+
+**Goal:** per D28, `library.shelf.save` (create or replace by id), `library.shelf.remove`,
+`library.shelves.list` and `library.shelf.albums.list` (paged, through U41). A shelf is a name, a
+tag expression and a sort, owned by one account, with a revision. No offline worker sync in v1.
+
+**Dependencies:** U41
+
+**Test scenarios:** save, replace, remove; revision conflict; expression validation; listing
+reflects later tag changes; account fencing.
+
+**Verification:** focused library RPC tests, contract drift.
+
+### U44. Core sleep timer
+
+**Goal:** per D30 and D31, session commands `sleep.set` (an absolute time or N minutes, optional
+fade seconds) and `sleep.cancel`, with the deadline in session state. The core fires output
+sessions: fade steps volume down, stops, then restores the prior volume. For device sessions the
+core sends a Stop directive at the deadline as a backstop. Deadlines survive a core restart.
+
+**Dependencies:** U5, U13, U18
+
+**Test scenarios:** fire on an output session with and without fade; cancel; replace; restart
+with a pending deadline; deadline in the past is refused; backstop directive to a device host.
+
+**Verification:** focused session tests with a controlled clock, contract drift.
+
+### U45. Local sleep timer in device clients
+
+**Goal:** per D31, the worker reads the deadline from session state and both clients stop
+playback at that time even while offline or backgrounded, fading when requested, then report
+Stop. A cancel or a replaced deadline that arrives later wins.
+
+**Dependencies:** U44, U20
+
+**Test scenarios:** fires offline; cancel received before the deadline; duplicate Stop from the
+core backstop is harmless; fade restores volume.
+
+**Verification:** focused app and player tests.
+
+### U46. MCP server skeleton and deployment
+
+**Goal:** `clients/mcp` on the TypeScript SDK v2, speaking only `2026-07-28`, stateless
+Streamable HTTP on a configurable host and port. It implements `server/discover`, forwards the
+client's Bearer Pyxis API token (D29), and calls Pyxis through the generated contract. It returns
+Pyxis failures as MCP tool errors and exposes `system.status` as a tool. It is packaged as a flake
+output and declared as a mountainous service app on unzen (loopback backend plus tsnet sidecar).
+
+**Dependencies:** D26, D29
+
+**Test scenarios:** request without a token; revoked token; version mismatch returns
+`UnsupportedProtocolVersionError`; `Mcp-Method` and `Mcp-Name` header mismatch; any request
+succeeds with no prior call.
+
+**Verification:** focused tests against a real in-process Pyxis core; `just verify`.
+
+### U47. Playback, queue, session and Sonos tools
+
+**Goal:** the round 1 and 2 picks for playback, queue, sessions and Sonos, including
+"play this album", "play next", mute, the sleep timer (U44), takeover, rooms, room play and
+volume, stop all, grouping (U42) and handoff. Name resolution follows D30. MRTR asks before
+destructive actions, takeover and ambiguous targets, and proceeds when the client cannot answer
+(D27). The queue read names every track through U40. There is no volume ceiling.
+
+**Dependencies:** U40, U42, U44, U46
+
+**Test scenarios:** each tool against a real core with the Sonos plugin fixtures; MRTR retry
+with `inputResponses`; a client without MRTR proceeds; an ambiguous name picks the most recent
+reachable match.
+
+**Verification:** focused MCP tests, contract drift.
+
+### U48. Library, search, station, history and organizer tools
+
+**Goal:** library search, album detail, tags, albums by tag, recently added, paged listing,
+artist view and artwork as image content. Writes: tags, album add, bookmarks, playlists and bulk
+tags. Search across sources, album search, an in-library flag and "find and play". Stations: list,
+play, start from a track, and capture the album. History: recent, by range, top, and neglected,
+computed in the MCP server. Organizer: snapshot, a tag plan with dry run and apply, and shelves
+(U43). "This is the wrong song" sets a match override. Nothing exposes fidelity upgrades.
+
+**Dependencies:** U41, U43, U46
+
+**Test scenarios:** a tag plan dry run equals what apply does; bulk tags go through MRTR;
+stats against seeded history; search with zero plugins answers `noSources` honestly.
+
+**Verification:** focused MCP tests.
+
+### U49. Resources, subscriptions and prompts
+
+**Goal:** resources for now playing, albums, tags, recent history, artwork, the library and
+Sonos rooms, each with `ttlMs` and `cacheScope` and deterministic ordering. `subscriptions/listen`
+for now-playing changes, fed from Pyxis `/realtime`. Prompts: DJ and Rediscover. No Tasks
+extension and no MCP Apps.
+
+**Dependencies:** U46, U47, U48
+
+**Test scenarios:** resource reads match the tools; a subscription receives one update per
+session revision; the listen stream ends cleanly when the client disconnects.
+
+**Verification:** focused MCP tests; deploy to unzen and drive Kids Desk from an agent with the
+user present.
+
 ---
 
 ## System-Wide Impact
