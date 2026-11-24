@@ -55,7 +55,6 @@ export async function playbackSource(options: { replyDelayMs?: number } = {}) {
       await new Promise((resolve) => setTimeout(resolve, options.replyDelayMs ?? 10))
       return verdict
     },
-    setPlacement: async () => undefined,
     appendListen: async () => ({ accepted: 0, duplicates: 0 }),
   }
   const direct = createDirectWorkerClient(

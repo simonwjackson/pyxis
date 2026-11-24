@@ -210,6 +210,28 @@ fn verified_lossless_download_becomes_the_resolved_candidate() {
 }
 
 #[test]
+fn organization_tags_never_skip_fidelity_upgrades() {
+    let candidate =
+        "opaque|Boards of Canada|Ready Lets Go|Geogaddi|59000|flac|true|900|44100|13|true|0";
+    let (_dir, store, _media, upgrader, _log, _track_id) = setup(candidate);
+    let library = Library::open(store);
+    let account = AccountId::new("default");
+    let album = library.list_albums(&account).unwrap().remove(0);
+    library
+        .set_tags(
+            &account,
+            &album.id,
+            vec!["placement:dismissed".into()],
+            "test",
+        )
+        .unwrap();
+    assert!(matches!(
+        upgrader.run_once(Utc::now()).unwrap(),
+        UpgradeRun::Upgraded { .. }
+    ));
+}
+
+#[test]
 fn ambiguous_or_below_threshold_match_is_not_downloaded() {
     let candidate =
         "opaque|Different Artist|Different Song|Other Album|59000|flac|true|900|44100|13|true|0";

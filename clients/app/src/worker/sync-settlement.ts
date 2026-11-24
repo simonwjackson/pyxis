@@ -31,8 +31,7 @@ export async function settleOutbox(
     const verdict = entry.settlement ?? (action._tag === "Settle" ? action.verdict : undefined)
     if (verdict === undefined) throw new Error("queued write has no settlement to resume")
     validateVerdict(entry, verdict)
-    // Keep the original verdict when a retry sees changed server state. In particular,
-    // placement convergence cannot erase an earlier conflict whose notice failed to save.
+    // Keep the original verdict when a retry sees changed server state.
     entry = { ...entry, settlement: verdict }
     await database.enqueue(entry)
     const result = await applyVerdict(
@@ -41,8 +40,7 @@ export async function settleOutbox(
       verdict,
       action._tag === "Resume" ? action.latest : undefined,
     )
-    if (result.outcome === "conflicted" || result.outcome === "dropped")
-      await appendNotice(database, result.notice)
+    if (result.outcome === "dropped") await appendNotice(database, result.notice)
     await database.dequeue(id)
     return result
   } catch (cause) {
@@ -65,12 +63,6 @@ export async function settleOutbox(
 function validateVerdict(entry: WorkerOutboxEntry, verdict: WorkerOutboxVerdict): void {
   if (verdict._tag === "SessionAccepted") {
     if (entry.kind === "session.command" && entry.sessionId === verdict.session.id) return
-  } else if (
-    verdict._tag === "PlacementAccepted" ||
-    verdict._tag === "PlacementConverged" ||
-    verdict._tag === "PlacementConflict"
-  ) {
-    if (entry.kind === "album.placement" && entry.albumId === verdict.album.id) return
   } else if (verdict._tag === "ListenAccepted") {
     if (entry.kind === "listen.append") return
   } else if (verdict._tag === "Removed") {
@@ -82,12 +74,6 @@ function validateVerdict(entry: WorkerOutboxEntry, verdict: WorkerOutboxVerdict)
       restore._tag === "Session" &&
       entry.kind === "session.command" &&
       restore.session.id === entry.sessionId
-    )
-      return
-    if (
-      restore._tag === "Placement" &&
-      entry.kind === "album.placement" &&
-      restore.album.id === entry.albumId
     )
       return
   }
@@ -104,40 +90,9 @@ async function applyVerdict(
     case "SessionAccepted":
       await applySnapshot(database, entry, { _tag: "Session", session: verdict.session }, latest)
       return { outcome: "pushed" }
-    case "PlacementAccepted":
-      await applySnapshot(database, entry, { _tag: "Placement", album: verdict.album }, latest)
-      return { outcome: "pushed" }
-    case "PlacementConverged":
-      await applySnapshot(database, entry, { _tag: "Placement", album: verdict.album }, latest)
-      return { outcome: "converged" }
-    case "PlacementConflict":
-      await applySnapshot(database, entry, { _tag: "Placement", album: verdict.album }, latest)
-      return {
-        outcome: "conflicted",
-        notice: {
-          id: `conflict:${entry.id}`,
-          kind: "conflict",
-          albumId: verdict.album.id,
-          kept: verdict.album.placement,
-          discarded: verdict.discarded,
-        },
-      }
     case "ListenAccepted":
       return { outcome: "pushed" }
     case "Removed":
-      if (entry.kind === "album.placement") {
-        await database.removeAlbum(entry.albumId)
-        return {
-          outcome: "conflicted",
-          notice: {
-            id: `conflict:${entry.id}`,
-            kind: "conflict",
-            albumId: entry.albumId,
-            kept: "removed",
-            discarded: entry.placement,
-          },
-        }
-      }
       if (entry.kind === "session.command") await database.removeSession(entry.sessionId)
       return rejection(entry.id, "session no longer exists")
     case "Rejected":
@@ -157,24 +112,19 @@ async function applySnapshot(
   // revision or recreate an entity removed since acceptance. Its notice stays historical.
   if (latest?._tag === "Removed") {
     if (entry.kind === "session.command") await database.removeSession(entry.sessionId)
-    else if (entry.kind === "album.placement") await database.removeAlbum(entry.albumId)
     return
   }
   // Other durable verdicts can be newer even when the pull is unavailable. They are
   // authoritative facts, not pending intent to replay on top of another accepted result.
   for (const queued of await database.outbox()) {
     const sameEntity =
-      (entry.kind === "session.command" &&
-        queued.kind === "session.command" &&
-        entry.sessionId === queued.sessionId) ||
-      (entry.kind === "album.placement" &&
-        queued.kind === "album.placement" &&
-        entry.albumId === queued.albumId)
+      entry.kind === "session.command" &&
+      queued.kind === "session.command" &&
+      entry.sessionId === queued.sessionId
     if (!sameEntity || queued.settlement === undefined) continue
     validateVerdict(queued, queued.settlement)
     if (queued.settlement._tag === "Removed") {
       if (entry.kind === "session.command") await database.removeSession(entry.sessionId)
-      else if (entry.kind === "album.placement") await database.removeAlbum(entry.albumId)
       return
     }
     const recorded = verdictSnapshot(queued.settlement)
@@ -182,12 +132,6 @@ async function applySnapshot(
       recorded._tag === "Session" &&
       saved._tag === "Session" &&
       recorded.session.revision > saved.session.revision
-    )
-      saved = recorded
-    else if (
-      recorded._tag === "Placement" &&
-      saved._tag === "Placement" &&
-      recorded.album.revision > saved.album.revision
     )
       saved = recorded
   }
@@ -199,14 +143,6 @@ async function applySnapshot(
         ? latest.session
         : saved.session
     await database.applySessionVerdict(current, entry.id)
-  } else {
-    const current =
-      latest?._tag === "Placement" &&
-      latest.album.id === saved.album.id &&
-      latest.album.revision >= saved.album.revision
-        ? latest.album
-        : saved.album
-    await database.applyPlacementVerdict(current, entry.id)
   }
 }
 
@@ -216,10 +152,6 @@ function verdictSnapshot(
   switch (verdict._tag) {
     case "SessionAccepted":
       return { _tag: "Session", session: verdict.session }
-    case "PlacementAccepted":
-    case "PlacementConverged":
-    case "PlacementConflict":
-      return { _tag: "Placement", album: verdict.album }
     case "Rejected":
       return verdict.restore ?? { _tag: "NoProjection" }
     case "ListenAccepted":

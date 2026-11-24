@@ -15,9 +15,7 @@ export interface LibraryPageProps {
   readonly onOpenAlbum?: (albumId: string) => void
 }
 
-// Everything, at one size, as a field to scan rather than a list to read. This is the
-// surface for "I know it is in here somewhere", which is a different question from the one
-// Stacks answers, and so it is a different surface rather than a mode of the same one.
+// The complete library, at one size, as a field to scan.
 export function LibraryPage({ library, emptyAction, onRetry, onOpenAlbum }: LibraryPageProps) {
   if (library.state !== "shown")
     return (

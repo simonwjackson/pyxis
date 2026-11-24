@@ -164,39 +164,6 @@ async fn artwork_refresh_reloads_an_existing_album_from_its_source_reference() {
         "https://img.example/heroes.jpg"
     );
 
-    let dismissed = rpc(
-        &app,
-        json!({
-            "_tag": "library.album.command.run",
-            "payload": {
-                "albumId": album_id,
-                "command": {
-                    "_tag": "placement.set",
-                    "payload": { "placement": "dismissed" }
-                }
-            }
-        }),
-        Some(token),
-    )
-    .await;
-    assert_eq!(dismissed["outcome"]["status"], "applied");
-    let refreshed_dismissed = rpc(
-        &app,
-        json!({
-            "_tag": "library.album.command.run",
-            "payload": {
-                "albumId": album_id,
-                "command": { "_tag": "artwork.refresh", "payload": {} }
-            }
-        }),
-        Some(token),
-    )
-    .await;
-    assert_eq!(
-        refreshed_dismissed["outcome"]["value"]["placement"],
-        "dismissed"
-    );
-
     let removed = rpc(
         &app,
         json!({

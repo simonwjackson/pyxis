@@ -1,6 +1,5 @@
 import { createElement, Profiler } from "react"
 import { createRoot } from "react-dom/client"
-import { RpcPlacement } from "../../../contracts/generated/pyxis"
 import { App } from "../src/bindings/App.binding"
 import type { ClaimResult } from "../src/model/account"
 import { initialSession, playbackSource } from "./playback-source"
@@ -41,10 +40,8 @@ const app = createElement(App, {
         id: "fixture-album",
         title: "Fixture album",
         artist: "Fixture artist",
-        placement: RpcPlacement.Collection,
         addedAt: "2026-09-22T00:00:00Z",
         tags: [],
-        placementUpdatedAt: "2026-09-22T00:00:00Z",
         revision: 1,
         tracks: ["first-track", "second-track"].map((id, index) => ({
           id,

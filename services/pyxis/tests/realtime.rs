@@ -132,7 +132,7 @@ async fn a_subscriber_receives_state_published_on_its_topic() {
 
     let welcome = next(&mut socket).await.expect("welcome");
     assert_eq!(welcome["_tag"], "realtime.welcome");
-    assert_eq!(welcome["payload"]["contractId"], "pyxis-rpc-v3");
+    assert_eq!(welcome["payload"]["contractId"], "pyxis-rpc-v4");
     assert_eq!(welcome["payload"]["resumed"], false);
 
     add_album(&server, &bearer, "Heroes").await;

@@ -17,7 +17,6 @@ export interface AccountCreateRequest {
 
 export type RpcAlbumCommand =
 	| { _tag: "tags.set", payload: TagsSetCommand }
-	| { _tag: "placement.set", payload: PlacementSetCommand }
 	| { _tag: "artwork.refresh", payload: EmptyRequest }
 	| { _tag: "remove", payload: EmptyRequest };
 
@@ -58,17 +57,6 @@ export interface DevicePairRequest {
 }
 
 export interface EmptyRequest {
-}
-
-export interface GroupItemsListRequest {
-	groupId: string;
-	cursor?: string;
-	limit: number;
-}
-
-export interface HotAlbumsListRequest {
-	minRecentListens?: number;
-	windowDays?: number;
 }
 
 export interface LibrarySourceReference {
@@ -158,17 +146,6 @@ export interface OutputSessionCreateRequest {
 
 export interface OutputTargetsListRequest {
 	pluginId: string;
-}
-
-export enum RpcPlacement {
-	Discovery = "discovery",
-	Collection = "collection",
-	Archive = "archive",
-	Dismissed = "dismissed",
-}
-
-export interface PlacementSetCommand {
-	placement: RpcPlacement;
 }
 
 export interface PlaylistCreateRequest {
@@ -414,22 +391,6 @@ export interface RpcBookmark {
 	createdAt: string;
 }
 
-export interface RpcLibraryTrack {
-	id: string;
-	title: string;
-	artist: string;
-	durationMs?: number;
-	trackNumber?: number;
-	artworkUrl?: string;
-	revision: number;
-}
-
-export interface RpcBookmarkMember {
-	bookmark: RpcBookmark;
-	/** Missing when the bookmarked track is no longer available in this account. */
-	track?: RpcLibraryTrack;
-}
-
 /**
  * Uniform failure envelope.
  *
@@ -448,27 +409,14 @@ export interface RpcFidelity {
 	sampleRateHz?: number;
 }
 
-export type RpcGroupMember =
-	| { _tag: "album", payload: RpcLibraryAlbum }
-	| { _tag: "bookmark", payload: RpcBookmarkMember }
-	| { _tag: "station", payload: RpcStation }
-	| { _tag: "playlist", payload: RpcPlaylist };
-
-export type RpcGroupAvailability =
-	| { status: "ready", value?: undefined }
-	| { status: "partial", value: RpcSourceFailure[] };
-
-export interface RpcGroupPage {
-	items: RpcGroupMember[];
-	cursor?: string;
-	availability: RpcGroupAvailability;
-}
-
-export interface RpcHotAlbum {
-	albumId: string;
-	listenCount: number;
-	windowStart: string;
-	computedAt: string;
+export interface RpcLibraryTrack {
+	id: string;
+	title: string;
+	artist: string;
+	durationMs?: number;
+	trackNumber?: number;
+	artworkUrl?: string;
+	revision: number;
 }
 
 export interface RpcLibraryAlbum {
@@ -478,27 +426,9 @@ export interface RpcLibraryAlbum {
 	artist: string;
 	year?: number;
 	artworkUrl?: string;
-	placement: RpcPlacement;
-	placementUpdatedAt: string;
 	addedAt: string;
 	revision: number;
 	tracks: RpcLibraryTrack[];
-}
-
-export enum RpcLibraryGroupKind {
-	Albums = "albums",
-	Bookmarks = "bookmarks",
-	Stations = "stations",
-	Playlists = "playlists",
-}
-
-export interface RpcLibraryGroup {
-	id: string;
-	label: string;
-	kind: RpcLibraryGroupKind;
-	/** Absent when one or more sources could not answer. Never an invented zero. */
-	count?: number;
-	availability: RpcGroupAvailability;
 }
 
 export interface RpcListenAppendResult {
@@ -948,20 +878,6 @@ export type DevicePairOutcome =
 	| { status: "expired", value?: undefined }
 	| { status: "unavailable", value: RpcFailure };
 
-export type GroupItemsListOutcome =
-	| { status: "ready", value: RpcGroupPage }
-	| { status: "unknownGroup", value?: undefined }
-	| { status: "rejected", value: RpcFailure }
-	| { status: "unavailable", value: RpcFailure };
-
-export type GroupsListOutcome =
-	| { status: "ready", value: RpcLibraryGroup[] }
-	| { status: "unavailable", value: RpcFailure };
-
-export type HotAlbumsListOutcome =
-	| { status: "ready", value: RpcHotAlbum[] }
-	| { status: "unavailable", value: RpcFailure };
-
 export type ListenAppendOutcome =
 	| { status: "ready", value: RpcListenAppendResult }
 	| { status: "invalid", value: RpcFailure }
@@ -1065,8 +981,6 @@ export type RpcRequest =
 	| { _tag: "session.handoff", payload: SessionHandoffRequest }
 	| { _tag: "source.search.run", payload: SourceSearchRequest }
 	| { _tag: "library.album.add", payload: LibraryAlbumAddRequest }
-	| { _tag: "library.groups.list", payload: EmptyRequest }
-	| { _tag: "library.group.items.list", payload: GroupItemsListRequest }
 	| { _tag: "library.albums.list", payload: EmptyRequest }
 	| { _tag: "library.album.command.run", payload: AlbumCommandRequest }
 	| { _tag: "library.bookmarks.list", payload: EmptyRequest }
@@ -1076,7 +990,6 @@ export type RpcRequest =
 	| { _tag: "library.playlists.list", payload: EmptyRequest }
 	| { _tag: "listen.events.append", payload: ListenEventsAppendRequest }
 	| { _tag: "listen.history.list", payload: ListenHistoryRequest }
-	| { _tag: "library.hotAlbums.list", payload: HotAlbumsListRequest }
 	| { _tag: "matching.evaluate", payload: MatchingEvaluateRequest }
 	| { _tag: "matching.override.set", payload: MatchingOverrideSetRequest }
 	| { _tag: "matching.override.remove", payload: MatchingOverrideRemoveRequest }
@@ -1110,8 +1023,6 @@ export type RpcResponse =
 	| { _tag: "session.handoff", outcome: SessionHandoffOutcome }
 	| { _tag: "source.search.run", outcome: SourceSearchOutcome }
 	| { _tag: "library.album.add", outcome: AlbumAddOutcome }
-	| { _tag: "library.groups.list", outcome: GroupsListOutcome }
-	| { _tag: "library.group.items.list", outcome: GroupItemsListOutcome }
 	| { _tag: "library.albums.list", outcome: AlbumListOutcome }
 	| { _tag: "library.album.command.run", outcome: AlbumCommandOutcome }
 	| { _tag: "library.bookmarks.list", outcome: BookmarkListOutcome }
@@ -1121,7 +1032,6 @@ export type RpcResponse =
 	| { _tag: "library.playlists.list", outcome: PlaylistListOutcome }
 	| { _tag: "listen.events.append", outcome: ListenAppendOutcome }
 	| { _tag: "listen.history.list", outcome: ListenHistoryOutcome }
-	| { _tag: "library.hotAlbums.list", outcome: HotAlbumsListOutcome }
 	| { _tag: "matching.evaluate", outcome: MatchingEvaluateOutcome }
 	| { _tag: "matching.override.set", outcome: CommandOutcome }
 	| { _tag: "matching.override.remove", outcome: CommandOutcome }
@@ -1238,4 +1148,4 @@ export type SystemStatusOutcome =
 	| { status: "ready", value: RpcSystemStatus }
 	| { status: "unavailable", value: RpcFailure };
 
-export const RPC_CONTRACT_ID = "pyxis-rpc-v3" as const;
+export const RPC_CONTRACT_ID = "pyxis-rpc-v4" as const;

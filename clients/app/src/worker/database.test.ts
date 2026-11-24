@@ -1,7 +1,6 @@
 import { describe, expect, test } from "vitest"
 import {
   type ListenTrackEventInput,
-  RpcPlacement,
   RpcRepeatMode,
   type RpcSession,
   type RpcSessionCommand,
@@ -35,9 +34,7 @@ function album(id: string, revision = 1, title = "Heroes"): WorkerAlbum {
     id,
     title,
     artist: "David Bowie",
-    placement: RpcPlacement.Discovery,
     tags: [],
-    placementUpdatedAt: "now",
     addedAt: "now",
     revision,
     tracks: [],
@@ -70,84 +67,6 @@ describe("opening the local database", () => {
     expect((await reopened.settings()).deviceId).toBe(deviceId)
     expect((await reopened.settings()).bearerToken).toBe("token")
     expect(await reopened.albums()).toHaveLength(1)
-  })
-})
-
-describe("placement verdicts", () => {
-  test("keeps the latest matching intent in creation order without settling the outbox", async () => {
-    const store = await openWorkerDatabase({ engine: createMemoryEngine() })
-    const initial = album("album-1")
-    await store.putAlbum(initial)
-    // Storage insertion order is not replay order. Other albums and the settled write
-    // must not choose this album's visible placement.
-    for (const [id, albumId, placement] of [
-      ["03", initial.id, RpcPlacement.Archive],
-      ["02", initial.id, RpcPlacement.Dismissed],
-      ["04", "other", RpcPlacement.Collection],
-      ["05", initial.id, RpcPlacement.Collection],
-    ] as const) {
-      await store.enqueue({
-        id,
-        kind: "album.placement",
-        albumId,
-        placement,
-        createdAt: "2026-06-01",
-        attempts: 0,
-        baseRevision: 1,
-        basePlacement: RpcPlacement.Discovery,
-      })
-    }
-    const before = await store.outbox()
-    const verdict = {
-      ...initial,
-      title: "Updated metadata",
-      revision: 2,
-      placement: RpcPlacement.Collection,
-    }
-
-    expect(await store.applyPlacementVerdict(verdict, "05")).toEqual({
-      ...verdict,
-      placement: RpcPlacement.Archive,
-    })
-    expect(await store.outbox()).toEqual(before)
-    await store.close()
-  })
-
-  test("uses the server verdict when only the settled placement remains", async () => {
-    const store = await openWorkerDatabase({ engine: createMemoryEngine() })
-    const initial = album("album-1")
-    await store.putAlbum(initial)
-    await store.queuePlacement(initial, RpcPlacement.Archive)
-    const [entry] = await store.outbox()
-    if (entry === undefined) throw new Error("missing placement")
-
-    expect(await store.applyPlacementVerdict(initial, entry.id)).toEqual(initial)
-    expect(await store.outbox()).toEqual([entry])
-    await store.close()
-  })
-
-  test("checks the refreshed account inside the lock before applying a late verdict", async () => {
-    const original = await openWorkerDatabase({ engine: createMemoryEngine() })
-    await original.writeSettings({ accountId: "first" })
-    const replacement = await openWorkerDatabase({ engine: createMemoryEngine() })
-    await replacement.writeSettings({ accountId: "second" })
-    const secondAlbum = { ...album("album-1"), title: "Second account" }
-    await replacement.putAlbum(secondAlbum)
-    const exclusive = browserOfflineExclusive(undefined)
-    let current = original
-    const fenced = accountFencedDatabase(original, "first", (operation) =>
-      exclusive(() => operation(current)),
-    )
-    // The operation was issued for the old account, but another tab switches accounts
-    // before its lock is granted. It must inspect the refreshed owner, not the old handle.
-    const pending = fenced.applyPlacementVerdict(album("album-1", 2), "acknowledged")
-    current = replacement
-    await expect(pending).rejects.toThrow("account changed while sync was in flight")
-    expect(await replacement.albums()).toEqual([secondAlbum])
-    expect(await replacement.outbox()).toEqual([])
-    expect(await original.albums()).toEqual([])
-    await original.close()
-    await replacement.close()
   })
 })
 
@@ -562,67 +481,6 @@ describe("local writes", () => {
     expect(await database.outbox()).toHaveLength(1)
   })
 
-  test("changes an album locally before queueing its server write", async () => {
-    const database = await openWorkerDatabase({ engine: createMemoryEngine() })
-    const original = album("album-1")
-    await database.putAlbum(original)
-
-    const changed = await database.queuePlacement(original, RpcPlacement.Collection)
-
-    expect(changed.placement).toBe(RpcPlacement.Collection)
-    expect(await database.outbox()).toMatchObject([
-      {
-        kind: "album.placement",
-        albumId: "album-1",
-        placement: RpcPlacement.Collection,
-        baseRevision: 1,
-        basePlacement: RpcPlacement.Discovery,
-        attempts: 0,
-      },
-    ])
-  })
-
-  test("a stale click snapshot still becomes the newest local intent", async () => {
-    const database = await openWorkerDatabase({ engine: createMemoryEngine() })
-    const clickedFrom = { ...album("album-1", 1), placement: RpcPlacement.Collection }
-    await database.putAlbum({ ...clickedFrom, revision: 2 })
-
-    const changed = await database.queuePlacement(clickedFrom, RpcPlacement.Archive)
-
-    expect(changed).toMatchObject({ placement: RpcPlacement.Archive, revision: 2 })
-    expect(await database.album("album-1")).toMatchObject({
-      placement: RpcPlacement.Archive,
-      revision: 2,
-    })
-    expect(await database.outbox()).toMatchObject([
-      { baseRevision: 1, basePlacement: RpcPlacement.Collection },
-    ])
-  })
-
-  test("keeps the outbox record if the local album write fails", async () => {
-    const engine = createMemoryEngine()
-    const database = await openWorkerDatabase({
-      engine: {
-        ...engine,
-        albums: {
-          findById: (id) => engine.albums.findById(id),
-          all: () => engine.albums.all(),
-          upsert: async () => {
-            throw new Error("quota exceeded")
-          },
-          delete: (id) => engine.albums.delete(id),
-        },
-      },
-    })
-
-    await expect(
-      database.queuePlacement(album("album-1"), RpcPlacement.Collection),
-    ).rejects.toThrow("quota exceeded")
-    expect(await database.outbox()).toMatchObject([
-      { albumId: "album-1", placement: RpcPlacement.Collection },
-    ])
-  })
-
   test("accepts an identical listen replay but rejects conflicting ID reuse", async () => {
     const database = await openWorkerDatabase({ engine: createMemoryEngine() })
     const event: ListenTrackEventInput = {
@@ -713,20 +571,6 @@ describe("account changes", () => {
       accountId: "account-1",
       bearerToken: "token-1",
     })
-  })
-
-  test("refuses to replay one account's outbox with another account's token", async () => {
-    const database = await openWorkerDatabase({ engine: createMemoryEngine() })
-    await database.writeSettings({ accountId: "account-1" })
-    const original = album("album-1")
-    await database.putAlbum(original)
-    await database.queuePlacement(original, RpcPlacement.Collection)
-
-    await expect(database.writeSettings({ accountId: "account-2" })).rejects.toThrow(
-      "queued writes",
-    )
-    expect((await database.settings()).accountId).toBe("account-1")
-    expect(await database.outbox()).toHaveLength(1)
   })
 })
 
@@ -861,16 +705,39 @@ describe("single realtime session snapshots", () => {
   })
 })
 
-test("album tags survive snapshots, placement verdicts and local reopen", async () => {
+test("album tags survive snapshots and local reopen", async () => {
   const engine = createMemoryEngine()
   const database = await openWorkerDatabase({ engine })
   const tagged = { ...album("tagged"), tags: ["favorite", "road trip"] }
   await database.putAlbum(tagged)
-  await database.applyPlacementVerdict(
-    { ...tagged, placement: RpcPlacement.Collection, revision: 2 },
-    "placement-1",
-  )
+  await database.applyRemoteAlbums([{ ...tagged, revision: 2 }])
   await database.close()
   const reopened = await openWorkerDatabase({ engine })
   expect((await reopened.albums())[0]?.tags).toEqual(["favorite", "road trip"])
+})
+
+test("queued listens prevent account switching without losing the original grant or outbox", async () => {
+  const database = await openWorkerDatabase({ engine: createMemoryEngine() })
+  await database.writeSettings({ accountId: "account-1", bearerToken: "token-1" })
+  await database.queueListen({
+    id: "event-1",
+    trackId: "track-1",
+    deviceId: "device-1",
+    listenedAt: "2026-06-01T00:00:00Z",
+    completed: true,
+    context: "queue",
+  })
+  await expect(
+    database.writeSettings({
+      accountId: "account-2",
+      accountName: "Second",
+      accountIsDefault: false,
+      accountCreatedAt: "now",
+      deviceId: "device-2",
+      deviceName: "Browser",
+      bearerToken: "token-2",
+    }),
+  ).rejects.toThrow("queued writes")
+  expect((await database.settings()).bearerToken).toBe("token-1")
+  expect(await database.outbox()).toHaveLength(1)
 })

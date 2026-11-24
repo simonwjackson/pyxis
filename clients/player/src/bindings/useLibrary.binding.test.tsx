@@ -1,6 +1,6 @@
 import { renderHook, waitFor } from "@testing-library/react"
 import { describe, expect, it } from "vitest"
-import { type RpcLibraryAlbum, RpcPlacement } from "../../../../contracts/generated/pyxis"
+import type { RpcLibraryAlbum } from "../../../../contracts/generated/pyxis"
 import { shownValue } from "../model/edge"
 import type { OfflineOverviewRecord } from "../model/offline"
 import { type LibraryEdge, useLibrary } from "./useLibrary.binding"
@@ -9,9 +9,7 @@ const album = (id: string): RpcLibraryAlbum => ({
   id,
   title: id,
   artist: "HEALTH",
-  placement: RpcPlacement.Collection,
   tags: [],
-  placementUpdatedAt: "2026-01-01T00:00:00Z",
   addedAt: "2026-01-01T00:00:00Z",
   revision: 1,
   tracks: [],
@@ -136,31 +134,5 @@ describe("a failure in one read does not become a failure of the screen", () => 
     })
     await waitFor(() => expect(result.current.albums.state).toBe("unavailable"))
     expect(result.current.offlineSupported).toBe(false)
-  })
-})
-
-describe("durable notices reach the screen", () => {
-  it("reads a conflict notice into the placements it kept and discarded", async () => {
-    const { result } = render({
-      settings: async () => ({
-        syncNotices: [
-          {
-            id: "n1",
-            kind: "conflict" as const,
-            albumId: "a",
-            kept: RpcPlacement.Archive,
-            discarded: RpcPlacement.Collection,
-          },
-        ],
-      }),
-    })
-    await waitFor(() => expect(result.current.notices).toHaveLength(1))
-    expect(result.current.notices[0]).toEqual({
-      kind: "conflict",
-      id: "n1",
-      albumId: "a",
-      kept: "archive",
-      discarded: "collection",
-    })
   })
 })

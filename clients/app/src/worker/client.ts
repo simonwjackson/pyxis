@@ -5,7 +5,6 @@
 
 import type {
   ListenTrackEventInput,
-  RpcPlacement,
   RpcSession,
   RpcSessionCommand,
 } from "../../../../contracts/generated/pyxis"
@@ -51,10 +50,6 @@ export type WorkerRequest = { readonly id: string; readonly accountId?: string }
       readonly payload: { sessionId: string; command: RpcSessionCommand; commandId: string }
     }
   | { readonly _tag: "worker.sync"; readonly payload: { origin?: string; scope?: SyncScope } }
-  | {
-      readonly _tag: "worker.queue.placement"
-      readonly payload: { album: WorkerAlbum; placement: RpcPlacement }
-    }
   | {
       readonly _tag: "worker.queue.listen"
       readonly payload: { event: ListenTrackEventInput }
@@ -120,9 +115,6 @@ export interface WorkerClient {
   sync(origin?: string): Promise<SyncReport>
   /// Pull and replay sessions only; leave unrelated album and listen intent queued.
   syncSessions(origin?: string): Promise<SyncReport>
-  /// Record a placement change locally and queue it for the server. The album changes
-  /// immediately so the person sees their own action, network or not.
-  queuePlacement(album: WorkerAlbum, placement: RpcPlacement): Promise<WorkerAlbum>
   queueSessionCommand(
     session: RpcSession,
     command: RpcSessionCommand,
@@ -338,8 +330,6 @@ export function createWorkerClient(channel: Channel): WorkerClient {
         _tag: "worker.sync",
         payload: { scope: "sessions", ...(origin === undefined ? {} : { origin }) },
       }),
-    queuePlacement: (album, placement) =>
-      send<WorkerAlbum>({ _tag: "worker.queue.placement", payload: { album, placement } }),
     queueSessionCommand: (session, command, commandId, expectedRevision) =>
       send<RpcSession>({
         _tag: "worker.queue.session-command",
@@ -383,10 +373,9 @@ export function createDirectWorkerClient(
       return {
         pulled: 0,
         pushed: 0,
-        converged: 0,
+
         dropped: [],
         deferred: (await store.outbox()).length,
-        conflicts: [],
         // Test and non-browser fallback. The browser composition root supplies RPC.
         offline: true,
         authRequired: false,
@@ -397,10 +386,9 @@ export function createDirectWorkerClient(
       return {
         pulled: 0,
         pushed: 0,
-        converged: 0,
+
         dropped: [],
         deferred: (await store.outbox()).length,
-        conflicts: [],
         offline: false,
         authRequired: true,
       }
@@ -432,7 +420,6 @@ export function createDirectWorkerClient(
       (await database()).previewSessionCommand(sessionId, command, commandId),
     sync: (origin) => reconcile("all", origin),
     syncSessions: (origin) => reconcile("sessions", origin),
-    queuePlacement: async (album, placement) => (await database()).queuePlacement(album, placement),
     queueSessionCommand: async (session, command, commandId, expectedRevision) =>
       (await database()).queueSessionCommand(session, command, commandId, expectedRevision),
     queueListen: async (event) => (await database()).queueListen(event),
@@ -533,8 +520,6 @@ export function createFailoverWorkerClient(
       retry((client) => client.previewSessionCommand(sessionId, command, commandId)),
     sync: (origin) => retry((client) => client.sync(origin)),
     syncSessions: (origin) => retry((client) => client.syncSessions(origin)),
-    queuePlacement: (album, placement) =>
-      retry((client) => client.queuePlacement(album, placement)),
     queueSessionCommand: (session, command, commandId, expectedRevision) =>
       retry((client) => client.queueSessionCommand(session, command, commandId, expectedRevision)),
     queueListen: (event) => retry((client) => client.queueListen(event)),

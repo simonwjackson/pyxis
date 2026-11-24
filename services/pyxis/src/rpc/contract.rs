@@ -27,7 +27,7 @@ use crate::plugins::protocol::{
 
 /// Wire identity, not a rewrite number. Incompatible clients fail closed before writes.
 /// Persisted current-rewrite sessions default new mode fields; v1 formats are never read.
-pub const CONTRACT_ID: &str = "pyxis-rpc-v3";
+pub const CONTRACT_ID: &str = "pyxis-rpc-v4";
 
 /// Uniform failure envelope.
 ///
@@ -949,16 +949,6 @@ pub enum SessionCommandOutcome {
 }
 
 #[typeshare]
-#[derive(Clone, Copy, Debug, Deserialize, Serialize, JsonSchema)]
-#[serde(rename_all = "camelCase")]
-pub enum RpcPlacement {
-    Discovery,
-    Collection,
-    Archive,
-    Dismissed,
-}
-
-#[typeshare]
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct LibrarySourceReference {
@@ -1023,18 +1013,9 @@ pub struct RpcLibraryAlbum {
     pub year: Option<u32>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub artwork_url: Option<String>,
-    pub placement: RpcPlacement,
-    pub placement_updated_at: String,
     pub added_at: String,
     pub revision: u32,
     pub tracks: Vec<RpcLibraryTrack>,
-}
-
-#[typeshare]
-#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
-pub struct PlacementSetCommand {
-    pub placement: RpcPlacement,
 }
 
 #[typeshare]
@@ -1043,8 +1024,6 @@ pub struct PlacementSetCommand {
 pub enum RpcAlbumCommand {
     #[serde(rename = "tags.set")]
     TagsSet(TagsSetCommand),
-    #[serde(rename = "placement.set")]
-    PlacementSet(PlacementSetCommand),
     #[serde(rename = "artwork.refresh")]
     ArtworkRefresh(EmptyRequest),
     #[serde(rename = "remove")]
@@ -1136,95 +1115,6 @@ pub enum BookmarkListOutcome {
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct TagsSetCommand {
     pub tags: Vec<String>,
-}
-
-#[typeshare]
-#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
-pub struct GroupItemsListRequest {
-    pub group_id: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub cursor: Option<String>,
-    pub limit: u32,
-}
-
-#[typeshare]
-#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
-#[serde(rename_all = "camelCase")]
-pub enum RpcLibraryGroupKind {
-    Albums,
-    Bookmarks,
-    Stations,
-    Playlists,
-}
-
-#[typeshare]
-#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
-#[serde(tag = "status", content = "value", rename_all = "camelCase")]
-pub enum RpcGroupAvailability {
-    Ready,
-    Partial(Vec<RpcSourceFailure>),
-}
-
-#[typeshare]
-#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
-pub struct RpcLibraryGroup {
-    pub id: String,
-    pub label: String,
-    pub kind: RpcLibraryGroupKind,
-    /// Absent when one or more sources could not answer. Never an invented zero.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub count: Option<u32>,
-    pub availability: RpcGroupAvailability,
-}
-
-#[typeshare]
-#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
-pub struct RpcBookmarkMember {
-    pub bookmark: RpcBookmark,
-    /// Missing when the bookmarked track is no longer available in this account.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub track: Option<RpcLibraryTrack>,
-}
-
-#[typeshare]
-#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
-#[serde(tag = "_tag", content = "payload", rename_all = "camelCase")]
-pub enum RpcGroupMember {
-    Album(RpcLibraryAlbum),
-    Bookmark(RpcBookmarkMember),
-    Station(RpcStation),
-    Playlist(RpcPlaylist),
-}
-
-#[typeshare]
-#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
-pub struct RpcGroupPage {
-    pub items: Vec<RpcGroupMember>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub cursor: Option<String>,
-    pub availability: RpcGroupAvailability,
-}
-
-#[typeshare]
-#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
-#[serde(tag = "status", content = "value", rename_all = "camelCase")]
-pub enum GroupsListOutcome {
-    Ready(Vec<RpcLibraryGroup>),
-    Unavailable(RpcFailure),
-}
-
-#[typeshare]
-#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
-#[serde(tag = "status", content = "value", rename_all = "camelCase")]
-pub enum GroupItemsListOutcome {
-    Ready(RpcGroupPage),
-    UnknownGroup,
-    Rejected(RpcFailure),
-    Unavailable(RpcFailure),
 }
 
 #[typeshare]
@@ -1358,34 +1248,6 @@ pub struct RpcListenEvent {
 #[serde(tag = "status", content = "value", rename_all = "camelCase")]
 pub enum ListenHistoryOutcome {
     Ready(Vec<RpcListenEvent>),
-    Unavailable(RpcFailure),
-}
-
-#[typeshare]
-#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
-pub struct HotAlbumsListRequest {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub min_recent_listens: Option<u32>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub window_days: Option<u32>,
-}
-
-#[typeshare]
-#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
-pub struct RpcHotAlbum {
-    pub album_id: String,
-    pub listen_count: u32,
-    pub window_start: String,
-    pub computed_at: String,
-}
-
-#[typeshare]
-#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
-#[serde(tag = "status", content = "value", rename_all = "camelCase")]
-pub enum HotAlbumsListOutcome {
-    Ready(Vec<RpcHotAlbum>),
     Unavailable(RpcFailure),
 }
 
@@ -1652,10 +1514,6 @@ pub enum RpcRequest {
     SourceSearchRun(SourceSearchRequest),
     #[serde(rename = "library.album.add")]
     LibraryAlbumAdd(LibraryAlbumAddRequest),
-    #[serde(rename = "library.groups.list")]
-    LibraryGroupsList(EmptyRequest),
-    #[serde(rename = "library.group.items.list")]
-    LibraryGroupItemsList(GroupItemsListRequest),
     #[serde(rename = "library.albums.list")]
     LibraryAlbumsList(EmptyRequest),
     #[serde(rename = "library.album.command.run")]
@@ -1674,8 +1532,6 @@ pub enum RpcRequest {
     ListenEventsAppend(ListenEventsAppendRequest),
     #[serde(rename = "listen.history.list")]
     ListenHistoryList(ListenHistoryRequest),
-    #[serde(rename = "library.hotAlbums.list")]
-    LibraryHotAlbumsList(HotAlbumsListRequest),
     #[serde(rename = "matching.evaluate")]
     MatchingEvaluate(MatchingEvaluateRequest),
     #[serde(rename = "matching.override.set")]
@@ -1753,10 +1609,6 @@ pub enum RpcResponse {
     SourceSearchRun(SourceSearchOutcome),
     #[serde(rename = "library.album.add")]
     LibraryAlbumAdd(AlbumAddOutcome),
-    #[serde(rename = "library.groups.list")]
-    LibraryGroupsList(GroupsListOutcome),
-    #[serde(rename = "library.group.items.list")]
-    LibraryGroupItemsList(GroupItemsListOutcome),
     #[serde(rename = "library.albums.list")]
     LibraryAlbumsList(AlbumListOutcome),
     #[serde(rename = "library.album.command.run")]
@@ -1775,8 +1627,6 @@ pub enum RpcResponse {
     ListenEventsAppend(ListenAppendOutcome),
     #[serde(rename = "listen.history.list")]
     ListenHistoryList(ListenHistoryOutcome),
-    #[serde(rename = "library.hotAlbums.list")]
-    LibraryHotAlbumsList(HotAlbumsListOutcome),
     #[serde(rename = "matching.evaluate")]
     MatchingEvaluate(MatchingEvaluateOutcome),
     #[serde(rename = "matching.override.set")]
@@ -1804,7 +1654,7 @@ pub enum RpcResponse {
 }
 
 impl RpcRequest {
-    pub const KNOWN_TAGS: [&'static str; 43] = [
+    pub const KNOWN_TAGS: [&'static str; 40] = [
         "system.status.get",
         "auth.device.claim",
         "auth.device.pair",
@@ -1826,8 +1676,6 @@ impl RpcRequest {
         "source.search.run",
         "library.album.add",
         "library.albums.list",
-        "library.groups.list",
-        "library.group.items.list",
         "library.album.command.run",
         "library.bookmarks.list",
         "library.bookmark.command.run",
@@ -1836,7 +1684,6 @@ impl RpcRequest {
         "library.playlist.tracks.add",
         "listen.events.append",
         "listen.history.list",
-        "library.hotAlbums.list",
         "matching.evaluate",
         "matching.override.set",
         "matching.override.remove",
@@ -1873,8 +1720,6 @@ impl RpcRequest {
             RpcRequest::SessionHandoff(_) => "session.handoff",
             RpcRequest::SourceSearchRun(_) => "source.search.run",
             RpcRequest::LibraryAlbumAdd(_) => "library.album.add",
-            RpcRequest::LibraryGroupsList(_) => "library.groups.list",
-            RpcRequest::LibraryGroupItemsList(_) => "library.group.items.list",
             RpcRequest::LibraryAlbumsList(_) => "library.albums.list",
             RpcRequest::LibraryAlbumCommandRun(_) => "library.album.command.run",
             RpcRequest::LibraryBookmarksList(_) => "library.bookmarks.list",
@@ -1884,7 +1729,6 @@ impl RpcRequest {
             RpcRequest::LibraryPlaylistsList(_) => "library.playlists.list",
             RpcRequest::ListenEventsAppend(_) => "listen.events.append",
             RpcRequest::ListenHistoryList(_) => "listen.history.list",
-            RpcRequest::LibraryHotAlbumsList(_) => "library.hotAlbums.list",
             RpcRequest::MatchingEvaluate(_) => "matching.evaluate",
             RpcRequest::MatchingOverrideSet(_) => "matching.override.set",
             RpcRequest::MatchingOverrideRemove(_) => "matching.override.remove",
@@ -1927,9 +1771,7 @@ impl RpcRequest {
             | RpcRequest::SessionCommandSend(_)
             | RpcRequest::SessionHandoff(_) => Some("session:control"),
             RpcRequest::SourceSearchRun(_) => Some("source:read"),
-            RpcRequest::LibraryGroupsList(_)
-            | RpcRequest::LibraryGroupItemsList(_)
-            | RpcRequest::LibraryAlbumsList(_)
+            RpcRequest::LibraryAlbumsList(_)
             | RpcRequest::LibraryBookmarksList(_)
             | RpcRequest::LibraryPlaylistsList(_) => Some("library:read"),
             RpcRequest::LibraryAlbumAdd(_)
@@ -1938,9 +1780,7 @@ impl RpcRequest {
             | RpcRequest::LibraryPlaylistTracksAdd(_)
             | RpcRequest::LibraryPlaylistCreate(_) => Some("library:write"),
             RpcRequest::ListenEventsAppend(_) => Some("listen:write"),
-            RpcRequest::ListenHistoryList(_) | RpcRequest::LibraryHotAlbumsList(_) => {
-                Some("listen:read")
-            }
+            RpcRequest::ListenHistoryList(_) => Some("listen:read"),
             RpcRequest::MatchingEvaluate(_) => Some("library:read"),
             RpcRequest::MatchingOverrideSet(_) | RpcRequest::MatchingOverrideRemove(_) => {
                 Some("library:write")
@@ -1963,7 +1803,7 @@ impl RpcRequest {
 }
 
 impl RpcResponse {
-    pub const KNOWN_OPERATION_TAGS: [&'static str; 43] = RpcRequest::KNOWN_TAGS;
+    pub const KNOWN_OPERATION_TAGS: [&'static str; 40] = RpcRequest::KNOWN_TAGS;
 
     pub fn tag(&self) -> &'static str {
         match self {
@@ -1987,8 +1827,6 @@ impl RpcResponse {
             RpcResponse::SessionHandoff(_) => "session.handoff",
             RpcResponse::SourceSearchRun(_) => "source.search.run",
             RpcResponse::LibraryAlbumAdd(_) => "library.album.add",
-            RpcResponse::LibraryGroupsList(_) => "library.groups.list",
-            RpcResponse::LibraryGroupItemsList(_) => "library.group.items.list",
             RpcResponse::LibraryAlbumsList(_) => "library.albums.list",
             RpcResponse::LibraryAlbumCommandRun(_) => "library.album.command.run",
             RpcResponse::LibraryBookmarksList(_) => "library.bookmarks.list",
@@ -1998,7 +1836,6 @@ impl RpcResponse {
             RpcResponse::LibraryPlaylistsList(_) => "library.playlists.list",
             RpcResponse::ListenEventsAppend(_) => "listen.events.append",
             RpcResponse::ListenHistoryList(_) => "listen.history.list",
-            RpcResponse::LibraryHotAlbumsList(_) => "library.hotAlbums.list",
             RpcResponse::MatchingEvaluate(_) => "matching.evaluate",
             RpcResponse::MatchingOverrideSet(_) => "matching.override.set",
             RpcResponse::MatchingOverrideRemove(_) => "matching.override.remove",
@@ -2035,8 +1872,8 @@ mod tests {
     use super::*;
 
     #[test]
-    fn contract_id_declares_v2_and_shares_no_lineage_with_v1() {
-        assert_eq!(CONTRACT_ID, "pyxis-rpc-v3");
+    fn contract_id_declares_v4() {
+        assert_eq!(CONTRACT_ID, "pyxis-rpc-v4");
     }
 
     #[test]

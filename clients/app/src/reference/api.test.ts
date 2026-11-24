@@ -1,7 +1,6 @@
 import { describe, expect, test, vi } from "vitest"
 import {
   RPC_CONTRACT_ID,
-  RpcPlacement,
   RpcRealtimeTopic,
   RpcRepeatMode,
 } from "../../../../contracts/generated/pyxis"
@@ -441,9 +440,7 @@ describe("reference realtime client", () => {
             id: "album-1",
             title: "Heroes",
             artist: "David Bowie",
-            placement: RpcPlacement.Discovery,
             tags: [],
-            placementUpdatedAt: "now",
             addedAt: "now",
             revision: 1,
             tracks: [],

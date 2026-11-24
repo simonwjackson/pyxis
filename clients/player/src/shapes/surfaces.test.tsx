@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, within } from "@testing-library/react"
+import { cleanup, fireEvent, render, screen } from "@testing-library/react"
 import { useState } from "react"
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest"
 import { installDialogShim } from "../system-next/dialog-shim.test-support.ts"
@@ -19,7 +19,6 @@ import {
 } from "./entity-fixtures.ts"
 import { HistoryJournal } from "./HistoryJournal.tsx"
 import { PlayerSheet } from "./PlayerSheet.tsx"
-import { ProductNav } from "./ProductNav.tsx"
 import { RoomsSheet } from "./RoomsSheet.tsx"
 import { SearchResults } from "./SearchResults.tsx"
 import { SourceList } from "./SourceList.tsx"
@@ -290,16 +289,6 @@ describe("configuration", () => {
     expect(screen.getByText("This device")).toBeDefined()
     fireEvent.click(screen.getByRole("button", { name: "Retry Living room" }))
     expect(onRetry).toHaveBeenCalledWith("living")
-  })
-
-  it("counts a waiting destination only when something is waiting", () => {
-    const { rerender } = render(<ProductNav current="stacks" accountName="Default" waiting={3} />)
-    const nav = screen.getByRole("navigation", { name: "Sections" })
-    expect(within(nav).getByText("3")).toBeDefined()
-    expect(within(nav).getByRole("link", { name: /Stacks/ })).toHaveProperty("ariaCurrent", "page")
-    rerender(<ProductNav current="stacks" accountName="Default" />)
-    // Zero waiting is not a small permanent alarm.
-    expect(within(nav).queryByText("0")).toBeNull()
   })
 })
 

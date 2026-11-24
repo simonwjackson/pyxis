@@ -1,30 +1,11 @@
 import { expect, test } from "vitest"
-import {
-  RpcPlacement,
-  RpcRepeatMode,
-  type RpcSession,
-  RpcTransport,
-} from "../../../../contracts/generated/pyxis"
+import { RpcRepeatMode, type RpcSession, RpcTransport } from "../../../../contracts/generated/pyxis"
 import { RpcError, type WorkerRpc } from "../rpc/client"
 import { accountFencedDatabase } from "./account-fenced-database"
-import type { WorkerAlbum, WorkerOutboxEntry } from "./contract"
+import type { WorkerOutboxEntry } from "./contract"
 import { createMemoryEngine, openWorkerDatabase } from "./database"
 import { browserOfflineExclusive } from "./downloads"
 import { sync } from "./sync"
-
-function album(placement = RpcPlacement.Discovery, revision = 1): WorkerAlbum {
-  return {
-    id: "album-1",
-    title: "Heroes",
-    artist: "David Bowie",
-    tracks: [],
-    placement,
-    revision,
-    addedAt: "2026-01-01",
-    tags: [],
-    placementUpdatedAt: "2026-01-01",
-  }
-}
 
 function listen(id: string): WorkerOutboxEntry {
   return {
@@ -83,7 +64,6 @@ test("an accepted command survives a local verdict failure and replays without d
   const rpc: WorkerRpc = {
     listAlbums: async () => [],
     listSessions: async () => [remote],
-    setPlacement: async () => undefined,
     appendListen: async () => ({ accepted: 0, duplicates: 0 }),
     async runSessionCommand(_id, command, commandId) {
       if (command._tag !== "queue.add") throw new Error("unexpected command")
@@ -217,7 +197,6 @@ test.each(["auth", "network"])(
     const rpc: WorkerRpc = {
       listAlbums: async () => [],
       listSessions: async () => [remote],
-      setPlacement: async () => undefined,
       appendListen: async () => ({ accepted: 0, duplicates: 0 }),
       async runSessionCommand() {
         calls += 1
@@ -260,7 +239,6 @@ test("resuming an accepted command does not restore an obsolete server snapshot"
       calls += 1
       return latest
     },
-    setPlacement: async () => undefined,
     appendListen: async () => ({ accepted: 0, duplicates: 0 }),
   }
 
@@ -315,7 +293,6 @@ test.each([false, true])(
       runSessionCommand: async () => {
         throw new Error("saved verdict must not repeat RPC")
       },
-      setPlacement: async () => undefined,
       appendListen: async () => ({ accepted: 0, duplicates: 0 }),
     }
 
@@ -327,72 +304,6 @@ test.each([false, true])(
       ["first", "second"],
     ])
     expect((await store.session(remote.id))?.queue).toEqual(["first", "second"])
-    await store.close()
-  },
-)
-
-test.each(["projection", "notice"] as const)(
-  "an accepted placement survives a failed %s without losing its conflict",
-  async (step) => {
-    const engine = createMemoryEngine()
-    const store = await openWorkerDatabase({ engine })
-    await store.writeSettings({ deviceId: "device-1" })
-    const initial = album()
-    await store.putAlbum(initial)
-    await store.queuePlacement(initial, RpcPlacement.Collection)
-    let remote = album(RpcPlacement.Archive, 2)
-    let fail = false
-    const saveAlbum = engine.albums.upsert.bind(engine.albums)
-    const saveSettings = engine.settings.upsert.bind(engine.settings)
-    engine.albums.upsert = async (row) => {
-      if (step === "projection" && fail) {
-        fail = false
-        throw new Error("configured album save failure")
-      }
-      return saveAlbum(row)
-    }
-    engine.settings.upsert = async (row) => {
-      if (step === "notice" && fail && row.syncNotices !== undefined) {
-        fail = false
-        throw new Error("configured notice save failure")
-      }
-      return saveSettings(row)
-    }
-    let calls = 0
-    const rpc: WorkerRpc = {
-      listAlbums: async () => [remote],
-      listSessions: async () => [],
-      runSessionCommand: async () => undefined,
-      appendListen: async () => ({ accepted: 0, duplicates: 0 }),
-      async setPlacement() {
-        calls += 1
-        remote = album(RpcPlacement.Collection, 3)
-        fail = true
-        return remote
-      },
-    }
-
-    expect(await sync(store, rpc)).toMatchObject({
-      deferred: 1,
-      dropped: [],
-      conflicts: [],
-      offline: false,
-    })
-    expect(await store.outbox()).toHaveLength(1)
-    const retry = await sync(store, rpc)
-
-    expect(calls).toBe(1)
-    expect(retry).toMatchObject({
-      deferred: 0,
-      dropped: [],
-      conflicts: [
-        { albumId: initial.id, kept: RpcPlacement.Collection, discarded: RpcPlacement.Archive },
-      ],
-    })
-    expect((await store.settings()).syncNotices).toMatchObject([
-      { kind: "conflict", kept: RpcPlacement.Collection, discarded: RpcPlacement.Archive },
-    ])
-    expect(await store.album(initial.id)).toEqual(remote)
     await store.close()
   },
 )
@@ -425,7 +336,6 @@ test.each(["accepted", "rejected"] as const)(
     const rpc: WorkerRpc = {
       listAlbums: async () => [],
       listSessions: async () => [],
-      setPlacement: async () => undefined,
       runSessionCommand: async () => undefined,
       async appendListen() {
         calls += 1
@@ -490,32 +400,6 @@ test("concurrent settlements retain both notices and keep the newest 100", async
   await store.close()
 })
 
-test("a resumed placement cannot recreate an album removed after acceptance", async () => {
-  const store = await openWorkerDatabase({ engine: createMemoryEngine() })
-  const initial = album()
-  await store.putAlbum(initial)
-  await store.queuePlacement(initial, RpcPlacement.Collection)
-  const [entry] = await store.outbox()
-  if (entry === undefined) throw new Error("missing placement")
-  await store.enqueue({
-    ...entry,
-    settlement: { _tag: "PlacementAccepted", album: album(RpcPlacement.Collection, 2) },
-  })
-  const rpc: WorkerRpc = {
-    listAlbums: async () => [],
-    listSessions: async () => [],
-    runSessionCommand: async () => undefined,
-    setPlacement: async () => {
-      throw new Error("a settled placement must not send again")
-    },
-    appendListen: async () => ({ accepted: 0, duplicates: 0 }),
-  }
-
-  expect(await sync(store, rpc)).toMatchObject({ pushed: 1, deferred: 0 })
-  expect(await store.album(initial.id)).toBeUndefined()
-  await store.close()
-})
-
 test("an account switch during RPC refuses settlement without writing into the new account", async () => {
   const first = await openWorkerDatabase({ engine: createMemoryEngine() })
   const second = await openWorkerDatabase({ engine: createMemoryEngine() })
@@ -536,7 +420,6 @@ test("an account switch during RPC refuses settlement without writing into the n
   const rpc: WorkerRpc = {
     listAlbums: async () => [],
     listSessions: async () => [remote],
-    setPlacement: async () => undefined,
     appendListen: async () => ({ accepted: 0, duplicates: 0 }),
     async runSessionCommand() {
       current = second

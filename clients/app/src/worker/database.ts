@@ -7,10 +7,8 @@
 import { monotonicFactory } from "ulid"
 import type {
   ListenTrackEventInput,
-  RpcPlacement,
   RpcSessionCommand,
 } from "../../../../contracts/generated/pyxis"
-import { acceptsRemoteRevision } from "./conflict"
 import {
   type OfflineMedia,
   type OfflinePin,
@@ -275,21 +273,15 @@ class LocalWorkerDatabase implements WorkerDatabase {
 
   async applyRemoteAlbums(albums: readonly WorkerAlbum[]): Promise<number> {
     const applied = await this.engine.batch(async (engine) => {
-      const [outbox, existing] = await Promise.all([engine.outbox.all(), engine.albums.all()])
-      const queued = new Set(
-        outbox
-          .filter((entry) => entry.kind === "album.placement")
-          .map((entry) => (entry.kind === "album.placement" ? entry.albumId : "")),
-      )
+      const existing = await engine.albums.all()
       const localById = new Map(existing.map((album) => [album.id, album]))
       const remoteIds = new Set(albums.map((album) => album.id))
       const changed: WorkerAlbum[] = []
       let count = 0
 
       for (const album of albums) {
-        if (queued.has(album.id)) continue
         const local = localById.get(album.id)
-        if (local !== undefined && !acceptsRemoteRevision(local.revision, album.revision)) continue
+        if (local !== undefined && album.revision <= local.revision) continue
         // Preserve sequential duplicate-ID handling: a later older row cannot undo an
         // earlier newer row, while equal-revision duplicates keep their original order.
         const current = await engine.albums.findById(album.id)
@@ -301,18 +293,18 @@ class LocalWorkerDatabase implements WorkerDatabase {
         count += 1
       }
       for (const local of existing) {
-        if (remoteIds.has(local.id) || queued.has(local.id)) continue
+        if (remoteIds.has(local.id)) continue
         await engine.albums.delete(local.id)
         count += 1
       }
-      return { count, changed, queued }
+      return { count, changed }
     })
     // The outer worker Web Lock still spans both batches. Commit albums first: a rejected
     // album file must not unpin the old library. Separate relationship files can still fail
     // afterward, so repair retained truth on retries even when revisions are unchanged.
     await this.engine.batch(async (engine) => {
       for (const album of applied.changed) await this.reconcileOfflineAlbumTracks(engine, album)
-      await this.reconcileOfflineAlbums(engine, applied.queued)
+      await this.reconcileOfflineAlbums(engine)
     })
     return applied.count
   }
@@ -326,10 +318,7 @@ class LocalWorkerDatabase implements WorkerDatabase {
     for (const album of albums) await this.replaceAlbum(album)
   }
 
-  private async reconcileOfflineAlbums(
-    engine: WorkerCollections,
-    queued: ReadonlySet<string>,
-  ): Promise<void> {
+  private async reconcileOfflineAlbums(engine: WorkerCollections): Promise<void> {
     const [albums, pins, media] = await Promise.all([
       engine.albums.all(),
       engine.offlinePins.all(),
@@ -339,7 +328,7 @@ class LocalWorkerDatabase implements WorkerDatabase {
       albums.map((album) => [album.id, new Set(album.tracks.map((track) => track.id))]),
     )
     for (const pin of pins) {
-      if (tracksByAlbum.has(pin.albumId) || queued.has(pin.albumId)) continue
+      if (tracksByAlbum.has(pin.albumId)) continue
       if (pin.pinned === false && pin.lastError === undefined) continue
       const { lastError: _lastError, ...withoutError } = pin
       await engine.offlinePins.upsert({
@@ -349,9 +338,7 @@ class LocalWorkerDatabase implements WorkerDatabase {
       })
     }
     for (const entry of media) {
-      const albumIds = entry.albumIds.filter(
-        (id) => queued.has(id) || tracksByAlbum.get(id)?.has(entry.trackId),
-      )
+      const albumIds = entry.albumIds.filter((id) => tracksByAlbum.get(id)?.has(entry.trackId))
       if (albumIds.length !== entry.albumIds.length) {
         await engine.offlineMedia.upsert({ ...entry, albumIds })
       }
@@ -386,22 +373,6 @@ class LocalWorkerDatabase implements WorkerDatabase {
     const stored = await this.engine.albums.upsert(album)
     await this.reconcileOfflineAlbumTracks(this.engine, stored)
     return stored
-  }
-
-  async applyPlacementVerdict(album: WorkerAlbum, writeId: string): Promise<WorkerAlbum> {
-    // Both reads and replacement stay inside the caller's account-fenced lock. A local
-    // placement must run wholly before or after this operation, never between them.
-    const pending = (await this.outbox()).filter(
-      (entry): entry is Extract<WorkerOutboxEntry, { kind: "album.placement" }> =>
-        entry.kind === "album.placement" &&
-        entry.albumId === album.id &&
-        entry.id !== writeId &&
-        entry.settlement === undefined,
-    )
-    return this.replaceAlbum({
-      ...album,
-      placement: pending.at(-1)?.placement ?? album.placement,
-    })
   }
 
   async removeAlbum(id: string): Promise<boolean> {
@@ -467,7 +438,7 @@ class LocalWorkerDatabase implements WorkerDatabase {
       count += 1
     }
     for (const local of existing) {
-      if (remoteIds.has(local.id) || queued.has(local.id)) continue
+      if (remoteIds.has(local.id)) continue
       await this.removeSession(local.id)
       count += 1
     }
@@ -721,26 +692,6 @@ class LocalWorkerDatabase implements WorkerDatabase {
       fingerprint,
     })
     return stored
-  }
-
-  async queuePlacement(album: WorkerAlbum, placement: RpcPlacement): Promise<WorkerAlbum> {
-    // A later click can carry the snapshot that was visible before an earlier write
-    // finished syncing. Keep the newest stored metadata and revision, but the newest human
-    // intent always wins locally.
-    const current = await this.engine.albums.findById(album.id)
-    // Preserve the replay record first. If storage fails between these writes, a future
-    // sync can still recover the intent. The inverse order can lose it forever.
-    await this.enqueue({
-      id: nextOutboxId(),
-      createdAt: new Date().toISOString(),
-      attempts: 0,
-      kind: "album.placement",
-      albumId: album.id,
-      placement,
-      baseRevision: album.revision,
-      basePlacement: album.placement,
-    })
-    return this.engine.albums.upsert({ ...album, ...current, placement })
   }
 
   async queueListen(event: ListenTrackEventInput): Promise<void> {

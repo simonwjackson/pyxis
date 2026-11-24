@@ -30,7 +30,6 @@ pub const STATIONS: &str = "stations";
 pub const BOOKMARKS: &str = "bookmarks";
 pub const FEEDBACK: &str = "feedback";
 pub const LISTEN_EVENTS: &str = "listenEvents";
-pub const HOT_ALBUMS: &str = "hotAlbums";
 pub const SETTINGS: &str = "settings";
 pub const API_TOKENS: &str = "apiTokens";
 pub const PLUGIN_CREDENTIALS: &str = "pluginCredentials";
@@ -169,14 +168,17 @@ pub fn albums() -> CollectionDescriptor {
             field("artist", SchemaNode::Str),
             field("normalizedTitle", SchemaNode::Str),
             field("normalizedArtist", SchemaNode::Str),
-            field("placement", SchemaNode::Str),
+            // ProseQL strips undeclared fields on load. Retain only these optional
+            // input keys so Store::open can preserve old placements as tags, then
+            // atomically remove the keys. New album records never write them.
+            field("placement", optional(SchemaNode::Str)),
+            field("placementUpdatedAt", optional(SchemaNode::Str)),
             field(
                 "tags",
                 optional(SchemaNode::Array {
                     item: Box::new(SchemaNode::Str),
                 }),
             ),
-            field("placementUpdatedAt", SchemaNode::Str),
             field("year", optional(SchemaNode::Num)),
             field("addedAt", SchemaNode::Str),
         ],
@@ -300,9 +302,8 @@ pub fn feedback() -> CollectionDescriptor {
 }
 
 /// Append-only. Listening history is the truth the rest of the library derives from, so
-/// events are never edited: history and hot albums are projections over this log, and a
-/// projection change means a rebuild rather than a migration. Append-only is also what
-/// makes offline merge trivial, since two devices can only ever add.
+/// events are never edited. External organizers derive their own signals from this log.
+/// Append-only makes offline merge trivial, since two devices can only ever add.
 pub fn listen_events() -> CollectionDescriptor {
     let mut descriptor = scoped(
         LISTEN_EVENTS,
@@ -317,24 +318,10 @@ pub fn listen_events() -> CollectionDescriptor {
             field("completed", optional(SchemaNode::Bool)),
             field("context", optional(SchemaNode::Str)),
             field("contextId", optional(SchemaNode::Str)),
-            field("fromPlacement", optional(SchemaNode::Str)),
-            field("toPlacement", optional(SchemaNode::Str)),
         ],
     );
     descriptor.append_only = true;
     descriptor
-}
-
-pub fn hot_albums() -> CollectionDescriptor {
-    added_after_m1(scoped(
-        HOT_ALBUMS,
-        vec![
-            field("albumId", SchemaNode::Str),
-            field("listenCount", SchemaNode::Num),
-            field("windowStart", SchemaNode::Str),
-            field("computedAt", SchemaNode::Str),
-        ],
-    ))
 }
 
 pub fn settings() -> CollectionDescriptor {
@@ -446,7 +433,6 @@ pub fn all() -> Vec<CollectionDescriptor> {
         bookmarks(),
         feedback(),
         listen_events(),
-        hot_albums(),
         settings(),
         api_tokens(),
         plugin_credentials(),

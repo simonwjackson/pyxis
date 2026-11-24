@@ -35,7 +35,7 @@ export interface AccountSheetProps {
 //
 // Sources and devices are places, and the approved arrangement hangs them off this control
 // rather than giving them navigation slots. They are absent because this client has no route
-// for either yet, and a link that silently returns you to Stacks is a worse answer than none.
+// for either yet, and a link that silently returns you to All albums is a worse answer than none.
 export function AccountSheet({
   standing,
   open,

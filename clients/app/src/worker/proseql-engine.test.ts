@@ -15,7 +15,7 @@ import { fileURLToPath } from "node:url"
 import { workerWasmUrl } from "@proseql/browser/worker"
 import { createWebStorageEngineStorageHost } from "@proseql/engine/browser"
 import { beforeAll, describe, expect, test } from "vitest"
-import { RpcPlacement, type RpcSession, RpcTransport } from "../../../../contracts/generated/pyxis"
+import { type RpcSession, RpcTransport } from "../../../../contracts/generated/pyxis"
 import type { WorkerAlbum } from "./contract"
 import { openWorkerDatabase } from "./database"
 import { createProseqlEngine } from "./proseql-engine"
@@ -79,9 +79,7 @@ function album(id: string, revision = 1, title = "Heroes"): WorkerAlbum {
     id,
     title,
     artist: "David Bowie",
-    placement: RpcPlacement.Discovery,
     tags: [],
-    placementUpdatedAt: "now",
     addedAt: "now",
     revision,
     tracks: [],
@@ -397,50 +395,6 @@ describe("the real ProseQL engine", () => {
     await reopened.close()
   })
 
-  test("a snapshot preserves queued intent, newer revisions and duplicate order", async () => {
-    const cells = new Map<string, string>()
-    const initial = await open(cells)
-    const queued = { ...album("queued"), tracks: [sharedTrack] }
-    const absentQueued = album("absent-queued")
-    const newer = { ...album("newer", 5), tracks: [sharedTrack] }
-    const unchanged = album("unchanged", 2)
-    const updated = { ...album("updated"), artworkUrl: "https://pyxis.test/old.jpg" }
-    for (const row of [queued, absentQueued, newer, unchanged, updated]) await initial.putAlbum(row)
-    await initial.queuePlacement(queued, RpcPlacement.Collection)
-    await initial.queuePlacement(absentQueued, RpcPlacement.Archive)
-    await initial.putOfflineMedium(sharedMedium([queued.id, newer.id]))
-    await initial.close()
-    const writes: string[] = []
-    const database = await open(cells, writes)
-    const pending = await database.outbox()
-    expect(pending).toHaveLength(2)
-    const snapshot = [
-      { ...queued, revision: 10, placement: RpcPlacement.Dismissed, tracks: [] },
-      album(newer.id, 2, "Stale"),
-      album(unchanged.id, 2, "Same revision cannot replace it"),
-      album(updated.id, 2, "Updated"),
-      album("duplicate", 3, "First"),
-      album("duplicate", 2, "Older"),
-      album("duplicate", 3, "Last"),
-    ]
-    expect(await database.applyRemoteAlbums(snapshot)).toBe(4)
-    expect(writes.filter((key) => key.endsWith("albums.json"))).toHaveLength(1)
-    await database.close()
-    const final = await open(cells)
-    expect(await final.album(queued.id)).toEqual({ ...queued, placement: RpcPlacement.Collection })
-    expect(await final.album(absentQueued.id)).toEqual({
-      ...absentQueued,
-      placement: RpcPlacement.Archive,
-    })
-    expect(await final.album(newer.id)).toEqual(newer)
-    expect(await final.album(unchanged.id)).toEqual(unchanged)
-    expect(await final.album(updated.id)).toEqual(album(updated.id, 2, "Updated"))
-    expect(await final.album("duplicate")).toEqual(album("duplicate", 3, "Last"))
-    expect(await final.offlineMedium(sharedTrack.id)).toEqual(sharedMedium([queued.id, newer.id]))
-    expect(await final.outbox()).toEqual(pending)
-    await final.close()
-  })
-
   test("a rejected album snapshot leaves pins and media unchanged", async () => {
     const cells = new Map<string, string>()
     const initial = await open(cells)
@@ -606,42 +560,6 @@ describe("the real ProseQL engine", () => {
     expect(cells).toEqual(before)
   })
 
-  test("placement verdicts preserve later intent and metadata through a real engine reopen", async () => {
-    const cells = new Map<string, string>()
-    const first = await open(cells)
-    const initial = await first.putAlbum(album("album-1"))
-    await first.queuePlacement(initial, RpcPlacement.Collection)
-    await first.close()
-
-    // Match production's refreshed handle for each public database operation. ProseQL
-    // can retain a prior empty query result on the handle that enqueued the first write.
-    const second = await open(cells)
-    const [entry] = await second.outbox()
-    const collection = await second.album(initial.id)
-    if (entry === undefined || collection === undefined) throw new Error("missing placement")
-    await second.queuePlacement(collection, RpcPlacement.Archive)
-    await second.close()
-
-    const reopened = await open(cells)
-    const verdict = {
-      ...initial,
-      title: "Server metadata",
-      revision: 2,
-      placement: RpcPlacement.Collection,
-    }
-    await reopened.applyPlacementVerdict(verdict, entry.id)
-    await reopened.dequeue(entry.id)
-    await reopened.close()
-
-    const final = await open(cells)
-    expect(final.report.ephemeral).toBeUndefined()
-    expect(await final.album(initial.id)).toEqual({ ...verdict, placement: RpcPlacement.Archive })
-    expect(await final.outbox()).toMatchObject([
-      { kind: "album.placement", placement: RpcPlacement.Archive },
-    ])
-    await final.close()
-  })
-
   test("command verdicts preserve later queued commands through a real engine reopen", async () => {
     const cells = new Map<string, string>()
     const snapshot = {
@@ -791,11 +709,15 @@ describe("the real ProseQL engine", () => {
       id: "01A",
       createdAt: "2026-06-01",
       attempts: 0,
-      kind: "album.placement",
-      albumId: "album-1",
-      placement: RpcPlacement.Collection,
-      baseRevision: 1,
-      basePlacement: RpcPlacement.Discovery,
+      kind: "listen.append",
+      event: {
+        id: "event-1",
+        trackId: "track-1",
+        deviceId: "device-1",
+        listenedAt: "2026-06-01",
+        completed: true,
+        context: "queue",
+      },
     })
     await first.close()
 
@@ -981,15 +903,12 @@ describe("the real ProseQL engine", () => {
   })
 })
 
-test("tags survive a real persisted album snapshot and placement acknowledgement", async () => {
+test("tags survive a real persisted album snapshot and reopen", async () => {
   const cells = new Map<string, string>()
   const first = await open(cells)
   const tagged = { ...album("tagged"), tags: ["favorite"] }
   await first.putAlbum(tagged)
-  await first.applyPlacementVerdict(
-    { ...tagged, placement: RpcPlacement.Collection, revision: 2 },
-    "write-1",
-  )
+  await first.applyRemoteAlbums([{ ...tagged, revision: 2 }])
   await first.close()
   const reopened = await open(cells)
   expect((await reopened.albums())[0]?.tags).toEqual(["favorite"])

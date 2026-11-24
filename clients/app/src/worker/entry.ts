@@ -182,12 +182,7 @@ async function handle(request: WorkerRequest): Promise<unknown> {
           request.payload.commandId,
         ),
       )
-    case "worker.queue.placement": {
-      const { album, placement } = request.payload
-      return mutateCurrentAccount(request.accountId, (current) =>
-        current.queuePlacement(album, placement),
-      )
-    }
+
     case "worker.queue.listen":
       return mutateCurrentAccount(request.accountId, (current) =>
         current.queueListen(request.payload.event),
@@ -210,13 +205,12 @@ async function handle(request: WorkerRequest): Promise<unknown> {
         const report: SyncReport = {
           pulled: 0,
           pushed: 0,
-          converged: 0,
+
           dropped: [],
           deferred: await readCurrentAccount(
             request.accountId,
             async (current) => (await current.outbox()).length,
           ),
-          conflicts: [],
           offline: false,
           authRequired: true,
         }

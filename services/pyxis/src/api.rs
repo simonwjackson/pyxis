@@ -22,7 +22,7 @@ use crate::accounts::Accounts;
 use crate::db::store::Store;
 use crate::fidelity_upgrades::{FidelityUpgradeDependencies, FidelityUpgrader, UpgradeRun};
 use crate::library::Library;
-use crate::listen::{ListenLog, Projections};
+use crate::listen::ListenLog;
 use crate::matching::Matcher;
 use crate::media::probe::FfprobeAudioProbe;
 use crate::media::Media;
@@ -48,14 +48,12 @@ pub struct AppState {
     pub(crate) fidelity_upgrader: FidelityUpgrader,
     pub(crate) outputs: OutputCatalog,
     pub(crate) output_stream_tokens: OutputStreamTokens,
-    pub projections: Projections,
     pub(crate) plugin_credentials: CredentialVault,
     pub(crate) plugins: PluginHost,
     pub realtime: Realtime,
     pub sessions: Sessions,
     pub(crate) sources: SourceCatalog,
     pub(crate) stations: Stations,
-    pub(crate) group_pages: crate::rpc::library_groups::GroupPages,
     pub(crate) stream: StreamService,
     pub(crate) allowed_origins: AllowedOrigins,
 }
@@ -88,7 +86,6 @@ impl AppState {
         let matcher = Matcher::open(store.clone());
         let media = Media::open(store.clone())?;
         let plugin_credentials = CredentialVault::open(store.clone())?;
-        let projections = Projections::open(store.clone());
         let sessions = Sessions::open(store.clone());
         let fidelity_upgrader = FidelityUpgrader::new(
             FidelityUpgradeDependencies {
@@ -129,13 +126,11 @@ impl AppState {
             outputs,
             output_stream_tokens,
             plugin_credentials,
-            projections,
             plugins,
             realtime: Realtime::new(),
             sessions,
             sources,
             stations,
-            group_pages: Default::default(),
             stream,
             allowed_origins: AllowedOrigins::default(),
         })

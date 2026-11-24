@@ -1,10 +1,6 @@
 import { describe, expect, it } from "vitest"
-import {
-  type RpcLibraryAlbum,
-  type RpcLibraryTrack,
-  RpcPlacement,
-} from "../../../../contracts/generated/pyxis"
-import { readAlbum, readAlbums, readPlacement } from "./album"
+import type { RpcLibraryAlbum, RpcLibraryTrack } from "../../../../contracts/generated/pyxis"
+import { readAlbum, readAlbums } from "./album"
 import { readOfflineOverview } from "./offline"
 
 const track = (patch: Partial<RpcLibraryTrack> = {}): RpcLibraryTrack => ({
@@ -19,22 +15,11 @@ const album = (patch: Partial<RpcLibraryAlbum> = {}): RpcLibraryAlbum => ({
   id: "album-1",
   title: "GET COLOR",
   artist: "HEALTH",
-  placement: RpcPlacement.Collection,
   tags: [],
-  placementUpdatedAt: "2026-01-01T00:00:00Z",
   addedAt: "2026-01-01T00:00:00Z",
   revision: 1,
   tracks: [],
   ...patch,
-})
-
-describe("placement is carried across exactly", () => {
-  it("maps every placement the core defines", () => {
-    expect(readPlacement(RpcPlacement.Discovery)).toBe("discovery")
-    expect(readPlacement(RpcPlacement.Collection)).toBe("collection")
-    expect(readPlacement(RpcPlacement.Archive)).toBe("archive")
-    expect(readPlacement(RpcPlacement.Dismissed)).toBe("dismissed")
-  })
 })
 
 describe("running time is only reported when it is actually known", () => {

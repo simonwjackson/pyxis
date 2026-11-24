@@ -3,7 +3,6 @@ import type {
   RpcAuthGrant,
   RpcLibraryAlbum,
   RpcOutputTopology,
-  RpcPlacement,
   RpcPlugin,
   RpcSearchTrack,
   RpcSession,
@@ -78,7 +77,6 @@ export interface ReferenceContextValue {
     coordinatorId: string,
     memberIds: readonly string[],
   ): Promise<void>
-  setAlbumPlacement(albumId: string, placement: RpcPlacement): Promise<void>
   pinAlbum(albumId: string): Promise<void>
   unpinAlbum(albumId: string): Promise<void>
   play(): Promise<void>

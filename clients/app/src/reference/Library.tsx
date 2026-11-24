@@ -1,4 +1,3 @@
-import { RpcPlacement } from "../../../../contracts/generated/pyxis"
 import { useReference } from "./Reference.context.tsx"
 import { ReferenceSourceAlbums } from "./SourceAlbums.tsx"
 import { ReferenceSourceArtists } from "./SourceArtists.tsx"
@@ -17,7 +16,6 @@ export function ReferenceLibrary() {
     enqueueAlbum,
     albums,
     offline,
-    setAlbumPlacement,
     pinAlbum,
     unpinAlbum,
   } = useReference()
@@ -75,9 +73,8 @@ export function ReferenceLibrary() {
           const pinned = cached !== undefined
           return (
             <li key={album.id}>
-              <strong>{album.title}</strong> — {album.artist} — {album.placement} — revision{" "}
-              {album.revision} — {album.tracks.length} tracks — offline{" "}
-              {cached?.state ?? "not-pinned"}
+              <strong>{album.title}</strong> — {album.artist} — revision {album.revision} —{" "}
+              {album.tracks.length} tracks — offline {cached?.state ?? "not-pinned"}
               {cached === undefined ? "" : ` (${cached.readyTracks}/${cached.totalTracks})`}{" "}
               <button
                 type="button"
@@ -98,16 +95,6 @@ export function ReferenceLibrary() {
                   {track.trackNumber ?? "?"}
                 </button>
               ))}{" "}
-              {Object.values(RpcPlacement).map((placement) => (
-                <button
-                  key={placement}
-                  type="button"
-                  disabled={album.placement === placement}
-                  onClick={() => void setAlbumPlacement(album.id, placement)}
-                >
-                  {placement}
-                </button>
-              ))}
               {cached?.error === undefined ? null : <pre>{cached.error}</pre>}
             </li>
           )

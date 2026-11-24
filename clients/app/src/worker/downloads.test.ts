@@ -1,7 +1,6 @@
 import { describe, expect, test, vi } from "vitest"
 import {
   type RpcLibraryAlbum,
-  RpcPlacement,
   RpcRepeatMode,
   type RpcSession,
   RpcTransport,
@@ -71,9 +70,7 @@ function album(id = "album-1", tracks = ["track-1"]): RpcLibraryAlbum {
     id,
     title: "Heroes",
     artist: "David Bowie",
-    placement: RpcPlacement.Collection,
     tags: [],
-    placementUpdatedAt: "now",
     addedAt: "now",
     revision: 1,
     tracks: tracks.map((trackId, index) => ({

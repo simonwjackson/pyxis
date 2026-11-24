@@ -4,32 +4,29 @@
 //! receives a valid request plus its account context and always returns the matching
 //! operation tag. Domain failures become operation outcomes rather than framework errors.
 
-use chrono::Utc;
-
 use crate::accounts::{
     Account, AccountError, ApiTokenGrant, AuthContext, AuthGrant, ClaimOutcome, PairOutcome,
     Principal,
 };
 use crate::api::AppState;
 use crate::library::{
-    Album, AlbumInput, Bookmark, LibraryError, Placement, Playlist, PlaylistInput, SourceReference,
-    TrackInput,
+    Album, AlbumInput, Bookmark, LibraryError, Playlist, PlaylistInput, SourceReference, TrackInput,
 };
-use crate::listen::{HotConfig, ListenError, TrackListenInput};
+use crate::listen::{ListenError, TrackListenInput};
 use crate::matching::{Decision, MatchItem, OverrideDecision};
 use crate::output_catalog::{OutputError, OutputTopology};
 use crate::rpc::contract::{
     AccountCreateOutcome, AccountListOutcome, AlbumAddOutcome, AlbumCommandOutcome,
     AlbumListOutcome, ApiTokenCreateOutcome, BookmarkCommandOutcome, BookmarkListOutcome,
-    CommandOutcome, DeviceClaimOutcome, DevicePairOutcome, EmptyRequest, HotAlbumsListOutcome,
-    ListenAppendOutcome, ListenHistoryOutcome, MatchingEvaluateOutcome, OutputGroupSetOutcome,
+    CommandOutcome, DeviceClaimOutcome, DevicePairOutcome, EmptyRequest, ListenAppendOutcome,
+    ListenHistoryOutcome, MatchingEvaluateOutcome, OutputGroupSetOutcome,
     OutputSessionCreateOutcome, OutputTargetsListOutcome, PairingCreateOutcome,
     PlaylistCreateOutcome, PlaylistListOutcome, PluginListOutcome, RealtimeServerMessage,
     RpcAccount, RpcAlbumCommand, RpcApiToken, RpcApiTokenGrant, RpcAuthGrant, RpcBookmark,
-    RpcBookmarkCommand, RpcDevice, RpcFailure, RpcHotAlbum, RpcLibraryAlbum, RpcLibraryTrack,
+    RpcBookmarkCommand, RpcDevice, RpcFailure, RpcLibraryAlbum, RpcLibraryTrack,
     RpcListenAppendResult, RpcListenEvent, RpcMatchDecision, RpcMatchItem, RpcMatchResult,
     RpcMatchScore, RpcOutputBinding, RpcOutputGroup, RpcOutputRoom, RpcOutputTopology,
-    RpcOverrideDecision, RpcPairingCode, RpcPlacement, RpcPlaylist, RpcPlugin, RpcRealtimeRemoval,
+    RpcOverrideDecision, RpcPairingCode, RpcPlaylist, RpcPlugin, RpcRealtimeRemoval,
     RpcRealtimeState, RpcRealtimeTopic, RpcRequest, RpcResponse, RpcSearchTrack, RpcSession,
     RpcSessionCommand, RpcSessionDirective, RpcSourceAlbum, RpcSourceAlbumSummary,
     RpcSourceArtistSummary, RpcSourceFailure, RpcSourceSearchResult, RpcStation, RpcStationBatch,
@@ -768,20 +765,7 @@ pub fn dispatch(state: &AppState, request: RpcRequest, auth: Option<AuthContext>
                 )),
             }
         }
-        RpcRequest::LibraryGroupsList(_) => {
-            let Some(auth) = auth else {
-                return auth_required();
-            };
-            RpcResponse::LibraryGroupsList(crate::rpc::library_groups::list(state, &auth))
-        }
-        RpcRequest::LibraryGroupItemsList(request) => {
-            let Some(auth) = auth else {
-                return auth_required();
-            };
-            RpcResponse::LibraryGroupItemsList(crate::rpc::library_groups::items(
-                state, &auth, request,
-            ))
-        }
+
         RpcRequest::LibraryAlbumsList(_) => {
             let Some(auth) = auth else {
                 return auth_required();
@@ -809,27 +793,7 @@ pub fn dispatch(state: &AppState, request: RpcRequest, auth: Option<AuthContext>
                     };
                     RpcResponse::LibraryAlbumCommandRun(outcome)
                 }
-                RpcAlbumCommand::PlacementSet(command) => {
-                    let placement = placement(command.placement);
-                    match state.library.set_placement(
-                        &auth.account_id,
-                        &request.album_id,
-                        placement,
-                        auth.principal_id(),
-                    ) {
-                        Ok(Some(album)) => {
-                            let album = rpc_album(album);
-                            publish_album(state, &auth, &album);
-                            RpcResponse::LibraryAlbumCommandRun(AlbumCommandOutcome::Applied(album))
-                        }
-                        Ok(None) => {
-                            RpcResponse::LibraryAlbumCommandRun(AlbumCommandOutcome::Unknown)
-                        }
-                        Err(error) => RpcResponse::LibraryAlbumCommandRun(
-                            AlbumCommandOutcome::Unavailable(library_failure(error)),
-                        ),
-                    }
-                }
+
                 RpcAlbumCommand::ArtworkRefresh(_) => {
                     let reference = match state
                         .library
@@ -1118,34 +1082,7 @@ pub fn dispatch(state: &AppState, request: RpcRequest, auth: Option<AuthContext>
                 )),
             }
         }
-        RpcRequest::LibraryHotAlbumsList(request) => {
-            let Some(auth) = auth else {
-                return auth_required();
-            };
-            let config = HotConfig {
-                min_recent_listens: request.min_recent_listens.unwrap_or(3),
-                window_days: u64::from(request.window_days.unwrap_or(30)),
-            };
-            match state
-                .projections
-                .rebuild_hot(&auth.account_id, config, Utc::now())
-            {
-                Ok(albums) => RpcResponse::LibraryHotAlbumsList(HotAlbumsListOutcome::Ready(
-                    albums
-                        .into_iter()
-                        .map(|album| RpcHotAlbum {
-                            album_id: album.album_id,
-                            listen_count: album.listen_count,
-                            window_start: album.window_start,
-                            computed_at: album.computed_at,
-                        })
-                        .collect(),
-                )),
-                Err(error) => RpcResponse::LibraryHotAlbumsList(HotAlbumsListOutcome::Unavailable(
-                    listen_failure(error),
-                )),
-            }
-        }
+
         RpcRequest::MatchingEvaluate(request) => {
             let Some(auth) = auth else {
                 return auth_required();
@@ -2160,13 +2097,7 @@ pub(crate) fn rpc_album(album: Album) -> RpcLibraryAlbum {
         artist: album.artist,
         year: album.year,
         artwork_url: album.artwork_url,
-        placement: match album.placement {
-            Placement::Discovery => RpcPlacement::Discovery,
-            Placement::Collection => RpcPlacement::Collection,
-            Placement::Archive => RpcPlacement::Archive,
-            Placement::Dismissed => RpcPlacement::Dismissed,
-        },
-        placement_updated_at: album.placement_updated_at,
+
         added_at: album.added_at,
         revision: u32::try_from(album.revision).unwrap_or(u32::MAX),
         tracks: album
@@ -2182,15 +2113,6 @@ pub(crate) fn rpc_album(album: Album) -> RpcLibraryAlbum {
                 revision: u32::try_from(track.revision).unwrap_or(u32::MAX),
             })
             .collect(),
-    }
-}
-
-fn placement(placement: RpcPlacement) -> Placement {
-    match placement {
-        RpcPlacement::Discovery => Placement::Discovery,
-        RpcPlacement::Collection => Placement::Collection,
-        RpcPlacement::Archive => Placement::Archive,
-        RpcPlacement::Dismissed => Placement::Dismissed,
     }
 }
 

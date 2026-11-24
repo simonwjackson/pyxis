@@ -1,7 +1,5 @@
 use serde::{Deserialize, Serialize};
 
-use super::placement::Placement;
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SourceReference {
     pub plugin_id: String,
@@ -47,8 +45,6 @@ pub struct Album {
     pub artist: String,
     pub year: Option<u32>,
     pub artwork_url: Option<String>,
-    pub placement: Placement,
-    pub placement_updated_at: String,
     pub added_at: String,
     pub revision: u64,
     pub tracks: Vec<Track>,
@@ -65,8 +61,6 @@ pub(crate) struct AlbumRecord {
     pub artist: String,
     pub normalized_title: String,
     pub normalized_artist: String,
-    pub placement: Placement,
-    pub placement_updated_at: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub year: Option<u32>,
     pub added_at: String,

@@ -1,7 +1,5 @@
-use chrono::{TimeZone, Utc};
-use pyxis::db::schema;
 use pyxis::db::store::{AccountId, Store};
-use pyxis::listen::{HotConfig, ListenError, ListenLog, Projections, TrackListenInput};
+use pyxis::listen::{ListenError, ListenLog, TrackListenInput};
 
 fn event(id: &str, album_id: &str, listened_at: &str) -> TrackListenInput {
     TrackListenInput {
@@ -133,53 +131,4 @@ fn history_orders_timezone_offsets_by_instant_not_text() {
     let history = log.history(&account, 10).expect("history");
 
     assert_eq!(history[0].listened_at, "2026-08-20T10:30:00Z");
-}
-
-#[test]
-fn hot_projection_respects_window_and_threshold_and_rebuilds_identically() {
-    let dir = tempfile::tempdir().expect("temp dir");
-    let store = Store::open(dir.path()).expect("store");
-    let log = ListenLog::open(store.clone());
-    let projections = Projections::open(store.clone());
-    let account = AccountId::new("account-a");
-    let now = Utc.with_ymd_and_hms(2026, 8, 21, 12, 0, 0).unwrap();
-    log.append_batch(
-        &account,
-        vec![
-            event("01M0K000000000000000000007", "hot", "2026-08-21T09:00:00Z"),
-            event("01M0K000000000000000000008", "hot", "2026-08-21T10:00:00Z"),
-            event("01M0K000000000000000000009", "hot", "2026-08-21T11:00:00Z"),
-            event("01M0K00000000000000000000A", "warm", "2026-08-21T11:30:00Z"),
-            event("01M0K00000000000000000000B", "old", "2026-07-01T11:30:00Z"),
-        ],
-        "device-a",
-    )
-    .expect("append");
-    let config = HotConfig {
-        min_recent_listens: 3,
-        window_days: 30,
-    };
-
-    let first = projections
-        .rebuild_hot(&account, config, now)
-        .expect("first build");
-    assert_eq!(first.len(), 1);
-    assert_eq!(first[0].album_id, "hot");
-    assert_eq!(first[0].listen_count, 3);
-
-    let projection_rows: Vec<serde_json::Value> =
-        store.list(schema::HOT_ALBUMS, &account).expect("rows");
-    let deletions: Vec<_> = projection_rows
-        .iter()
-        .filter_map(|row| row["id"].as_str())
-        .map(|id| (schema::HOT_ALBUMS.to_string(), id.to_string()))
-        .collect();
-    store
-        .delete_batch(&account, &deletions)
-        .expect("delete projection");
-
-    let rebuilt = projections
-        .rebuild_hot(&account, config, now)
-        .expect("rebuild");
-    assert_eq!(rebuilt, first);
 }

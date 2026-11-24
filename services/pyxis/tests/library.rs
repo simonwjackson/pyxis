@@ -1,6 +1,6 @@
 use pyxis::db::schema;
 use pyxis::db::store::{AccountId, Store};
-use pyxis::library::{AlbumInput, Library, Placement, PlaylistInput, SourceReference, TrackInput};
+use pyxis::library::{AlbumInput, Library, PlaylistInput, SourceReference, TrackInput};
 use serde::Serialize;
 
 fn album() -> AlbumInput {
@@ -24,7 +24,7 @@ fn album() -> AlbumInput {
 }
 
 #[test]
-fn explicit_add_enters_discovery_and_duplicate_source_ref_returns_the_same_album() {
+fn explicit_add_has_no_tags_and_duplicate_source_ref_returns_the_same_album() {
     let dir = tempfile::tempdir().expect("temp dir");
     let store = Store::open(dir.path()).expect("store");
     let library = Library::open(store);
@@ -37,7 +37,7 @@ fn explicit_add_enters_discovery_and_duplicate_source_ref_returns_the_same_album
         .add_album(&account, album(), "device-a")
         .expect("second add");
 
-    assert_eq!(first.placement, Placement::Discovery);
+    assert!(first.tags.is_empty());
     assert_eq!(first.id, second.id);
     assert_eq!(library.list_albums(&account).unwrap().len(), 1);
     assert_eq!(first.tracks[0].id, "track-heroes");
@@ -93,9 +93,6 @@ fn add_retry_fills_missing_artwork_but_only_refresh_replaces_it() {
     assert_eq!(unchanged.revision, refreshed.revision);
     assert_eq!(unchanged.tracks[0].revision, refreshed.tracks[0].revision);
 
-    library
-        .set_placement(&account, &first.id, Placement::Collection, "device-f")
-        .expect("main store mutation");
     store.close().expect("close");
     let reopened = Library::open(Store::open(dir.path()).expect("reopen"));
     assert_eq!(
@@ -129,35 +126,6 @@ fn corrupt_artwork_cache_is_quarantined_without_blocking_the_library() {
             .file_name()
             .to_string_lossy()
             .starts_with("album-artwork.corrupt-")));
-}
-
-#[test]
-fn placement_transition_persists_and_bumps_revision() {
-    let dir = tempfile::tempdir().expect("temp dir");
-    let account = AccountId::new("account-a");
-    let album_id = {
-        let store = Store::open(dir.path()).expect("store");
-        let library = Library::open(store.clone());
-        let album = library
-            .add_album(&account, album(), "device-a")
-            .expect("add");
-        let moved = library
-            .set_placement(&account, &album.id, Placement::Collection, "device-a")
-            .expect("move")
-            .expect("album");
-        assert_eq!(moved.revision, album.revision + 1);
-        store.close().expect("close");
-        album.id
-    };
-
-    let reopened = Library::open(Store::open(dir.path()).expect("reopen"));
-    let album = reopened
-        .get_album(&account, &album_id)
-        .expect("get")
-        .expect("album");
-
-    assert_eq!(album.placement, Placement::Collection);
-    assert_eq!(album.revision, 2);
 }
 
 #[test]
@@ -199,28 +167,6 @@ fn yaml_store_round_trips_indicator_hazard_titles() {
     );
 }
 
-#[test]
-fn readding_a_dismissed_album_returns_it_to_discovery() {
-    let dir = tempfile::tempdir().expect("temp dir");
-    let store = Store::open(dir.path()).expect("store");
-    let library = Library::open(store);
-    let account = AccountId::new("account-a");
-    let added = library
-        .add_album(&account, album(), "device-a")
-        .expect("add");
-    library
-        .set_placement(&account, &added.id, Placement::Dismissed, "device-a")
-        .expect("dismiss");
-
-    let readded = library
-        .add_album(&account, album(), "device-a")
-        .expect("readd");
-
-    assert_eq!(readded.id, added.id);
-    assert_eq!(readded.placement, Placement::Discovery);
-    assert_eq!(readded.revision, 3);
-}
-
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 struct ListenEventRecord {
@@ -243,10 +189,6 @@ struct ListenEventRecord {
     context: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     context_id: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    from_placement: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    to_placement: Option<String>,
     revision: u64,
     updated_by: String,
     updated_at: String,
@@ -357,8 +299,6 @@ fn removing_an_album_deletes_library_rows_but_not_listen_events() {
                 completed: Some(false),
                 context: Some("album".into()),
                 context_id: Some(added.id.clone()),
-                from_placement: None,
-                to_placement: None,
                 revision: 1,
                 updated_by: "device-a".into(),
                 updated_at: "2026-08-21T00:00:00Z".into(),

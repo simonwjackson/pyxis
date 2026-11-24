@@ -32,7 +32,7 @@ async fn rpc(app: &axum::Router, request: Value, bearer: Option<&str>) -> Value 
 }
 
 #[tokio::test]
-async fn batch_append_replay_history_and_hot_are_public_contracts() {
+async fn batch_append_replay_and_history_are_public_contracts() {
     let dir = tempfile::tempdir().expect("temp dir");
     let app = router(AppState::open(Store::open(dir.path()).expect("store")).expect("state"));
     let claim = rpc(
@@ -50,7 +50,7 @@ async fn batch_append_replay_history_and_hot_are_public_contracts() {
     let device_id = claim["outcome"]["value"]["device"]["id"]
         .as_str()
         .expect("device id");
-    // The RPC uses current UTC time; keep fixtures safely inside its 30-day window.
+    // Use ordered recent timestamps for the history assertions.
     let now = Utc::now();
     let listened_at = [3, 2, 1]
         .map(|hours| (now - Duration::hours(hours)).to_rfc3339_opts(SecondsFormat::Secs, true));
@@ -125,19 +125,6 @@ async fn batch_append_replay_history_and_hot_are_public_contracts() {
     .await;
     assert_eq!(history["outcome"]["value"].as_array().unwrap().len(), 3);
     assert_eq!(history["outcome"]["value"][0]["listenedAt"], listened_at[2]);
-
-    let hot = rpc(
-        &app,
-        json!({
-            "_tag": "library.hotAlbums.list",
-            "payload": { "minRecentListens": 3, "windowDays": 30 }
-        }),
-        Some(token),
-    )
-    .await;
-    assert_eq!(hot["outcome"]["status"], "ready");
-    assert_eq!(hot["outcome"]["value"][0]["albumId"], "album-1");
-    assert_eq!(hot["outcome"]["value"][0]["listenCount"], 3);
 }
 
 #[tokio::test]

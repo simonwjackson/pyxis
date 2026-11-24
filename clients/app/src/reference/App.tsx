@@ -5,7 +5,6 @@ import type {
   RpcAuthGrant,
   RpcLibraryAlbum,
   RpcOutputTopology,
-  RpcPlacement,
   RpcPlugin,
   RpcSearchTrack,
   RpcSession,
@@ -21,7 +20,6 @@ import { spawnWorkerClient } from "../worker/client.ts"
 import type { OfflineOverview, WorkerSettings } from "../worker/contract.ts"
 import { createReferenceClient, type ReferenceClient } from "./api.ts"
 import { ReferenceConsole } from "./Console.tsx"
-import { ReferenceGroups } from "./Groups.tsx"
 import { ReferenceLibrary } from "./Library.tsx"
 import { ReferenceOffline } from "./Offline.tsx"
 import { ReferenceOutputs } from "./Outputs.tsx"
@@ -67,7 +65,6 @@ export function ReferenceApp({
   // root injects the browser worker before StrictMode so React cannot start it twice.
   const [store] = useState<WorkerClient>(() => worker ?? spawnWorkerClient())
   const audioElement = useRef<HTMLAudioElement | null>(null)
-  const placementQueues = useRef(new Map<string, Promise<void>>())
   const syncQueue = useRef<Promise<void>>(Promise.resolve())
   const connectionQueue = useRef<Promise<void>>(Promise.resolve())
   const albumsRef = useRef<readonly RpcLibraryAlbum[]>([])
@@ -496,8 +493,8 @@ export function ReferenceApp({
             })
             return
           }
-          // Pull album state through the worker even while a local placement is queued. Its
-          // merge rules preserve that intent, and the cursor is stored only after this ends.
+          // Pull album state through the worker's revision gate. Store the cursor only
+          // after that durable synchronization completes.
           const report = await reconcileWorker()
           if (report.albumPullFailed) throw new Error("album state did not sync")
         },
@@ -798,42 +795,6 @@ export function ReferenceApp({
     [client, currentToken, reconcileWorker, run],
   )
 
-  const setAlbumPlacement = useCallback(
-    async (albumId: string, placement: RpcPlacement) => {
-      const album = albumsRef.current.find((candidate) => candidate.id === albumId)
-      if (album === undefined) return
-      const optimistic = albumsRef.current.map((candidate) =>
-        candidate.id === albumId ? { ...candidate, placement } : candidate,
-      )
-      albumsRef.current = optimistic
-      setAlbums(optimistic)
-
-      await run(async () => {
-        const previous = placementQueues.current.get(albumId) ?? Promise.resolve()
-        // Serialize durable local writes for this album, but never make a later click wait
-        // for an earlier network request. A closed tab must not lose intent that was
-        // already visible on screen.
-        const persisted = previous
-          .catch(() => undefined)
-          .then(() => store.queuePlacement(album, placement))
-        const queued = persisted.then(
-          () => undefined,
-          () => undefined,
-        )
-        placementQueues.current.set(albumId, queued)
-        try {
-          await persisted
-          await reconcileWorker()
-        } finally {
-          if (placementQueues.current.get(albumId) === queued) {
-            placementQueues.current.delete(albumId)
-          }
-        }
-      })
-    },
-    [reconcileWorker, run, store],
-  )
-
   const pinAlbum = useCallback(
     async (albumId: string) => {
       await run(async () => watchOffline(await store.pinAlbum(albumId)))
@@ -1046,7 +1007,6 @@ export function ReferenceApp({
       discoverOutput,
       createOutputSession,
       setOutputGroup,
-      setAlbumPlacement,
       pinAlbum,
       unpinAlbum,
       play,
@@ -1096,7 +1056,6 @@ export function ReferenceApp({
       discoverOutput,
       createOutputSession,
       setOutputGroup,
-      setAlbumPlacement,
       pinAlbum,
       unpinAlbum,
       play,
@@ -1123,7 +1082,6 @@ export function ReferenceApp({
           <ReferencePlugins />
           <ReferenceOutputs />
           <ReferenceLibrary />
-          <ReferenceGroups key={grant?.account.id} />
           <ReferenceStations />
           <ReferencePlaylists key={grant?.account.id} />
           <ReferenceSessions />

@@ -3,20 +3,15 @@ import { afterEach, describe, expect, it } from "vitest"
 import { Action } from "../system-next/Action.tsx"
 import { GET_COLOR, REVIEW_ALBUMS } from "./album-fixtures.ts"
 import { LibraryPage } from "./LibraryPage.tsx"
-import { type StacksContent, StacksPage } from "./StacksPage.tsx"
 import type { SurfaceState } from "./surface.ts"
 
 afterEach(cleanup)
 
-const CONTENT: StacksContent = {
-  lead: GET_COLOR,
-  leadContext: "Most recently added",
-  shelves: [{ id: "recent", title: "Recently added", albums: REVIEW_ALBUMS.slice(1, 4) }],
-}
+const CONTENT = [GET_COLOR, ...REVIEW_ALBUMS.slice(1, 4)]
 
-const stacks = (library: SurfaceState<StacksContent>) =>
+const library = (library: SurfaceState<typeof CONTENT>) =>
   render(
-    <StacksPage
+    <LibraryPage
       library={library}
       emptyAction={<Action label="Add music" />}
       onRetry={() => undefined}
@@ -28,21 +23,21 @@ const stacks = (library: SurfaceState<StacksContent>) =>
 // against is a screen that renders the wrong sentence, not one that takes the wrong path.
 describe("a surface says which kind of nothing it has", () => {
   it("says it is still reading rather than claiming the library is empty", () => {
-    stacks({ state: "pending" })
+    library({ state: "pending" })
     expect(screen.getByText("Reading your library")).toBeDefined()
     // The specific failure this guards: a spinner that tells someone their music is gone.
     expect(screen.queryByText("No albums yet")).toBeNull()
   })
 
   it("offers a way out of a genuinely empty library", () => {
-    stacks({ state: "empty" })
+    library({ state: "empty" })
     expect(screen.getByText("No albums yet")).toBeDefined()
     expect(screen.getByRole("button", { name: "Add music" })).toBeDefined()
     expect(screen.queryByText("Reading your library")).toBeNull()
   })
 
   it("says both that the library is empty and that it could not be checked", () => {
-    stacks({ state: "empty", reason: "This device is offline. Showing what it already has." })
+    library({ state: "empty", reason: "This device is offline. Showing what it already has." })
     // Two true things at once. Dropping either one misleads: the library really is empty
     // here, and we really could not confirm that with the server.
     expect(screen.getByText("No albums yet")).toBeDefined()
@@ -50,7 +45,7 @@ describe("a surface says which kind of nothing it has", () => {
   })
 
   it("treats an unreadable library as a failure to retry, not as an empty one", () => {
-    stacks({ state: "blocked", reason: "Could not reach your library: refused" })
+    library({ state: "blocked", reason: "Could not reach your library: refused" })
     expect(screen.getByText("This library cannot be read here")).toBeDefined()
     expect(screen.getByText("Could not reach your library: refused")).toBeDefined()
     expect(screen.getByRole("button", { name: "Try again" })).toBeDefined()
@@ -62,21 +57,21 @@ describe("a surface says which kind of nothing it has", () => {
 
 describe("data that is shown is captioned with how much to trust it", () => {
   it("shows live data with no caption at all", () => {
-    stacks({ state: "shown", value: CONTENT, freshness: "live" })
-    expect(screen.getByRole("heading", { name: "GET COLOR" })).toBeDefined()
+    library({ state: "shown", value: CONTENT, freshness: "live" })
+    expect(screen.getByRole("button", { name: /^GET COLOR by HEALTH/ })).toBeDefined()
     expect(screen.queryByText("Not checked with your library yet")).toBeNull()
     expect(screen.queryByText("Showing what this device already had")).toBeNull()
   })
 
   it("shows local data and says it has not been checked, without calling it stale", () => {
-    stacks({ state: "shown", value: CONTENT, freshness: "local" })
+    library({ state: "shown", value: CONTENT, freshness: "local" })
     // `local` is real data the person put here. Saying "stale" about it would be a lie.
-    expect(screen.getByRole("heading", { name: "GET COLOR" })).toBeDefined()
+    expect(screen.getByRole("button", { name: /^GET COLOR by HEALTH/ })).toBeDefined()
     expect(screen.getByText("Not checked with your library yet")).toBeDefined()
   })
 
   it("keeps showing albums when reconciling failed, and says why", () => {
-    stacks({
+    library({
       state: "shown",
       value: CONTENT,
       freshness: "stale",
@@ -84,13 +79,13 @@ describe("data that is shown is captioned with how much to trust it", () => {
     })
     // The whole offline-first promise in one assertion: the failure degrades the caption
     // and does not blank the surface.
-    expect(screen.getByRole("heading", { name: "GET COLOR" })).toBeDefined()
-    expect(screen.getByRole("region", { name: "Recently added, 3" })).toBeDefined()
+    expect(screen.getByRole("button", { name: /^GET COLOR by HEALTH/ })).toBeDefined()
+    expect(screen.getByRole("region", { name: "All albums, 4" })).toBeDefined()
     expect(screen.getByText("This device is offline. Showing what it already has.")).toBeDefined()
   })
 
   it("does not stack a freshness caption on top of a stated failure", () => {
-    stacks({
+    library({
       state: "shown",
       value: CONTENT,
       freshness: "stale",

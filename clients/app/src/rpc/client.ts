@@ -9,7 +9,6 @@ import { RPC_CONTRACT_ID } from "../../../../contracts/generated/pyxis"
 import type {
   ListenTrackEventInput,
   RpcLibraryAlbum,
-  RpcPlacement,
   RpcSession,
   RpcSessionCommand,
 } from "../../../../contracts/generated/pyxis"
@@ -39,7 +38,6 @@ export interface WorkerRpc {
     command: RpcSessionCommand,
     commandId: string,
   ): Promise<RpcSession | undefined>
-  setPlacement(albumId: string, placement: RpcPlacement): Promise<RpcLibraryAlbum | undefined>
   appendListen(
     events: readonly ListenTrackEventInput[],
   ): Promise<{ accepted: number; duplicates: number }>
@@ -166,18 +164,6 @@ export function createWorkerRpc(config: WorkerRpcConfig): WorkerRpc {
       return session(outcome.value)
     },
 
-    async setPlacement(albumId, placement) {
-      const envelope = await call({
-        _tag: "library.album.command.run",
-        payload: { albumId, command: { _tag: "placement.set", payload: { placement } } },
-      })
-      const outcome = outcomeOf(envelope, "library.album.command.run")
-      // The album is gone. The caller decides what that means; it is not an error.
-      if (outcome.status === "unknown") return undefined
-      if (outcome.status !== "applied") throw failure(outcome, "placement change")
-      return album(outcome.value)
-    },
-
     async appendListen(events) {
       const envelope = await call({
         _tag: "listen.events.append",
@@ -224,12 +210,10 @@ function album(value: unknown): RpcLibraryAlbum {
     !isRecord(value) ||
     typeof value.id !== "string" ||
     typeof value.revision !== "number" ||
-    typeof value.placement !== "string" ||
     !Array.isArray(value.tags) ||
-    !value.tags.every((tag) => typeof tag === "string") ||
-    typeof value.placementUpdatedAt !== "string"
+    !value.tags.every((tag) => typeof tag === "string")
   ) {
-    throw new RpcError("album was missing its identity, placement, or revision", true)
+    throw new RpcError("album was missing its identity, tags, or revision", true)
   }
   return value as unknown as RpcLibraryAlbum
 }

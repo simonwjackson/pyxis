@@ -1,6 +1,6 @@
 import { BlankState } from "../system-next/BlankState.tsx"
 import { Flow } from "../system-next/Flow.tsx"
-import { AlbumShelf } from "./AlbumShelf.tsx"
+import { AlbumWall } from "./AlbumWall.tsx"
 import type { PlayDay } from "./entities.ts"
 export interface HistoryJournalProps {
   readonly days: readonly PlayDay[]
@@ -26,9 +26,9 @@ export function HistoryJournal({ days, soundingAlbumId, onOpen }: HistoryJournal
   return (
     <Flow direction="column" gap="large">
       {days.map((day) => (
-        <AlbumShelf
+        <AlbumWall
           key={day.id}
-          title={day.label}
+          label={day.label}
           albums={day.plays.map((play) => play.album)}
           {...(soundingAlbumId ? { soundingAlbumId } : {})}
           {...(onOpen ? { onOpen } : {})}

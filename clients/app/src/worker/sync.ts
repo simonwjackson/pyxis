@@ -1,12 +1,7 @@
 /// Pull before push, keep network calls outside local storage locks, and hand every
-/// local outcome to the database's settlement operation. Placement policy stays pure.
-import type {
-  RpcLibraryAlbum,
-  RpcPlacement,
-  RpcSession,
-} from "../../../../contracts/generated/pyxis"
+/// local outcome to the database's settlement operation.
+import type { RpcLibraryAlbum, RpcSession } from "../../../../contracts/generated/pyxis"
 import { RpcError, type WorkerRpc } from "../rpc/client"
-import { resolvePlacement } from "./conflict"
 import type {
   WorkerDatabase,
   WorkerOutboxEntry,
@@ -20,20 +15,12 @@ import { hasRetiredSessionIntent, RETIRED_SESSION_INTENT_BLOCKER } from "./retir
 type RemoteAlbums = Map<string, RpcLibraryAlbum>
 type RemoteSessions = Map<string, RpcSession>
 
-export interface ConflictReport {
-  readonly albumId: string
-  readonly kept: RpcPlacement | "removed"
-  readonly discarded: RpcPlacement
-}
-
 export interface SyncReport {
   readonly pulled: number
   readonly pushed: number
-  readonly converged: number
   readonly dropped: readonly { readonly id: string; readonly reason: string }[]
   /// Includes work queued during this pass and domains excluded by scoped sync.
   readonly deferred: number
-  readonly conflicts: readonly ConflictReport[]
   readonly offline: boolean
   readonly authRequired: boolean
   /// Pull or local settlement failure. Queued intent stays intact.
@@ -62,10 +49,9 @@ export async function sync(
     return {
       pulled: albums.count + sessions.count,
       pushed: 0,
-      converged: 0,
+
       dropped: [],
       deferred: (await database.outbox()).length,
-      conflicts: [],
       offline: albums.offline || sessions.offline,
       authRequired: true,
       albumPullFailed: scope === "all" && albums.remote === undefined,
@@ -73,7 +59,7 @@ export async function sync(
       ...(failure.length === 0 ? {} : { failure }),
     }
   }
-  const push = await drain(database, rpc, albums.remote, sessions.remote, scope)
+  const push = await drain(database, rpc, sessions.remote, scope)
   const combinedFailure = [failure, push.failure].filter((value) => value).join("; ")
   return {
     ...push,
@@ -142,28 +128,29 @@ function pullFailure<T>(cause: unknown): DomainPull<T> {
 async function drain(
   database: WorkerDatabase,
   rpc: WorkerRpc,
-  albums: RemoteAlbums | undefined,
   sessions: RemoteSessions | undefined,
   scope: SyncScope,
 ): Promise<Omit<SyncReport, "pulled">> {
   const entries = (await database.outbox()).filter(
     (entry) => scope === "all" || entry.kind === "session.command",
   )
-  const conflicts: ConflictReport[] = []
   const dropped: { id: string; reason: string }[] = []
-  const failures: string[] = []
+  // Unknown persisted commands must not disappear during a wire update. Keep them
+  // durable and report the blocker without interpreting obsolete command shapes.
+  const failures: string[] = entries.some(
+    (entry) => entry.kind !== "session.command" && entry.kind !== "listen.append",
+  )
+    ? [
+        "unsupported queued write retained; use its matching client/service to drain before updating",
+      ]
+    : []
   let pushed = 0
-  let converged = 0
   let offline = false
   let authRequired = false
   const collect = (id: string, result: WorkerSettlementResult): void => {
     if (result.outcome === "pushed") pushed += 1
-    if (result.outcome === "converged" || result.outcome === "conflicted") converged += 1
     if (result.outcome === "dropped") dropped.push({ id, reason: result.reason })
-    if (result.outcome === "conflicted") {
-      const { albumId, kept, discarded } = result.notice
-      conflicts.push({ albumId, kept, discarded })
-    }
+
     if (result.outcome === "deferred") {
       if (result.reason === "auth") authRequired = true
       if (result.reason === "network") offline = true
@@ -171,22 +158,18 @@ async function drain(
     }
   }
 
-  for (const kind of ["album.placement", "session.command"] as const) {
-    for (const entry of entries) {
-      if (entry.kind !== kind || authRequired) continue
-      let result: WorkerSettlementResult
-      if (hasRetiredSessionIntent(entry)) {
-        result = { outcome: "deferred", reason: "storage", failure: RETIRED_SESSION_INTENT_BLOCKER }
-      } else if (entry.settlement !== undefined) {
-        result = await settle(database, entry.id, resumeAction(entry, albums, sessions))
-      } else if (entry.kind === "album.placement" && albums !== undefined) {
-        result = await pushPlacement(database, rpc, entry, albums)
-      } else if (entry.kind === "session.command" && sessions !== undefined) {
-        result = await pushSessionCommand(database, rpc, entry, sessions)
-      } else continue
-      collect(entry.id, result)
-      if (result.outcome === "deferred") break
-    }
+  for (const entry of entries) {
+    if (entry.kind !== "session.command" || authRequired) continue
+    let result: WorkerSettlementResult
+    if (hasRetiredSessionIntent(entry)) {
+      result = { outcome: "deferred", reason: "storage", failure: RETIRED_SESSION_INTENT_BLOCKER }
+    } else if (entry.settlement !== undefined) {
+      result = await settle(database, entry.id, resumeAction(entry, sessions))
+    } else if (sessions !== undefined) {
+      result = await pushSessionCommand(database, rpc, entry, sessions)
+    } else continue
+    collect(entry.id, result)
+    if (result.outcome === "deferred") break
   }
 
   const listens = entries.filter(
@@ -235,9 +218,7 @@ async function drain(
   }
   return {
     pushed,
-    converged,
     dropped,
-    conflicts,
     offline,
     authRequired,
     deferred: (await database.outbox()).length,
@@ -282,85 +263,10 @@ async function pushSessionCommand(
   })
 }
 
-async function pushPlacement(
-  database: WorkerDatabase,
-  rpc: WorkerRpc,
-  entry: Extract<WorkerOutboxEntry, { kind: "album.placement" }>,
-  albums: RemoteAlbums,
-): Promise<WorkerSettlementResult> {
-  const remote = albums.get(entry.albumId)
-  const settings = await database.settings()
-  const decision = resolvePlacement(
-    {
-      albumId: entry.albumId,
-      placement: entry.placement,
-      baseRevision: entry.baseRevision,
-      basePlacement: entry.basePlacement,
-      queuedAt: entry.createdAt,
-      deviceId: settings.deviceId ?? "",
-    },
-    remote === undefined
-      ? undefined
-      : {
-          placement: remote.placement,
-          revision: remote.revision,
-          placementUpdatedAt: remote.placementUpdatedAt,
-        },
-  )
-  if (decision.action === "remove") {
-    return settle(database, entry.id, { _tag: "Settle", verdict: { _tag: "Removed" } })
-  }
-  if (remote !== undefined && decision.action === "converged") {
-    return settle(database, entry.id, {
-      _tag: "Settle",
-      verdict: { _tag: "PlacementConverged", album: remote },
-    })
-  }
-  if (remote !== undefined && decision.action === "keepRemote") {
-    return settle(database, entry.id, {
-      _tag: "Settle",
-      verdict: { _tag: "PlacementConflict", album: remote, discarded: decision.discarded },
-    })
-  }
-  let updated: RpcLibraryAlbum | undefined
-  try {
-    updated = await rpc.setPlacement(entry.albumId, entry.placement)
-  } catch (cause) {
-    return settle(
-      database,
-      entry.id,
-      rejectedOrDeferred(
-        cause,
-        remote === undefined ? undefined : { _tag: "Placement", album: remote },
-      ),
-    )
-  }
-  if (updated === undefined) {
-    albums.delete(entry.albumId)
-    return settle(database, entry.id, { _tag: "Settle", verdict: { _tag: "Removed" } })
-  }
-  albums.set(updated.id, updated)
-  return settle(database, entry.id, {
-    _tag: "Settle",
-    verdict:
-      decision.action === "push" && decision.conflict
-        ? { _tag: "PlacementConflict", album: updated, discarded: decision.discarded }
-        : { _tag: "PlacementAccepted", album: updated },
-  })
-}
-
 function resumeAction(
   entry: WorkerOutboxEntry,
-  albums: RemoteAlbums | undefined,
   sessions: RemoteSessions | undefined,
 ): WorkerSettlementAction {
-  if (entry.kind === "album.placement" && albums !== undefined) {
-    const album = albums.get(entry.albumId)
-    return {
-      _tag: "Resume",
-      latest: album === undefined ? { _tag: "Removed" } : { _tag: "Placement", album },
-    }
-  }
   if (entry.kind === "session.command" && sessions !== undefined) {
     const session = sessions.get(entry.sessionId)
     return {

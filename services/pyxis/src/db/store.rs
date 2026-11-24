@@ -95,10 +95,72 @@ impl Store {
         })
         .map_err(engine)?;
 
-        Ok(Store {
+        let store = Store {
             runtime,
             state_dir: state_dir.to_path_buf(),
-        })
+        };
+        store.convert_placement_tags()?;
+        Ok(store)
+    }
+
+    /// Retire the current-v2 placement field in one durable transaction. Its absence is
+    /// the per-row completion guard, so reopen cannot re-add a tag the user later removes.
+    fn convert_placement_tags(&self) -> Result<()> {
+        let rows = self.collect(schema::ALBUMS)?;
+        if !rows.iter().any(|row| row.get("placement").is_some()) {
+            return Ok(());
+        }
+        self.runtime
+            .mutate(move |database| {
+                for mut row in rows {
+                    let Some(placement) = row.get("placement").and_then(Value::as_str) else {
+                        continue;
+                    };
+                    if !["discovery", "collection", "archive", "dismissed"].contains(&placement) {
+                        return Err(operation(
+                            "invalid-placement",
+                            "cannot preserve unknown album placement".into(),
+                        ));
+                    }
+                    let tag = Value::String(format!("placement:{placement}"));
+                    let mut tags = row
+                        .get("tags")
+                        .and_then(Value::as_array)
+                        .cloned()
+                        .unwrap_or_default();
+                    if !tags.contains(&tag) {
+                        tags.push(tag);
+                    }
+                    tags.sort_by(|left, right| left.as_str().cmp(&right.as_str()));
+                    tags.dedup();
+                    let revision = row
+                        .get("revision")
+                        .and_then(Value::as_u64)
+                        .and_then(|revision| revision.checked_add(1))
+                        .ok_or_else(|| {
+                            operation("invalid-revision", "album revision cannot advance".into())
+                        })?;
+                    let id = row
+                        .get("id")
+                        .and_then(Value::as_str)
+                        .ok_or_else(|| operation("missing-id", "album has no id".into()))?
+                        .to_string();
+                    let fields = row.as_object_mut().ok_or_else(|| {
+                        operation("invalid-album", "album is not an object".into())
+                    })?;
+                    fields.remove("placement");
+                    fields.remove("placementUpdatedAt");
+                    fields.insert("tags".into(), Value::Array(tags));
+                    fields.insert("revision".into(), Value::from(revision));
+                    fields.insert("updatedBy".into(), Value::from("placement-tags-conversion"));
+                    // Native update merges fields. Replace inside this atomic commit to remove
+                    // obsolete keys; domain addedAt and all relationship ids stay unchanged.
+                    database.delete(schema::ALBUMS, &id)?;
+                    database.create(schema::ALBUMS, row)?;
+                }
+                Ok(())
+            })
+            .map_err(engine)
     }
 
     pub fn state_dir(&self) -> &Path {
@@ -454,8 +516,6 @@ mod tests {
         artist: String,
         normalized_title: String,
         normalized_artist: String,
-        placement: String,
-        placement_updated_at: String,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         year: Option<u32>,
         added_at: String,
@@ -472,8 +532,6 @@ mod tests {
             artist: "Boards of Canada".into(),
             normalized_title: title.to_lowercase(),
             normalized_artist: "boards of canada".into(),
-            placement: "discovery".into(),
-            placement_updated_at: "2026-08-21T00:00:00Z".into(),
             year: Some(1998),
             added_at: "2026-08-21T00:00:00Z".into(),
             revision: 1,
@@ -649,7 +707,6 @@ mod tests {
         let later = [
             schema::ALBUM_SOURCE_REFS,
             schema::ALBUM_TRACKS,
-            schema::HOT_ALBUMS,
             schema::MATCH_OVERRIDES,
         ];
         let original = NativeRuntime::open(NativeRuntimeConfig {
@@ -682,7 +739,7 @@ mod tests {
             .expect("first put");
 
         let mut revised = album("Geogaddi");
-        revised.placement = "collection".into();
+        revised.title = "Revised".into();
         revised.revision = 2;
         store
             .put(schema::ALBUMS, &account, "album-1", &revised)
@@ -691,7 +748,7 @@ mod tests {
         let all: Vec<AlbumRecord> = store.list(schema::ALBUMS, &account).expect("list");
 
         assert_eq!(all.len(), 1);
-        assert_eq!(all[0].placement, "collection");
+        assert_eq!(all[0].title, "Revised");
         assert_eq!(all[0].revision, 2);
     }
 

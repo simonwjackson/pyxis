@@ -489,7 +489,7 @@ fn validate_artist_summaries(artists: &[PluginArtistSummary]) -> Result<(), Sour
 /// Makes one source recording playable and returns its core identity.
 ///
 /// Registering a candidate is not saving. A candidate says "this recording can be played from
-/// this source"; a placement is what entering the library means. Discovery and radio both need
+/// this source". Source discovery and radio both need
 /// the first and must never do the second.
 pub(crate) fn register_source_track(
     media: &Media,

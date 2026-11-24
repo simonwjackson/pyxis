@@ -2,7 +2,6 @@ import { describe, expect, test, vi } from "vitest"
 import {
   type ListenTrackEventInput,
   type RpcLibraryAlbum,
-  RpcPlacement,
   RpcRepeatMode,
   type RpcSession,
   type RpcSessionCommand,
@@ -10,7 +9,6 @@ import {
 } from "../../../../contracts/generated/pyxis"
 import { createWorkerRpc, RpcError, type WorkerRpc } from "../rpc/client"
 import { accountFencedDatabase } from "./account-fenced-database"
-import { resolvePlacement } from "./conflict"
 import type { WorkerAlbum, WorkerDatabase, WorkerOutboxEntry } from "./contract"
 import { createMemoryEngine, openWorkerDatabase } from "./database"
 import { browserOfflineExclusive } from "./downloads"
@@ -18,19 +16,12 @@ import { LISTEN_BATCH_SIZE } from "./listen-sync"
 import { applySessionCommand } from "./session-local"
 import { sync } from "./sync"
 
-function album(
-  id: string,
-  placement: RpcPlacement,
-  revision: number,
-  updatedAt = "2026-01-01",
-): WorkerAlbum {
+function album(id: string, revision: number): WorkerAlbum {
   return {
     id,
     title: "Heroes",
     artist: "David Bowie",
-    placement,
     tags: [],
-    placementUpdatedAt: updatedAt,
     addedAt: "2026-01-01",
     revision,
     tracks: [],
@@ -68,25 +59,6 @@ function sessionWrite(id: string, command: RpcSessionCommand): WorkerOutboxEntry
   }
 }
 
-function placementWrite(
-  id: string,
-  albumId: string,
-  placement: RpcPlacement,
-  base: { revision: number; placement: RpcPlacement },
-  createdAt = "2026-06-01",
-): WorkerOutboxEntry {
-  return {
-    id,
-    createdAt,
-    attempts: 0,
-    kind: "album.placement",
-    albumId,
-    placement,
-    baseRevision: base.revision,
-    basePlacement: base.placement,
-  }
-}
-
 function listenWrite(id: string, trackId: string): WorkerOutboxEntry {
   const event: ListenTrackEventInput = {
     id,
@@ -105,10 +77,6 @@ interface FakeServer {
   listens: Map<string, ListenTrackEventInput>
   offline: boolean
   reject?: (events: readonly ListenTrackEventInput[]) => string | undefined
-  /// Fails a placement write without touching the pull, which is how a real server
-  /// rejects one record while staying reachable.
-  failPlacement?: () => RpcError | undefined
-  placementCalls: number
   listenCalls: number
 }
 
@@ -117,7 +85,6 @@ function server(initial: RpcLibraryAlbum[] = []): FakeServer {
     albums: new Map(initial.map((entry) => [entry.id, entry])),
     listens: new Map(),
     offline: false,
-    placementCalls: 0,
     listenCalls: 0,
     rpc: undefined as unknown as WorkerRpc,
   }
@@ -132,22 +99,6 @@ function server(initial: RpcLibraryAlbum[] = []): FakeServer {
     },
     async runSessionCommand() {
       return undefined
-    },
-    async setPlacement(albumId, placement) {
-      if (state.offline) throw new RpcError("offline", true)
-      state.placementCalls += 1
-      const failure = state.failPlacement?.()
-      if (failure !== undefined) throw failure
-      const existing = state.albums.get(albumId)
-      if (existing === undefined) return undefined
-      const updated = {
-        ...existing,
-        placement,
-        revision: existing.revision + 1,
-        placementUpdatedAt: "2026-07-01",
-      }
-      state.albums.set(albumId, updated)
-      return updated
     },
     async appendListen(events) {
       if (state.offline) throw new RpcError("offline", true)
@@ -203,7 +154,6 @@ describe("offline writes", () => {
         })
         return remote
       },
-      setPlacement: async () => undefined,
       appendListen: async () => ({ accepted: 0, duplicates: 0 }),
     }
     const command: RpcSessionCommand = {
@@ -254,7 +204,6 @@ describe("offline writes", () => {
     const rpc: WorkerRpc = {
       listAlbums: async () => [],
       listSessions: async () => [remote],
-      setPlacement: async () => undefined,
       appendListen: async () => ({ accepted: 0, duplicates: 0 }),
       async runSessionCommand(_sessionId, command) {
         if (command._tag !== "queue.add") throw new Error("wrong command")
@@ -318,7 +267,6 @@ describe("offline writes", () => {
       listAlbums: async () => [],
       listSessions: async () => [hostedSession()],
       runSessionCommand,
-      setPlacement: async () => undefined,
       appendListen: async () => ({ accepted: 0, duplicates: 0 }),
     }
     const failing = new Proxy(store, {
@@ -355,7 +303,6 @@ describe("offline writes", () => {
       runSessionCommand: async () => {
         throw new RpcError("queue command was rejected", false)
       },
-      setPlacement: async () => undefined,
       appendListen: async () => ({ accepted: 0, duplicates: 0 }),
     }
     const store = await database(
@@ -390,7 +337,6 @@ describe("offline writes", () => {
       runSessionCommand: async () => {
         throw new RpcError("offline", true)
       },
-      setPlacement: async () => undefined,
       appendListen: async () => ({ accepted: 0, duplicates: 0 }),
     }
     const store = await database(
@@ -416,102 +362,6 @@ describe("offline writes", () => {
     })
   })
 
-  test("a broken session pull does not strand placements or listens", async () => {
-    let placement = RpcPlacement.Discovery
-    const rpc: WorkerRpc = {
-      listAlbums: async () => [
-        album("album-1", placement, placement === RpcPlacement.Discovery ? 1 : 2),
-      ],
-      listSessions: async () => {
-        throw new RpcError("session was malformed", false)
-      },
-      runSessionCommand: async () => undefined,
-      setPlacement: async (_albumId, next) => {
-        placement = next
-        return album("album-1", placement, 2)
-      },
-      appendListen: async (events) => ({ accepted: events.length, duplicates: 0 }),
-    }
-    const store = await database(
-      [
-        placementWrite("01A", "album-1", RpcPlacement.Collection, {
-          revision: 1,
-          placement: RpcPlacement.Discovery,
-        }),
-        listenWrite("01B", "track-1"),
-      ],
-      [album("album-1", RpcPlacement.Collection, 1)],
-    )
-
-    const report = await sync(store, rpc)
-
-    expect(report.failure).toContain("session was malformed")
-    expect(report.pushed).toBe(2)
-    expect(await store.outbox()).toEqual([])
-  })
-
-  test("a retryable placement failure does not strand sessions or listens", async () => {
-    let remoteSession = hostedSession()
-    const command: RpcSessionCommand = {
-      _tag: "queue.add",
-      payload: { trackIds: ["track-1"] },
-    }
-    const rpc: WorkerRpc = {
-      listAlbums: async () => [album("album-1", RpcPlacement.Discovery, 1)],
-      listSessions: async () => [remoteSession],
-      runSessionCommand: async () => {
-        remoteSession = hostedSession({
-          queue: ["track-1"],
-          cursor: 0,
-          currentTrackId: "track-1",
-          revision: 2,
-        })
-        return remoteSession
-      },
-      setPlacement: async () => {
-        throw new RpcError("album endpoint is busy", true)
-      },
-      appendListen: async (events) => ({ accepted: events.length, duplicates: 0 }),
-    }
-    const store = await database(
-      [
-        placementWrite("01A", "album-1", RpcPlacement.Collection, {
-          revision: 1,
-          placement: RpcPlacement.Discovery,
-        }),
-        sessionWrite("01B", command),
-        listenWrite("01C", "track-2"),
-      ],
-      [album("album-1", RpcPlacement.Collection, 1)],
-      [hostedSession({ queue: ["track-1"], cursor: 0, currentTrackId: "track-1", revision: 2 })],
-    )
-
-    const report = await sync(store, rpc)
-
-    expect(report.offline).toBe(true)
-    expect(report.pushed).toBe(2)
-    expect(await store.outbox()).toMatchObject([{ id: "01A", kind: "album.placement" }])
-  })
-
-  test("a placement changed offline reaches the server on reconnect", async () => {
-    const remote = server([album("album-1", RpcPlacement.Discovery, 1)])
-    const store = await database(
-      [
-        placementWrite("01A", "album-1", RpcPlacement.Collection, {
-          revision: 1,
-          placement: RpcPlacement.Discovery,
-        }),
-      ],
-      [album("album-1", RpcPlacement.Collection, 1)],
-    )
-
-    const report = await sync(store, remote.rpc)
-
-    expect(report.pushed).toBe(1)
-    expect(remote.albums.get("album-1")?.placement).toBe(RpcPlacement.Collection)
-    expect(await store.outbox()).toHaveLength(0)
-  })
-
   test("listens batch on reconnect and land in server history", async () => {
     const remote = server()
     const store = await database([listenWrite("01A", "track-1"), listenWrite("01B", "track-2")])
@@ -522,52 +372,9 @@ describe("offline writes", () => {
     expect([...remote.listens.keys()].sort()).toEqual(["01A", "01B"])
     expect(await store.outbox()).toHaveLength(0)
   })
-
-  test("nothing is lost while the server is unreachable", async () => {
-    const remote = server([album("album-1", RpcPlacement.Discovery, 1)])
-    remote.offline = true
-    const store = await database([
-      placementWrite("01A", "album-1", RpcPlacement.Collection, {
-        revision: 1,
-        placement: RpcPlacement.Discovery,
-      }),
-      listenWrite("01B", "track-1"),
-    ])
-
-    const report = await sync(store, remote.rpc)
-
-    expect(report.offline).toBe(true)
-    expect(await store.outbox()).toHaveLength(2)
-  })
 })
 
 describe("replay", () => {
-  test("draining the same queue twice produces one change", async () => {
-    const remote = server([album("album-1", RpcPlacement.Discovery, 1)])
-    const store = await database(
-      [
-        placementWrite("01A", "album-1", RpcPlacement.Collection, {
-          revision: 1,
-          placement: RpcPlacement.Discovery,
-        }),
-      ],
-      [album("album-1", RpcPlacement.Collection, 1)],
-    )
-
-    await sync(store, remote.rpc)
-    // Re-queue the identical write, as a client that lost its acknowledgement would.
-    await store.enqueue(
-      placementWrite("01A", "album-1", RpcPlacement.Collection, {
-        revision: 1,
-        placement: RpcPlacement.Discovery,
-      }),
-    )
-    await sync(store, remote.rpc)
-
-    expect(remote.placementCalls).toBe(1)
-    expect(remote.albums.get("album-1")?.revision).toBe(2)
-  })
-
   test("a duplicate listen event is reported as a duplicate, not stored twice", async () => {
     const remote = server()
     const store = await database([listenWrite("01A", "track-1")])
@@ -581,189 +388,9 @@ describe("replay", () => {
     // merely harmless-looking.
     expect(remote.listenCalls).toBe(2)
   })
-
-  test("a deferred second change stays visible after the first reaches the server", async () => {
-    const remote = server([album("album-1", RpcPlacement.Discovery, 1)])
-    let writes = 0
-    remote.failPlacement = () => {
-      writes += 1
-      return writes === 1 ? undefined : new RpcError("offline", true)
-    }
-    const store = await database(
-      [
-        placementWrite("01A", "album-1", RpcPlacement.Collection, {
-          revision: 1,
-          placement: RpcPlacement.Discovery,
-        }),
-        placementWrite("01B", "album-1", RpcPlacement.Archive, {
-          revision: 1,
-          placement: RpcPlacement.Collection,
-        }),
-      ],
-      [album("album-1", RpcPlacement.Archive, 1)],
-    )
-
-    const report = await sync(store, remote.rpc)
-
-    expect(report.deferred).toBe(1)
-    expect(await store.outbox()).toMatchObject([{ id: "01B", placement: RpcPlacement.Archive }])
-    expect(await store.album("album-1")).toMatchObject({
-      placement: RpcPlacement.Archive,
-      revision: 2,
-    })
-  })
-
-  test("a placement queued during acknowledgement stays visible and reported until replay", async () => {
-    const initial = album("album-1", RpcPlacement.Discovery, 1)
-    const remote = server([initial])
-    const engine = createMemoryEngine()
-    const store = await openWorkerDatabase({ engine })
-    await store.putAlbum(initial)
-    await store.queuePlacement(initial, RpcPlacement.Collection)
-    const exclusive = browserOfflineExclusive(undefined)
-    let acknowledged = false
-    let laterWrite: Promise<void> | undefined
-    const setPlacement = remote.rpc.setPlacement
-    remote.rpc.setPlacement = async (...args) => {
-      const updated = await setPlacement(...args)
-      acknowledged = true
-      return updated
-    }
-    const readOutbox = engine.outbox.all.bind(engine.outbox)
-    engine.outbox.all = async () => {
-      const entries = await readOutbox()
-      if (acknowledged && laterWrite === undefined) {
-        // A local request becomes ready while the acknowledgement reads pending intent.
-        // It waits for the current database operation, not for the whole network sync.
-        laterWrite = exclusive(async () => {
-          const current = await store.album(initial.id)
-          if (current === undefined) throw new Error("album disappeared")
-          await store.queuePlacement(current, RpcPlacement.Archive)
-        })
-      }
-      return entries
-    }
-    const locked = accountFencedDatabase(store, undefined, (operation) =>
-      exclusive(() => operation(store)),
-    )
-
-    const report = await sync(locked, remote.rpc)
-    expect(laterWrite).toBeDefined()
-    await laterWrite
-
-    expect.soft(await store.album(initial.id)).toMatchObject({
-      placement: RpcPlacement.Archive,
-      revision: 2,
-    })
-    expect(await store.outbox()).toMatchObject([
-      { kind: "album.placement", placement: RpcPlacement.Archive },
-    ])
-    expect.soft(report).toMatchObject({ pushed: 1, deferred: 1, offline: false })
-    const replay = await sync(locked, remote.rpc)
-    expect(replay).toMatchObject({ pushed: 1, deferred: 0, conflicts: [] })
-    expect(remote.albums.get(initial.id)?.placement).toBe(RpcPlacement.Archive)
-    expect((await store.album(initial.id))?.placement).toBe(RpcPlacement.Archive)
-    expect(await store.outbox()).toEqual([])
-    await store.close()
-  })
-
-  test("a second change to the same album is sent, not mistaken for a replay", async () => {
-    const remote = server([album("album-1", RpcPlacement.Discovery, 1)])
-    const store = await database(
-      [
-        placementWrite(
-          "01A",
-          "album-1",
-          RpcPlacement.Collection,
-          {
-            revision: 1,
-            placement: RpcPlacement.Discovery,
-          },
-          "2026-06-01",
-        ),
-        placementWrite(
-          "01B",
-          "album-1",
-          RpcPlacement.Archive,
-          {
-            revision: 1,
-            placement: RpcPlacement.Collection,
-          },
-          "2026-06-02",
-        ),
-      ],
-      [album("album-1", RpcPlacement.Archive, 1)],
-    )
-
-    const report = await sync(store, remote.rpc)
-
-    expect(remote.placementCalls).toBe(2)
-    expect(remote.albums.get("album-1")?.placement).toBe(RpcPlacement.Archive)
-    expect(report.conflicts).toEqual([])
-  })
 })
 
 describe("a write the server refuses", () => {
-  test("never drops a retryable write because it has failed five times", async () => {
-    const remote = server([album("album-1", RpcPlacement.Discovery, 1)])
-    remote.failPlacement = () => new RpcError("upstream is busy", true)
-    const entry = placementWrite("01A", "album-1", RpcPlacement.Collection, {
-      revision: 1,
-      placement: RpcPlacement.Discovery,
-    })
-    const store = await database(
-      [{ ...entry, attempts: 4 }],
-      [album("album-1", RpcPlacement.Collection, 1)],
-    )
-
-    const report = await sync(store, remote.rpc)
-
-    expect(report.dropped).toEqual([])
-    expect(await store.outbox()).toMatchObject([{ id: "01A", attempts: 5 }])
-  })
-
-  test("stays queued while the failure is worth repeating", async () => {
-    const remote = server([album("album-1", RpcPlacement.Discovery, 1)])
-    remote.failPlacement = () => new RpcError("upstream is busy", true)
-    const store = await database(
-      [
-        placementWrite("01A", "album-1", RpcPlacement.Collection, {
-          revision: 1,
-          placement: RpcPlacement.Discovery,
-        }),
-      ],
-      [album("album-1", RpcPlacement.Collection, 1)],
-    )
-
-    const report = await sync(store, remote.rpc)
-
-    expect(report.deferred).toBe(1)
-    const queued = await store.outbox()
-    expect(queued).toHaveLength(1)
-    expect(queued[0]?.attempts).toBe(1)
-  })
-
-  test("is dropped with the server's reason once it is refused outright", async () => {
-    const remote = server([album("album-1", RpcPlacement.Discovery, 1)])
-    remote.failPlacement = () => new RpcError("album title and artist are required", false)
-    const store = await database(
-      [
-        placementWrite("01A", "album-1", RpcPlacement.Collection, {
-          revision: 1,
-          placement: RpcPlacement.Discovery,
-        }),
-      ],
-      [album("album-1", RpcPlacement.Collection, 1)],
-    )
-
-    const report = await sync(store, remote.rpc)
-
-    expect(report.dropped).toEqual([{ id: "01A", reason: "album title and artist are required" }])
-    expect(await store.outbox()).toHaveLength(0)
-    // The device must not keep showing a change the server never accepted.
-    expect((await store.album("album-1"))?.placement).toBe(RpcPlacement.Discovery)
-  })
-
   test("an expired token never deletes queued listens", async () => {
     const remote = server()
     const store = await database([listenWrite("01A", "track-1"), listenWrite("01B", "track-2")])
@@ -785,51 +412,25 @@ describe("a write the server refuses", () => {
     const store = await database([listenWrite("01A", "track-1")])
     const broken: WorkerRpc = {
       listAlbums: async () => {
-        throw new RpcError("album was missing its identity, placement, or revision", false)
+        throw new RpcError("album was missing its identity, tags, or revision", false)
       },
       listSessions: async () => [],
       runSessionCommand: async () => undefined,
-      setPlacement: async () => undefined,
       appendListen: async () => ({ accepted: 0, duplicates: 0 }),
     }
 
     const report = await sync(store, broken)
 
-    expect(report.failure).toContain("placement")
+    expect(report.failure).toContain("tags")
     expect(report.offline).toBe(false)
     expect(report.pushed).toBe(1)
     expect(await store.outbox()).toEqual([])
-  })
-
-  test("survives an expired token instead of being thrown away", async () => {
-    const remote = server([album("album-1", RpcPlacement.Discovery, 1)])
-    remote.failPlacement = () =>
-      new RpcError("bearer token is invalid or revoked", false, "auth.invalidToken", true)
-    const store = await database(
-      [
-        placementWrite("01A", "album-1", RpcPlacement.Collection, {
-          revision: 1,
-          placement: RpcPlacement.Discovery,
-        }),
-      ],
-      [album("album-1", RpcPlacement.Collection, 1)],
-    )
-
-    await sync(store, remote.rpc)
-
-    const queued = await store.outbox()
-    expect(queued).toHaveLength(1)
-    // Repeating it changes nothing until the credentials do, so it is not counted as a
-    // failed attempt either.
-    expect(queued[0]?.attempts).toBe(0)
   })
 })
 
 describe("pulling", () => {
   test("applies full remote snapshots through one local batch per domain", async () => {
-    const albums = Array.from({ length: 370 }, (_, index) =>
-      album(`album-${index}`, RpcPlacement.Discovery, 1),
-    )
+    const albums = Array.from({ length: 370 }, (_, index) => album(`album-${index}`, 1))
     const sessions = Array.from({ length: 20 }, (_, index) =>
       hostedSession({ id: `session-${index}`, hostDeviceId: `device-${index}` }),
     )
@@ -867,7 +468,7 @@ describe("pulling", () => {
 
   test("removes a cached album that no longer exists on the server", async () => {
     const remote = server([])
-    const store = await database([], [album("album-1", RpcPlacement.Discovery, 1)])
+    const store = await database([], [album("album-1", 1)])
 
     const report = await sync(store, remote.rpc)
 
@@ -875,78 +476,12 @@ describe("pulling", () => {
     expect(await store.album("album-1")).toBeUndefined()
   })
 
-  test("removal between pull and placement push is still reported", async () => {
-    const remote = server([album("album-1", RpcPlacement.Discovery, 1)])
-    const rpc: WorkerRpc = {
-      ...remote.rpc,
-      setPlacement: async () => undefined,
-    }
-    const store = await database(
-      [
-        placementWrite("01A", "album-1", RpcPlacement.Collection, {
-          revision: 1,
-          placement: RpcPlacement.Discovery,
-        }),
-      ],
-      [album("album-1", RpcPlacement.Collection, 1)],
-    )
-
-    const report = await sync(store, rpc)
-
-    expect(await store.album("album-1")).toBeUndefined()
-    expect(await store.outbox()).toEqual([])
-    expect(report.conflicts).toEqual([
-      {
-        albumId: "album-1",
-        kept: "removed",
-        discarded: RpcPlacement.Collection,
-      },
-    ])
-  })
-
-  test("server removal wins and reports a queued placement as discarded", async () => {
-    const remote = server([])
-    const store = await database(
-      [
-        placementWrite("01A", "album-1", RpcPlacement.Collection, {
-          revision: 1,
-          placement: RpcPlacement.Discovery,
-        }),
-      ],
-      [album("album-1", RpcPlacement.Collection, 1)],
-    )
-
-    const report = await sync(store, remote.rpc)
-
-    expect(await store.album("album-1")).toBeUndefined()
-    expect(await store.outbox()).toEqual([])
-    expect(report.conflicts).toEqual([
-      {
-        albumId: "album-1",
-        kept: "removed",
-        discarded: RpcPlacement.Collection,
-      },
-    ])
-    expect((await store.settings()).syncNotices).toMatchObject([
-      {
-        kind: "conflict",
-        albumId: "album-1",
-        kept: "removed",
-        discarded: RpcPlacement.Collection,
-      },
-    ])
-
-    await sync(store, remote.rpc)
-    expect((await store.settings()).syncNotices).toHaveLength(1)
-  })
-
   test("a stale server snapshot never undoes a newer local record", async () => {
-    const remote = server([album("album-1", RpcPlacement.Discovery, 3)])
-    const store = await database([], [album("album-1", RpcPlacement.Collection, 5)])
+    const remote = server([album("album-1", 3)])
+    const store = await database([], [album("album-1", 5)])
 
     await sync(store, remote.rpc)
 
-    expect((await store.album("album-1"))?.placement).toBe(RpcPlacement.Collection)
     expect((await store.album("album-1"))?.revision).toBe(5)
   })
 })
@@ -985,84 +520,6 @@ describe("a long offline session of listens", () => {
   })
 })
 
-describe("conflicts", () => {
-  test("a two-device edit resolves by the later action and is reported", async () => {
-    // The other device moved it to archive on the server after this write was queued.
-    const remote = server([album("album-1", RpcPlacement.Archive, 4, "2026-09-01")])
-    const store = await database(
-      [
-        placementWrite(
-          "01A",
-          "album-1",
-          RpcPlacement.Collection,
-          {
-            revision: 1,
-            placement: RpcPlacement.Discovery,
-          },
-          "2026-06-01",
-        ),
-      ],
-      [album("album-1", RpcPlacement.Archive, 4, "2026-09-01")],
-    )
-
-    const report = await sync(store, remote.rpc)
-
-    expect(report.conflicts).toEqual([
-      { albumId: "album-1", kept: RpcPlacement.Archive, discarded: RpcPlacement.Collection },
-    ])
-    // The remote change was newer, so nothing was sent.
-    expect(remote.placementCalls).toBe(0)
-    expect(await store.outbox()).toHaveLength(0)
-  })
-
-  test("the local change wins when it is the later one, and still reports", async () => {
-    const remote = server([album("album-1", RpcPlacement.Archive, 4, "2026-02-01")])
-    const store = await database(
-      [
-        placementWrite(
-          "01A",
-          "album-1",
-          RpcPlacement.Collection,
-          {
-            revision: 1,
-            placement: RpcPlacement.Discovery,
-          },
-          "2026-06-01",
-        ),
-      ],
-      [album("album-1", RpcPlacement.Archive, 4, "2026-02-01")],
-    )
-
-    const report = await sync(store, remote.rpc)
-
-    expect(report.conflicts).toEqual([
-      { albumId: "album-1", kept: RpcPlacement.Collection, discarded: RpcPlacement.Archive },
-    ])
-    expect(remote.albums.get("album-1")?.placement).toBe(RpcPlacement.Collection)
-  })
-
-  test("two devices resolve an identical timestamp the same way", () => {
-    const at = "2026-06-01T00:00:00Z"
-    const write = (deviceId: string) => ({
-      albumId: "album-1",
-      placement: RpcPlacement.Collection,
-      baseRevision: 1,
-      basePlacement: RpcPlacement.Discovery,
-      queuedAt: at,
-      deviceId,
-    })
-    const remote = {
-      placement: RpcPlacement.Archive,
-      revision: 4,
-      placementUpdatedAt: at,
-      deviceId: "device-b",
-    }
-
-    expect(resolvePlacement(write("device-a"), remote).action).toBe("keepRemote")
-    expect(resolvePlacement(write("device-c"), remote).action).toBe("push")
-  })
-})
-
 describe("a batch the server will not take", () => {
   test("isolates the rejected event and still sends the rest", async () => {
     const remote = server()
@@ -1090,7 +547,7 @@ describe("the trust boundary", () => {
         headers: { "content-type": "application/json" },
       })) as unknown as typeof fetch
 
-  test("an album missing its placement or revision never reaches storage", async () => {
+  test("an album missing its tags or revision never reaches storage", async () => {
     const rpc = createWorkerRpc({
       token: "t",
       fetch: respond({
@@ -1099,7 +556,7 @@ describe("the trust boundary", () => {
       }),
     })
 
-    await expect(rpc.listAlbums()).rejects.toThrow(/placement, or revision/)
+    await expect(rpc.listAlbums()).rejects.toThrow(/tags, or revision/)
   })
 
   test("a captive portal's HTML is refused rather than parsed", async () => {
@@ -1126,98 +583,7 @@ describe("the trust boundary", () => {
   })
 })
 
-describe("a full offline session", () => {
-  test("queue edits and listens reconcile together", async () => {
-    const remote = server([
-      album("album-1", RpcPlacement.Discovery, 1),
-      album("album-2", RpcPlacement.Discovery, 1),
-    ])
-    remote.offline = true
-    const store = await database(
-      [
-        placementWrite("01A", "album-1", RpcPlacement.Collection, {
-          revision: 1,
-          placement: RpcPlacement.Discovery,
-        }),
-        listenWrite("01B", "track-1"),
-        placementWrite("01C", "album-2", RpcPlacement.Archive, {
-          revision: 1,
-          placement: RpcPlacement.Discovery,
-        }),
-        listenWrite("01D", "track-2"),
-      ],
-      [album("album-1", RpcPlacement.Collection, 1), album("album-2", RpcPlacement.Archive, 1)],
-    )
-
-    const offlineReport = await sync(store, remote.rpc)
-    expect(offlineReport.offline).toBe(true)
-    expect(await store.outbox()).toHaveLength(4)
-
-    remote.offline = false
-    const online = await sync(store, remote.rpc)
-
-    expect(online.offline).toBe(false)
-    expect(await store.outbox()).toHaveLength(0)
-    expect(remote.albums.get("album-1")?.placement).toBe(RpcPlacement.Collection)
-    expect(remote.albums.get("album-2")?.placement).toBe(RpcPlacement.Archive)
-    expect(remote.listens.size).toBe(2)
-  })
-})
-
 describe("session-scoped synchronization", () => {
-  test("pulls before replay while leaving albums, placements, and listens untouched", async () => {
-    const database = await openWorkerDatabase({ engine: createMemoryEngine() })
-    const localAlbum = await database.putAlbum(album("album-1", RpcPlacement.Collection, 1))
-    await database.queuePlacement(localAlbum, RpcPlacement.Archive)
-    await database.enqueue(listenWrite("listen-1", "track-1"))
-    const unrelated = await database.outbox()
-    const original = await database.putSession(hostedSession())
-    await database.queueSessionCommand(
-      original,
-      { _tag: "queue.add", payload: { trackIds: ["track-1"] } },
-      "command-1",
-    )
-    const order: string[] = []
-    const listAlbums = vi.fn(async () => {
-      throw new Error("unrelated library pull")
-    })
-    const appendListen = vi.fn(async () => ({ accepted: 0, duplicates: 0 }))
-    const rpc: WorkerRpc = {
-      listAlbums,
-      listSessions: async () => {
-        order.push("pull")
-        return [original]
-      },
-      runSessionCommand: async () => {
-        order.push("push")
-        return {
-          ...original,
-          queue: ["track-1"],
-          cursor: 0,
-          currentTrackId: "track-1",
-          revision: 2,
-        }
-      },
-      appendListen,
-      setPlacement: async () => {
-        throw new Error("unrelated placement push")
-      },
-    }
-    const report = await sync(database, rpc, "sessions")
-    expect(listAlbums).not.toHaveBeenCalled()
-    expect(appendListen).not.toHaveBeenCalled()
-    expect(order).toEqual(["pull", "push"])
-    expect(await database.outbox()).toEqual(unrelated)
-    expect((await database.album("album-1"))?.placement).toBe(RpcPlacement.Archive)
-    expect(report).toMatchObject({
-      pushed: 1,
-      deferred: 2,
-      offline: false,
-      authRequired: false,
-      sessionPullFailed: false,
-    })
-  })
-
   test.each(["offline", "auth", "malformed"])(
     "a failed %s pull preserves commands without pushing blind",
     async (failure) => {
@@ -1238,7 +604,6 @@ describe("session-scoped synchronization", () => {
         },
         runSessionCommand,
         appendListen: async () => ({ accepted: 0, duplicates: 0 }),
-        setPlacement: async () => undefined,
       }
       const report = await sync(database, rpc, "sessions")
       expect(listAlbums).not.toHaveBeenCalled()
@@ -1271,7 +636,6 @@ test("retired current-v2 shuffle outbox intent survives sync without network rep
       calls += 1
       return initial
     },
-    setPlacement: async () => undefined,
     appendListen: async () => ({ accepted: 0, duplicates: 0 }),
   }
   const result = await sync(store, rpc)
@@ -1302,7 +666,6 @@ test("offline mode replay retains the confirmed occurrence order and restores th
       remote = applySessionCommand(remote, command)
       return remote
     },
-    setPlacement: async () => undefined,
     appendListen: async () => ({ accepted: 0, duplicates: 0 }),
   }
   await sync(store, rpc)

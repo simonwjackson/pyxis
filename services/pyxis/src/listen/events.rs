@@ -75,10 +75,6 @@ pub(crate) struct JournalRecord {
     pub context: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub context_id: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub from_placement: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub to_placement: Option<String>,
     pub revision: u64,
     pub updated_by: String,
     pub updated_at: String,
@@ -166,12 +162,6 @@ impl ListenLog {
             .map(|(_, event)| event)
             .collect())
     }
-
-    pub(crate) fn journal(&self, account: &AccountId) -> Result<Vec<JournalRecord>, ListenError> {
-        Ok(self
-            .store
-            .list::<JournalRecord>(schema::LISTEN_EVENTS, account)?)
-    }
 }
 
 fn validate(event: &TrackListenInput) -> Result<(), ListenError> {
@@ -195,8 +185,6 @@ fn record(event: TrackListenInput, updated_by: &str) -> JournalRecord {
         completed: Some(event.completed),
         context: Some(event.context),
         context_id: event.context_id,
-        from_placement: None,
-        to_placement: None,
         revision: 1,
         updated_by: updated_by.into(),
         updated_at: Utc::now().to_rfc3339_opts(SecondsFormat::Nanos, true),

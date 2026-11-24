@@ -1,27 +1,10 @@
 /// The album as a screen needs it.
 ///
 /// Albums are the unit of this product, so this is the view model everything else hangs
-/// from. Three independent axes meet here and none of them may be folded into another:
-/// where the person filed the album (placement), whether they asked for it offline
-/// (intent), and whether its bytes are here (offline bytes).
+/// from. Offline intent stays separate from whether its bytes are here.
 
 import type { RpcLibraryAlbum, RpcLibraryTrack } from "../../../../contracts/generated/pyxis"
-import { RpcPlacement } from "../../../../contracts/generated/pyxis"
 import { type AlbumOffline, type Availability, availabilityOf } from "./offline"
-
-/// Where the person filed this album. Curation intent, unrelated to bytes on a device.
-export type Placement = "discovery" | "collection" | "archive" | "dismissed"
-
-/// Exhaustive by construction: a placement added to the core fails this file to compile
-/// rather than silently falling through to a default.
-const PLACEMENTS: Record<RpcPlacement, Placement> = {
-  [RpcPlacement.Discovery]: "discovery",
-  [RpcPlacement.Collection]: "collection",
-  [RpcPlacement.Archive]: "archive",
-  [RpcPlacement.Dismissed]: "dismissed",
-}
-
-export const readPlacement = (placement: RpcPlacement): Placement => PLACEMENTS[placement]
 
 export interface TrackView {
   readonly id: string
@@ -37,7 +20,6 @@ export interface AlbumView {
   readonly artist: string
   readonly year?: number
   readonly artworkUrl?: string
-  readonly placement: Placement
   readonly addedAt: string
   readonly trackCount: number
   /// The tracks, in order. Carried because queueing an album means sending its track ids:
@@ -83,7 +65,6 @@ export function readAlbum(album: RpcLibraryAlbum, offline?: AlbumOffline): Album
     artist: album.artist,
     ...(album.year === undefined ? {} : { year: album.year }),
     ...(album.artworkUrl === undefined ? {} : { artworkUrl: album.artworkUrl }),
-    placement: readPlacement(album.placement),
     addedAt: album.addedAt,
     trackCount: album.tracks.length,
     tracks: album.tracks.map(readTrack),

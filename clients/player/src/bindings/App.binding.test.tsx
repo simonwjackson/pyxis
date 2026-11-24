@@ -2,7 +2,6 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import {
   type RpcLibraryAlbum,
-  RpcPlacement,
   RpcRepeatMode,
   type RpcSession,
   type RpcSessionCommand,
@@ -28,9 +27,7 @@ const album = (
   id,
   title,
   artist: "HEALTH",
-  placement: RpcPlacement.Collection,
   tags: [],
-  placementUpdatedAt: "2026-01-01T00:00:00Z",
   addedAt,
   revision: 1,
   tracks: tracks.map((trackId, index) => ({
@@ -154,7 +151,7 @@ const barNode = () => screen.getByText("Nothing playing").closest(".px-bar")
 describe("the persistent bar outlives navigation", () => {
   it("keeps the bar outside the part of the tree that navigation replaces", async () => {
     const { container } = mount()
-    await screen.findByRole("heading", { name: "GET COLOR" })
+    await screen.findByRole("region", { name: "All albums, 3" })
 
     // Containment, not identity. Identity alone passes even with the bar nested inside the
     // outlet, because the frame itself never unmounts and React keeps the node — so that
@@ -175,58 +172,32 @@ describe("the persistent bar outlives navigation", () => {
     expect(container.querySelector(".px-frame-outlet")?.contains(bar ?? null)).toBe(false)
   })
 
-  it("replaces the surface and updates the address bar", async () => {
+  it("shows All albums at the root and offers no Stacks route", async () => {
     mount()
-    await screen.findByRole("heading", { name: "GET COLOR" })
+    await screen.findByRole("region", { name: "All albums, 3" })
     expect(window.location.pathname).toBe("/")
-
-    fireEvent.click(screen.getByRole("button", { name: /^All albums/ }))
-    await screen.findByRole("region", { name: "All albums, 3" })
-
-    expect(window.location.pathname).toBe("/library")
-    // The lead belongs to Stacks; if it is still here the outlet did not actually swap.
-    expect(screen.queryByRole("heading", { name: "GET COLOR" })).toBeNull()
-  })
-
-  it("follows the back button instead of drifting from the URL", async () => {
-    mount()
-    await screen.findByRole("heading", { name: "GET COLOR" })
-    fireEvent.click(screen.getByRole("button", { name: /^All albums/ }))
-    await screen.findByRole("region", { name: "All albums, 3" })
-
-    // jsdom's history.back() is asynchronous and unreliable to await, so the URL is moved
-    // and the event the binding actually listens for is delivered directly.
-    window.history.replaceState(null, "", "/")
-    fireEvent.popState(window)
-
-    await screen.findByRole("heading", { name: "GET COLOR" })
-  })
-
-  it("marks the surface the person is on", async () => {
-    mount()
-    await screen.findByRole("heading", { name: "GET COLOR" })
-    // Conveyed programmatically, not only by colour.
-    expect(screen.getByRole("button", { name: "Stacks" }).getAttribute("aria-pressed")).toBe("true")
+    expect(screen.queryByRole("button", { name: "Stacks" })).toBeNull()
     expect(screen.getByRole("button", { name: /^All albums/ }).getAttribute("aria-pressed")).toBe(
-      "false",
+      "true",
     )
+    fireEvent.click(screen.getByRole("button", { name: /^All albums/ }))
+    expect(window.location.pathname).toBe("/")
   })
 })
 
 describe("the shell translates edge states into what the surface shows", () => {
   it("shows albums and no failure caption once a clean reconcile lands", async () => {
     mount()
-    await screen.findByRole("heading", { name: "GET COLOR" })
+    await screen.findByRole("region", { name: "All albums, 3" })
     expect(screen.queryByText("Not checked with your library yet")).toBeNull()
-    // Most recently added leads; the rest fall to the shelf beneath it.
-    expect(screen.getByRole("region", { name: "Recently added, 2" })).toBeDefined()
+    expect(screen.getByRole("region", { name: "All albums, 3" })).toBeDefined()
   })
 
   it("keeps the library on screen when the network stopped answering", async () => {
     mount({ sync: async () => ({ offline: true, authRequired: false, deferred: 0 }) })
     await screen.findByText("This device is offline. Showing what it already has.")
     // Still readable. Blanking here is the failure this whole model exists to prevent.
-    expect(screen.getByRole("heading", { name: "GET COLOR" })).toBeDefined()
+    expect(screen.getByRole("button", { name: /^GET COLOR by HEALTH/ })).toBeDefined()
   })
 
   it("asks the person to pair again rather than reporting a generic failure", async () => {
@@ -257,7 +228,7 @@ describe("the shell translates edge states into what the surface shows", () => {
 
   it("says nothing is playing when no session is sounding", async () => {
     mount()
-    await screen.findByRole("heading", { name: "GET COLOR" })
+    await screen.findByRole("region", { name: "All albums, 3" })
     // The client can play now, so the old form of this test -- asserting no Play control
     // exists anywhere -- would only be asserting that the feature is still missing. What
     // stays true is that the bar reports the session, and an empty session is silence.
@@ -343,9 +314,9 @@ describe("choosing an album", () => {
         },
       },
     )
-    await screen.findByRole("heading", { name: "GET COLOR" })
+    await screen.findByRole("region", { name: "All albums, 3" })
 
-    fireEvent.click(screen.getByRole("button", { name: "Play" }))
+    fireEvent.click(screen.getByRole("button", { name: /^GET COLOR by HEALTH/ }))
 
     await waitFor(() => expect(commands).toHaveLength(3))
     expect(ensureSession).toHaveBeenCalledTimes(1)
@@ -365,9 +336,9 @@ describe("choosing an album", () => {
       { albums: async () => [album("a", "GET COLOR", "2026-03-01T00:00:00Z", [])] },
       { playback: { ensureSession } },
     )
-    await screen.findByRole("heading", { name: "GET COLOR" })
+    await screen.findByRole("region", { name: "All albums, 1" })
 
-    fireEvent.click(screen.getByRole("button", { name: "Play" }))
+    fireEvent.click(screen.getByRole("button", { name: /^GET COLOR by HEALTH/ }))
 
     // An album with no tracks cannot be queued. Creating a session for it would leave a
     // device hosting an empty queue and reporting itself as a place music is playing.
@@ -396,7 +367,7 @@ describe("the credential gates the library", () => {
     expect(albums).not.toHaveBeenCalled()
 
     admit(GRANT)
-    await screen.findByRole("heading", { name: "GET COLOR" })
+    await screen.findByRole("region", { name: "All albums, 3" })
     expect(albums).toHaveBeenCalled()
   })
 

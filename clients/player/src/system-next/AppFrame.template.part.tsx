@@ -15,7 +15,7 @@ export default function AppFramePart() {
     <AppFrame
       nav={
         <Flow direction="row" gap="small">
-          <Action label="Stacks" />
+          <Action label="All albums" />
           <Action label="All albums" />
         </Flow>
       }

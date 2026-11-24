@@ -5,7 +5,6 @@ import type {
   RpcAuthGrant,
   RpcLibraryAlbum,
   RpcOutputTopology,
-  RpcPlacement,
   RpcPlugin,
   RpcRequest,
   RpcResponse,
@@ -87,11 +86,7 @@ export interface ReferenceClient {
     coordinatorId: string,
     memberIds: readonly string[],
   ): Promise<RpcOutputTopology>
-  setAlbumPlacement(
-    token: string,
-    albumId: string,
-    placement: RpcPlacement,
-  ): Promise<RpcLibraryAlbum>
+
   search(token: string, query: string): Promise<SearchResult>
   /// Reachable sessions only, unless `includeUnreachable` asks the durable question.
   listSessions(token: string, includeUnreachable?: boolean): Promise<readonly RpcSession[]>
@@ -233,23 +228,6 @@ export function createReferenceClient(config: ReferenceClientConfig = {}): Refer
       )
       if (response._tag !== "output.group.set" || response.outcome.status !== "ready") {
         throw new Error("output group was not updated")
-      }
-      return response.outcome.value
-    },
-
-    async setAlbumPlacement(token, albumId, placement) {
-      const response = await rpc(
-        {
-          _tag: "library.album.command.run",
-          payload: {
-            albumId,
-            command: { _tag: "placement.set", payload: { placement } },
-          },
-        },
-        token,
-      )
-      if (response._tag !== "library.album.command.run" || response.outcome.status !== "applied") {
-        throw new Error("album placement was not applied")
       }
       return response.outcome.value
     },

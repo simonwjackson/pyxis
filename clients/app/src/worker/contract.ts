@@ -10,7 +10,6 @@
 import type {
   ListenTrackEventInput,
   RpcLibraryAlbum,
-  RpcPlacement,
   RpcSession,
   RpcSessionCommand,
 } from "../../../../contracts/generated/pyxis"
@@ -47,20 +46,12 @@ export interface WorkerSchemaRow {
 /// The bearer token lives here because a PWA has to survive a reload without asking the
 /// person to pair again. It is device-local storage on a device they already unlocked, and
 /// it is exactly as sensitive as the session it represents. It is never synced.
-export type WorkerSyncNotice =
-  | {
-      readonly id: string
-      readonly kind: "conflict"
-      readonly albumId: string
-      readonly kept: RpcPlacement | "removed"
-      readonly discarded: RpcPlacement
-    }
-  | {
-      readonly id: string
-      readonly kind: "dropped"
-      readonly writeId: string
-      readonly reason: string
-    }
+export type WorkerSyncNotice = {
+  readonly id: string
+  readonly kind: "dropped"
+  readonly writeId: string
+  readonly reason: string
+}
 
 export interface WorkerSettings {
   readonly id: string
@@ -157,15 +148,6 @@ export type WorkerOutboxEntry = {
   readonly settlement?: WorkerOutboxVerdict
 } & (
   | {
-      readonly kind: "album.placement"
-      readonly albumId: string
-      readonly placement: RpcPlacement
-      /// Revision the change was made on top of. Used to tell a clean replay from a
-      /// genuine two-device conflict.
-      readonly baseRevision: number
-      readonly basePlacement: RpcPlacement
-    }
-  | {
       readonly kind: "listen.append"
       readonly event: ListenTrackEventInput
     }
@@ -183,33 +165,12 @@ export type WorkerOutboxEntry = {
     }
 )
 
-/// What happened to one queued write.
-export type OutboxResult =
-  /// Accepted by the server.
-  | "pushed"
-  /// The server already had this exact state. A replay, not a change.
-  | "converged"
-  /// Another device changed the same record. Resolved by rule and reported.
-  | "conflicted"
-  /// Rejected permanently. Dropped so it cannot block everything behind it.
-  | "dropped"
-  /// Could not reach the server. Stays queued.
-  | "deferred"
-
 export type WorkerSettlementSnapshot =
   | { readonly _tag: "Session"; readonly session: WorkerSession }
-  | { readonly _tag: "Placement"; readonly album: WorkerAlbum }
   | { readonly _tag: "Removed" }
 
 export type WorkerOutboxVerdict =
   | { readonly _tag: "SessionAccepted"; readonly session: WorkerSession }
-  | { readonly _tag: "PlacementAccepted"; readonly album: WorkerAlbum }
-  | { readonly _tag: "PlacementConverged"; readonly album: WorkerAlbum }
-  | {
-      readonly _tag: "PlacementConflict"
-      readonly album: WorkerAlbum
-      readonly discarded: RpcPlacement
-    }
   | { readonly _tag: "ListenAccepted" }
   | { readonly _tag: "Removed" }
   | {
@@ -228,11 +189,7 @@ export type WorkerSettlementAction =
     }
 
 export type WorkerSettlementResult =
-  | { readonly outcome: "pushed" | "converged" | "absent" }
-  | {
-      readonly outcome: "conflicted"
-      readonly notice: Extract<WorkerSyncNotice, { kind: "conflict" }>
-    }
+  | { readonly outcome: "pushed" | "absent" }
   | {
       readonly outcome: "dropped"
       readonly reason: string
@@ -286,9 +243,6 @@ export interface WorkerDatabase {
   putAlbum(album: WorkerAlbum): Promise<WorkerAlbum>
   /// Store a server verdict even when it rolls back optimistic local state.
   replaceAlbum(album: WorkerAlbum): Promise<WorkerAlbum>
-  /// Apply a placement verdict and overlay pending intent in one account-fenced operation.
-  /// Exclude the settled write without removing any outbox entry.
-  applyPlacementVerdict(album: WorkerAlbum, writeId: string): Promise<WorkerAlbum>
   removeAlbum(id: string): Promise<boolean>
   sessions(): Promise<readonly WorkerSession[]>
   session(id: string): Promise<WorkerSession | undefined>
@@ -335,8 +289,6 @@ export interface WorkerDatabase {
     commandId?: string,
     expectedRevision?: number,
   ): Promise<WorkerSession>
-  /// Apply a placement immediately and preserve the write for the next sync.
-  queuePlacement(album: WorkerAlbum, placement: RpcPlacement): Promise<WorkerAlbum>
   /// Preserve one completed listen for idempotent replay.
   queueListen(event: ListenTrackEventInput): Promise<void>
   /// Queued writes in creation order.

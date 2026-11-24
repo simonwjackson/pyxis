@@ -5,7 +5,6 @@
 
 pub mod albums;
 mod artwork;
-pub mod placement;
 
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
@@ -18,7 +17,6 @@ use crate::db::schema;
 use crate::db::store::{AccountId, Store, StoreError};
 
 pub use albums::{Album, AlbumInput, SourceReference, Track, TrackInput};
-pub use placement::Placement;
 
 use albums::{normalize, AlbumRecord, AlbumTrackRecord, SourceReferenceRecord, TrackRecord};
 use artwork::{AlbumArtworkStore, ArtworkStoreError, StoredArtwork};
@@ -142,11 +140,7 @@ impl Library {
                     ArtworkUpdate::FillMissing,
                 )?
                 .ok_or_else(|| LibraryError::Corrupt("album vanished during re-add".into()))?;
-            if existing.placement == Placement::Dismissed {
-                return self
-                    .set_placement_locked(account, &existing.id, Placement::Discovery, updated_by)?
-                    .ok_or_else(|| LibraryError::Corrupt("album vanished during re-add".into()));
-            }
+
             return Ok(existing);
         }
 
@@ -161,8 +155,6 @@ impl Library {
             artist: input.artist.trim().into(),
             normalized_title: normalize(&input.title),
             normalized_artist: normalize(&input.artist),
-            placement: Placement::Discovery,
-            placement_updated_at: timestamp.clone(),
             year: input.year,
             added_at: timestamp.clone(),
             revision: 1,
@@ -484,42 +476,6 @@ impl Library {
         Ok(Some(self.album(account, record)?))
     }
 
-    pub fn set_placement(
-        &self,
-        account: &AccountId,
-        album_id: &str,
-        placement: Placement,
-        updated_by: &str,
-    ) -> Result<Option<Album>, LibraryError> {
-        let _guard = self.mutation.lock().expect("library mutation poisoned");
-        self.set_placement_locked(account, album_id, placement, updated_by)
-    }
-
-    fn set_placement_locked(
-        &self,
-        account: &AccountId,
-        album_id: &str,
-        placement: Placement,
-        updated_by: &str,
-    ) -> Result<Option<Album>, LibraryError> {
-        let Some(mut record) = self
-            .store
-            .get::<AlbumRecord>(schema::ALBUMS, account, album_id)?
-        else {
-            return Ok(None);
-        };
-        if record.placement != placement {
-            let timestamp = now();
-            record.placement = placement;
-            record.placement_updated_at = timestamp.clone();
-            record.revision += 1;
-            record.updated_by = updated_by.into();
-            record.updated_at = timestamp;
-            self.store.put(schema::ALBUMS, account, album_id, &record)?;
-        }
-        Ok(Some(self.album(account, record)?))
-    }
-
     pub fn remove_album(&self, account: &AccountId, album_id: &str) -> Result<bool, LibraryError> {
         let _guard = self.mutation.lock().expect("library mutation poisoned");
         if self
@@ -791,8 +747,6 @@ fn album_from_records(
         artist: record.artist,
         year: record.year,
         artwork_url,
-        placement: record.placement,
-        placement_updated_at: record.placement_updated_at,
         added_at: record.added_at,
         revision: record.revision,
         tracks,

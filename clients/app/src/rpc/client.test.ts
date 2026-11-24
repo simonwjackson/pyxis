@@ -1,5 +1,5 @@
 import { describe, expect, test, vi } from "vitest"
-import { RpcPlacement, RpcRepeatMode, RpcTransport } from "../../../../contracts/generated/pyxis"
+import { RpcRepeatMode, RpcTransport } from "../../../../contracts/generated/pyxis"
 import { createWorkerRpc } from "./client"
 
 const SESSION = {
@@ -96,27 +96,6 @@ describe("worker session RPC", () => {
       ]),
     ).rejects.toMatchObject({
       message: expect.stringContaining("did not account"),
-      retryable: true,
-    })
-  })
-
-  test("treats a malformed write response as uncertain and retryable", async () => {
-    const request = vi.fn(
-      async () =>
-        new Response(
-          JSON.stringify({
-            _tag: "library.album.command.run",
-            outcome: { status: "applied", value: { id: "album-1" } },
-          }),
-          { status: 200, headers: { "content-type": "application/json" } },
-        ),
-    )
-    const rpc = createWorkerRpc({
-      token: "token",
-      fetch: request as unknown as typeof fetch,
-    })
-
-    await expect(rpc.setPlacement("album-1", RpcPlacement.Collection)).rejects.toMatchObject({
       retryable: true,
     })
   })

@@ -1,5 +1,5 @@
 import { describe, expect, test, vi } from "vitest"
-import { RpcPlacement, RpcRepeatMode, RpcTransport } from "../../../../contracts/generated/pyxis"
+import { RpcRepeatMode, RpcTransport } from "../../../../contracts/generated/pyxis"
 import type { WorkerRpc } from "../rpc/client"
 import {
   createDirectWorkerClient,
@@ -88,10 +88,9 @@ describe("worker client", () => {
     const report = {
       pulled: 1,
       pushed: 0,
-      converged: 0,
+
       dropped: [],
       deferred: 0,
-      conflicts: [],
       offline: false,
       authRequired: false,
     }
@@ -108,7 +107,6 @@ describe("worker client", () => {
       listAlbums: async () => [],
       listSessions: async () => [],
       runSessionCommand: async () => undefined,
-      setPlacement: async () => undefined,
       appendListen: async () => ({ accepted: 0, duplicates: 0 }),
     }
     const client = createFailoverWorkerClient(primary, () =>
@@ -163,45 +161,6 @@ describe("worker client", () => {
 
     await expect(pending).rejects.toThrow("queued writes")
     expect(fallbacks).toBe(0)
-  })
-
-  test("the browser fallback drains writes through the same sync engine", async () => {
-    const database = await openWorkerDatabase({ engine: createMemoryEngine() })
-    await database.writeSettings({ bearerToken: "token", deviceId: "device-1" })
-    const album = {
-      id: "album-1",
-      title: "Heroes",
-      artist: "David Bowie",
-      placement: RpcPlacement.Discovery,
-      tags: [],
-      placementUpdatedAt: "now",
-      addedAt: "now",
-      revision: 1,
-      tracks: [],
-    }
-    await database.putAlbum(album)
-    let placement = RpcPlacement.Discovery
-    const rpc: WorkerRpc = {
-      listAlbums: async () => [{ ...album, placement }],
-      listSessions: async () => [],
-      runSessionCommand: async () => undefined,
-      setPlacement: async (_albumId, next) => {
-        placement = next
-        return { ...album, placement, revision: 2 }
-      },
-      appendListen: async () => ({ accepted: 0, duplicates: 0 }),
-    }
-    const client = createDirectWorkerClient(
-      async () => database,
-      () => rpc,
-    )
-    await client.queuePlacement(album, RpcPlacement.Collection)
-
-    const report = await client.sync()
-
-    expect(report.pushed).toBe(1)
-    expect(placement).toBe(RpcPlacement.Collection)
-    expect(await database.outbox()).toEqual([])
   })
 
   test("correlates concurrent replies by request id", async () => {

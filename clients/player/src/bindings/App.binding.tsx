@@ -1,10 +1,7 @@
 /// The shell: the one state reader for the whole client.
 ///
 /// Route, credential, library and playback are read here and nowhere else, and everything
-/// below receives plain values. They live in one binding on purpose. The two surfaces show
-/// the same library, so a binding per screen would tear the library down and re-read it on
-/// every navigation — the person would watch their albums disappear and come back for the
-/// crime of pressing a tab. One reader, every surface.
+/// below receives plain values. All albums is the only library surface.
 ///
 /// The order here is load-bearing. The credential is read first because every call to the
 /// core carries it, and the library is told to wait until one is held. Asking earlier does
@@ -16,7 +13,6 @@
 import { useCallback, useMemo, useState } from "react"
 import type { AlbumView } from "../model/album"
 import { type EdgeReason, type Remote, shownValue } from "../model/edge"
-import { byRecentlyAdded, downloaded, inPlacement } from "../model/library"
 import { playedFraction } from "../model/playback"
 import { ROUTES, routeTitle, sameRoute } from "../router/route.ts"
 import { AccountSheet } from "../shapes/AccountSheet.tsx"
@@ -25,7 +21,6 @@ import type { AccountStanding } from "../shapes/entities.ts"
 import { LibraryPage } from "../shapes/LibraryPage.tsx"
 import { NowBarPlaying } from "../shapes/NowBarPlaying.tsx"
 import { NowBarResting } from "../shapes/NowBarResting.tsx"
-import { type StacksContent, StacksPage, type StacksShelf } from "../shapes/StacksPage.tsx"
 import type { SurfaceState } from "../shapes/surface.ts"
 import { UpdateNotice } from "../shapes/UpdateNotice.tsx"
 import { Action } from "../system-next/Action.tsx"
@@ -86,33 +81,6 @@ function toSurface<T>(
   // Kept an answer, and the answer was nothing. Both facts are true and both are said.
   if (remote.last.length === 0) return { state: "empty", reason }
   return { state: "shown", value: build(remote.last), freshness: "stale", reason }
-}
-
-function buildStacks(albums: readonly AlbumView[]): StacksContent {
-  const recent = byRecentlyAdded(albums)
-  const lead = recent[0]
-  const shelves: readonly StacksShelf[] = [
-    { id: "recent", title: "Recently added", albums: recent.slice(1).map(summarise) },
-    {
-      id: "collection",
-      title: "In your collection",
-      albums: inPlacement(albums, "collection").map(summarise),
-    },
-    {
-      id: "discovery",
-      title: "Waiting in discovery",
-      albums: inPlacement(albums, "discovery").map(summarise),
-    },
-    { id: "downloaded", title: "On this device", albums: downloaded(albums).map(summarise) },
-  ]
-  // The lead is the most recently added album, because that is the only "what should I put
-  // on" signal this client can honestly compute today. Play counts and neglect would make
-  // better shelves, and the core records the history for them, but nothing reads it yet —
-  // so those shelves are absent rather than faked.
-  return {
-    ...(lead === undefined ? {} : { lead: summarise(lead), leadContext: "Most recently added" }),
-    shelves,
-  }
 }
 
 export interface AppProps {
@@ -176,7 +144,6 @@ export function App({
   })
   const { playAlbum, play, pause, next, previous, seek } = playback
 
-  const stacks = useMemo(() => toSurface(albums, buildStacks), [albums])
   const everything = useMemo(() => toSurface(albums, (found) => found.map(summarise)), [albums])
   const total = albums.state === "ready" ? albums.value.length : undefined
   const onRetry = useCallback(() => refresh(), [refresh])
@@ -353,11 +320,7 @@ export function App({
         )
       }
     >
-      {route.name === "stacks" ? (
-        <StacksPage library={stacks} onRetry={onRetry} onOpenAlbum={onOpenAlbum} />
-      ) : (
-        <LibraryPage library={everything} onRetry={onRetry} onOpenAlbum={onOpenAlbum} />
-      )}
+      <LibraryPage library={everything} onRetry={onRetry} onOpenAlbum={onOpenAlbum} />
       {/* Draws nothing. It holds the only real playback truth in the client and sits inside
           the frame rather than the outlet, so navigating cannot stop the music. */}
       <AudioRenderer playback={playback} />

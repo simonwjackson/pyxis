@@ -12,7 +12,6 @@ use ulid::Ulid;
 
 use crate::db::schema;
 use crate::db::store::{AccountId, Store, StoreError};
-use crate::library::placement::Placement;
 use crate::library::{Album, Library, LibraryError, Track};
 use crate::matching::{Decision, MatchItem, Matcher};
 use crate::media::probe::{AudioProbe, ProbeError};
@@ -199,9 +198,6 @@ impl FidelityUpgrader {
         let mut albums = self.library.list_albums(account)?;
         albums.sort_by(|left, right| left.id.cmp(&right.id));
         for album in albums {
-            if album.placement == Placement::Dismissed {
-                continue;
-            }
             for track in &album.tracks {
                 if seen.insert(track.id.clone()) {
                     targets.push(UpgradeTarget {

@@ -9,23 +9,20 @@
 ///
 /// A closed union rather than a string, so adding a surface fails every exhaustive switch
 /// that has not been updated instead of falling through to a default at runtime.
-export type Route = { readonly name: "stacks" } | { readonly name: "library" }
+export type Route = { readonly name: "library" }
 
-export const STACKS: Route = { name: "stacks" }
 export const LIBRARY: Route = { name: "library" }
 
 /// Every route, in the order a navigation control should offer them.
-export const ROUTES: readonly Route[] = [STACKS, LIBRARY]
+export const ROUTES: readonly Route[] = [LIBRARY]
 
 const PATHS: Record<Route["name"], string> = {
-  stacks: "/",
-  library: "/library",
+  library: "/",
 }
 
 /// The title a navigation control shows. Sentence case, because these are labels in a
 /// product and not headings in a magazine.
 const TITLES: Record<Route["name"], string> = {
-  stacks: "Stacks",
   library: "All albums",
 }
 
@@ -40,9 +37,9 @@ export const routeTitle = (route: Route): string => TITLES[route.name]
 /// true, this is the one place that has to change.
 export function readRoute(pathname: string): Route {
   const normalised = pathname.replace(/\/+$/, "")
-  if (normalised === "") return STACKS
+  if (normalised === "") return LIBRARY
   const found = ROUTES.find((route) => routePath(route) === normalised)
-  return found ?? STACKS
+  return found ?? LIBRARY
 }
 
 /// True when two routes address the same surface. Used to avoid pushing a duplicate

@@ -5,22 +5,11 @@
 /// and resumed at any point, converges on the same server state as draining it once.
 
 import { describe, expect, test } from "vitest"
-import {
-  type ListenTrackEventInput,
-  type RpcLibraryAlbum,
-  RpcPlacement,
-} from "../../../../contracts/generated/pyxis"
+import type { ListenTrackEventInput, RpcLibraryAlbum } from "../../../../contracts/generated/pyxis"
 import { RpcError, type WorkerRpc } from "../rpc/client"
 import type { WorkerOutboxEntry } from "./contract"
 import { createMemoryEngine, openWorkerDatabase } from "./database"
 import { sync } from "./sync"
-
-const PLACEMENTS = [
-  RpcPlacement.Discovery,
-  RpcPlacement.Collection,
-  RpcPlacement.Archive,
-  RpcPlacement.Dismissed,
-] as const
 
 /// Deterministic generator, so a failure can be reproduced from its seed alone.
 function random(seed: number): () => number {
@@ -45,9 +34,7 @@ function scenario(seed: number): Scenario {
       id: `album-${index}`,
       title: `Album ${index}`,
       artist: "David Bowie",
-      placement: RpcPlacement.Discovery,
       tags: [],
-      placementUpdatedAt: "2026-01-01",
       addedAt: "2026-01-01",
       revision: 1,
       tracks: [],
@@ -60,30 +47,15 @@ function scenario(seed: number): Scenario {
     // ULIDs sort in creation order; a padded counter has the same property.
     const id = `01${String(index).padStart(4, "0")}`
     const createdAt = `2026-06-${String(index + 1).padStart(2, "0")}`
-    if (next() < 0.5) {
-      const album = albums[Math.floor(next() * albums.length)]
-      if (album === undefined) continue
-      entries.push({
-        id,
-        createdAt,
-        attempts: 0,
-        kind: "album.placement",
-        albumId: album.id,
-        placement: PLACEMENTS[Math.floor(next() * PLACEMENTS.length)] ?? RpcPlacement.Collection,
-        baseRevision: 1,
-        basePlacement: RpcPlacement.Discovery,
-      })
-    } else {
-      const event: ListenTrackEventInput = {
-        id,
-        trackId: `track-${index}`,
-        deviceId: "device-1",
-        listenedAt: `2026-06-01T00:00:${String(index).padStart(2, "0")}Z`,
-        completed: true,
-        context: "queue",
-      }
-      entries.push({ id, createdAt, attempts: 0, kind: "listen.append", event })
+    const event: ListenTrackEventInput = {
+      id,
+      trackId: `track-${index}`,
+      deviceId: "device-1",
+      listenedAt: `2026-06-01T00:00:${String(index).padStart(2, "0")}Z`,
+      completed: true,
+      context: "queue",
     }
+    entries.push({ id, createdAt, attempts: 0, kind: "listen.append", event })
   }
   return { entries, albums }
 }
@@ -130,22 +102,6 @@ function server(initial: readonly RpcLibraryAlbum[]): Server {
     },
     async runSessionCommand() {
       return undefined
-    },
-    async setPlacement(albumId, placement) {
-      guardWrite()
-      const existing = albums.get(albumId)
-      if (existing === undefined) return undefined
-      const updated = {
-        ...existing,
-        placement,
-        revision: existing.revision + 1,
-        // Stamped from the write that is landing, so ordering follows the generated
-        // sequence rather than a fixed future date that always wins a conflict.
-        tags: [],
-        placementUpdatedAt: `2026-06-${String(Math.min(28, state.writes)).padStart(2, "0")}`,
-      }
-      albums.set(albumId, updated)
-      return updated
     },
     async appendListen(events) {
       guardWrite()
@@ -202,14 +158,10 @@ async function drainWithInterruptions(plan: Scenario, seed: number): Promise<Ser
   return remote
 }
 
-/// Final placement is the visible outcome, and revision counts how many writes actually
-/// landed. Comparing placement alone would let an implementation that pushed every write
-/// twice look identical to one that pushed each once.
+/// Compare the durable album revisions and accepted listen event ids.
 function snapshot(remote: Server): string {
   return JSON.stringify({
-    albums: [...remote.albums.values()]
-      .map((album) => `${album.id}:${album.placement}:${album.revision}`)
-      .sort(),
+    albums: [...remote.albums.values()].map((album) => `${album.id}:${album.revision}`).sort(),
     listens: [...remote.listens.keys()].sort(),
   })
 }
@@ -229,15 +181,6 @@ describe("offline replay", () => {
     for (let seed = 200; seed <= 240; seed += 1) {
       const plan = scenario(seed)
       const remote = await drainWithInterruptions(plan, seed * 31)
-      const placements = plan.entries.filter((entry) => entry.kind === "album.placement")
-
-      // Retries are expected. Landing the same change twice is not: revision counts what
-      // actually landed, so it can never exceed the number of writes that were queued.
-      const applied = [...remote.albums.values()].reduce(
-        (total, album) => total + album.revision - 1,
-        0,
-      )
-      expect(applied, `seed ${seed}`).toBeLessThanOrEqual(placements.length)
       expect(remote.duplicatesSeen, `seed ${seed}`).toBe(0)
     }
   })
