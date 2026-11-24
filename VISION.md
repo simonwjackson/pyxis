@@ -169,11 +169,11 @@ Playback state is deliberately not in that list. A session belongs to the device
 
 ### Configuration
 
-YAML config file for service-level settings, with per-account behavioral settings stored per account and editable from the settings page. All behavioral parameters are configurable:
-- Enrichment source priorities
+Service-level settings come from environment variables and command-line flags. Behavioral settings are stored per account and read and written through the account settings API:
 - Source priority order, used to break ties between copies of equal audio quality
-- Fidelity target, and how hard to work to reach it
-- Logging level
+- Enrichment source priorities, once enrichment exists (not in the first release)
+
+Fidelity upgrades follow one fixed rule (lossless first, then bitrate, then sample rate) and have no target setting.
 
 ### Plugins
 
@@ -201,9 +201,11 @@ Anything listed as later is aspirational. The plugin protocol supports it; those
 
 ### Clients
 
-The web client is an installable app that holds its own copy of the library and works offline. Its data layer is separate from its appearance: local storage, sync, conflict handling, and downloads sit behind one internal API, and the interface is built on top of that.
+> **Status:** No first-party user interface is built for now. The service API, the MCP server and the client data plane are the product surfaces.
 
-That separation is the point. The interface can be redesigned, or replaced entirely, without touching correctness. Design requirements that hold regardless:
+The client data plane holds its own copy of the library and works offline: local storage, sync, conflict handling, and downloads sit behind one documented API. Any interface, first-party or third-party, is built on top of it.
+
+That separation is the point. An interface can be added, redesigned, or replaced without touching correctness. When an interface is built, these requirements hold:
 
 - Responsive, mobile-first, usable on any screen size
 - Progressive disclosure throughout -- no data dumps
