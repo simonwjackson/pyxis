@@ -76,9 +76,14 @@ export interface WorkerSettings {
 export type WorkerAlbum = RpcLibraryAlbum & { readonly id: string }
 export type WorkerSession = RpcSession & { readonly id: string }
 
+/** Private to the worker store. Optimistic playback revisions cannot order core timer updates. */
+export type StoredWorkerSession = WorkerSession & {
+  readonly timerAuthority?: Pick<WorkerSession, "revision" | "sleepTimer">
+}
+
 export type WorkerSessionEventResult =
   | { readonly status: "applied"; readonly session: WorkerSession }
-  | { readonly status: "queued" }
+  | { readonly status: "queued"; readonly timerProjection?: WorkerSession }
 
 export interface WorkerSessionCommandPreview {
   readonly session: WorkerSession
@@ -161,6 +166,8 @@ export type WorkerOutboxEntry = {
       /// an applied command from an unrelated later revision when receipt creation was
       /// interrupted.
       readonly resultFingerprint?: string
+      /// Timer visible to an ordinary Stop. A later timer is independent of that Stop.
+      readonly clearedSleepTimerId?: string
       readonly command: RpcSessionCommand
     }
 )
@@ -319,7 +326,7 @@ export interface WorkerCollections {
   readonly meta: WorkerCollection<WorkerSchemaRow>
   readonly settings: WorkerCollection<WorkerSettings>
   readonly albums: WorkerCollection<WorkerAlbum>
-  readonly sessions: WorkerCollection<WorkerSession>
+  readonly sessions: WorkerCollection<StoredWorkerSession>
   readonly offlinePins: WorkerCollection<OfflinePin>
   readonly offlineMedia: WorkerCollection<OfflineMedia>
   readonly commandReceipts: WorkerCollection<WorkerCommandReceipt>

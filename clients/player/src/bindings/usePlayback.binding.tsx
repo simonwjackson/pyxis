@@ -563,6 +563,14 @@ export function usePlayback(edge: PlaybackEdge, options: PlaybackOptions = {}): 
           if (selectedId.current !== next.id) return
           if (result.status === "queued") {
             if (
+              result.timerProjection &&
+              result.timerProjection.hostDeviceId === deviceId &&
+              session.current?.id === next.id &&
+              session.current.revision <= result.timerProjection.revision &&
+              eventGeneration.current === event
+            )
+              publish(result.timerProjection)
+            if (
               pendingEvent.current === undefined ||
               next.revision >= pendingEvent.current.revision
             ) {

@@ -42,6 +42,7 @@ export function applySessionCommand(
   let transport = session.transport
   let positionMs = session.positionMs
   let durationMs = session.durationMs
+  let sleepTimer = session.sleepTimer
   let volume = session.volume
 
   switch (command._tag) {
@@ -139,7 +140,16 @@ export function applySessionCommand(
       if (transport !== RpcTransport.Playing) throw new Error("cannot pause unless playing")
       transport = RpcTransport.Paused
       break
+    case "sleep.set":
+    case "sleep.cancel":
+      throw new Error("set or cancel the core deadline through session.command.send")
     case "transport.stop":
+      if (
+        command.payload.sleepTimerId !== undefined &&
+        command.payload.sleepTimerId !== sleepTimer?.id
+      )
+        throw new Error("sleep timer no longer armed")
+      sleepTimer = undefined
       transport = RpcTransport.Stopped
       positionMs = 0
       break
@@ -183,6 +193,7 @@ export function applySessionCommand(
 
   const currentTrackId = cursor === undefined ? undefined : queue[cursor]
   const {
+    sleepTimer: _timer,
     cursor: _cursor,
     currentTrackId: _currentTrackId,
     streamPath: _streamPath,
@@ -191,6 +202,7 @@ export function applySessionCommand(
   } = session
   return {
     ...required,
+    ...(sleepTimer === undefined ? {} : { sleepTimer }),
     repeat,
     shuffle,
     queueOrder: order,

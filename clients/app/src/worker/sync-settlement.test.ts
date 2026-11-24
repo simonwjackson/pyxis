@@ -278,9 +278,15 @@ test.each([false, true])(
         },
       })
     }
-    const published: string[][] = []
+    const prior = await engine.sessions.findById(remote.id)
+    const published: (typeof latest.queue)[] = []
     const save = engine.sessions.upsert.bind(engine.sessions)
     engine.sessions.upsert = async (row) => {
+      if (!offline && published.length === 0) {
+        // The pull durably fences timer state before either verdict settles. Only
+        // its core revision may change; no historical playback can be published.
+        expect(row).toEqual({ ...prior, timerAuthority: { revision: latest.revision } })
+      }
       published.push([...row.queue])
       return save(row)
     }
@@ -300,6 +306,7 @@ test.each([false, true])(
 
     expect(report).toMatchObject({ pushed: 2, deferred: 0, dropped: [], offline })
     expect(published).toEqual([
+      ...(offline ? [] : [["first", "second"]]),
       ["first", "second"],
       ["first", "second"],
     ])
@@ -436,4 +443,56 @@ test("an account switch during RPC refuses settlement without writing into the n
   expect((await second.settings()).syncNotices ?? []).toEqual([])
   await first.close()
   await second.close()
+})
+
+test("a cancelled timer Stop with an interrupted projection settles and drains the next command", async () => {
+  const engine = createMemoryEngine()
+  const store = await openWorkerDatabase({ engine })
+  const playing = { ...session(), queue: ["track"], transport: RpcTransport.Playing }
+  const armed = {
+    ...playing,
+    sleepTimer: { id: "bed", deadline: "2099-01-01T00:00:00Z", fadeSeconds: 0 },
+  }
+  const other = { ...session(), id: "other" }
+  await store.putSession(armed)
+  await store.putSession(other)
+  const save = engine.sessions.upsert.bind(engine.sessions)
+  engine.sessions.upsert = async () => {
+    throw new Error("projection write interrupted")
+  }
+  const stop = { _tag: "transport.stop", payload: { sleepTimerId: "bed" } } as const
+  await expect(store.queueSessionCommand(armed, stop, "sleep:bed")).rejects.toThrow(
+    "projection write interrupted",
+  )
+  engine.sessions.upsert = save
+  const cancelled = { ...playing, revision: 2 }
+  await store.applyRemoteSession(cancelled)
+  const volume = { _tag: "volume.set", payload: { volume: 64 } } as const
+  await store.queueSessionCommand(other, volume, "turn-down")
+  const sent: string[] = []
+  const rpc: WorkerRpc = {
+    listSessions: async () => [cancelled, other],
+    listAlbums: async () => [],
+    appendListen: async () => ({ accepted: 0, duplicates: 0 }),
+    async runSessionCommand(id, command, key) {
+      sent.push(key)
+      if (id === armed.id) {
+        expect(command).toEqual(stop)
+        expect((await store.session(id))?.transport).toBe(RpcTransport.Playing)
+        throw new RpcError("sleep timer no longer armed", false)
+      }
+      expect(command).toEqual(volume)
+      return { ...other, volume: 64, revision: 2 }
+    },
+  }
+  const report = await sync(store, rpc, "sessions")
+  expect(sent).toEqual(["sleep:bed", "turn-down"])
+  expect(report).toMatchObject({
+    pushed: 1,
+    deferred: 0,
+    dropped: [{ reason: "sleep timer no longer armed" }],
+  })
+  expect(await store.outbox()).toEqual([])
+  expect((await store.session(other.id))?.volume).toBe(64)
+  await store.close()
 })

@@ -2089,7 +2089,15 @@ time while offline. The core's Stop directive stays the backstop. A later cancel
 deadline wins. Document the host contract in `clients/app/src/worker/README.md` and
 `docs/api/operations.md`.
 
-**Dependencies:** U44, U20, U50
+**Browser execution boundary:** while the page is backgrounded the audio rendering clock can
+apply a scheduled fade/cutoff without a JavaScript callback. A fully frozen page cannot pause
+an HTML media element or write a worker receipt until it gets execution time; on wake the
+host checks the absolute deadline before resuming playback and records Stop. When a browser
+does not provide a running Web Audio graph, only media events, wall-clock timers and the
+wake check are available; there is no offline system alarm API for a web client.
+
+**Dependencies:** U44, U20. M13 landed before M15, so U45 also wires the helper into
+`clients/player`; U50 deletes that wiring with the player.
 
 **Test scenarios:** the helper fires offline; a cancel received before the deadline; a duplicate
 Stop from the backstop is harmless; the fade schedule restores volume.

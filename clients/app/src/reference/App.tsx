@@ -452,6 +452,16 @@ export function ReferenceApp({
             let applied = await store.applySessionEvent(state.payload)
             checkConnection()
             if (applied.status === "queued") {
+              const projection = applied.timerProjection
+              if (
+                projection &&
+                projection.hostDeviceId === deviceId &&
+                sessionRef.current?.id === projection.id &&
+                sessionRef.current.revision <= projection.revision
+              ) {
+                sessionRef.current = projection
+                setSession(projection)
+              }
               // Keep the event until the in-flight command acknowledgement has finished;
               // otherwise that older reply can overwrite it after its cursor was saved.
               await syncQueue.current

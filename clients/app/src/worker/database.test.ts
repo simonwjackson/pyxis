@@ -10,6 +10,7 @@ import { accountFencedDatabase } from "./account-fenced-database"
 import { SCHEMA_ROW_ID, type WorkerAlbum, type WorkerEngine } from "./contract"
 import { createMemoryEngine, openWorkerDatabase } from "./database"
 import { browserOfflineExclusive } from "./downloads"
+import { sleepSchedule } from "./sleep-schedule"
 
 function session(overrides: Partial<RpcSession> = {}): RpcSession {
   return {
@@ -740,4 +741,43 @@ test("queued listens prevent account switching without losing the original grant
   ).rejects.toThrow("queued writes")
   expect((await database.settings()).bearerToken).toBe("token-1")
   expect(await database.outbox()).toHaveLength(1)
+})
+
+test("a pending Stop followed by Play disarms only the timer that Stop cleared", async () => {
+  const store = await openWorkerDatabase({ engine: createMemoryEngine() })
+  const a = { id: "a", deadline: new Date(10000).toISOString(), fadeSeconds: 0 }
+  const b = { ...a, id: "b", deadline: new Date(20000).toISOString() }
+  const armed = session({
+    sleepTimer: a,
+    transport: RpcTransport.Playing,
+    queue: ["track"],
+    cursor: 0,
+  })
+  await store.putSession(armed)
+  const first = await store.queueSessionCommand(
+    armed,
+    { _tag: "volume.set", payload: { volume: 60 } },
+    "quiet",
+  )
+  const stopped = await store.queueSessionCommand(
+    first,
+    { _tag: "transport.stop", payload: {} },
+    "stop",
+  )
+  await store.queueSessionCommand(stopped, { _tag: "transport.play", payload: {} }, "play")
+  await store.applyRemoteSession({ ...armed, revision: 2 })
+  expect(sleepSchedule(await store.session(armed.id), 15000).kind).toBe("disarmed")
+  const replacement = { ...armed, revision: 3, sleepTimer: b }
+  await store.applyRemoteSession(replacement)
+  async function expectTimerB() {
+    const current = await store.session(armed.id)
+    expect(current?.transport).toBe(RpcTransport.Playing)
+    expect(sleepSchedule(current, 21000)).toMatchObject({ kind: "stop", commandId: "sleep:b" })
+  }
+  await expectTimerB()
+  const [quiet] = await store.outbox()
+  if (!quiet) throw new Error("missing command")
+  await store.applySessionVerdict({ ...armed, volume: 60, revision: 2 }, quiet.id)
+  await expectTimerB()
+  await store.close()
 })

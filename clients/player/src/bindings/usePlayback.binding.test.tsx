@@ -811,3 +811,33 @@ test.each([
     expect(source.commands.some((command) => command._tag === "transport.play")).toBe(true),
   )
 })
+
+test("the player enforces a cached sleep deadline without the core directive", async () => {
+  const start = Date.now()
+  const source = harness(
+    session({
+      sleepTimer: {
+        id: "cached",
+        deadline: new Date(start + 60000).toISOString(),
+        fadeSeconds: 10,
+      },
+    }),
+  )
+  source.edge.syncSessions = async () => ({ offline: true, authRequired: false, deferred: 0 })
+  const { container } = render(<Probe edge={source.edge} />)
+  await waitFor(() => expect(audioOf(container).getAttribute("src")).toBe("/stream/track-1"))
+  // Simulate wake after JS was throttled. No network or timer delivery on the page.
+  vi.spyOn(Date, "now").mockReturnValue(start + 61000)
+  try {
+    fireEvent(document, new Event("visibilitychange"))
+    await waitFor(() =>
+      expect(source.commands).toContainEqual({
+        _tag: "transport.stop",
+        payload: { sleepTimerId: "cached" },
+      }),
+    )
+    expect((await source.edge.sessions())[0]?.transport).toBe("stopped")
+  } finally {
+    vi.restoreAllMocks()
+  }
+})

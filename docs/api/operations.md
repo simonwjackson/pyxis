@@ -281,3 +281,11 @@ stops, then restores the pre-fade volume. Device hosts observe the same deadline
 At expiry the core also sends `transport.stop {sleepTimerId: id}` to the host until it
 reports Stop. Both paths use command ID `sleep:<id>` and must not act on a different
 timer. Ordinary `transport.stop {}` also disarms the timer.
+
+A device host can use the DOM-independent `sleepSchedule(session, nowMs)` exported by
+`clients/app/src/worker/sleep-schedule.ts`. Call it on each cached session update and on
+wake. Replace the previous fade/cutoff with the new schedule; `disarmed` cancels both
+and restores normal gain. `armed` gives the gain, fade-start delay and time left in ms.
+At `stop`, verify that the latest timer ID still matches, stop playback, restore volume,
+and report the returned command with its `sleep:<id>` receipt. The offline report and
+the backstop use the same receipt. See the worker README for the host integration steps.

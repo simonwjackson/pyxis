@@ -15,6 +15,7 @@ import {
   SCHEMA_ROW_ID,
   SESSION_CHANGED_DURING_CONFIRMATION,
   SETTINGS_ROW_ID,
+  type StoredWorkerSession,
   WORKER_MIGRATIONS,
   WORKER_SCHEMA_VERSION,
   type WorkerAlbum,
@@ -178,6 +179,59 @@ async function clearCollections(engine: WorkerEngine): Promise<void> {
     const rows = await collection.all()
     for (const row of rows) await collection.delete(row.id)
   }
+}
+
+type TimerAuthority = NonNullable<StoredWorkerSession["timerAuthority"]>
+function publicSession({
+  timerAuthority: _private,
+  ...session
+}: StoredWorkerSession): WorkerSession {
+  return session
+}
+function authority(session: WorkerSession): TimerAuthority {
+  return {
+    revision: session.revision,
+    ...(session.sleepTimer ? { sleepTimer: session.sleepTimer } : {}),
+  }
+}
+function latestTimerAuthority(
+  previous: TimerAuthority | undefined,
+  session: WorkerSession,
+): TimerAuthority {
+  return previous && previous.revision > session.revision ? previous : authority(session)
+}
+function withTimer(session: WorkerSession, timer: WorkerSession["sleepTimer"]): WorkerSession {
+  const { sleepTimer: _old, ...rest } = session
+  return timer ? { ...rest, sleepTimer: timer } : rest
+}
+
+type PendingSessionCommand = Extract<WorkerOutboxEntry, { kind: "session.command" }>
+function disarmedTimer(entry: PendingSessionCommand): string | undefined {
+  return entry.command._tag === "transport.stop"
+    ? (entry.command.payload.sleepTimerId ?? entry.clearedSleepTimerId)
+    : undefined
+}
+
+// An outbox entry already passed validation when it was created. Replay playback intent,
+// but never use an old Stop to consume a replacement timer (or stop its playback).
+function replayPending(
+  session: WorkerSession,
+  entry: PendingSessionCommand,
+  now?: string,
+): WorkerSession {
+  const { command } = entry
+  if (
+    command._tag === "transport.stop" &&
+    command.payload.sleepTimerId !== undefined &&
+    command.payload.sleepTimerId !== session.sleepTimer?.id
+  )
+    return session
+  const next = applySessionCommand(session, command, now)
+  return command._tag === "transport.stop" &&
+    session.sleepTimer &&
+    disarmedTimer(entry) !== session.sleepTimer.id
+    ? withTimer(next, session.sleepTimer)
+    : next
 }
 
 class LocalWorkerDatabase implements WorkerDatabase {
@@ -397,12 +451,14 @@ class LocalWorkerDatabase implements WorkerDatabase {
   }
 
   async sessions(): Promise<readonly WorkerSession[]> {
-    return (await this.engine.sessions.all()).map(normalizeSessionModes)
+    return (await this.engine.sessions.all()).map((row) =>
+      normalizeSessionModes(publicSession(row)),
+    )
   }
 
   async session(id: string): Promise<WorkerSession | undefined> {
     const stored = await this.engine.sessions.findById(id)
-    return stored === undefined ? undefined : normalizeSessionModes(stored)
+    return stored === undefined ? undefined : normalizeSessionModes(publicSession(stored))
   }
 
   async applyRemoteSessions(sessions: readonly WorkerSession[]): Promise<number> {
@@ -420,8 +476,11 @@ class LocalWorkerDatabase implements WorkerDatabase {
     let count = 0
 
     for (const session of sessions) {
-      if (queued.has(session.id)) continue
       const local = localById.get(session.id)
+      if (queued.has(session.id)) {
+        if (await this.applyQueuedTimer(session, local, outbox)) count += 1
+        continue
+      }
       if (local !== undefined && session.revision < local.revision) continue
       // Reachability can change without a revision. Compare the whole snapshot too: an
       // older adapter may have deep-merged optional fields the server omitted. A current
@@ -430,7 +489,7 @@ class LocalWorkerDatabase implements WorkerDatabase {
       if (
         local !== undefined &&
         session.revision === local.revision &&
-        canonicalJson(session) === canonicalJson(local)
+        canonicalJson(session) === canonicalJson(publicSession(local))
       ) {
         continue
       }
@@ -445,15 +504,41 @@ class LocalWorkerDatabase implements WorkerDatabase {
     return count
   }
 
+  // Store the core watermark with the same atomic opaque body as the projection. A
+  // delayed command verdict must not resurrect a deadline the worker already cancelled.
+  private async applyQueuedTimer(
+    remote: WorkerSession,
+    local: StoredWorkerSession | undefined,
+    outbox: readonly WorkerOutboxEntry[],
+  ): Promise<WorkerSession | undefined> {
+    if (!local || remote.hostDeviceId !== local.hostDeviceId) return undefined
+    const pending = outbox.filter(
+      (e): e is Extract<WorkerOutboxEntry, { kind: "session.command" }> =>
+        e.kind === "session.command" && e.sessionId === local.id,
+    )
+    const revision = local.timerAuthority?.revision ?? pending[0]?.baseRevision ?? local.revision
+    if (remote.revision <= revision) return undefined
+    const stopped =
+      remote.sleepTimer && pending.some((entry) => disarmedTimer(entry) === remote.sleepTimer?.id)
+    const projected = withTimer(publicSession(local), stopped ? undefined : remote.sleepTimer)
+    await this.storeSession(projected, authority(remote))
+    return projected.sleepTimer?.id !== local.sleepTimer?.id ? projected : undefined
+  }
+
   async applyRemoteSession(session: WorkerSession): Promise<WorkerSessionEventResult> {
-    const [local, outbox] = await Promise.all([this.session(session.id), this.engine.outbox.all()])
+    const [stored, outbox] = await Promise.all([
+      this.engine.sessions.findById(session.id),
+      this.engine.outbox.all(),
+    ])
+    const local = stored && publicSession(stored)
     if (
       outbox.some((entry) => entry.kind === "session.command" && entry.sessionId === session.id)
     ) {
       // Do not call an ignored event durable: a delayed acknowledgement can replace the
       // local row after this returns. The caller retains and reapplies the event once the
       // outbox settles, before persisting its cursor.
-      return { status: "queued" }
+      const timerProjection = await this.applyQueuedTimer(session, stored, outbox)
+      return timerProjection ? { status: "queued", timerProjection } : { status: "queued" }
     }
     if (local !== undefined && session.revision < local.revision) {
       return { status: "applied", session: local }
@@ -464,14 +549,24 @@ class LocalWorkerDatabase implements WorkerDatabase {
     return { status: "applied", session: await this.putSession(session) }
   }
 
+  private async storeSession(
+    session: WorkerSession,
+    timerAuthority: TimerAuthority,
+  ): Promise<WorkerSession> {
+    await this.engine.sessions.upsert({ ...session, timerAuthority })
+    return session
+  }
+
   async putSession(session: WorkerSession): Promise<WorkerSession> {
     const existing = await this.session(session.id)
     if (existing !== undefined && existing.revision > session.revision) return existing
-    return this.engine.sessions.upsert(session)
+    return this.replaceSession(session)
   }
 
   async replaceSession(session: WorkerSession): Promise<WorkerSession> {
-    return this.engine.sessions.upsert(session)
+    const previous = (await this.engine.sessions.findById(session.id))?.timerAuthority
+    const latest = latestTimerAuthority(previous, session)
+    return this.storeSession(withTimer(session, latest.sleepTimer), latest)
   }
 
   async applySessionVerdict(session: WorkerSession, writeId: string): Promise<WorkerSession> {
@@ -485,12 +580,14 @@ class LocalWorkerDatabase implements WorkerDatabase {
         entry.id !== writeId &&
         entry.settlement === undefined,
     )
-    let visible = session
+    const previous = (await this.engine.sessions.findById(session.id))?.timerAuthority
+    const latest = latestTimerAuthority(previous, session)
+    let visible = withTimer(session, latest.sleepTimer)
     const replayed: typeof pending = []
     for (const entry of pending) {
       if (hasRetiredSessionIntent(entry)) break
       try {
-        visible = applySessionCommand(visible, entry.command, visible.updatedAt)
+        visible = replayPending(visible, entry, visible.updatedAt)
         replayed.push(entry)
       } catch {
         // The server will return the typed rejection when this entry reaches the front. Do
@@ -514,7 +611,7 @@ class LocalWorkerDatabase implements WorkerDatabase {
         await this.engine.commandReceipts.upsert({ id, sessionId: session.id, fingerprint })
       }
     }
-    return this.replaceSession(visible)
+    return this.storeSession(visible, latest)
   }
 
   async removeSession(id: string): Promise<boolean> {
@@ -620,7 +717,9 @@ class LocalWorkerDatabase implements WorkerDatabase {
     commandId?: string,
     expectedRevision?: number,
   ): Promise<WorkerSession> {
-    const current = (await this.session(session.id)) ?? session
+    const row = await this.engine.sessions.findById(session.id)
+    const current = row ? normalizeSessionModes(publicSession(row)) : session
+    const timerAuthority = row?.timerAuthority ?? authority(current)
     if (expectedRevision !== undefined && current.revision !== expectedRevision) {
       throw new Error(SESSION_CHANGED_DURING_CONFIRMATION)
     }
@@ -662,8 +761,8 @@ class LocalWorkerDatabase implements WorkerDatabase {
         const repaired =
           resultIsStored || supersededLocally || legacyResultProbablyStored
             ? current
-            : applySessionCommand(current, command)
-        const stored = await this.engine.sessions.upsert(repaired)
+            : replayPending(current, existing)
+        const stored = await this.storeSession(repaired, timerAuthority)
         await this.engine.commandReceipts.upsert({
           id: receiptKey,
           sessionId: session.id,
@@ -682,10 +781,13 @@ class LocalWorkerDatabase implements WorkerDatabase {
       sessionId: session.id,
       commandId: idempotencyKey,
       baseRevision: current.revision,
+      ...(command._tag === "transport.stop" && current.sleepTimer
+        ? { clearedSleepTimerId: current.sleepTimer.id }
+        : {}),
       resultFingerprint: canonicalJson(updated),
       command,
     })
-    const stored = await this.engine.sessions.upsert(updated)
+    const stored = await this.storeSession(updated, timerAuthority)
     await this.engine.commandReceipts.upsert({
       id: receiptKey,
       sessionId: session.id,
@@ -831,8 +933,10 @@ function sessionResultMatches(fingerprint: string | undefined, current: WorkerSe
       !Array.isArray(value.queue)
     )
       return value
+    // A core timer update does not invalidate the persisted playback result.
+    const { sleepTimer: _timer, ...playback } = { sleepTimer: undefined, ...value }
     return {
-      ...value,
+      ...playback,
       repeat: "repeat" in value ? value.repeat : "off",
       shuffle: "shuffle" in value ? value.shuffle : false,
       queueOrder: "queueOrder" in value ? value.queueOrder : value.queue.map((_, index) => index),

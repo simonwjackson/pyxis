@@ -85,8 +85,9 @@ relationships from retained album state, even when album revisions already match
 account-fenced storage lock. It preserves queued host intent and newer local revisions, handles
 equal-revision reachability changes, and returns `{ status: "applied", session }` after storage.
 It neither reads albums nor performs network sync, and does not remove unrelated sessions.
-If local commands prevent application, it returns `{ status: "queued" }` without applying the
-event. The caller must retain the event, wait for outstanding synchronization (or invoke
+If local commands prevent full application, it returns `{ status: "queued", timerProjection? }`.
+The worker applies the core-owned timer immediately, without changing queued playback commands.
+If `timerProjection` is present, give that host session to the renderer now. The caller must retain the event, wait for outstanding synchronization (or invoke
 `sync()` for recovery), and retry before persisting its resume cursor. Do not treat a queued
 result as success: an older in-flight command acknowledgement could otherwise overwrite the
 event permanently. Abandon retries from retired connections without advancing their cursors.
@@ -153,3 +154,27 @@ mode command under the old receipt. See `docs/operations/2026-10-24-pyxamp-suppo
 Unknown persisted outbox commands remain unchanged and report an explicit update blocker.
 Before updating, use the matching client/service to drain obsolete intent. This includes
 removed album commands. No conversion discards or invents pending offline writes.
+
+### Sleep timer
+
+Read `session.sleepTimer` from the worker's cached host session. `deadline` is an absolute
+RFC 3339 time; `fadeSeconds` is zero for no fade. Set or replace it through the online
+`session.command.send sleep.set` operation; use `sleep.cancel` to disarm. Do not enqueue
+relative timer intent for offline replay. The shared playback host in both clients uses
+this snapshot without a network round trip. It schedules a renderer fade/cutoff, then
+confirms `transport.stop {sleepTimerId}` under command ID `sleep:<id>` in the worker
+outbox. Redelivering that ID cannot stop later playback. The fade is a gain adjustment,
+not a series of session volume commands. A fully frozen browser cannot execute JS or
+write a receipt: the native audio clock silences audio, and the host reports on wake.
+Without a running Web Audio context the host uses wall-clock and media/lifecycle events.
+
+Third-party hosts can import `sleepSchedule(session, nowMs)` from
+`clients/app/src/worker/sleep-schedule.ts`. The function has no DOM, timer, or network
+dependency. Pass the latest worker session, not the raw socket payload. On each update,
+replace the previous schedule. `disarmed` means cancel all callbacks and restore normal
+gain. `armed` gives `gain` (0–1), `remainingMs`, `fadeStartInMs` and `fadeMs`; apply
+gain to the session volume, not to the already-faded volume. Recheck at fade start,
+during the fade and on wake. Before acting on `stop`, reread the session and check the
+timer identity. Stop the renderer, restore `restoreVolume` (0–100), and queue the returned
+`command` with its `commandId`, exactly as for the core directive. A retry uses the same
+receipt. Do not let an old callback or receipt stop a newly started session.

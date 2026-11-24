@@ -28,6 +28,7 @@ async function fixture(
   options: {
     transport?: RpcTransport
     positionMs?: number
+    afterSessionRead?: () => Promise<void>
     attachImmediately?: boolean
     stream?: (track: string) => Promise<string>
     play?: () => Promise<void>
@@ -66,6 +67,11 @@ async function fixture(
   const ports = {
     store: {
       ...worker,
+      session: async (id: string) => {
+        const snapshot = await worker.session(id)
+        await options.afterSessionRead?.()
+        return snapshot
+      },
       queueSessionCommand: (...args: Parameters<typeof worker.queueSessionCommand>) =>
         write(...args),
     },
@@ -88,11 +94,15 @@ async function fixture(
       }
       element = document.createElement("audio")
       element.setAttribute("src", url)
+      let paused = true
+      Object.defineProperty(element, "paused", { get: () => paused })
       element.play = async () => {
         plays += 1
         await options.play?.()
+        paused = false
       }
       element.pause = () => {
+        paused = true
         pauses += 1
       }
       if (options.attachImmediately !== false) host.attachAudio(element)
@@ -850,4 +860,148 @@ test("a refused repeat renderer transition has no receipt and can retry the same
     _tag: "Applied",
     replayed: false,
   })
+})
+
+async function arm(
+  source: Awaited<ReturnType<typeof fixture>>,
+  id: string,
+  seconds: number,
+  fadeSeconds = 0,
+) {
+  const current = await source.database.session("selected")
+  if (!current) throw new Error("missing fixture session")
+  const next = {
+    ...current,
+    revision: current.revision + 1,
+    sleepTimer: { id, deadline: new Date(Date.now() + seconds * 1000).toISOString(), fadeSeconds },
+  }
+  await source.database.putSession(next)
+  source.select(next)
+  source.host.renderSession(next)
+  return next
+}
+
+test("an offline deadline fades the renderer, restores volume and reports exactly one Stop across backstop redelivery", async () => {
+  const source = await fixture()
+  await source.host.execute("selected", play, "start")
+  const element = source.media()
+  if (!element) throw new Error("renderer not loaded")
+  vi.useFakeTimers()
+  try {
+    await arm(source, "one", 4, 2)
+    await vi.advanceTimersByTimeAsync(3000)
+    expect(element.volume).toBeCloseTo(0.25)
+    await vi.advanceTimersByTimeAsync(1000)
+    expect((await source.worker.session("selected"))?.transport).toBe("stopped")
+    expect(element.volume).toBe(0.5)
+    expect(source.syncs()).toBe(1)
+    const queued = await source.database.outbox()
+    const stop = { _tag: "transport.stop", payload: { sleepTimerId: "one" } } as const
+    expect(queued.at(-1)).toMatchObject({
+      kind: "session.command",
+      command: stop,
+      commandId: "sleep:one",
+    })
+    await source.host.execute("selected", play, "restart")
+    await source.host.applyDirective({
+      sessionId: "selected",
+      command: stop,
+      directiveId: "sleep:one",
+      issuedBy: "core-sleep",
+    })
+    expect((await source.worker.session("selected"))?.transport).toBe("playing")
+    expect((await source.database.outbox()).length).toBe(queued.length + 1)
+  } finally {
+    vi.useRealTimers()
+  }
+})
+
+test("a replacement during fade and then cancellation disarm both old deadlines", async () => {
+  const source = await fixture()
+  await source.host.execute("selected", play, "start")
+  vi.useFakeTimers()
+  try {
+    await arm(source, "old", 4, 4)
+    await vi.advanceTimersByTimeAsync(2000)
+    expect(source.media()?.volume).toBeCloseTo(0.25)
+    const replacement = await arm(source, "new", 8, 0)
+    expect(source.media()?.volume).toBe(0.5)
+    await vi.advanceTimersByTimeAsync(3000)
+    const { sleepTimer: _timer, ...rest } = replacement
+    const cancelled = { ...rest, revision: rest.revision + 1 }
+    await source.database.putSession(cancelled)
+    source.select(cancelled)
+    source.host.renderSession(cancelled)
+    await vi.advanceTimersByTimeAsync(9000)
+    expect(source.media()?.volume).toBe(0.5)
+    expect(source.syncs()).toBe(0)
+    expect((await source.database.outbox()).length).toBe(1)
+  } finally {
+    vi.useRealTimers()
+  }
+})
+
+test("an authoritative cancel during a pending volume command disarms the offline host", async () => {
+  const source = await fixture()
+  await source.host.execute("selected", play, "start")
+  vi.useFakeTimers()
+  try {
+    const armed = await arm(source, "bed", 6, 2)
+    await source.host.execute(armed.id, { _tag: "volume.set", payload: { volume: 35 } }, "volume")
+    const { sleepTimer: _timer, ...previous } = armed
+    const cancelled = { ...previous, revision: armed.revision + 1 }
+    const outbox = await source.database.outbox()
+    const result = await source.worker.applySessionEvent(cancelled)
+    expect(result.status).toBe("queued")
+    const projection = await source.worker.session(armed.id)
+    expect(projection).not.toHaveProperty("sleepTimer")
+    expect(projection?.volume).toBe(35)
+    source.select(projection)
+    source.host.renderSession(projection)
+    await vi.advanceTimersByTimeAsync(8000)
+    expect((await source.worker.session(armed.id))?.transport).toBe("playing")
+    expect(await source.database.outbox()).toEqual(outbox)
+  } finally {
+    vi.useRealTimers()
+  }
+})
+
+test("a cancel during the expiry read leaves the playing renderer uninterrupted", async () => {
+  const entered = deferred<void>(),
+    release = deferred<void>()
+  let hold = false
+  const source = await fixture({
+    afterSessionRead: async () => {
+      if (hold) {
+        entered.resolve()
+        await release.promise
+      }
+    },
+  })
+  await source.host.execute("selected", play, "play")
+  const audio = source.media()
+  if (!audio) throw new Error("missing renderer")
+  vi.useFakeTimers()
+  try {
+    const armed = await arm(source, "old", 1)
+    hold = true
+    await vi.advanceTimersByTimeAsync(1000)
+    await entered.promise
+    const { sleepTimer: _, ...prior } = armed
+    const cancelled = await source.database.putSession({ ...prior, revision: prior.revision + 1 })
+    source.select(cancelled)
+    source.host.renderSession(cancelled)
+    const pauses = source.pauses()
+    expect(audio.paused).toBe(false)
+    hold = false
+    release.resolve()
+    await vi.advanceTimersByTimeAsync(0)
+    expect(audio.paused).toBe(false)
+    expect(source.pauses()).toBe(pauses)
+    expect(audio.volume).toBe(armed.volume / 100)
+    expect(await source.database.outbox()).toHaveLength(1)
+  } finally {
+    release.resolve()
+    vi.useRealTimers()
+  }
 })

@@ -7,6 +7,7 @@ import {
 import type { WorkerClient } from "../worker/client"
 import { SESSION_CHANGED_DURING_CONFIRMATION } from "../worker/contract"
 import { applySessionCommand } from "../worker/session-local"
+import { createLocalSleepTimer } from "./sleep-timer"
 
 export type HostCommandOutcome =
   | { readonly _tag: "Applied"; readonly session: RpcSession; readonly replayed: boolean }
@@ -69,6 +70,25 @@ export function createConfirmedPlaybackHost(ports: ConfirmedHostPorts): Confirme
     string,
     { fingerprint: string; promise: Promise<HostCommandOutcome> }
   >()
+
+  const sleep = createLocalSleepTimer(async (sessionId, stop, stillScheduled) => {
+    const timerId = stop.command.payload.sleepTimerId
+    requireHost(sessionId)
+    if (ports.selectedSession()?.sleepTimer?.id !== timerId) return
+    const current = await ports.store.session(sessionId)
+    if (!stillScheduled() || ports.selectedSession()?.sleepTimer?.id !== timerId) return
+    requireHost(sessionId)
+    if (!current || current.hostDeviceId !== ports.deviceId()) return
+    if (current.sleepTimer?.id !== timerId) {
+      ports.publishSession(current)
+      renderSession(current)
+      return
+    }
+    // An offline stream load or unconfirmed Play cannot hold the deadline hostage.
+    interrupt()
+    const outcome = await execute(sessionId, stop.command, stop.commandId)
+    if (outcome._tag === "Applied") ports.requestSessionSync()
+  }, ports.reportFailure)
 
   function owns(id: string): boolean {
     const selected = ports.selectedSession()
@@ -313,11 +333,12 @@ export function createConfirmedPlaybackHost(ports: ConfirmedHostPorts): Confirme
   function renderSession(target: RpcSession | undefined): void {
     if (disposed) return
     if (target === undefined || !owns(target.id) || target.hostDeviceId !== ports.deviceId()) {
+      sleep.clear()
       if (source !== undefined || loading !== undefined || activePlay !== undefined) stop(true)
       return
     }
-    if (executing || pauseIntent > 0) return
-    if (audio !== null) audio.volume = target.volume / 100
+    if (sleep.update(target, audio) || executing || pauseIntent > 0) return
+    if (audio !== null && !target.sleepTimer) audio.volume = target.volume / 100
     const key = renderKey(target)
     if (key === lastRendered || key === automatic?.key) return
     if (target.transport !== RpcTransport.Playing) {
@@ -625,10 +646,13 @@ export function createConfirmedPlaybackHost(ports: ConfirmedHostPorts): Confirme
           )
         }
       }
+      const selected = ports.selectedSession()
+      sleep.update(selected && owns(selected.id) ? selected : undefined, element)
     },
     dispose() {
       if (disposed) return
       disposed = true
+      sleep.clear()
       if (audio !== null) audio.onerror = null
       interrupt()
       release(source?.url)

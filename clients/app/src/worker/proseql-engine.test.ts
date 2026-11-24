@@ -1010,3 +1010,61 @@ test("current-v2 interrupted receipts do not duplicate queue additions after def
   expect(repaired.queue).toEqual(["a", "b"])
   await reopened.close()
 })
+
+test("a durable sleep replacement and cancellation fence an old backstop after worker reopen", async () => {
+  const cells = new Map<string, string>()
+  const session: RpcSession = {
+    id: "bedroom",
+    name: "Bedroom",
+    hostDeviceId: "device-1",
+    repeat: RpcRepeatMode.Off,
+    shuffle: false,
+    queue: ["track"],
+    cursor: 0,
+    transport: RpcTransport.Playing,
+    positionMs: 0,
+    volume: 70,
+    reachable: true,
+    revision: 3,
+    updatedAt: "2026-11-24T11:00:00Z",
+  }
+  const original = { id: "old", deadline: "2026-11-24T11:30:00Z", fadeSeconds: 10 }
+  const replacement = { ...original, id: "later", deadline: "2026-11-24T12:00:00Z" }
+  const first = await open(cells)
+  await first.applyRemoteSession({ ...session, sleepTimer: original })
+  await first.queueSessionCommand(
+    session,
+    { _tag: "queue.add", payload: { trackIds: ["queued"] } },
+    "append",
+  )
+  await first.close()
+  const pulling = await open(cells)
+  await pulling.applyRemoteSessions([{ ...session, sleepTimer: replacement, revision: 5 }])
+  // An event and command acknowledgement in flight before the replacement cannot undo it.
+  await pulling.applyRemoteSession({ ...session, sleepTimer: original, revision: 4 })
+  await pulling.close()
+  const second = await open(cells)
+  expect((await second.session(session.id))?.sleepTimer).toEqual(replacement)
+  await expect(
+    second.previewSessionCommand(
+      session.id,
+      { _tag: "transport.stop", payload: { sleepTimerId: original.id } },
+      "sleep:old",
+    ),
+  ).rejects.toThrow("sleep timer no longer armed")
+  expect((await second.session(session.id))?.queue).toEqual(["track", "queued"])
+  const cancel = await second.applyRemoteSession({ ...session, revision: 6 })
+  expect(cancel.status).toBe("queued")
+  const [entry] = await second.outbox()
+  if (!entry) throw new Error("missing append")
+  await second.applySessionVerdict(
+    { ...session, sleepTimer: original, revision: 4, queue: ["track", "queued"] },
+    entry.id,
+  )
+  await second.dequeue(entry.id)
+  await second.close()
+  const final = await open(cells)
+  expect(await final.session(session.id)).not.toHaveProperty("sleepTimer")
+  expect((await final.session(session.id))?.transport).toBe(RpcTransport.Playing)
+  await final.close()
+})
