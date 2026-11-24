@@ -2,7 +2,6 @@
 
 The worker is the client data plane. A UI talks only to `WorkerClient` from `client.ts`; it
 must not open IndexedDB, write Cache Storage, call sync RPCs, or invent merge rules itself.
-The reference client is one consumer of this boundary, not part of it.
 
 ## Ownership
 
@@ -160,7 +159,7 @@ removed album commands. No conversion discards or invents pending offline writes
 Read `session.sleepTimer` from the worker's cached host session. `deadline` is an absolute
 RFC 3339 time; `fadeSeconds` is zero for no fade. Set or replace it through the online
 `session.command.send sleep.set` operation; use `sleep.cancel` to disarm. Do not enqueue
-relative timer intent for offline replay. The shared playback host in both clients uses
+relative timer intent for offline replay. The headless playback host uses
 this snapshot without a network round trip. It schedules a renderer fade/cutoff, then
 confirms `transport.stop {sleepTimerId}` under command ID `sleep:<id>` in the worker
 outbox. Redelivering that ID cannot stop later playback. The fade is a gain adjustment,

@@ -5,7 +5,7 @@ default:
     @just --list
 
 # The single gate. Every implementation unit must leave this passing.
-verify: fmt-check lint lint-shell test-rust contract-check typecheck lint-ts test-ts build-client
+verify: fmt-check lint lint-shell test-rust contract-check typecheck lint-ts test-ts
 
 # Regenerate the TypeScript types and JSON Schema from the Rust contract.
 contracts:
@@ -27,7 +27,7 @@ lint:
     cargo clippy --all-targets --all-features -- -D warnings
 
 lint-shell:
-    shellcheck tools/dev tools/link-proseql tools/test-pandora-fixtures tools/verify-api-example tools/verify-api-example-local tools/verify-pwa-build
+    shellcheck tools/dev tools/link-proseql tools/test-pandora-fixtures tools/verify-api-example tools/verify-api-example-local
 
 test-rust:
     cargo test --all
@@ -50,23 +50,10 @@ test-ts: link-proseql
 test-app-related +FILES: link-proseql
     bun run --cwd clients/app vitest related --run --passWithNoTests=false {{FILES}}
 
-# Select related player tests; paths are relative to clients/player. Not a full gate.
-test-player-related +FILES: link-proseql
-    bun run --cwd clients/player vitest related --run --passWithNoTests=false {{FILES}}
-
 test-pandora-fixtures:
     tools/test-pandora-fixtures
 
-# Fail when the design reference set drifts: a shared module depending on one page's styling,
-# a class with two owners, or one decision written twice.
-test-prototypes:
-    node prototypes/gate.mjs
-
-build-client: link-proseql
-    bun run --cwd clients/app build
-    tools/verify-pwa-build
-
-# Start core, the YouTube Music plugin, and the unstyled reference client.
+# Start the core with the YouTube Music plugin.
 dev:
     tools/dev
 

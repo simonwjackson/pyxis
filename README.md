@@ -10,43 +10,28 @@ This branch is a ground-up v2 rewrite. It shares no code with v1.
 Production runs on **unzen** through mountainous `serviceApps.pyxis`, following the
 `service-apps-unzen` branch.
 
-For local development, use the project dev shell and run:
+Pyxis ships a service, not a web player. For local development, start the core with
+`just dev` (core plus the YouTube Music plugin) or `just dev-core` in the dev shell. Check
+`http://127.0.0.1:4488/healthz`; `/` returns 404 without a web root.
 
-```sh
-just dev
-```
-
-Open <http://127.0.0.1:5173> for the unstyled reference client.
+Third-party clients use the [public API](docs/api/README.md). Browser hosts can reuse the
+[worker data plane](clients/app/src/worker/README.md), RPC client, PWA helpers and
+renderer-confirmed playback in `clients/app/src/`. Hosts supply their own UI and shell.
+To use `pwa/service-worker.ts`, the host must build it as `/service-worker.js` and embed
+its own shell asset list in the `__PYXIS_ASSET_MANIFEST__` JSON string at build time.
 
 Read [`work/items/active/20260821123211-pyxis-v2-rewrite/plan.md`](work/items/active/20260821123211-pyxis-v2-rewrite/plan.md).
 
-## Focused daytime tests
-
-Inside the project dev shell, run these from the repository root. Each path is relative
-to the named client package, not the repository root:
+## Development checks
 
 ```sh
-just test-app-related src/worker/offline-policy.ts
-just test-player-related src/model/playback.ts
-# Explicit test files also select themselves.
+nix develop
+bun install --frozen-lockfile
 just test-app-related src/playback/confirmed-host.test.ts
-just test-player-related src/model/playback.test.tsx
+just verify
 ```
 
-These recipes use Vitest's existing `related --run` selection. They are not full verification,
-typechecking, lint, architecture checks, or builds. Missing selections fail instead of passing
-with zero tests. Static imports can select many tests; dynamic imports and other dependencies
-may not be covered. Use broader tests when the affected scope is unknown.
-
-The clients have separate test configurations. For a shared app playback change, run both:
-
-```sh
-just test-app-related src/playback/confirmed-host.ts
-just test-player-related ../app/src/playback/confirmed-host.ts
-```
-
-Keep `just verify` as the repository gate; focused selection does not replace it or the
-separate player checks.
+Focused test paths are relative to `clients/app`. A focused run does not replace `just verify`.
 
 ## The v1 codebase
 
@@ -65,7 +50,7 @@ third-party protocol facts, not reuse of v1 Pyxis.
 ## Shape
 
 ```
-Clients (PWA, third-party apps)
+Third-party clients
     │  RPC over HTTP + WebSocket realtime + plain HTTP for media bytes
     ▼
 Core service (Rust)  ── owns accounts, library, sessions, sync, media store

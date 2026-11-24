@@ -14,8 +14,8 @@ Media bytes are deliberately outside both. They travel over plain HTTP at
 without protocol translation.
 
 There is no REST resource tree. The only other route is `GET /healthz`, which returns 200
-when the process can serve requests. A server built with a web root also serves the
-reference client at `/`, and falls back to it for any unmatched path.
+when the process can serve requests. Without a web root, `/` returns 404. An operator can supply a client
+with `--web-root` to serve its shell at `/`.
 
 ## Contract identity
 

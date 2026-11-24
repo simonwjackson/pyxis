@@ -20,36 +20,5 @@ if [[ "$refresh" == true ]]; then
   fi
 fi
 
-PATH="$root/result/bin:$PATH" \
-  cargo run --bin pyxis -- --state-dir "$root/.dev-data" --port 4488 &
-core=$!
-
-cleanup() {
-  kill "$core" 2>/dev/null || true
-  wait "$core" 2>/dev/null || true
-}
-trap cleanup EXIT INT TERM
-
-deadline=$((SECONDS + 120))
-ready=false
-while (( SECONDS < deadline )); do
-  if curl -fsS http://127.0.0.1:4488/healthz >/dev/null 2>&1; then
-    ready=true
-    break
-  fi
-  if ! kill -0 "$core" 2>/dev/null; then
-    echo "Pyxis core exited before becoming healthy" >&2
-    exit 1
-  fi
-  sleep 0.1
-done
-
-if [[ "$ready" != true ]]; then
-  echo "Pyxis core did not become healthy within 120 seconds" >&2
-  exit 1
-fi
-
-# `bun install` removes the Nix-supplied @proseql packages, so relink before serving.
-tools/link-proseql
-
-bun run --cwd clients/app dev
+export PATH="$root/result/bin:$PATH"
+exec cargo run --bin pyxis -- --state-dir "$root/.dev-data" --port 4488

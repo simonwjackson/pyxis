@@ -1,0 +1,12 @@
+{
+  // These are consumed by third-party hosts, not by an in-tree app shell.
+  "entry": [
+    "contracts/generated/pyxis.ts",
+    "clients/app/src/worker/client.ts",
+    "clients/app/src/rpc/client.ts",
+    "clients/app/src/rpc/support.ts",
+    "clients/app/src/pwa/register.ts",
+    "clients/app/src/pwa/service-worker.ts",
+    "clients/app/src/playback/confirmed-host.ts"
+  ]
+}

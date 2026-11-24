@@ -6,7 +6,7 @@ Production runs on **unzen** through mountainous `serviceApps.pyxis`, following 
 `service-apps-unzen` branch. Production deployment is managed in mountainous, not by
 this repository's former zao deployment scripts or systemd user units.
 
-The `pyxis` package contains the Rust core, player client, YouTube Music, Pandora, Sonos,
+The `pyxis` package contains the Rust core, YouTube Music, Pandora, Sonos,
 and download-only Soulseek plugins, the `pyxis-ytdlp-update` binary, and the dedicated
 tsnet edge. It does not install systemd units.
 
@@ -18,28 +18,19 @@ Inside the project dev shell, run:
 just dev
 ```
 
-The core listens at <http://127.0.0.1:4488>; the unstyled reference client is at
-<http://127.0.0.1:5173>.
+The core listens at <http://127.0.0.1:4488>. Check `/healthz`; `/` returns 404 without a
+web root.
 
 `tools/configure-plugin`, `tools/verify-api-example`, and `tools/backfill-library-artwork`
 default to `http://127.0.0.1:4488`. Set `PYXIS_ORIGIN` to use another service origin.
 
-## Install and verify the PWA
+## No bundled web player
 
-Open the HTTPS origin once while online, then reload so the new service worker controls the
-page. Use the browser's install action if a standalone app is wanted. In the reference
-client, `Offline downloads available` must be `true` before pinning.
-
-Choose **Pin offline** on an album and wait for its state to become `ready`. The Local store
-panel reports the pinned count and byte total. The download is complete only after every
-track has a verified candidate manifest and all bounded chunks are in Cache Storage.
-
-For the product gate, close the page, disable networking, and open the installed app again.
-The shell, library, session, and pinned album must load. Play and seek within the pinned
-album. Re-enable networking afterward and confirm deferred writes reconcile.
-
-Cache Storage, IndexedDB, service workers, and stream credentials are all scoped to the
-exact HTTPS origin. Clearing site data removes the device grant and offline media.
+**Before upgrading:** deploying this package stops serving the phone's installed Pyxis
+player. There is no first-party app shell to load or install. This does not clear browser
+storage. The package sets no web root: `/` returns 404. The core still accepts
+`--web-root DIR` for operators serving their own client. [RPC, realtime and media
+streams](api/README.md) do not require a web root.
 
 ## Core defaults
 
@@ -135,9 +126,7 @@ speaker URLs as well as used for binding.
 
 Pandora configuration is account-scoped. Clients call `plugin.config.set` with plugin id
 `pandora` and `{ username, password }`. The service returns no plaintext configuration and
-stores only ciphertext. Do not put the password in shell history. The reference client gets
-a temporary configuration form during M2 validation; the later designed client owns the
-final interaction.
+stores only ciphertext. Do not put the password in shell history.
 
 ## Soulseek fidelity upgrades
 

@@ -286,7 +286,7 @@ async fn concurrent_cold_requests_fetch_upstream_once() {
 }
 
 #[tokio::test]
-async fn local_candidate_is_served_without_calling_upstream() {
+async fn no_web_root_serves_health_rpc_and_local_media_but_not_a_shell() {
     let upstream = upstream(StatusCode::OK).await;
     let (dir, state) = state_with_remote(&upstream.url);
     let source = dir.path().join("local.webm");
@@ -310,6 +310,14 @@ async fn local_candidate_is_served_without_calling_upstream() {
         )
         .expect("local candidate");
     let app = router(state);
+    for (path, status) in [("/", StatusCode::NOT_FOUND), ("/healthz", StatusCode::OK)] {
+        let response = app
+            .clone()
+            .oneshot(Request::get(path).body(Body::empty()).expect("request"))
+            .await
+            .expect("response");
+        assert_eq!(response.status(), status, "{path}");
+    }
     let token = claim(&app).await;
 
     let response = app

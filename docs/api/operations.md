@@ -218,9 +218,8 @@ realtime frames rather than trusting arrival order.
 its current groups and rooms. Discovery also refreshes output-session reachability; a room
 is controllable only while the plugin can currently find it.
 
-`output.group.set` applies a complete desired group and returns converged topology. The
-reference client exposes standalone and group-all controls so grouping is not a subprocess-only
-surface. A successful regroup stops and detaches your sessions whose room moves under another
+`output.group.set` applies a complete desired group and returns converged topology.
+A successful regroup stops and detaches your sessions whose room moves under another
 coordinator. Each detached session keeps its queue, becomes unreachable and publishes one
 session state without `output`. A room becoming standalone keeps its own session. A group
 that holds another account's session still refuses with `output.groupBusy`. A plugin failure

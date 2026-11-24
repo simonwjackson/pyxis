@@ -1,4 +1,7 @@
-# Product client
+# Product client (retired)
+
+Historical plan only. D33 and D34 retired the player, reference client and prototypes.
+Pyxis ships the service and a headless host library, not a first-party UI.
 
 ## Decisions confirmed by the user
 

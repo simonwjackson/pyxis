@@ -34,8 +34,6 @@
         };
         mkBunDerivation = bun2nix.lib.${system}.mkBunDerivation;
         proseqlBrowser = proseql.packages.${system}.browser;
-        client = import ./nix/client.nix { inherit pkgs mkBunDerivation proseqlBrowser; };
-        player = import ./nix/player.nix { inherit pkgs mkBunDerivation proseqlBrowser; };
         core = import ./nix/core.nix {
           inherit pkgs;
           proseql = proseqlPatched;
@@ -45,7 +43,7 @@
         tsnet = import ./nix/pyxis-tsnet.nix { inherit pkgs; };
         mcpApp = import ./nix/mcp-app.nix { inherit pkgs mcp tsnet; };
         pyxis = import ./nix/package.nix {
-          inherit pkgs core player tsnet;
+          inherit pkgs core tsnet;
           pluginYtmusic = plugins.ytmusic;
           pluginPandora = plugins.pandora;
           pluginSonos = plugins.sonos;
@@ -54,7 +52,7 @@
       in
       {
         packages = {
-          inherit core client player pyxis;
+          inherit core pyxis;
           pyxis-mcp = mcp;
           pyxis-mcp-app = mcpApp;
           plugin-ytmusic = plugins.ytmusic;
@@ -65,7 +63,7 @@
           default = pyxis;
         };
         checks = {
-          inherit core client player pyxis;
+          inherit core pyxis;
           pyxis-mcp = mcp;
           plugin-ytmusic = plugins.ytmusic;
           plugin-pandora = plugins.pandora;

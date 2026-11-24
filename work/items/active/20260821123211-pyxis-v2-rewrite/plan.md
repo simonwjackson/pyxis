@@ -108,6 +108,10 @@ everything provider-shaped lives at the edge behind a plugin protocol.
   predates `source.station.{list,search,create,next}` and omits them. Document the existing
   station calls and check the table against `RpcRequest::KNOWN_TAGS` in a docs follow-up.
 
+- **Fallow baseline at U50.** Twenty findings also present before the UI removal remain
+  in the headless tree (including plugin exports, Nix-provided browser dependencies and
+  the Avahi binary). They need separate triage, not exclusions in the removal gate.
+
 - **Pyxamp browse after D25, 2026-11-24.**
   `~/code/github/simonwjackson/pyxamp/daemon/src/sources/pyxis/wire.rs:396` calls
   `library.groups.list` / `library.group.items.list`. Its Pyxis browse breaks until it

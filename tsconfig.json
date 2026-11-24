@@ -13,7 +13,6 @@
     // not typecheck against this TypeScript version. Only the insides of .d.ts files are
     // skipped, so our sources are still checked against those declarations.
     "skipLibCheck": true,
-    "jsx": "react-jsx",
     "allowImportingTsExtensions": true,
     "types": ["bun"]
   },
