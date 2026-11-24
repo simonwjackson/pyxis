@@ -5,6 +5,7 @@
 
 pub mod albums;
 mod artwork;
+mod query;
 mod tracks;
 
 use std::collections::HashMap;
@@ -16,6 +17,8 @@ use ulid::Ulid;
 
 use crate::db::schema;
 use crate::db::store::{AccountId, Store, StoreError};
+
+pub(crate) use query::AlbumPage;
 
 pub use albums::{Album, AlbumInput, SourceReference, Track, TrackInput};
 
@@ -38,6 +41,8 @@ pub enum LibraryError {
     InvalidAlbum,
     #[error("trackIds exceeds 200 entries")]
     TooManyTracks,
+    #[error("{0}")]
+    InvalidQuery(&'static str),
     #[error("tags must contain at most 64 distinct nonempty labels of at most 64 characters without control characters")]
     InvalidTags,
     #[error("{0}")]
@@ -111,6 +116,7 @@ pub struct Library {
     store: Store,
     artwork: AlbumArtworkStore,
     mutation: Arc<Mutex<()>>,
+    pages: Arc<Mutex<query::AlbumPages>>,
 }
 
 impl Library {
@@ -119,6 +125,7 @@ impl Library {
             artwork: AlbumArtworkStore::open(store.state_dir()),
             store,
             mutation: Arc::new(Mutex::new(())),
+            pages: Default::default(),
         }
     }
 
@@ -455,11 +462,10 @@ impl Library {
         }
         let mut normalized = std::collections::BTreeSet::new();
         for tag in tags {
-            let tag = tag.trim().to_lowercase();
-            if tag.is_empty() || tag.chars().count() > 64 || tag.chars().any(char::is_control) {
-                return Err(LibraryError::InvalidTags);
-            }
-            normalized.insert(tag);
+            normalized.insert(
+                crate::rpc::contract::tag_expression::normalize_tag(&tag)
+                    .ok_or(LibraryError::InvalidTags)?,
+            );
         }
         let tags: Vec<_> = normalized.into_iter().collect();
         let _guard = self.mutation.lock().expect("library mutation poisoned");

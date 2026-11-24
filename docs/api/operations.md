@@ -33,6 +33,7 @@ Read [README.md](README.md) first for the envelope rules, and
 | `source.album.get` | `source:read` | `ready`, `unavailable` |
 | `library.album.add` | `library:write` | `ready`, `invalid`, `unavailable` |
 | `library.tracks.get` | `library:read` | `ready`, `invalid`, `unavailable` |
+| `library.albums.query` | `library:read` | `ready`, `invalid`, `unavailable` |
 | `library.albums.list` | `library:read` | `ready`, `unavailable` |
 | `library.album.command.run` | `library:write` | `applied`, `removed`, `unknown`, `unavailable` |
 | `library.bookmarks.list` | `library:read` | `ready`, `unavailable` |
@@ -84,6 +85,29 @@ that confirmed position only after it matches within 1000 ms (Sonos whole-second
 A failed confirmation attempts an ownership-checked rollback. Rollback failure is explicit
 `output.rollbackFailed`. No physical Sonos operation was used to test this behavior.
 
+## Album queries
+
+`library.albums.query` accepts optional `text` (substring of title or artist), `artist`
+(exact name), `tagExpression`, `sort`, `limit` (1–100, default 50) and `cursor`. Filters
+combine with AND. Text and artist comparisons ignore case and outer whitespace. `added`
+(default) and `lastPlayed` are newest first, unplayed last. `lastPlayed` uses track listens
+with the album ID, or the track's current album membership if the listen omitted the ID.
+`artist` and `title` sort case-insensitively A–Z; album ID breaks ties.
+
+For example, to find live jazz but not compilations:
+
+```json
+{"tagExpression":{"op":"and","value":[{"op":"tag","value":"live"},{"op":"tag","value":"jazz"},{"op":"not","value":{"op":"tag","value":"compilation"}}]},"sort":"artist"}
+```
+
+`and` and `or` require a nonempty array. `not` has one operand. `tag` uses the same
+normalization and limits as `tags.set`. The whole expression must be valid (at most
+16 levels and 256 nodes). Each page contains `albums` and an optional continuation
+`cursor`. Continue with just `{cursor,limit?}`: the snapshot, including metadata, does
+not change between pages. Filters/sort cannot be changed with a cursor. Cursors belong
+to one account. They expire on restart, after 30 minutes, or when the bounded snapshot
+cache evicts them. On `invalid` cursor, start a new query.
+
 ## Album tags and external organization
 
 `tags.set {tags:string[]}` uses `library.album.command.run`. At most 64 labels, each
@@ -110,7 +134,7 @@ A new command ID deliberately appends again. Create/list keep their existing con
 
 ## Result sizes
 
-List calls remain unpaginated. Two calls need care:
+Two unpaginated calls need care:
 
 | Call | Behaviour |
 |---|---|

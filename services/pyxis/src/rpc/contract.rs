@@ -1126,6 +1126,136 @@ pub enum TracksGetOutcome {
     Unavailable(RpcFailure),
 }
 
+// --- library.albums.query (U41) ---
+pub mod tag_expression {
+    use super::*;
+
+    #[typeshare]
+    #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema, PartialEq, Eq)]
+    #[serde(
+        tag = "op",
+        content = "value",
+        rename_all = "camelCase",
+        deny_unknown_fields
+    )]
+    pub enum RpcTagExpression {
+        Tag(String),
+        And(Vec<RpcTagExpression>),
+        Or(Vec<RpcTagExpression>),
+        Not(Box<RpcTagExpression>),
+    }
+
+    impl RpcTagExpression {
+        /// Validate every branch before evaluation. A false predicate must never mask a bad operand.
+        pub(crate) fn normalize(&mut self) -> Result<(), &'static str> {
+            self.normalize_node(1, &mut 256)
+        }
+
+        fn normalize_node(
+            &mut self,
+            depth: u32,
+            remaining: &mut usize,
+        ) -> Result<(), &'static str> {
+            if depth > 16 || *remaining == 0 {
+                return Err("tag expression exceeds 16 levels or 256 nodes");
+            }
+            *remaining -= 1;
+            match self {
+                Self::Tag(label) => {
+                    *label = normalize_tag(label).ok_or("invalid tag label")?;
+                }
+                Self::And(children) | Self::Or(children) => {
+                    if children.is_empty() {
+                        return Err("and/or needs at least one operand");
+                    }
+                    for child in children {
+                        child.normalize_node(depth + 1, remaining)?;
+                    }
+                }
+                Self::Not(child) => child.normalize_node(depth + 1, remaining)?,
+            }
+            Ok(())
+        }
+
+        pub(crate) fn matches(&self, tags: &[String]) -> bool {
+            match self {
+                Self::Tag(label) => tags.contains(label),
+                Self::And(children) => children.iter().all(|child| child.matches(tags)),
+                Self::Or(children) => children.iter().any(|child| child.matches(tags)),
+                Self::Not(child) => !child.matches(tags),
+            }
+        }
+    }
+
+    pub(crate) fn normalize_tag(label: &str) -> Option<String> {
+        let label = label.trim().to_lowercase();
+        (!label.is_empty() && label.chars().count() <= 64 && !label.chars().any(char::is_control))
+            .then_some(label)
+    }
+
+    // Keep expression errors in the authenticated operation's `invalid` outcome.
+    // An empty disjunction is an invalid expression, never a match-all or match-none filter.
+    pub(super) fn decode<'de, D: serde::Deserializer<'de>>(
+        de: D,
+    ) -> Result<RpcTagExpression, D::Error> {
+        let value = serde_json::Value::deserialize(de)?;
+        Ok(serde_json::from_value(value).unwrap_or_else(|_| RpcTagExpression::Or(vec![])))
+    }
+    pub(super) fn decode_optional<'de, D: serde::Deserializer<'de>>(
+        de: D,
+    ) -> Result<Option<RpcTagExpression>, D::Error> {
+        decode(de).map(Some)
+    }
+}
+use tag_expression::RpcTagExpression;
+
+#[typeshare]
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema, Copy, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum RpcAlbumSort {
+    Added,
+    Artist,
+    Title,
+    LastPlayed,
+}
+
+#[typeshare]
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema, Default, PartialEq, Eq)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct AlbumsQueryRequest {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub text: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub artist: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default, deserialize_with = "tag_expression::decode_optional")]
+    pub tag_expression: Option<RpcTagExpression>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sort: Option<RpcAlbumSort>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cursor: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub limit: Option<u32>,
+}
+
+#[typeshare]
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct RpcAlbumPage {
+    pub albums: Vec<RpcLibraryAlbum>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cursor: Option<String>,
+}
+
+#[typeshare]
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(tag = "status", content = "value", rename_all = "camelCase")]
+pub enum AlbumsQueryOutcome {
+    Ready(RpcAlbumPage),
+    Invalid(RpcFailure),
+    Unavailable(RpcFailure),
+}
+
 #[typeshare]
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
 #[serde(tag = "status", content = "value", rename_all = "camelCase")]
@@ -1596,6 +1726,9 @@ pub enum RpcRequest {
     // --- library.tracks.get (U40) ---
     #[serde(rename = "library.tracks.get")]
     LibraryTracksGet(TracksGetRequest),
+    // --- library.albums.query (U41) ---
+    #[serde(rename = "library.albums.query")]
+    LibraryAlbumsQuery(AlbumsQueryRequest),
     #[serde(rename = "library.albums.list")]
     LibraryAlbumsList(EmptyRequest),
     #[serde(rename = "library.album.command.run")]
@@ -1694,6 +1827,9 @@ pub enum RpcResponse {
     // --- library.tracks.get (U40) ---
     #[serde(rename = "library.tracks.get")]
     LibraryTracksGet(TracksGetOutcome),
+    // --- library.albums.query (U41) ---
+    #[serde(rename = "library.albums.query")]
+    LibraryAlbumsQuery(AlbumsQueryOutcome),
     #[serde(rename = "library.albums.list")]
     LibraryAlbumsList(AlbumListOutcome),
     #[serde(rename = "library.album.command.run")]
@@ -1739,7 +1875,7 @@ pub enum RpcResponse {
 }
 
 impl RpcRequest {
-    pub const KNOWN_TAGS: [&'static str; 41] = [
+    pub const KNOWN_TAGS: [&'static str; 42] = [
         "system.status.get",
         "auth.device.claim",
         "auth.device.pair",
@@ -1762,6 +1898,8 @@ impl RpcRequest {
         "library.album.add",
         // --- library.tracks.get (U40) ---
         "library.tracks.get",
+        // --- library.albums.query (U41) ---
+        "library.albums.query",
         "library.albums.list",
         "library.album.command.run",
         "library.bookmarks.list",
@@ -1809,6 +1947,8 @@ impl RpcRequest {
             RpcRequest::LibraryAlbumAdd(_) => "library.album.add",
             // --- library.tracks.get (U40) ---
             RpcRequest::LibraryTracksGet(_) => "library.tracks.get",
+            // --- library.albums.query (U41) ---
+            RpcRequest::LibraryAlbumsQuery(_) => "library.albums.query",
             RpcRequest::LibraryAlbumsList(_) => "library.albums.list",
             RpcRequest::LibraryAlbumCommandRun(_) => "library.album.command.run",
             RpcRequest::LibraryBookmarksList(_) => "library.bookmarks.list",
@@ -1862,6 +2002,8 @@ impl RpcRequest {
             RpcRequest::SourceSearchRun(_) => Some("source:read"),
             // --- library.tracks.get (U40) ---
             RpcRequest::LibraryTracksGet(_) => Some("library:read"),
+            // --- library.albums.query (U41) ---
+            RpcRequest::LibraryAlbumsQuery(_) => Some("library:read"),
             RpcRequest::LibraryAlbumsList(_)
             | RpcRequest::LibraryBookmarksList(_)
             | RpcRequest::LibraryPlaylistsList(_) => Some("library:read"),
@@ -1894,7 +2036,7 @@ impl RpcRequest {
 }
 
 impl RpcResponse {
-    pub const KNOWN_OPERATION_TAGS: [&'static str; 41] = RpcRequest::KNOWN_TAGS;
+    pub const KNOWN_OPERATION_TAGS: [&'static str; 42] = RpcRequest::KNOWN_TAGS;
 
     pub fn tag(&self) -> &'static str {
         match self {
@@ -1920,6 +2062,8 @@ impl RpcResponse {
             RpcResponse::LibraryAlbumAdd(_) => "library.album.add",
             // --- library.tracks.get (U40) ---
             RpcResponse::LibraryTracksGet(_) => "library.tracks.get",
+            // --- library.albums.query (U41) ---
+            RpcResponse::LibraryAlbumsQuery(_) => "library.albums.query",
             RpcResponse::LibraryAlbumsList(_) => "library.albums.list",
             RpcResponse::LibraryAlbumCommandRun(_) => "library.album.command.run",
             RpcResponse::LibraryBookmarksList(_) => "library.bookmarks.list",

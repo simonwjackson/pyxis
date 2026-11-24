@@ -336,3 +336,29 @@ async fn track_lookup_preserves_misses_duplicates_and_account_scope() {
         );
     }
 }
+
+#[path = "library_rpc/query.rs"]
+mod query;
+
+async fn library_call(app: &axum::Router, token: &str, tag: &str, payload: Value) -> Value {
+    rpc(app, json!({"_tag":tag,"payload":payload}), Some(token)).await["outcome"].clone()
+}
+
+async fn add_tagged(
+    app: &axum::Router,
+    token: &str,
+    title: &str,
+    artist: &str,
+    tags: Value,
+) -> Value {
+    let album = library_call(
+        app,
+        token,
+        "library.album.add",
+        json!({"title":title,"artist":artist,"tracks":[{"title":title,"artist":artist}]}),
+    )
+    .await;
+    let result = library_call(app,token,"library.album.command.run",json!({"albumId":album["value"]["id"],"command":{"_tag":"tags.set","payload":{"tags":tags}}})).await;
+    assert_eq!(result["status"], "applied");
+    result["value"].clone()
+}

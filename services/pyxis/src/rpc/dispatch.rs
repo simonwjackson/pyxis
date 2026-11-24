@@ -875,6 +875,22 @@ pub fn dispatch(state: &AppState, request: RpcRequest, auth: Option<AuthContext>
                 },
             )
         }
+        // --- library.albums.query (U41) ---
+        RpcRequest::LibraryAlbumsQuery(request) => {
+            use crate::rpc::contract::AlbumsQueryOutcome;
+            let Some(auth) = auth else {
+                return auth_required();
+            };
+            RpcResponse::LibraryAlbumsQuery(
+                match state.library.query_albums(&auth.account_id, request) {
+                    Ok(page) => AlbumsQueryOutcome::Ready(rpc_album_page(page)),
+                    Err(LibraryError::InvalidQuery(message)) => AlbumsQueryOutcome::Invalid(
+                        RpcFailure::permanent("library.invalidQuery", message),
+                    ),
+                    Err(error) => AlbumsQueryOutcome::Unavailable(library_failure(error)),
+                },
+            )
+        }
         RpcRequest::LibraryAlbumsList(_) => {
             let Some(auth) = auth else {
                 return auth_required();
@@ -2239,6 +2255,13 @@ fn match_item(item: RpcMatchItem) -> MatchItem {
         album: item.album,
         duration_ms: item.duration_ms,
         year: item.year,
+    }
+}
+
+fn rpc_album_page(page: crate::library::AlbumPage) -> crate::rpc::contract::RpcAlbumPage {
+    crate::rpc::contract::RpcAlbumPage {
+        albums: page.albums.into_iter().map(rpc_album).collect(),
+        cursor: page.cursor,
     }
 }
 

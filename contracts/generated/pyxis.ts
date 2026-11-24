@@ -25,6 +25,28 @@ export interface AlbumCommandRequest {
 	command: RpcAlbumCommand;
 }
 
+export type RpcTagExpression =
+	| { op: "tag", value: string }
+	| { op: "and", value: RpcTagExpression[] }
+	| { op: "or", value: RpcTagExpression[] }
+	| { op: "not", value: RpcTagExpression };
+
+export enum RpcAlbumSort {
+	Added = "added",
+	Artist = "artist",
+	Title = "title",
+	LastPlayed = "lastPlayed",
+}
+
+export interface AlbumsQueryRequest {
+	text?: string;
+	artist?: string;
+	tagExpression?: RpcTagExpression;
+	sort?: RpcAlbumSort;
+	cursor?: string;
+	limit?: number;
+}
+
 export interface ApiTokenCreateRequest {
 	name: string;
 	scopes: string[];
@@ -360,6 +382,33 @@ export interface RpcAccount {
 	createdAt: string;
 }
 
+export interface RpcLibraryTrack {
+	id: string;
+	title: string;
+	artist: string;
+	durationMs?: number;
+	trackNumber?: number;
+	artworkUrl?: string;
+	revision: number;
+}
+
+export interface RpcLibraryAlbum {
+	tags: string[];
+	id: string;
+	title: string;
+	artist: string;
+	year?: number;
+	artworkUrl?: string;
+	addedAt: string;
+	revision: number;
+	tracks: RpcLibraryTrack[];
+}
+
+export interface RpcAlbumPage {
+	albums: RpcLibraryAlbum[];
+	cursor?: string;
+}
+
 export interface RpcApiToken {
 	id: string;
 	name: string;
@@ -407,28 +456,6 @@ export interface RpcFidelity {
 	lossless: boolean;
 	bitrateKbps?: number;
 	sampleRateHz?: number;
-}
-
-export interface RpcLibraryTrack {
-	id: string;
-	title: string;
-	artist: string;
-	durationMs?: number;
-	trackNumber?: number;
-	artworkUrl?: string;
-	revision: number;
-}
-
-export interface RpcLibraryAlbum {
-	tags: string[];
-	id: string;
-	title: string;
-	artist: string;
-	year?: number;
-	artworkUrl?: string;
-	addedAt: string;
-	revision: number;
-	tracks: RpcLibraryTrack[];
 }
 
 export interface RpcListenAppendResult {
@@ -885,6 +912,11 @@ export type AlbumListOutcome =
 	| { status: "ready", value: RpcLibraryAlbum[] }
 	| { status: "unavailable", value: RpcFailure };
 
+export type AlbumsQueryOutcome =
+	| { status: "ready", value: RpcAlbumPage }
+	| { status: "invalid", value: RpcFailure }
+	| { status: "unavailable", value: RpcFailure };
+
 export type ApiTokenCreateOutcome =
 	| { status: "ready", value: RpcApiTokenGrant }
 	| { status: "invalidScope", value: RpcFailure }
@@ -1020,6 +1052,7 @@ export type RpcRequest =
 	| { _tag: "source.search.run", payload: SourceSearchRequest }
 	| { _tag: "library.album.add", payload: LibraryAlbumAddRequest }
 	| { _tag: "library.tracks.get", payload: TracksGetRequest }
+	| { _tag: "library.albums.query", payload: AlbumsQueryRequest }
 	| { _tag: "library.albums.list", payload: EmptyRequest }
 	| { _tag: "library.album.command.run", payload: AlbumCommandRequest }
 	| { _tag: "library.bookmarks.list", payload: EmptyRequest }
@@ -1063,6 +1096,7 @@ export type RpcResponse =
 	| { _tag: "source.search.run", outcome: SourceSearchOutcome }
 	| { _tag: "library.album.add", outcome: AlbumAddOutcome }
 	| { _tag: "library.tracks.get", outcome: TracksGetOutcome }
+	| { _tag: "library.albums.query", outcome: AlbumsQueryOutcome }
 	| { _tag: "library.albums.list", outcome: AlbumListOutcome }
 	| { _tag: "library.album.command.run", outcome: AlbumCommandOutcome }
 	| { _tag: "library.bookmarks.list", outcome: BookmarkListOutcome }
