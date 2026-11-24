@@ -1366,9 +1366,11 @@ loaded, which the `output.rendererOwnershipLost` text already promised; other co
 automatic paths still refuse. `transport.state` may report `volume`, and the background
 refresh copies it into the session. `output.groupBusy` now refuses only when a regroup moves
 one of the caller's sessions to another coordinator, or touches another account's session
-group. SSDP replies were dropped by unzen's firewall (replies arrive from source port 1900 at
-an ephemeral port that conntrack does not match), and Avahi is not running there, so only
-seed hosts worked; the firewall fix lives in mountainous `modules/hosts/unzen.nix`.
+group. On unzen only seed hosts worked. A packet capture on 2026-11-24 showed the speakers
+(Sonos Connect 86.11, SYMFONISK 98.0) send no SSDP reply at all, to multicast or unicast
+M-SEARCH, from unzen or zao; the firewall was not the cause. They do answer `_sonos._tcp`
+mDNS, but Avahi was not running on unzen. The fix enables Avahi there and puts `avahi-browse`
+on the pyxis unit's PATH, in mountainous; the plugin's existing mDNS fallback does the rest.
 
 ---
 
