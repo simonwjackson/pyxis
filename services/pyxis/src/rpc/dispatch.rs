@@ -853,6 +853,28 @@ pub fn dispatch(state: &AppState, request: RpcRequest, auth: Option<AuthContext>
             }
         }
 
+        // --- library.tracks.get (U40) ---
+        RpcRequest::LibraryTracksGet(request) => {
+            use crate::rpc::contract::TracksGetOutcome;
+            let Some(auth) = auth else {
+                return auth_required();
+            };
+            RpcResponse::LibraryTracksGet(
+                match state
+                    .library
+                    .track_metadata(&auth.account_id, &request.track_ids)
+                {
+                    Ok(result) => TracksGetOutcome::Ready(result),
+                    Err(LibraryError::TooManyTracks) => {
+                        TracksGetOutcome::Invalid(RpcFailure::permanent(
+                            "library.tooManyTracks",
+                            "trackIds exceeds 200 entries",
+                        ))
+                    }
+                    Err(error) => TracksGetOutcome::Unavailable(library_failure(error)),
+                },
+            )
+        }
         RpcRequest::LibraryAlbumsList(_) => {
             let Some(auth) = auth else {
                 return auth_required();

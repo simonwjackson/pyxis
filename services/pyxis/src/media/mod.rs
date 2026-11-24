@@ -11,8 +11,8 @@ use std::path::{Path, PathBuf};
 use crate::db::store::{AccountId, Store};
 
 pub use candidates::{
-    CandidateLocation, MediaCandidate, PluginCandidateInput, ResolveOutcome, ResolvedCandidate,
-    ResolvedLocation,
+    CandidateLocation, CandidateMetadata, MediaCandidate, PluginCandidateInput, ResolveOutcome,
+    ResolvedCandidate, ResolvedLocation,
 };
 pub use fidelity::Fidelity;
 pub use store::MediaFileStatus;
@@ -88,17 +88,18 @@ impl Media {
         account: &AccountId,
         track_id: &str,
         input: PluginCandidateInput,
+        metadata: CandidateMetadata,
         updated_by: &str,
     ) -> Result<MediaCandidate, MediaError> {
         Ok(self
             .candidates
-            .ensure_plugin(account, track_id, input, updated_by)?)
+            .ensure_plugin(account, track_id, input, metadata, updated_by)?)
     }
 
     pub fn ensure_plugin_candidates(
         &self,
         account: &AccountId,
-        inputs: Vec<(String, PluginCandidateInput)>,
+        inputs: Vec<(String, PluginCandidateInput, CandidateMetadata)>,
         updated_by: &str,
     ) -> Result<Vec<MediaCandidate>, MediaError> {
         Ok(self

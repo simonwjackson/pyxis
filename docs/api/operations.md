@@ -32,6 +32,7 @@ Read [README.md](README.md) first for the envelope rules, and
 | `source.album.search` | `source:read` | `ready`, `unavailable` |
 | `source.album.get` | `source:read` | `ready`, `unavailable` |
 | `library.album.add` | `library:write` | `ready`, `invalid`, `unavailable` |
+| `library.tracks.get` | `library:read` | `ready`, `invalid`, `unavailable` |
 | `library.albums.list` | `library:read` | `ready`, `unavailable` |
 | `library.album.command.run` | `library:write` | `applied`, `removed`, `unknown`, `unavailable` |
 | `library.bookmarks.list` | `library:read` | `ready`, `unavailable` |
@@ -138,6 +139,14 @@ the core runs with zero plugins installed, so a client must ask rather than assu
 `live` and unconfigured, which is exactly the state before someone enters a password.
 
 ## Library
+
+`library.tracks.get {trackIds}` accepts 0–200 IDs, counting duplicates. `tracks` and
+`misses` each preserve request order and duplicates. Foreign IDs look unknown. Station
+and search metadata is retained at candidate registration, not fetched on read. An older
+candidate without metadata is a miss until rediscovered. `albumId` is a core library ID,
+never a provider ID; it is absent without a library relationship. `albumTitle` and
+`durationMs` are omitted when unknown. If several albums contain a track, the lowest
+album ID wins.
 
 A library album is curation, not a copy of a source. `library.album.add` takes the album's
 identity, optional `artworkUrl`, tracks, and a `sourceReference`. Library track responses

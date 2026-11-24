@@ -297,3 +297,42 @@ async fn tags_are_normalized_idempotent_account_fenced_and_survive_reopen() {
         .unwrap();
     assert_eq!(persisted["tags"], json!(["favorite", "road trip"]));
 }
+
+#[tokio::test]
+async fn track_lookup_preserves_misses_duplicates_and_account_scope() {
+    let dir = tempfile::tempdir().unwrap();
+    let app = router(AppState::open(Store::open(dir.path()).unwrap()).unwrap());
+    let bearer = token(&app).await;
+    let album = rpc(&app, add_request(), Some(&bearer)).await;
+    let lookup = |ids: Value| json!({"_tag":"library.tracks.get","payload":{"trackIds":ids}});
+    let request = lookup(json!(["track-heroes", "missing", "track-heroes"]));
+    let result = rpc(&app, request.clone(), Some(&bearer)).await;
+    let track = json!({"id":"track-heroes","title":"Heroes","artist":"David Bowie","albumId":album["outcome"]["value"]["id"],"albumTitle":"Heroes","durationMs":372000});
+    assert_eq!(
+        result["outcome"]["value"],
+        json!({"tracks":[track,track],"misses":["missing"]})
+    );
+    let other = rpc(
+        &app,
+        json!({"_tag":"account.create","payload":{"name":"Other","deviceName":"Other"}}),
+        Some(&bearer),
+    )
+    .await;
+    let foreign = rpc(
+        &app,
+        request,
+        other["outcome"]["value"]["bearerToken"].as_str(),
+    )
+    .await;
+    assert_eq!(
+        foreign["outcome"]["value"],
+        json!({"tracks":[],"misses":["track-heroes","missing","track-heroes"]})
+    );
+    for (len, status) in [(200, "ready"), (201, "invalid")] {
+        assert_eq!(
+            rpc(&app, lookup(json!(vec!["missing"; len])), Some(&bearer)).await["outcome"]
+                ["status"],
+            status
+        );
+    }
+}

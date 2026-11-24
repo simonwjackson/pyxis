@@ -107,11 +107,7 @@ everything provider-shaped lives at the edge behind a plugin protocol.
   session by name and a host-only no-op probe (`volume.set` to the current volume), which bumps
   the revision once per start. A read such as `auth.whoami` returning the principal kind and
   device id would remove the probe.
-- **Track metadata by id, 2026-10-25 (Pyxamp workflow 342063fb).** Session queues carry core
-  track ids only. A client can name library tracks from `library.albums.list`, and tracks it saw
-  in search, source albums or station batches. A station or search track queued by another
-  device stays unnamed. A bounded `library.tracks.get {trackIds}` (or metadata on registered
-  candidates) would let every console name every queue row.
+- **Track lookup cost (U40).** Add account-scoped track-ID indexes for album links and candidates; even a single missing ID currently scans both collections under the library mutation lock.
 - **Verification closure, 2026-10-16.** The maintenance and Console fixture changes are
   integrated on one verification branch. Expired listen-test dates, Rust wrapping and root
   JPEG typing are corrected. Thirty blocking Biome errors are repaired without disabling

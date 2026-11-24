@@ -90,6 +90,19 @@ async fn one_search_returns_albums_artists_and_songs() {
     assert_eq!(value["artists"][0]["name"], "David Bowie");
     assert_eq!(value["artists"][0]["sourcePluginId"], "search-source");
     assert_eq!(value["failures"].as_array().expect("failures").len(), 0);
+    let source = &value["tracks"][0];
+    let lookup = rpc(
+        &app,
+        json!({"_tag":"library.tracks.get", "payload":{"trackIds":[source["id"]]}}),
+        Some(&token),
+    )
+    .await;
+    let metadata = &lookup["outcome"]["value"]["tracks"][0];
+    assert_eq!(metadata["title"], source["title"]);
+    assert_eq!(metadata["artist"], source["artist"]);
+    assert_eq!(metadata["durationMs"], source["durationMs"]);
+    assert_eq!(metadata["albumTitle"], source["album"]);
+    assert!(metadata.get("albumId").is_none());
 }
 
 #[tokio::test]
@@ -202,4 +215,39 @@ async fn search_with_no_source_plugins_is_an_honest_no_sources_outcome() {
     .await;
 
     assert_eq!(result["outcome"]["status"], "noSources");
+}
+
+#[tokio::test]
+async fn rediscovery_replaces_the_persisted_label_including_removed_fields() {
+    let dir = tempfile::tempdir().unwrap();
+    let open = |candidate| {
+        let host = PluginHost::start(vec![candidate], HostPolicy::default()).unwrap();
+        router(AppState::open_with_plugins(Store::open(dir.path()).unwrap(), host).unwrap())
+    };
+    let app = open(search_plugin());
+    let token = claim(&app).await;
+    let search = json!({"_tag":"source.search.run","payload":{"query":"Bowie"}});
+    let first = rpc(&app, search.clone(), Some(&token)).await;
+    let id = first["outcome"]["value"]["tracks"][0]["id"]
+        .as_str()
+        .unwrap();
+    let lookup = json!({"_tag":"library.tracks.get","payload":{"trackIds":[id]}});
+    let first_label = rpc(&app, lookup.clone(), Some(&token)).await;
+    assert_eq!(
+        first_label["outcome"]["value"]["tracks"][0],
+        json!({"id":id,"title":"Heroes","artist":"David Bowie","albumTitle":"Heroes","durationMs":372000})
+    );
+    drop(app);
+
+    let app = open(search_plugin().with_env("PYXIS_LAB_SEARCH", "Revised title|David Bowie"));
+    let updated = rpc(&app, search, Some(&token)).await;
+    assert_eq!(updated["outcome"]["value"]["tracks"][0]["id"], id);
+    drop(app);
+
+    let app = router(AppState::open(Store::open(dir.path()).unwrap()).unwrap());
+    let read = rpc(&app, lookup, Some(&token)).await;
+    assert_eq!(
+        read["outcome"]["value"],
+        json!({"tracks":[{"id":id,"title":"Revised title","artist":"David Bowie"}],"misses":[]})
+    );
 }

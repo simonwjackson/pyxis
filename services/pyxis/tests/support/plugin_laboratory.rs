@@ -323,8 +323,11 @@ fn main() -> anyhow::Result<()> {
         if call.operation == "search" {
             if let Ok(search) = std::env::var("PYXIS_LAB_SEARCH") {
                 let fields: Vec<_> = search.split('|').collect();
-                if fields.len() == 4 {
-                    let duration_ms: u64 = fields[3].parse()?;
+                if matches!(fields.len(), 2 | 4) {
+                    let duration_ms = fields
+                        .get(3)
+                        .map(|value| value.parse::<u64>())
+                        .transpose()?;
                     let tracks = copies()
                         .into_iter()
                         .map(|copy| {
@@ -336,8 +339,15 @@ fn main() -> anyhow::Result<()> {
                             );
                             track.insert("title".into(), PluginValue::String(fields[0].into()));
                             track.insert("artist".into(), PluginValue::String(fields[1].into()));
-                            track.insert("album".into(), PluginValue::String(fields[2].into()));
-                            track.insert("durationMs".into(), PluginValue::Unsigned(duration_ms));
+                            if let Some(album) = fields.get(2) {
+                                track.insert("album".into(), PluginValue::String((*album).into()));
+                            }
+                            if let Some(duration_ms) = duration_ms {
+                                track.insert(
+                                    "durationMs".into(),
+                                    PluginValue::Unsigned(duration_ms),
+                                );
+                            }
                             PluginValue::Object(track)
                         })
                         .collect();

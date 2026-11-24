@@ -44,8 +44,19 @@ pub enum CandidateLocation {
     },
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CandidateMetadata {
+    pub title: String,
+    pub artist: String,
+    // ProseQL deep-merges objects. Persist None as null so rediscovery clears old values.
+    pub album_title: Option<String>,
+    pub duration_ms: Option<u32>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MediaCandidate {
+    pub metadata: Option<CandidateMetadata>,
     pub id: String,
     pub track_id: String,
     pub location: CandidateLocation,
@@ -94,6 +105,8 @@ impl ResolveOutcome {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct CandidateRecord {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    metadata: Option<CandidateMetadata>,
     id: String,
     account_id: String,
     track_id: String,
@@ -137,23 +150,28 @@ impl CandidateRepository {
         account: &AccountId,
         track_id: &str,
         input: PluginCandidateInput,
+        metadata: CandidateMetadata,
         updated_by: &str,
     ) -> Result<MediaCandidate, CandidateError> {
-        self.ensure_plugins(account, vec![(track_id.into(), input)], updated_by)
-            .map(|mut candidates| candidates.remove(0))
+        self.ensure_plugins(
+            account,
+            vec![(track_id.into(), input, metadata)],
+            updated_by,
+        )
+        .map(|mut candidates| candidates.remove(0))
     }
 
     pub fn ensure_plugins(
         &self,
         account: &AccountId,
-        inputs: Vec<(String, PluginCandidateInput)>,
+        inputs: Vec<(String, PluginCandidateInput, CandidateMetadata)>,
         updated_by: &str,
     ) -> Result<Vec<MediaCandidate>, CandidateError> {
         let _guard = self.mutation.lock().expect("candidate mutation poisoned");
         let existing = self.list(account)?;
         let mut created = Vec::new();
         let mut candidates = Vec::with_capacity(inputs.len());
-        for (track_id, input) in inputs {
+        for (track_id, input, metadata) in inputs {
             if let Some(candidate) = existing.iter().find(|candidate| {
                 candidate.track_id == track_id
                     && matches!(
@@ -162,10 +180,19 @@ impl CandidateRepository {
                             if plugin_id == &input.plugin_id && external_id == &input.external_id
                     )
             }) {
-                candidates.push(candidate.clone());
+                let mut candidate = candidate.clone();
+                if candidate.metadata.as_ref() != Some(&metadata) {
+                    candidate.metadata = Some(metadata);
+                    created.push((
+                        candidate.id.clone(),
+                        candidate_record(&candidate, updated_by),
+                    ));
+                }
+                candidates.push(candidate);
                 continue;
             }
             let candidate = MediaCandidate {
+                metadata: Some(metadata),
                 id: Ulid::new().to_string(),
                 track_id,
                 location: CandidateLocation::Plugin {
@@ -196,6 +223,7 @@ impl CandidateRepository {
         updated_by: &str,
     ) -> Result<MediaCandidate, CandidateError> {
         let candidate = MediaCandidate {
+            metadata: None,
             id: Ulid::new().to_string(),
             track_id: track_id.into(),
             location: CandidateLocation::Plugin {
@@ -221,6 +249,7 @@ impl CandidateRepository {
         updated_by: &str,
     ) -> Result<MediaCandidate, CandidateError> {
         let candidate = MediaCandidate {
+            metadata: None,
             id: Ulid::new().to_string(),
             track_id: track_id.into(),
             location: CandidateLocation::Local { media_file_id },
@@ -378,6 +407,7 @@ fn candidate_record(candidate: &MediaCandidate, updated_by: &str) -> CandidateRe
         }
     };
     CandidateRecord {
+        metadata: candidate.metadata.clone(),
         id: candidate.id.clone(),
         account_id: String::new(),
         track_id: candidate.track_id.clone(),
@@ -412,6 +442,7 @@ impl TryFrom<CandidateRecord> for MediaCandidate {
             _ => return Err(invalid_candidate()),
         };
         Ok(MediaCandidate {
+            metadata: record.metadata,
             id: record.id,
             track_id: record.track_id,
             location,

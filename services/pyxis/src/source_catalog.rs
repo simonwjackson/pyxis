@@ -5,7 +5,7 @@ use std::collections::HashSet;
 use serde::Deserialize;
 
 use crate::accounts::AuthContext;
-use crate::media::{Fidelity, Media, PluginCandidateInput};
+use crate::media::{CandidateMetadata, Fidelity, Media, PluginCandidateInput};
 use crate::plugin_credentials::{CredentialError, CredentialVault};
 use crate::plugins::host::{PluginCallError, PluginHost};
 use crate::plugins::registry::PluginStatus;
@@ -412,6 +412,12 @@ impl SourceCatalog {
                             },
                             source_priority: 0,
                         },
+                        CandidateMetadata {
+                            title: track.title.clone(),
+                            artist: track.artist.clone(),
+                            album_title: Some(album.title.clone()),
+                            duration_ms: track.duration_ms,
+                        },
                     )
                 })
                 .collect(),
@@ -512,6 +518,12 @@ pub(crate) fn register_source_track(
                 sample_rate_hz: None,
             },
             source_priority: 0,
+        },
+        CandidateMetadata {
+            title: track.title.clone(),
+            artist: track.artist.clone(),
+            album_title: track.album.clone(),
+            duration_ms: track.duration_ms,
         },
         auth.principal_id(),
     )?;

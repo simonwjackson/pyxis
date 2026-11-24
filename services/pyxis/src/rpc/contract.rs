@@ -1086,6 +1086,46 @@ pub enum AlbumAddOutcome {
     Unavailable(RpcFailure),
 }
 
+// --- library.tracks.get (U40) ---
+#[typeshare]
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct TracksGetRequest {
+    pub track_ids: Vec<String>,
+}
+
+#[typeshare]
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct RpcTrackMetadata {
+    pub id: String,
+    pub title: String,
+    pub artist: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub album_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub album_title: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub duration_ms: Option<u32>,
+}
+
+#[typeshare]
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct RpcTracksResult {
+    pub tracks: Vec<RpcTrackMetadata>,
+    pub misses: Vec<String>,
+}
+
+#[typeshare]
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(tag = "status", content = "value", rename_all = "camelCase")]
+pub enum TracksGetOutcome {
+    Ready(RpcTracksResult),
+    Invalid(RpcFailure),
+    Unavailable(RpcFailure),
+}
+
 #[typeshare]
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
 #[serde(tag = "status", content = "value", rename_all = "camelCase")]
@@ -1553,6 +1593,9 @@ pub enum RpcRequest {
     SourceSearchRun(SourceSearchRequest),
     #[serde(rename = "library.album.add")]
     LibraryAlbumAdd(LibraryAlbumAddRequest),
+    // --- library.tracks.get (U40) ---
+    #[serde(rename = "library.tracks.get")]
+    LibraryTracksGet(TracksGetRequest),
     #[serde(rename = "library.albums.list")]
     LibraryAlbumsList(EmptyRequest),
     #[serde(rename = "library.album.command.run")]
@@ -1648,6 +1691,9 @@ pub enum RpcResponse {
     SourceSearchRun(SourceSearchOutcome),
     #[serde(rename = "library.album.add")]
     LibraryAlbumAdd(AlbumAddOutcome),
+    // --- library.tracks.get (U40) ---
+    #[serde(rename = "library.tracks.get")]
+    LibraryTracksGet(TracksGetOutcome),
     #[serde(rename = "library.albums.list")]
     LibraryAlbumsList(AlbumListOutcome),
     #[serde(rename = "library.album.command.run")]
@@ -1693,7 +1739,7 @@ pub enum RpcResponse {
 }
 
 impl RpcRequest {
-    pub const KNOWN_TAGS: [&'static str; 40] = [
+    pub const KNOWN_TAGS: [&'static str; 41] = [
         "system.status.get",
         "auth.device.claim",
         "auth.device.pair",
@@ -1714,6 +1760,8 @@ impl RpcRequest {
         "session.handoff",
         "source.search.run",
         "library.album.add",
+        // --- library.tracks.get (U40) ---
+        "library.tracks.get",
         "library.albums.list",
         "library.album.command.run",
         "library.bookmarks.list",
@@ -1759,6 +1807,8 @@ impl RpcRequest {
             RpcRequest::SessionHandoff(_) => "session.handoff",
             RpcRequest::SourceSearchRun(_) => "source.search.run",
             RpcRequest::LibraryAlbumAdd(_) => "library.album.add",
+            // --- library.tracks.get (U40) ---
+            RpcRequest::LibraryTracksGet(_) => "library.tracks.get",
             RpcRequest::LibraryAlbumsList(_) => "library.albums.list",
             RpcRequest::LibraryAlbumCommandRun(_) => "library.album.command.run",
             RpcRequest::LibraryBookmarksList(_) => "library.bookmarks.list",
@@ -1810,6 +1860,8 @@ impl RpcRequest {
             | RpcRequest::SessionCommandSend(_)
             | RpcRequest::SessionHandoff(_) => Some("session:control"),
             RpcRequest::SourceSearchRun(_) => Some("source:read"),
+            // --- library.tracks.get (U40) ---
+            RpcRequest::LibraryTracksGet(_) => Some("library:read"),
             RpcRequest::LibraryAlbumsList(_)
             | RpcRequest::LibraryBookmarksList(_)
             | RpcRequest::LibraryPlaylistsList(_) => Some("library:read"),
@@ -1842,7 +1894,7 @@ impl RpcRequest {
 }
 
 impl RpcResponse {
-    pub const KNOWN_OPERATION_TAGS: [&'static str; 40] = RpcRequest::KNOWN_TAGS;
+    pub const KNOWN_OPERATION_TAGS: [&'static str; 41] = RpcRequest::KNOWN_TAGS;
 
     pub fn tag(&self) -> &'static str {
         match self {
@@ -1866,6 +1918,8 @@ impl RpcResponse {
             RpcResponse::SessionHandoff(_) => "session.handoff",
             RpcResponse::SourceSearchRun(_) => "source.search.run",
             RpcResponse::LibraryAlbumAdd(_) => "library.album.add",
+            // --- library.tracks.get (U40) ---
+            RpcResponse::LibraryTracksGet(_) => "library.tracks.get",
             RpcResponse::LibraryAlbumsList(_) => "library.albums.list",
             RpcResponse::LibraryAlbumCommandRun(_) => "library.album.command.run",
             RpcResponse::LibraryBookmarksList(_) => "library.bookmarks.list",

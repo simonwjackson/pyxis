@@ -5,6 +5,7 @@
 
 pub mod albums;
 mod artwork;
+mod tracks;
 
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
@@ -35,6 +36,8 @@ pub enum LibraryError {
     Artwork(#[from] ArtworkStoreError),
     #[error("album title and artist are required")]
     InvalidAlbum,
+    #[error("trackIds exceeds 200 entries")]
+    TooManyTracks,
     #[error("tags must contain at most 64 distinct nonempty labels of at most 64 characters without control characters")]
     InvalidTags,
     #[error("{0}")]

@@ -359,6 +359,22 @@
           "properties": {
             "_tag": {
               "type": "string",
+              "const": "library.tracks.get"
+            },
+            "payload": {
+              "$ref": "#/$defs/TracksGetRequest"
+            }
+          },
+          "required": [
+            "_tag",
+            "payload"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "_tag": {
+              "type": "string",
               "const": "library.albums.list"
             },
             "payload": {
@@ -1428,6 +1444,21 @@
         "artist"
       ]
     },
+    "TracksGetRequest": {
+      "type": "object",
+      "properties": {
+        "trackIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "trackIds"
+      ]
+    },
     "AlbumCommandRequest": {
       "type": "object",
       "properties": {
@@ -2301,6 +2332,22 @@
             },
             "outcome": {
               "$ref": "#/$defs/AlbumAddOutcome"
+            }
+          },
+          "required": [
+            "_tag",
+            "outcome"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "_tag": {
+              "type": "string",
+              "const": "library.tracks.get"
+            },
+            "outcome": {
+              "$ref": "#/$defs/TracksGetOutcome"
             }
           },
           "required": [
@@ -4474,6 +4521,120 @@
         "title",
         "artist",
         "revision"
+      ]
+    },
+    "TracksGetOutcome": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "const": "ready"
+            },
+            "value": {
+              "$ref": "#/$defs/RpcTracksResult"
+            }
+          },
+          "required": [
+            "status",
+            "value"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "const": "invalid"
+            },
+            "value": {
+              "$ref": "#/$defs/RpcFailure"
+            }
+          },
+          "required": [
+            "status",
+            "value"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "const": "unavailable"
+            },
+            "value": {
+              "$ref": "#/$defs/RpcFailure"
+            }
+          },
+          "required": [
+            "status",
+            "value"
+          ]
+        }
+      ]
+    },
+    "RpcTracksResult": {
+      "type": "object",
+      "properties": {
+        "tracks": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/RpcTrackMetadata"
+          }
+        },
+        "misses": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "tracks",
+        "misses"
+      ]
+    },
+    "RpcTrackMetadata": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "artist": {
+          "type": "string"
+        },
+        "albumId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "albumTitle": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "durationMs": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint32",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "title",
+        "artist"
       ]
     },
     "AlbumListOutcome": {

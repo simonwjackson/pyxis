@@ -241,6 +241,23 @@ pub fn track_candidates() -> CollectionDescriptor {
     scoped(
         TRACK_CANDIDATES,
         vec![
+            field(
+                "metadata",
+                optional(SchemaNode::Struct {
+                    fields: vec![
+                        field("title", SchemaNode::Str),
+                        field("artist", SchemaNode::Str),
+                        field(
+                            "albumTitle",
+                            optional(SchemaNode::NullOr(Box::new(SchemaNode::Str))),
+                        ),
+                        field(
+                            "durationMs",
+                            optional(SchemaNode::NullOr(Box::new(SchemaNode::Num))),
+                        ),
+                    ],
+                }),
+            ),
             field("trackId", SchemaNode::Str),
             field("kind", SchemaNode::Str),
             field("pluginId", optional(SchemaNode::Str)),

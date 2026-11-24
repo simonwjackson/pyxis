@@ -755,6 +755,20 @@ export interface RpcSystemStatus {
 	capabilities: string[];
 }
 
+export interface RpcTrackMetadata {
+	id: string;
+	title: string;
+	artist: string;
+	albumId?: string;
+	albumTitle?: string;
+	durationMs?: number;
+}
+
+export interface RpcTracksResult {
+	tracks: RpcTrackMetadata[];
+	misses: string[];
+}
+
 export interface SeekCommand {
 	positionMs: number;
 }
@@ -837,6 +851,10 @@ export interface StopCommand {
 
 export interface TagsSetCommand {
 	tags: string[];
+}
+
+export interface TracksGetRequest {
+	trackIds: string[];
 }
 
 export interface VolumeSetCommand {
@@ -1001,6 +1019,7 @@ export type RpcRequest =
 	| { _tag: "session.handoff", payload: SessionHandoffRequest }
 	| { _tag: "source.search.run", payload: SourceSearchRequest }
 	| { _tag: "library.album.add", payload: LibraryAlbumAddRequest }
+	| { _tag: "library.tracks.get", payload: TracksGetRequest }
 	| { _tag: "library.albums.list", payload: EmptyRequest }
 	| { _tag: "library.album.command.run", payload: AlbumCommandRequest }
 	| { _tag: "library.bookmarks.list", payload: EmptyRequest }
@@ -1043,6 +1062,7 @@ export type RpcResponse =
 	| { _tag: "session.handoff", outcome: SessionHandoffOutcome }
 	| { _tag: "source.search.run", outcome: SourceSearchOutcome }
 	| { _tag: "library.album.add", outcome: AlbumAddOutcome }
+	| { _tag: "library.tracks.get", outcome: TracksGetOutcome }
 	| { _tag: "library.albums.list", outcome: AlbumListOutcome }
 	| { _tag: "library.album.command.run", outcome: AlbumCommandOutcome }
 	| { _tag: "library.bookmarks.list", outcome: BookmarkListOutcome }
@@ -1166,6 +1186,11 @@ export type SourceStationNextOutcome =
 
 export type SystemStatusOutcome =
 	| { status: "ready", value: RpcSystemStatus }
+	| { status: "unavailable", value: RpcFailure };
+
+export type TracksGetOutcome =
+	| { status: "ready", value: RpcTracksResult }
+	| { status: "invalid", value: RpcFailure }
 	| { status: "unavailable", value: RpcFailure };
 
 export const RPC_CONTRACT_ID = "pyxis-rpc-v4" as const;

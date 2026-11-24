@@ -127,6 +127,19 @@ async fn a_seed_produces_a_station_and_a_first_batch() {
     assert_eq!(value["tracks"][0]["sourcePluginId"], "pandora-like");
     assert_eq!(value["exhausted"], false);
     assert!(value["cursor"].is_string());
+    let source = &value["tracks"][0];
+    let lookup = rpc(
+        &app,
+        json!({"_tag":"library.tracks.get", "payload":{"trackIds":[source["id"]]}}),
+        Some(&token),
+    )
+    .await;
+    let metadata = &lookup["outcome"]["value"]["tracks"][0];
+    assert_eq!(metadata["title"], source["title"]);
+    assert_eq!(metadata["artist"], source["artist"]);
+    assert_eq!(metadata["durationMs"], source["durationMs"]);
+    assert_eq!(metadata["albumTitle"], source["album"]);
+    assert!(metadata.get("albumId").is_none());
 }
 
 #[tokio::test]
