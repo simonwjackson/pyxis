@@ -93,6 +93,15 @@ everything provider-shaped lives at the edge behind a plugin protocol.
 
 ### Deferred to Follow-Up Work
 
+- **Pyxamp browse after D25, 2026-11-24.**
+  `~/code/github/simonwjackson/pyxamp/daemon/src/sources/pyxis/wire.rs:396` calls
+  `library.groups.list` / `library.group.items.list`. Its Pyxis browse breaks until it
+  moves to the external organizer or `library.albums.list` plus tags. No Pyxamp files
+  are changed in this removal.
+- **Pre-v4 offline intent, 2026-11-24.** Unknown persisted worker commands are retained
+  with an update blocker, not silently discarded or translated. Drain obsolete intent
+  with matching clients/service before upgrading. Live device outboxes were not inspected.
+
 - **Token to device identity, 2026-10-25 (Pyxamp workflow 342063fb).** No call tells a bearer
   token which device it is. A desktop host that only holds a device token (Pyxamp) finds its own
   session by name and a host-only no-op probe (`volume.set` to the current volume), which bumps
@@ -115,7 +124,7 @@ everything provider-shaped lives at the edge behind a plugin protocol.
   and review must pass on the exact rebased SHA before a local fast-forward. No flake-free or
   deployment claim follows from this note. See
   `docs/operations/2026-10-16-verification-closure.md` for scope, controls and remaining risk.
-- **Placement conflict evidence before journal persistence, 2026-10-01.** Local settlement
+- **Placement conflict evidence before journal persistence, 2026-10-01. Superseded by D25; historical evidence follows.** Local settlement
   now stages the complete verdict before projection, notices and dequeue. A failed first stage
   after a placement RPC retains intent but cannot guarantee the original conflict details on
   retry. Closing that window needs a durable pre-request decision or server receipts, outside
@@ -245,7 +254,7 @@ everything provider-shaped lives at the edge behind a plugin protocol.
 - **The browse space: charts, moods, genres and provider playlists.** Deliberately unnamed under
   D21 until it is built, so the guess does not reach the generated contract. It reuses the station
   contract's opaque-cursor and declared-support rules.
-- **Weekly Mix.** A first-class `VISION.md` feature that this plan does not build. It needs
+- **Weekly Mix. Superseded by D25: organization/mix policy moves outside Pyxis. Historical scope follows.** A first-class `VISION.md` feature that this plan does not build. It needs
   upstream recommendations, which now arrive through source plugins, so it cannot precede
   Phase 3. The generic station operations from U30 are the intended foundation: the mix is
   composed by Pyxis on top of provider answers, not requested from any one provider. The listen
@@ -273,7 +282,7 @@ Settled. Do not re-open without the user asking.
 | D2 | Plugins are out-of-process subprocesses over stdio JSON | Crash isolation, language independence, and a protocol that third parties can implement |
 | D3 | Sessions are first-class objects hosted by a device | Reconciles R6 with R7. A disconnected device runs its own session. A console attaches to a session it can see. Handoff between devices is explicit, never automatic |
 | D4 | Sonos is an output plugin, not core | Outputs are a plugin capability class, which makes Chromecast and AirPlay possible later without core changes |
-| D5 | The listen log is append-only events; history and hot albums are projections | Append-only merges trivially across offline devices. Replay replaces the entire v1 restore-and-rehydrate bug class |
+| D5 | The listen log is append-only events; history and hot albums are projections. **Hot albums superseded by D25; append/history stay.** | Append-only merges trivially across offline devices. Replay replaces the entire v1 restore-and-rehydrate bug class |
 | D6 | Track identity and matching live in core; MBIDs are optional enrichment | R4 requires the core to work with zero plugins, so core identity cannot depend on a plugin-supplied id space |
 | D7 | Realtime is WebSocket | Console mode needs low-latency bidirectional command and state flow. Revision polling alone cannot serve R5 |
 | D8 | Media bytes never cross the plugin stdio boundary | Plugins return a URL plus headers, or a local file path. The core does all fetching and caching |
@@ -285,14 +294,16 @@ Settled. Do not re-open without the user asking.
 | D14 | The Rust contract module is the protocol source of truth, with typeshare and schemars codegen | One definition produces TypeScript types and a JSON Schema. The schema is the runtime trust boundary, mirroring the reference projects |
 | D15 | The core owns a local media store and local-file playback | Soulseek downloads are local files, so local playback is a core capability rather than a plugin concern |
 | D16 | The client worker data plane is in scope; the UI above it is not | Offline correctness is a distributed-systems problem, not a design problem. The design model consumes a documented worker API |
-| D17 | Server album removal wins over queued offline placement intent, with an explicit conflict report | A placement cannot recreate a removed album. Keeping a stale copy wedges convergence; dropping the local change silently hides data loss |
+| D17 | Server album removal wins over queued offline placement intent, with an explicit conflict report. **Placement paths superseded by D25.** | A placement cannot recreate a removed album. Keeping a stale copy wedges convergence; dropping the local change silently hides data loss |
 | D18 | Track search asks the music catalog, and no general-video search remains | User decision, 2026-09-07: "i dont think i want this. not yet anyway". Catalog search returns real artist and album identity instead of uploader names. Cost: recordings that exist only as ordinary uploads, such as live sets and rare versions, stop being findable. Results must never mix catalog songs with general videos |
 | D19 | Discovery search covers albums, artists and songs in one fan-out operation | User requirement, 2026-09-07. One search box asks once and shows three sections. Per-plugin partial failure already exists in the search result, so a source that answers only some kinds degrades honestly. Cost: one slow source delays every kind in that response |
 | D20 | A `Station` is the one generic radio object, and every source maps its own mechanism onto it | User requirement, 2026-09-07: discovery and radio are a core concept, and YouTube Music and Pandora are only source plugins beneath it. A seed produces a station; a station yields bounded batches. Pandora station tokens and YouTube Music `RDAMVM` watch queues both fit that shape, so no provider needs its own operation, RPC or client surface. Cost: a provider concept that does not fit, such as Pandora thumbs or YouTube mood chips, stays unavailable until the generic model grows to hold it |
-| D21 | `Discovery` keeps its existing meaning as a library placement, and the browse space stays unnamed until it is built | The placement model in `VISION.md` already owns the word, and `Station` is already the vision's word for a discovery engine. Naming a third concept before building it would put a guess into the generated contract and the client store, where renaming is expensive. Charts, moods and sections are not in M9, so the noun is not needed yet |
+| D21 | `Discovery` keeps its existing meaning as a library placement, and the browse space stays unnamed until it is built. **Placement meaning superseded by D25.** | The placement model in `VISION.md` already owns the word, and `Station` is already the vision's word for a discovery engine. Naming a third concept before building it would put a guess into the generated contract and the client store, where renaming is expensive. Charts, moods and sections are not in M9, so the noun is not needed yet |
 | D22 | A source declares its supported seed kinds in the handshake manifest, and the SDK refuses a declaration that its handlers do not back | User requirement, 2026-09-07: sources declare what they support so partial support degrades honestly. R10 needs a third-party client to adapt without probing every source. Declaring in the manifest keeps `plugin.list` the single place a client looks. The SDK check is what stops a declaration from drifting away from the implementation. Cost: adding a seed kind is a manifest change, not only a handler change |
 | D23 | `queue.add` takes an optional effective `index` for "play next", and seek is bounded by the session's host-reported duration when the current track has no library record | Pyxamp workflow 342063fb, approved by its parent: a desktop host needs Winamp's "play next" and seek on station and search tracks. An insert is not reshuffled, keeps the cursor on its occurrence and does not stop transport; new occurrences follow the preceding occurrence in original order, so later ordinals shift up by the inserted count. The wire stays `pyxis-rpc-v3` because v3 was not deployed and the field is additive (absent appends). Cost: occurrence ordinals after an insert point change, so a client that keys rows on ordinals sees those rows as new |
 | D24 | Browsers on another origin use Pyxis through an operator-configured exact-origin allowlist, never `*` | User decision, recorded as Vela ADR 0001 (`~/code/sandbox/vela/docs/adr/0001-call-services-directly-with-cors.md`), 2026-10-25: the car dashboard PWA calls Pyxis directly instead of through a proxy service. Bearer headers, not cookies, carry credentials, so credentialed CORS is never enabled. Browsers do not preflight WebSockets, so `/realtime` checks `Origin` on upgrade and accepts no-`Origin`, same-origin and allowlisted clients. Cost: each new browser client origin is an operator configuration change and a restart |
+
+| D25 | Keep primitives; external tools own organization and processing policy over album tags and raw listen history | User decision, 2026-11-24. Remove placement, library groups, hot albums and the player's Stacks surface. Album tags, explicit album operations and listen append/history stay. Supersedes the placement parts of D17/D21 and U8/U21/U24, the hot part of D5/U9, and groups in U35 (tags remain). Preserve every stored placement once as an ordinary `placement:<name>` tag, merge existing tags and advance album revisions. Wire becomes `pyxis-rpc-v4`. Cost: clients using removed operations must change; external organization is not supplied by Pyxis. |
 
 ---
 
@@ -351,8 +362,8 @@ and the instance lock.
   │  rpc/          contract, dispatch, transport                                 │
   │  accounts/     accounts, devices, pairing, tokens                            │
   │  sessions/     session objects, playback state machine, console routing      │
-  │  library/      albums, tracks, placements, bookmarks, playlists              │
-  │  listen/       append-only event log, projections (history, hot albums)      │
+  │  library/      albums, tracks, tags, bookmarks, playlists              │
+  │  listen/       append-only event log and raw history      │
   │  media/        candidates, fidelity policy, local media store                │
   │  matching/     cross-source recording identity                               │
   │  stream/       proxy and byte cache                                          │
@@ -396,7 +407,7 @@ and commands are addressed rather than broadcast.
 | Domain | Direction | Merge rule |
 |---|---|---|
 | listen events | client to server, batched | Append-only, ULID event ids, idempotent replay |
-| album placements, bookmarks, feedback | two-way | Per-record revision plus deviceId, explicit conflict outcome |
+| album tags, bookmarks, feedback | two-way | Per-record revision plus deviceId, explicit conflict outcome |
 | settings | two-way | Per-record revision, account and device scopes |
 | sessions | host authoritative | Commands, not state merge |
 | tracks, candidates, stations | server to client | Server wins, snapshot plus revision gate |
@@ -697,6 +708,8 @@ Notes on sequencing:
 
 ### U8. Library domain
 
+**2026-11-24: Placement behavior and placement tests superseded by D25. Albums enter untagged.**
+
 **Goal:** Albums, tracks, placements, bookmarks, and playlists as account-scoped records.
 
 **Requirements:** R3, R7
@@ -724,6 +737,8 @@ Notes on sequencing:
 ---
 
 ### U9. Listen log and projections
+
+**2026-11-24: Hot-album projection/configuration/tests superseded by D25. Raw append/history remain.**
 
 **Goal:** Append-only listen events with derived history and hot albums.
 
@@ -1437,6 +1452,8 @@ An ambiguous match entered retry. Sustained throughput and physical playback wer
 
 ### U21. Sync engine
 
+**2026-11-24: Placement sync/conflict/settlement paths superseded by D25. Session/listen outboxes remain.**
+
 **Goal:** Two-way sync with explicit conflict outcomes and an offline write queue.
 
 **Requirements:** R7
@@ -1566,6 +1583,8 @@ See `docs/operations/2026-09-07-full-library-startup.md` for exact scope and ver
 
 ### U24. Ugly reference client
 
+**2026-11-24: Groups and placement controls superseded by D25; all other reference surfaces remain.**
+
 **Goal:** Prove every protocol surface works, with zero design intent.
 
 **Requirements:** R13, R10
@@ -1692,6 +1711,8 @@ No rename, delete or reorder. VISION records the approved album-centric playlist
 **Verification:** focused library RPC and persistence tests, contract drift, Rust static gates.
 
 ### U35. Dynamic groups and persisted album tags
+
+**2026-11-24: Groups and cursor pages superseded by D25. Persisted album tags and tag sync remain.**
 
 **Goal:** ordered opaque groups, typed account/group-fenced pages, truthful station failures;
 album tags persist, revise and sync through `tags.set`. No enrichers or saved filters.
@@ -1858,7 +1879,7 @@ open `/realtime`; an empty allowlist changes no HTTP response.
 - **Unchanged invariants:** `VISION.md` product principles carry forward. Principle 5 was
   amended on 2026-08-21 to separate library ownership (the service) from playback ownership
   (the device), and principles 6 through 9 were added for console mode, plugin sources,
-  offline, and quiet fidelity upgrades. The placement model, listening-history-is-truth,
+  offline, and quiet fidelity upgrades. D25 supersedes the placement model; listening-history-is-truth,
   album-as-unit-of-art, and progressive disclosure are unchanged and binding.
 
 ---

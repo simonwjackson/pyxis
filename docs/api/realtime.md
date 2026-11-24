@@ -30,7 +30,7 @@ The first frame must be `realtime.hello`:
 {
   "_tag": "realtime.hello",
   "payload": {
-    "contractId": "pyxis-rpc-v3",
+    "contractId": "pyxis-rpc-v4",
     "bearerToken": "...",
     "topics": ["sessions", "library"],
     "resumeToken": "01J...:42"
@@ -67,7 +67,7 @@ forgotten.
   "_tag": "realtime.welcome",
   "payload": {
     "accountId": "default",
-    "contractId": "pyxis-rpc-v3",
+    "contractId": "pyxis-rpc-v4",
     "topics": ["sessions", "library"],
     "resumeToken": "01J...:42",
     "resumed": false,

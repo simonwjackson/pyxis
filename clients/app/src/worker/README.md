@@ -35,20 +35,18 @@ These read local state only. They never wait for the network.
 
 `syncSessions()` pulls authoritative sessions before replaying queued session commands. It
 uses the same receipts, recovery fingerprints, retry rules, account fences, and worker sync
-queue as `sync()`, but does not read albums, push placements/listens, or resume offline-media
+queue as `sync()`, but does not read albums, push listens, or resume offline-media
 reconciliation. The report still counts unrelated retained intent as deferred. Use it for
 transport/queue feedback; startup, reconnect gaps, library changes, and listen submission
 continue to use full `sync()`. It is not a replacement for general offline recovery.
 
-`sync()` pulls before pushing. Placement, listen, and session writes are queued locally
+`sync()` pulls before pushing. Listen and session writes are queued locally
 before they become visible. Retryable, auth, malformed, and uncertain failures preserve the
 outbox. Permanent rejection is explicit and produces a durable notice.
 
-A placement verdict reads pending intent and replaces the album under one refreshed,
-account-fenced storage lock. A later local placement stays visible while its write remains
-queued. Network requests run outside this lock. `deferred` counts all writes remaining at
-the final locked outbox read, including writes added during sync and excluded domains.
-It does not promise that no new write can arrive after that read.
+Network requests run outside the account-fenced storage lock. `deferred` counts all writes
+remaining at the final locked outbox read, including writes added during sync and excluded
+domains. It does not promise that no new write can arrive after that read.
 
 A session-command verdict does the same for sessions: it reads still-queued commands for that
 session and replaces the session under one refreshed, account-fenced storage lock. Replay stops
@@ -59,30 +57,25 @@ receipts before publishing the projection, so receipt failure cannot duplicate r
 The retained journal repairs a later projection failure. Replay excludes commands with saved
 terminal verdicts; their newest authoritative snapshot supplies the base when a pull fails.
 
-Local settlement for placements, sessions and listens has one owner in `sync-settlement.ts`,
+Local settlement for sessions and listens has one owner in `sync-settlement.ts`,
 behind `WorkerDatabase.settleOutbox`. It saves the server verdict in the existing opaque
 outbox row, applies the projection, appends any deduplicated notice, and removes the write
 last. Each phase finishes durable persistence before the next starts. Network calls remain
 outside the lock. A local persistence failure reports `failure`, keeps recovery evidence,
 and never becomes a server rejection or network outage. Failed attempt recording is also
 retryable. If the first verdict save fails, replay uses the original command or listen ID.
-Placement retries use the existing conflict rules, not a server receipt.
 
 After reopen, a saved verdict resumes without repeating the RPC. A fresh authoritative
-snapshot can supersede its projection, but not erase its historical conflict or rejection
+snapshot can supersede its projection, but not erase its historical rejection
 notice. Notices retain their existing IDs and newest-100 bound. The optional recovery field
 needs no schema migration. Separate files remain non-atomic across a crash, and settlement
-adds an outbox save before the existing writes. If that first save fails after a placement
-RPC, a later retry cannot guarantee the original conflict details. No UI or renderer ordering
-changes here.
+adds an outbox save before the existing writes.
 
 Full album pulls batch storage writes under the existing refreshed, account-fenced Web Lock.
 Albums commit first, then offline pins and media relationships. Both batches finish before
 sync acknowledges them. Separate files are not crash-atomic together. A retry repairs offline
-relationships from retained album state, even when album revisions already match. Queued
-placements and newer local revisions remain protected. This does not change the worker schema.
+relationships from retained album state, even when album revisions already match. Newer local revisions remain protected. This does not change the worker schema.
 
-- `queuePlacement(album, placement)`
 - `queueListen(event)`
 - `previewSessionCommand(sessionId, command, commandId)`
 - `queueSessionCommand(session, command, commandId, expectedRevision)`
@@ -134,14 +127,14 @@ not touch the dedicated worker database.
 
 - Render cached albums and sessions before connecting.
 - Never clear a queued write because the network or response is uncertain.
-- Show conflicts and dropped-write reasons.
+- Show dropped-write reasons and update blockers.
 - Do not report Playing until browser playback succeeds.
 - Do not offer pinning when `offlineOverview().available` is false.
 
 
-## Wire v3 and playback modes
+## Wire v4 and playback modes
 
-Generated `RPC_CONTRACT_ID` is `pyxis-rpc-v3`. Worker HTTP writes carry it as
+Generated `RPC_CONTRACT_ID` is `pyxis-rpc-v4`. Worker HTTP writes carry it as
 `x-pyxis-contract`. Repeat (`off/all/one`), reversible shuffle and `queueOrder` belong to
 session truth. Queue occurrence ordinals keep duplicate track IDs separate. Do not drop
 these fields in a view adapter. The shared confirmed host applies seek and natural-end
@@ -150,9 +143,13 @@ renderer effects before `queueSessionCommand` commits their receipts.
 Persisted current-v2 sessions default repeat off/shuffle false without losing queue/cursor.
 Interrupted result fingerprints compare those same defaults; an old optimistic queue add
 must not be applied twice just because the session gained mode fields. No schema reset is
-needed for opaque bodies. Album tags pass through snapshots and placement verdicts.
+needed for opaque bodies. Album tags pass through library snapshots. Organization policy lives outside Pyxis.
 
 A pending current-v2 one-shot shuffle remains unchanged in the outbox and blocks session
-replay with an explicit failure. It is not a public command in v3. Drain such intent with
+replay with an explicit failure. It is not a public command in v4. Drain such intent with
 matching v2 clients/service before deployment. Never clear storage or manufacture a new
 mode command under the old receipt. See `docs/operations/2026-10-24-pyxamp-support-update.md`.
+
+Unknown persisted outbox commands remain unchanged and report an explicit update blocker.
+Before updating, use the matching client/service to drain obsolete intent. This includes
+removed album commands. No conversion discards or invents pending offline writes.

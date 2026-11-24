@@ -71,7 +71,7 @@ Every non-public operation takes a bearer token:
 POST /rpc
 authorization: Bearer <token>
 content-type: application/json
-x-pyxis-contract: pyxis-rpc-v3
+x-pyxis-contract: pyxis-rpc-v4
 ```
 
 Three operations are public and need no token: `system.status.get`, `auth.device.claim`,
@@ -113,7 +113,7 @@ is a person's own client rather than delegated automation.
 | `source:read` | Search sources, browse source albums |
 | `library:read` | Read albums, bookmarks, playlists, matching evaluation |
 | `library:write` | Add and change albums, bookmarks, playlists, matching overrides |
-| `listen:read` | Read listening history and hot albums |
+| `listen:read` | Read listening history |
 | `listen:write` | Append listen events |
 
 Create a token with the narrowest set that works:

@@ -23,6 +23,23 @@ requirements and decisions were captured directly into `plan.md` sections
 
 ## Current position
 
+**2026-11-24, D25: primitives-only Pyxis (`pyxis-rpc-v4`).** Placement, library groups,
+hot albums and Stacks are removed across core, contract, worker and both clients. All albums
+is the player route at `/`. Album tags and raw listen append/history remain. Store open
+atomically converts current-v2 placements to ordinary tags once and bumps each album revision;
+missing obsolete keys guard reopens. Unknown offline commands stay durable with an explicit
+update blocker. Pyxamp browse requires a separate update (see Deferred). Historical notes below
+are retained, not current behavior. No deployment or landing is authorized for this work.
+
+Verification: one combined `just verify` passes (244 Rust, 133 plugin/SDK, 325 app tests;
+2 private-fixture skips). Player passes 263 tests plus 12 architecture tests and both
+architecture audits; player typecheck/build pass. Root lint retains the same 18 warnings
+as `e2e863d`. Fallow fails with 101 inherited findings versus 111 on `e2e863d`, with no new
+finding IDs. Baseline listen RPC passes 2/2 and Console passes 87/87; the old date/load
+failures were not observed. Isolated real HTTP checks pass both fresh v4 CRUD/history and
+an actual `e2e863d` v3 store upgrade followed by a second v4 restart. No installed data or
+services were changed.
+
 **U38 (Pyxamp workflow 342063fb): insert after current and seek on non-library tracks.**
 `queue.add` takes an optional effective `index`; seek accepts a host-reported duration when
 the current track has no library record (D23). Additive on `pyxis-rpc-v3`; a d4d1b0aa core

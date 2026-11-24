@@ -1,6 +1,6 @@
 # Operations
 
-Every operation in `pyxis-rpc-v3`. Unknown tags are rejected with
+Every operation in `pyxis-rpc-v4`. Unknown tags are rejected with
 `request.unknownOperation`, so this list is exhaustive by construction.
 
 Read [README.md](README.md) first for the envelope rules, and
@@ -33,15 +33,12 @@ Read [README.md](README.md) first for the envelope rules, and
 | `source.album.get` | `source:read` | `ready`, `unavailable` |
 | `library.album.add` | `library:write` | `ready`, `invalid`, `unavailable` |
 | `library.albums.list` | `library:read` | `ready`, `unavailable` |
-| `library.groups.list` | `library:read` | `ready`, `unavailable` |
-| `library.group.items.list` | `library:read` | `ready`, `unknownGroup`, `rejected`, `unavailable` |
 | `library.album.command.run` | `library:write` | `applied`, `removed`, `unknown`, `unavailable` |
 | `library.bookmarks.list` | `library:read` | `ready`, `unavailable` |
 | `library.bookmark.command.run` | `library:write` | `added`, `removed`, `unknown`, `unavailable` |
 | `library.playlist.create` | `library:write` | `ready`, `unavailable` |
 | `library.playlists.list` | `library:read` | `ready`, `unavailable` |
 | `library.playlist.tracks.add` | `library:write` | `applied`, `unknownPlaylist`, `rejected`, `unavailable` |
-| `library.hotAlbums.list` | `listen:read` | `ready`, `unavailable` |
 | `listen.events.append` | `listen:write` | `ready`, `invalid`, `conflict`, `unavailable` |
 | `listen.history.list` | `listen:read` | `ready`, `unavailable` |
 | `matching.evaluate` | `library:read` | `ready`, `unavailable` |
@@ -67,7 +64,7 @@ Disable it to restore ascending original ordinals, including queue additions/rem
 Core and worker share the same session-seeded permutation so offline replay agrees.
 Repeat-one restarts at natural end, all advances/wraps, off ends. Explicit cursor jumps
 ignore repeat-one. Clear retains modes. Handoff moves modes and occurrence order.
-The removed one-shot shuffle operation is not accepted by wire v3. Pending current-v2
+The removed one-shot shuffle operation is not accepted by wire v4. Pending current-v2
 intent is retained with an explicit update blocker, never translated or silently dropped.
 See [update handling](../operations/2026-10-24-pyxamp-support-update.md).
 
@@ -86,25 +83,20 @@ that confirmed position only after it matches within 1000 ms (Sonos whole-second
 A failed confirmation attempts an ownership-checked rollback. Rollback failure is explicit
 `output.rollbackFailed`. No physical Sonos operation was used to test this behavior.
 
-## Groups and tags
-
-`library.groups.list {}` orders Albums, placements, Hot albums, normalized tag groups,
-Bookmarks, Stations, then Playlists. IDs are opaque and account scoped. Do not parse
-labels or IDs. Counts are true membership counts. A partially failed station list omits
-`count` and carries `availability: {status:"partial",value:[...]}` with source failures.
-Zero source plugins produces a ready empty Stations group.
-
-`library.group.items.list {groupId,cursor?,limit}` accepts limits 1–100 and returns tagged
-album/bookmark/station/playlist members. A bookmark without `track` is unavailable.
-The first page observes current membership. Continuations hold that immutable snapshot,
-are account/group fenced, expire after 30 minutes and can be evicted (512 retained cursors).
-Restart loses cursors; refetch the first page. Separate list/page calls can observe an
-intervening edit. Failed providers never contribute an invented zero or fabricated items.
+## Album tags and external organization
 
 `tags.set {tags:string[]}` uses `library.album.command.run`. At most 64 labels, each
 1–64 characters after trim/lowercase; control characters are refused. Tags are sorted and
-deduplicated. An identical set is a no-op. Tags persist on the album and its public snapshot,
-revise and fan out with album state, survive placement changes, and create/remove groups.
+deduplicated. An identical set is a no-op. Tags persist, revise and fan out with album state.
+Organization and processing policy belong to external tools over tags and raw listen history.
+Pyxis exposes no placements, groups, hot-album projection or organization settings.
+
+On the first v4 store open, existing album placements become `placement:discovery`,
+`placement:collection`, `placement:archive` or `placement:dismissed` tags. Existing tags stay.
+Each converted album advances one revision. Conversion removes the old keys atomically;
+reopening cannot restore a converted tag that someone later removes. Preservation can produce
+65 tags on an album that already had 64; `tags.set` retains its existing 64-label input limit.
+New albums start with no tags and have no default organization.
 
 ## Playlist append
 
@@ -117,8 +109,7 @@ A new command ID deliberately appends again. Create/list keep their existing con
 
 ## Result sizes
 
-`library.group.items.list` is paginated. Older list calls remain unpaginated.
-Two calls need care:
+List calls remain unpaginated. Two calls need care:
 
 | Call | Behaviour |
 |---|---|
@@ -154,18 +145,9 @@ use the album artwork as their media cover. Adding the same source reference twi
 the same album and fills missing artwork instead of creating a duplicate. That makes the call safe to retry,
 which is what an offline queue needs.
 
-Albums carry a `placement`, which is the core organising idea:
-
-| Placement | Means |
-|---|---|
-| `discovery` | New, unfiled |
-| `collection` | Kept |
-| `archive` | Kept but out of the way |
-| `dismissed` | Explicitly not wanted |
-
-`library.album.command.run` carries a command union. `placement.set` moves an album and
-bumps its `revision`. `artwork.refresh` reloads album metadata through the stored source
-reference and fills the album and track artwork. `remove` deletes the library rows.
+`library.album.command.run` carries a command union. `tags.set` replaces album tags and
+bumps its revision when changed. `artwork.refresh` reloads album metadata through the stored
+source reference and fills the album and track artwork. `remove` deletes the library rows.
 **Removing an album never deletes listen events.** History is a record of what happened,
 not a view of what you currently own.
 
@@ -255,8 +237,7 @@ accepting a lie.
 `listen.history.list` returns 100 events unless `limit` says otherwise, and never more than
 1000.
 
-`library.hotAlbums.list` is a projection over history, rebuildable at any time. Treat it as
-derived, never as a source of truth.
+External tools can derive listening signals from this raw history. Pyxis computes no hot-album projection.
 
 ## Matching
 
