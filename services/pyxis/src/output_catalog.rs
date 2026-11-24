@@ -78,6 +78,46 @@ impl OutputTopology {
             .iter()
             .any(|group| group.rooms.iter().any(|room| room.id == target_id))
     }
+
+    pub fn coordinator_of(&self, room_id: &str) -> Option<&str> {
+        self.groups
+            .iter()
+            .find(|group| group.rooms.iter().any(|room| room.id == room_id))
+            .map(|group| group.coordinator_id.as_str())
+    }
+
+    /// The coordinator each room plays through after `group.set`, as the plugin protocol
+    /// defines it: requested rooms join the coordinator; a room left behind in a group
+    /// whose coordinator was requested becomes standalone; every other room keeps its
+    /// group. Rooms missing from this topology are absent from the result.
+    pub fn coordinators_after_group_set(
+        &self,
+        coordinator_id: &str,
+        member_ids: &[String],
+    ) -> HashMap<String, String> {
+        let desired = member_ids
+            .iter()
+            .map(String::as_str)
+            .chain(std::iter::once(coordinator_id))
+            .collect::<HashSet<_>>();
+        self.groups
+            .iter()
+            .flat_map(|group| {
+                let dissolved = desired.contains(group.coordinator_id.as_str());
+                let desired = &desired;
+                group.rooms.iter().map(move |room| {
+                    let next = if desired.contains(room.id.as_str()) {
+                        coordinator_id
+                    } else if dissolved {
+                        room.id.as_str()
+                    } else {
+                        group.coordinator_id.as_str()
+                    };
+                    (room.id.clone(), next.to_string())
+                })
+            })
+            .collect()
+    }
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -100,6 +140,10 @@ pub struct OutputTransportState {
     pub duration_ms: Option<u64>,
     #[serde(default)]
     pub stream_url: Option<String>,
+    /// The renderer's own volume, so a change made on the speaker or in another app
+    /// reaches the session. Plugins that cannot read it omit it.
+    #[serde(default)]
+    pub volume: Option<u8>,
 }
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Eq)]
@@ -339,8 +383,10 @@ impl OutputCatalog {
                 })
             }
             SessionCommand::Play => {
+                // Play is the explicit takeover: the listener asked for this session's
+                // queue on this target, so a stream another app started is replaced.
+                // Every other command, and every automatic path, still refuses it.
                 let state = self.state(auth, output)?;
-                self.ensure_stream_owner(session_id, output, &state)?;
                 self.play_session(auth, session_id, output, next)?;
                 Ok(OutputEffect {
                     physical: true,
@@ -792,4 +838,69 @@ fn validate_topology(topology: &OutputTopology) -> Result<(), OutputError> {
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn topology(groups: &[(&str, &[&str])]) -> OutputTopology {
+        OutputTopology {
+            groups: groups
+                .iter()
+                .map(|(coordinator, members)| OutputGroup {
+                    id: format!("group-{coordinator}"),
+                    coordinator_id: coordinator.to_string(),
+                    coordinator_name: coordinator.to_string(),
+                    rooms: members
+                        .iter()
+                        .map(|id| OutputRoom {
+                            id: id.to_string(),
+                            name: id.to_string(),
+                            model: None,
+                            address: "192.168.1.20".into(),
+                            location_url: "http://192.168.1.20:1400/x.xml".into(),
+                            coordinator: id == coordinator,
+                        })
+                        .collect(),
+                })
+                .collect(),
+            refreshed_at: 1,
+            authoritative: true,
+        }
+    }
+
+    fn after(topology: &OutputTopology, coordinator: &str, members: &[&str]) -> Vec<String> {
+        let members = members.iter().map(|id| id.to_string()).collect::<Vec<_>>();
+        let next = topology.coordinators_after_group_set(coordinator, &members);
+        let mut pairs = next
+            .into_iter()
+            .map(|(room, coordinator)| format!("{room}>{coordinator}"))
+            .collect::<Vec<_>>();
+        pairs.sort();
+        pairs
+    }
+
+    #[test]
+    fn splitting_a_member_leaves_its_old_coordinator_in_place() {
+        let current = topology(&[("K", &["K", "D", "L"])]);
+        assert_eq!(after(&current, "D", &["D"]), ["D>D", "K>K", "L>K"]);
+    }
+
+    #[test]
+    fn rooms_left_in_a_group_whose_coordinator_is_requested_become_standalone() {
+        let current = topology(&[("K", &["K", "D"]), ("L", &["L", "B"])]);
+        assert_eq!(
+            after(&current, "K", &["K", "L"]),
+            ["B>B", "D>D", "K>K", "L>K"]
+        );
+    }
+
+    #[test]
+    fn a_coordinator_pulled_from_another_group_leaves_that_group_unchanged() {
+        let current = topology(&[("K", &["K", "D"])]);
+        assert_eq!(after(&current, "D", &["D"]), ["D>D", "K>K"]);
+        assert_eq!(current.coordinator_of("D"), Some("K"));
+        assert_eq!(current.coordinator_of("missing"), None);
+    }
 }

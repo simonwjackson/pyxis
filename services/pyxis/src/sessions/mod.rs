@@ -685,6 +685,7 @@ impl Sessions {
         transport: Transport,
         position_ms: Option<u64>,
         duration_ms: Option<u64>,
+        volume: Option<u8>,
     ) -> Result<Session, SessionError> {
         let actor = auth.principal_id();
         let _guard = self.mutation.lock().expect("session mutation poisoned");
@@ -699,15 +700,20 @@ impl Sessions {
         }
         let next_position = position_ms.unwrap_or(record.position_ms);
         let next_duration = duration_ms.or(record.duration_ms);
+        let next_volume = volume
+            .filter(|volume| *volume <= 100)
+            .unwrap_or(record.volume);
         if record.transport == transport
             && record.position_ms == next_position
             && record.duration_ms == next_duration
+            && record.volume == next_volume
         {
             return Ok(self.session(record));
         }
         record.transport = transport;
         record.position_ms = next_position;
         record.duration_ms = next_duration;
+        record.volume = next_volume;
         record.revision += 1;
         record.updated_by = actor.to_string();
         record.updated_at = now();

@@ -167,7 +167,10 @@ is controllable only while the plugin can currently find it.
 
 `output.group.set` applies a complete desired group and returns converged topology. The
 reference client exposes standalone and group-all controls so grouping is not a subprocess-only
-surface.
+surface. It refuses with `output.groupBusy` when the regroup would move one of your output
+sessions to a different coordinator, or would change any group that holds another account's
+output session. Splitting a room away from your own playing session is allowed, because that
+session keeps its coordinator.
 
 `output.session.create` creates a core-hosted session bound to one discovered target. Its
 `hostDeviceId` is an opaque output host identity and `output` identifies the plugin/target.
@@ -175,6 +178,12 @@ Existing `session.command.send` operations then control it. The core serializes 
 output session, previews and reserves each command, performs the speaker effect, and only then
 persists and publishes session truth. If persistence fails after a physical effect, it restores
 the previous speaker state before reporting failure.
+
+When another app has loaded the speaker, the output session reads as stopped, and Pause, Seek,
+Stop and Volume refuse with `output.rendererOwnershipLost`. Play is the explicit takeover: it
+replaces the other stream with the session's current track. The core never takes a speaker
+over on its own, for example when a track ends. Each background refresh also copies the
+renderer's volume into the session, so a change made on the speaker shows up in Pyxis.
 
 Output Play mints a process-local, track-bound, six-hour stream token and supplies an
 absolute URL rooted at `PYXIS_LAN_BASE_URL`. This lets a speaker fetch `/stream/:trackId`

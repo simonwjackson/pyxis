@@ -26,7 +26,7 @@ function zoneEnvelope(state: string): string {
     .replaceAll(">", "&gt;")}</ZoneGroupState></s:Envelope>`
 }
 
-function harness() {
+function harness(options: { readonly groupVolume?: string | "fault" } = {}) {
   const calls: { action: string; body: string; url: string }[] = []
   const standalone = new Set<string>()
   let deltaJoined = false
@@ -82,6 +82,11 @@ function harness() {
       if (url.includes("192.168.1.11")) standalone.add("B")
     }
     if (action === "SetAVTransportURI" && body.includes("x-rincon:A")) deltaJoined = true
+    if (action === "GetGroupVolume" && options.groupVolume !== undefined) {
+      return options.groupVolume === "fault"
+        ? new Response("fault", { status: 500 })
+        : new Response(`<CurrentVolume>${options.groupVolume}</CurrentVolume>`)
+    }
     if (action === "GetTransportInfo") {
       return new Response("<CurrentTransportState>PLAYING</CurrentTransportState>")
     }
@@ -148,6 +153,27 @@ describe("Sonos transport", () => {
       durationMs: 180_000,
       streamUrl: "http://192.168.1.2/stream/track",
     })
+  })
+
+  test("reports the coordinator's group volume with transport state", async () => {
+    const test = harness({ groupVolume: "63" })
+
+    await expect(test.controller.state("B")).resolves.toMatchObject({
+      state: "PLAYING",
+      volume: 63,
+    })
+    expect(test.calls.find((call) => call.action === "GetGroupVolume")?.url).toContain(
+      "192.168.1.10",
+    )
+  })
+
+  test("omits an unreadable group volume instead of failing transport state", async () => {
+    for (const groupVolume of ["fault", "101", "loud"]) {
+      const state = await harness({ groupVolume }).controller.state("A")
+
+      expect(state.state).toBe("PLAYING")
+      expect(state).not.toHaveProperty("volume")
+    }
   })
 
   test("plans grouping by leaving rooms before joining new members", async () => {

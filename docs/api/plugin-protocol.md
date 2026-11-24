@@ -214,8 +214,16 @@ plugin-directed fetch so the DIDL MIME type and served bytes stay compatible.
 metadata to the group coordinator, optionally seeks to `positionMs`, then plays. Audio bytes
 never enter plugin stdio.
 
+`transport.state` returns `{ state, positionMs?, durationMs?, streamUrl?, volume? }`. `state`
+is the UPnP transport state, such as `PLAYING`, `PAUSED_PLAYBACK` or `STOPPED`. `streamUrl` is
+what the renderer has loaded, so the core can tell its own stream from another app's. `volume`
+is the target's current volume from 0 to 100, read from the renderer so that changes made on
+the speaker reach the session. Omit a field you cannot read; do not guess it.
+
 `group.set` describes the complete desired group, including its coordinator in `memberIds`.
-Rooms leaving the group are made standalone before new members join. UPnP faults preserve
+Rooms leaving the group are made standalone before new members join. A room that is not
+requested keeps its group, unless that group's coordinator is requested; then it becomes
+standalone. The core relies on this rule to decide which output sessions a regroup moves. UPnP faults preserve
 their numeric identity in codes such as `sonos.upnp.701`.
 
 ## Provider operations

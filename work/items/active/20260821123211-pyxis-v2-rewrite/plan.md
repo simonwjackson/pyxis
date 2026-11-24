@@ -1360,6 +1360,16 @@ user explicitly prohibited Sonos playback in this investigation. See `docs/opera
 and `docs/operations/2026-09-07-m4-position-deadline.md` for deployment, retained failures and
 verification exceptions.
 
+**Follow-up (2026-11-24): honest takeover, live volume, narrower regroup refusal.** Kids Desk
+testing on unzen found four gaps. Play is now the explicit takeover of a speaker another app
+loaded, which the `output.rendererOwnershipLost` text already promised; other commands and
+automatic paths still refuse. `transport.state` may report `volume`, and the background
+refresh copies it into the session. `output.groupBusy` now refuses only when a regroup moves
+one of the caller's sessions to another coordinator, or touches another account's session
+group. SSDP replies were dropped by unzen's firewall (replies arrive from source port 1900 at
+an ephemeral port that conntrack does not match), and Avahi is not running there, so only
+seed hosts worked; the firewall fix lives in mountainous `modules/hosts/unzen.nix`.
+
 ---
 
 ### U19. Soulseek fidelity plugin

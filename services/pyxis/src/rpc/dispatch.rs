@@ -357,6 +357,8 @@ pub fn dispatch(state: &AppState, request: RpcRequest, auth: Option<AuthContext>
                         ));
                     }
                 };
+                let next_coordinators = current_topology
+                    .coordinators_after_group_set(&request.coordinator_id, &request.member_ids);
                 let conflicts = existing_sessions.into_iter().any(|(account_id, session)| {
                     session.output.as_ref().is_some_and(|output| {
                         if output.plugin_id != request.plugin_id
@@ -364,15 +366,16 @@ pub fn dispatch(state: &AppState, request: RpcRequest, auth: Option<AuthContext>
                         {
                             return false;
                         }
-                        let current_coordinator = current_topology
-                            .groups
-                            .iter()
-                            .find(|group| {
-                                group.rooms.iter().any(|room| room.id == output.target_id)
-                            })
-                            .map(|group| group.coordinator_id.as_str());
+                        // Another account still hears every room of its group, so any
+                        // change to that group is theirs to refuse. Our own session is
+                        // only moved when its target ends up playing through a different
+                        // coordinator; splitting a room away from it leaves it playing.
+                        // Regrouping the coordinator's own group stays allowed as before.
+                        let current = current_topology.coordinator_of(&output.target_id);
                         account_id != auth.account_id
-                            || current_coordinator != Some(request.coordinator_id.as_str())
+                            || (current
+                                != next_coordinators.get(&output.target_id).map(String::as_str)
+                                && current != Some(request.coordinator_id.as_str()))
                     })
                 });
                 if conflicts {
@@ -1720,6 +1723,7 @@ fn refresh_one_output_session_locked(
             transport,
             position_ms,
             duration_ms,
+            physical.volume,
         ) {
             if updated.revision != session.revision {
                 publish_session(state, auth, &rpc_session(updated));

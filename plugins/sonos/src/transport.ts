@@ -48,6 +48,7 @@ export interface SonosTransportState {
   readonly positionMs?: number
   readonly durationMs?: number
   readonly streamUrl?: string
+  readonly volume?: number
 }
 
 export interface GroupAction {
@@ -142,13 +143,16 @@ export class SonosController {
 
   async state(targetId: string): Promise<SonosTransportState> {
     const target = requiredCoordinator(await this.topology(), targetId)
-    const transport = await transportAction(
-      target,
-      "GetTransportInfo",
-      "<InstanceID>0</InstanceID>",
-      this.config.requestTimeoutMs,
-      this.environment.fetch,
-    )
+    const [transport, volume] = await Promise.all([
+      transportAction(
+        target,
+        "GetTransportInfo",
+        "<InstanceID>0</InstanceID>",
+        this.config.requestTimeoutMs,
+        this.environment.fetch,
+      ),
+      this.groupVolume(target),
+    ])
     const position = await transportAction(
       target,
       "GetPositionInfo",
@@ -164,6 +168,26 @@ export class SonosController {
       ...(positionMs === undefined ? {} : { positionMs }),
       ...(durationMs === undefined ? {} : { durationMs }),
       ...(streamUrl === undefined || streamUrl.length === 0 ? {} : { streamUrl }),
+      ...(volume === undefined ? {} : { volume }),
+    }
+  }
+
+  // Volume is read back so a change made on the speaker reaches the session. Transport
+  // state is the primary answer, so an unreadable volume is omitted, not an error.
+  private async groupVolume(coordinator: SonosRoom): Promise<number | undefined> {
+    try {
+      const envelope = await sendSoapAction(
+        coordinator.locationUrl,
+        GROUP_RENDERING_CONTROL,
+        GROUP_RENDERING_CONTROL_PATH,
+        "GetGroupVolume",
+        "<InstanceID>0</InstanceID>",
+        this.config.requestTimeoutMs,
+        this.environment.fetch,
+      )
+      return parseVolume(xmlTag(envelope, "CurrentVolume"))
+    } catch {
+      return undefined
     }
   }
 
@@ -398,6 +422,12 @@ function formatTime(milliseconds: number): string {
   const minutes = Math.floor((total % 3600) / 60)
   const seconds = total % 60
   return `${hours}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`
+}
+
+export function parseVolume(value: string | undefined): number | undefined {
+  if (value === undefined || !/^\d{1,3}$/u.test(value.trim())) return undefined
+  const volume = Number.parseInt(value.trim(), 10)
+  return volume <= 100 ? volume : undefined
 }
 
 function parseTime(value: string | undefined): number | undefined {

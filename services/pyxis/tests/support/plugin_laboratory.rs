@@ -63,6 +63,7 @@ fn main() -> anyhow::Result<()> {
     let mut output_transport = "STOPPED".to_string();
     let mut output_stream_url: Option<String> = None;
     let mut output_position_ms = 12_000;
+    let mut output_volume: Option<u64> = None;
     for line in lines {
         let envelope: PluginRequestEnvelope = serde_json::from_str(&line?)?;
         let PluginRequest::CapabilityCall(call) = envelope.request else {
@@ -101,7 +102,18 @@ fn main() -> anyhow::Result<()> {
         }
 
         let mut value = BTreeMap::new();
+        let topology_override = std::env::var("PYXIS_LAB_OUTPUT_TOPOLOGY_FILE")
+            .ok()
+            .and_then(|path| std::fs::read_to_string(path).ok())
+            .and_then(|text| serde_json::from_str::<serde_json::Value>(&text).ok());
         if matches!(call.operation.as_str(), "discover" | "group.set")
+            && capability == PluginCapability::Output
+            && topology_override.is_some()
+        {
+            if let Some(PluginValue::Object(topology)) = topology_override.map(PluginValue::from) {
+                value = topology;
+            }
+        } else if matches!(call.operation.as_str(), "discover" | "group.set")
             && capability == PluginCapability::Output
         {
             let mut room = BTreeMap::new();
@@ -184,6 +196,13 @@ fn main() -> anyhow::Result<()> {
                     }
                 }
             }
+            if call.operation == "volume.set" {
+                if let PluginValue::Object(input) = &call.input {
+                    if let Some(volume) = input.get("volume") {
+                        output_volume = serde_json::Value::from(volume.clone()).as_u64();
+                    }
+                }
+            }
             output_transport = match call.operation.as_str() {
                 "transport.play" => "PLAYING".into(),
                 "transport.pause" => "PAUSED_PLAYBACK".into(),
@@ -209,7 +228,17 @@ fn main() -> anyhow::Result<()> {
                     if let Some(position) = state["positionMs"].as_u64() {
                         output_position_ms = position;
                     }
+                    // Another app, or the speaker itself, changed what is loaded or how loud.
+                    if let Some(stream_url) = state["streamUrl"].as_str() {
+                        output_stream_url = Some(stream_url.into());
+                    }
+                    if let Some(volume) = state["volume"].as_u64() {
+                        output_volume = Some(volume);
+                    }
                 }
+            }
+            if let Some(volume) = output_volume {
+                value.insert("volume".into(), PluginValue::Unsigned(volume));
             }
             value.insert(
                 "state".into(),
