@@ -38,7 +38,9 @@ An account named `default` exists from first boot with no setup. On a single-acc
 
 Albums enter Pyxis only through explicit add. New albums have no default placement or tags.
 Album tags are the organization primitive. An external tool owns Discovery, triage,
-grouping, suppression and all other processing policy. Pyxis stores no placements or groups.
+grouping, suppression and all other processing policy. Pyxis stores no placements or fixed
+buckets. The one stored view is a **shelf**: a named, account-owned album query over tags
+(AND, OR, NOT) with a sort order. A shelf filters on primitives; it carries no policy.
 
 ### Discovery and Hot
 
@@ -75,6 +77,10 @@ Stats exist but serve insight, not vanity. The goal is to learn something about 
 
 Recommendation mixes and their scheduling, selection and familiarity rules belong to an
 external tool. Pyxis supplies source stations, tags, listen history and simple playlists.
+
+## Browse
+
+> **Status:** Not in the first release. Charts, moods, genres and source playlists become discovery tools beside stations, under the same declared-support rules. The space stays unnamed in the contract until it is built.
 
 ## Cross-Source Identity
 
