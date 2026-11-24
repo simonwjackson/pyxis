@@ -305,7 +305,33 @@ async fn regrouping_refuses_only_when_a_session_target_would_move() {
     let split = harness.call(group_set("KIDS", &["KIDS"])).await;
     assert_eq!(split["outcome"]["status"], "ready", "{split}");
 
+    // The room being split out may have its own session too: it becomes its own coordinator.
+    std::fs::write(
+        harness.root.join("topology.json"),
+        topology(&[
+            ("KIDS", &["KIDS"]),
+            ("KITCHEN", &["KITCHEN"]),
+            ("LIVING", &["LIVING"]),
+        ])
+        .to_string(),
+    )
+    .unwrap();
+    let kids = harness.output_session("KIDS", &harness.token).await;
+    assert!(!kids.is_empty());
+    std::fs::write(
+        harness.root.join("topology.json"),
+        topology(&[("KITCHEN", &["KIDS", "KITCHEN"]), ("LIVING", &["LIVING"])]).to_string(),
+    )
+    .unwrap();
+    let split_own = harness.call(group_set("KIDS", &["KIDS"])).await;
+    assert_eq!(split_own["outcome"]["status"], "ready", "{split_own}");
+
     // Pulling Kitchen under Living Room would move the Kitchen session's renderer.
+    let moved_kids = harness.call(group_set("LIVING", &["LIVING", "KIDS"])).await;
+    assert_eq!(
+        moved_kids["outcome"]["value"]["code"], "output.groupBusy",
+        "{moved_kids}"
+    );
     let moved = harness
         .call(group_set("LIVING", &["LIVING", "KITCHEN"]))
         .await;

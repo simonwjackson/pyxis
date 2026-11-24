@@ -368,13 +368,15 @@ pub fn dispatch(state: &AppState, request: RpcRequest, auth: Option<AuthContext>
                         }
                         // Another account still hears every room of its group, so any
                         // change to that group is theirs to refuse. Our own session is
-                        // only moved when its target ends up playing through a different
-                        // coordinator; splitting a room away from it leaves it playing.
+                        // only moved when its target ends up playing through another
+                        // room's coordinator. Splitting a room away from it, or making its
+                        // target its own coordinator, leaves it in charge of that room.
                         // Regrouping the coordinator's own group stays allowed as before.
                         let current = current_topology.coordinator_of(&output.target_id);
+                        let next = next_coordinators.get(&output.target_id).map(String::as_str);
                         account_id != auth.account_id
-                            || (current
-                                != next_coordinators.get(&output.target_id).map(String::as_str)
+                            || (current != next
+                                && next != Some(output.target_id.as_str())
                                 && current != Some(request.coordinator_id.as_str()))
                     })
                 });

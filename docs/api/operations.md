@@ -169,8 +169,8 @@ is controllable only while the plugin can currently find it.
 reference client exposes standalone and group-all controls so grouping is not a subprocess-only
 surface. It refuses with `output.groupBusy` when the regroup would move one of your output
 sessions to a different coordinator, or would change any group that holds another account's
-output session. Splitting a room away from your own playing session is allowed, because that
-session keeps its coordinator.
+output session. Splitting a room out of a group is allowed even when the room or the group's
+coordinator has one of your sessions, because each of them stays its own coordinator.
 
 `output.session.create` creates a core-hosted session bound to one discovered target. Its
 `hostDeviceId` is an opaque output host identity and `output` identifies the plugin/target.
