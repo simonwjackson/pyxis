@@ -167,10 +167,11 @@ is controllable only while the plugin can currently find it.
 
 `output.group.set` applies a complete desired group and returns converged topology. The
 reference client exposes standalone and group-all controls so grouping is not a subprocess-only
-surface. It refuses with `output.groupBusy` when the regroup would move one of your output
-sessions to a different coordinator, or would change any group that holds another account's
-output session. Splitting a room out of a group is allowed even when the room or the group's
-coordinator has one of your sessions, because each of them stays its own coordinator.
+surface. A successful regroup stops and detaches your sessions whose room moves under another
+coordinator. Each detached session keeps its queue, becomes unreachable and publishes one
+session state without `output`. A room becoming standalone keeps its own session. A group
+that holds another account's session still refuses with `output.groupBusy`. A plugin failure
+does not stop or detach a session. An unconfirmed topology returns `output.groupNotConverged` without releasing any session.
 
 `output.session.create` creates a core-hosted session bound to one discovered target. Its
 `hostDeviceId` is an opaque output host identity and `output` identifies the plugin/target.

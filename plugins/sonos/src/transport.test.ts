@@ -228,6 +228,14 @@ describe("Sonos transport", () => {
     ])
   })
 
+  test("a moved room is no longer reported as its own coordinator", async () => {
+    const { controller } = harness()
+    const topology = await controller.setGroup("A", ["A", "B", "D"])
+    expect(topology.authoritative).toBe(true)
+    expect(topology.groups.map((group) => group.coordinatorId)).toEqual(["A"])
+    expect(topology.groups[0]?.rooms.map((room) => room.id)).toContain("D")
+  })
+
   test("applies ungrouping before grouping", async () => {
     const test = harness()
 

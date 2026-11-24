@@ -5,6 +5,7 @@ use std::path::PathBuf;
 
 use axum::body::{to_bytes, Body};
 use axum::http::{header, Request, StatusCode};
+use futures_util::{SinkExt, StreamExt};
 use pyxis::api::{router, AppState};
 use pyxis::db::store::{AccountId, Store};
 use pyxis::library::{AlbumInput, Library, TrackInput};
@@ -55,6 +56,10 @@ impl Harness {
                 .with_env("PYXIS_LAB_CAPABILITY", "output")
                 .with_env("PYXIS_LAB_OUTPUT_STATE_FILE", root.join("output-state"))
                 .with_env("PYXIS_LAB_OUTPUT_TOPOLOGY_FILE", root.join("topology.json"))
+                .with_env(
+                    "PYXIS_LAB_GROUP_RESULT_FILE",
+                    root.join("group-result.json"),
+                )
                 .with_env("PYXIS_LAB_CALL_LOG", root.join("calls.log"));
         let host = PluginHost::start(vec![candidate], HostPolicy::default()).expect("host");
         let store = Store::open(&root).expect("store");
@@ -301,6 +306,18 @@ async fn regrouping_refuses_only_when_a_session_target_would_move() {
         })
     };
 
+    let converged = |groups: &[(&str, &[&str])]| {
+        std::fs::write(
+            harness.root.join("group-result.json"),
+            topology(groups).to_string(),
+        )
+        .unwrap()
+    };
+    converged(&[
+        ("KITCHEN", &["KITCHEN"]),
+        ("KIDS", &["KIDS"]),
+        ("LIVING", &["LIVING"]),
+    ]);
     // Splitting Kids out of Kitchen's group leaves the Kitchen session on its coordinator.
     let split = harness.call(group_set("KIDS", &["KIDS"])).await;
     assert_eq!(split["outcome"]["status"], "ready", "{split}");
@@ -327,16 +344,24 @@ async fn regrouping_refuses_only_when_a_session_target_would_move() {
     assert_eq!(split_own["outcome"]["status"], "ready", "{split_own}");
 
     // Pulling Kitchen under Living Room would move the Kitchen session's renderer.
-    let moved_kids = harness.call(group_set("LIVING", &["LIVING", "KIDS"])).await;
-    assert_eq!(
-        moved_kids["outcome"]["value"]["code"], "output.groupBusy",
-        "{moved_kids}"
-    );
-    let moved = harness
-        .call(group_set("LIVING", &["LIVING", "KITCHEN"]))
-        .await;
-    assert_eq!(moved["outcome"]["status"], "unavailable", "{moved}");
-    assert_eq!(moved["outcome"]["value"]["code"], "output.groupBusy");
+    for session in [&kids, &kitchen] {
+        let (room, other) = if session == &kids {
+            ("KIDS", "KITCHEN")
+        } else {
+            ("KITCHEN", "KIDS")
+        };
+        converged(&[("LIVING", &["LIVING", room]), (other, &[other])]);
+        let moved = harness
+            .call(group_set(
+                "LIVING",
+                &["LIVING", if session == &kids { "KIDS" } else { "KITCHEN" }],
+            ))
+            .await;
+        assert_eq!(moved["outcome"]["status"], "ready", "{moved}");
+        let released = harness.session(session).await;
+        assert!(released.get("output").is_none());
+        assert_eq!(released["reachable"], false);
+    }
 
     // Another account still hears every room of its group, so even a split is refused.
     let second = harness.second_account_token().await;
@@ -356,4 +381,91 @@ async fn regrouping_refuses_only_when_a_session_target_would_move() {
         foreign_split["outcome"]["value"]["code"],
         "output.groupBusy"
     );
+}
+
+#[tokio::test]
+async fn regroup_requires_authoritative_discovery_of_every_requested_room() {
+    let complete = topology(&[("A", &["A"]), ("B", &["B"])]);
+    let h = Harness::start(Some(complete.clone())).await;
+    let session = h.output_session("A", &h.token).await;
+    let other = h.second_account_token().await;
+    std::fs::write(
+        h.root.join("group-result.json"),
+        topology(&[("B", &["A", "B"])]).to_string(),
+    )
+    .unwrap();
+    let mut uncertain = complete;
+    uncertain["authoritative"] = json!(false);
+    for discovery in [topology(&[("B", &["B"])]), uncertain] {
+        std::fs::write(h.root.join("topology.json"), discovery.to_string()).unwrap();
+        for bearer in [&h.token, &other] {
+            let result=rpc(&h.app,json!({"_tag":"output.group.set","payload":{"pluginId":"sonos","coordinatorId":"B","memberIds":["A","B"]}}),bearer).await;
+            assert_eq!(h.calls("group.set"), 0, "{result}");
+            assert_eq!(result["outcome"]["status"], "unavailable");
+            assert_eq!(h.session(&session).await["output"]["targetId"], "A");
+        }
+    }
+}
+
+#[tokio::test]
+async fn failed_regroup_keeps_playing_and_success_publishes_one_release() {
+    let harness = Harness::start(Some(topology(&[("A", &["A"]), ("B", &["B"])]))).await;
+    let session = harness.output_session("A", &harness.token).await;
+    for command in [
+        json!({"_tag":"queue.add","payload":{"trackIds":["track-1"]}}),
+        json!({"_tag":"transport.play","payload":{}}),
+    ] {
+        assert_eq!(
+            harness.command(&session, command).await["outcome"]["status"],
+            "dispatched"
+        );
+    }
+    let regroup = json!({"_tag":"output.group.set","payload":{"pluginId":"sonos","coordinatorId":"B","memberIds":["A","B"]}});
+    let result_path = harness.root.join("group-result.json");
+    let unchanged = harness.call(regroup.clone()).await;
+    assert_eq!(
+        unchanged["outcome"]["value"]["code"],
+        "output.groupNotConverged"
+    );
+    std::fs::write(&result_path, "{}").unwrap();
+    assert_eq!(
+        harness.call(regroup.clone()).await["outcome"]["status"],
+        "unavailable"
+    );
+    let before = harness.session(&session).await;
+    assert_eq!(before["transport"], "playing");
+    assert_eq!(before["output"]["targetId"], "A");
+    std::fs::write(result_path, topology(&[("B", &["A", "B"])]).to_string()).unwrap();
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    let app = harness.app.clone();
+    tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+    let (mut socket, _) = tokio_tungstenite::connect_async(format!("ws://{addr}/realtime"))
+        .await
+        .unwrap();
+    socket.send(tokio_tungstenite::tungstenite::Message::Text(json!({"_tag":"realtime.hello","payload":{"bearerToken":harness.token,"topics":["sessions"],"contractId":pyxis::rpc::contract::CONTRACT_ID}}).to_string())).await.unwrap();
+    let frame = |msg: tokio_tungstenite::tungstenite::Message| {
+        serde_json::from_str::<Value>(msg.to_text().unwrap()).unwrap()
+    };
+    assert_eq!(
+        frame(socket.next().await.unwrap().unwrap())["_tag"],
+        "realtime.welcome"
+    );
+    assert_eq!(harness.call(regroup).await["outcome"]["status"], "ready");
+    let after = harness.session(&session).await;
+    assert_eq!(after["transport"], "stopped");
+    assert_eq!(after["revision"], before["revision"].as_u64().unwrap() + 1);
+    assert_eq!(after["reachable"], false);
+    assert!(after.get("output").is_none());
+    harness
+        .call(json!({"_tag":"session.create","payload":{"name":"barrier"}}))
+        .await;
+    for expected in [after["name"].as_str().unwrap(), "barrier"] {
+        let msg = tokio::time::timeout(std::time::Duration::from_secs(5), socket.next())
+            .await
+            .unwrap()
+            .unwrap()
+            .unwrap();
+        assert_eq!(frame(msg)["payload"]["state"]["payload"]["name"], expected);
+    }
 }

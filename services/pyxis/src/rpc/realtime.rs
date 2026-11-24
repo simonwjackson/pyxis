@@ -835,6 +835,44 @@ mod tests {
     }
 
     #[test]
+    fn monitor_scan_before_release_does_not_publish_detached_session_again() {
+        let root = tempfile::tempdir().unwrap();
+        let state = AppState::open(crate::db::store::Store::open(root.path()).unwrap()).unwrap();
+        let auth = AuthContext {
+            account_id: AccountId::new("default"),
+            principal: crate::accounts::Principal::Device {
+                id: "console".into(),
+            },
+        };
+        let binding = crate::sessions::OutputBinding {
+            plugin_id: "sonos".into(),
+            target_id: "room".into(),
+        };
+        let session = state
+            .sessions
+            .create_output(&auth, "room", binding.clone())
+            .unwrap();
+        let channel = state.realtime.attach("default", None);
+        let barrier = std::sync::Barrier::new(2);
+        std::thread::scope(|scope| {
+            scope.spawn(|| {
+                let scanned = state.sessions.all_output_sessions().unwrap();
+                assert_eq!(scanned.len(), 1);
+                barrier.wait();
+                barrier.wait();
+                super::super::dispatch::reconcile_output_scan(&state, scanned);
+            });
+            barrier.wait();
+            state
+                .sessions
+                .release_outputs(&auth, &[(session.id, binding)])
+                .unwrap();
+            barrier.wait();
+        });
+        assert!(channel.receiver.is_empty());
+    }
+
+    #[test]
     fn a_resume_token_from_a_previous_process_is_refused() {
         let hub = Realtime::new();
         let account = AccountId::new("default");

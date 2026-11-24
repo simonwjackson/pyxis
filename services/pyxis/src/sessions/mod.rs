@@ -372,6 +372,38 @@ impl Sessions {
         Ok(result)
     }
 
+    pub fn release_outputs(
+        &self,
+        auth: &AuthContext,
+        moved: &[(String, OutputBinding)],
+    ) -> Result<Vec<Session>, SessionError> {
+        if moved.is_empty() {
+            return Ok(Vec::new());
+        }
+        let _guard = self.mutation.lock().expect("session mutation poisoned");
+        let mut writes = Vec::new();
+        let mut sessions = Vec::new();
+        for (id, output) in moved {
+            let mut record = self
+                .store
+                .get::<SessionRecord>(schema::SESSIONS, &auth.account_id, id)?
+                .ok_or(SessionError::UnknownSession)?;
+            if output_binding(&record).as_ref() != Some(output) {
+                return Err(SessionError::NotOutput);
+            }
+            machine::stop(&mut record.transport, &mut record.position_ms);
+            record.output_ref = None;
+            record.host_device_id = format!("released:{id}");
+            record.revision += 1;
+            record.updated_by = auth.principal_id().into();
+            record.updated_at = now();
+            writes.push(Store::session_snapshot(id, &record)?);
+            sessions.push(self.session(record));
+        }
+        self.store.put_mixed_batch(&auth.account_id, &writes)?;
+        Ok(sessions)
+    }
+
     pub fn has_any_output_sessions(&self, plugin_id: &str) -> Result<bool, SessionError> {
         Ok(self.all_output_sessions()?.into_iter().any(|(_, session)| {
             session

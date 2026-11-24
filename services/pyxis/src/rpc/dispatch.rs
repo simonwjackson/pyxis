@@ -338,6 +338,18 @@ pub fn dispatch(state: &AppState, request: RpcRequest, auth: Option<AuthContext>
                     .iter()
                     .chain(std::iter::once(&request.coordinator_id))
                     .collect::<std::collections::HashSet<_>>();
+                if !current_topology.authoritative
+                    || desired_rooms
+                        .iter()
+                        .any(|room| current_topology.coordinator_of(room).is_none())
+                {
+                    return RpcResponse::OutputGroupSet(OutputGroupSetOutcome::Unavailable(
+                        RpcFailure::retryable(
+                            "output.groupNotConverged",
+                            "discovery did not confirm all requested rooms",
+                        ),
+                    ));
+                }
                 let affected_room_ids = current_topology
                     .groups
                     .iter()
@@ -359,34 +371,30 @@ pub fn dispatch(state: &AppState, request: RpcRequest, auth: Option<AuthContext>
                 };
                 let next_coordinators = current_topology
                     .coordinators_after_group_set(&request.coordinator_id, &request.member_ids);
-                let conflicts = existing_sessions.into_iter().any(|(account_id, session)| {
-                    session.output.as_ref().is_some_and(|output| {
-                        if output.plugin_id != request.plugin_id
-                            || !affected_room_ids.contains(output.target_id.as_str())
-                        {
-                            return false;
-                        }
-                        // Another account still hears every room of its group, so any
-                        // change to that group is theirs to refuse. Our own session is
-                        // only moved when its target ends up playing through another
-                        // room's coordinator. Splitting a room away from it, or making its
-                        // target its own coordinator, leaves it in charge of that room.
-                        // Regrouping the coordinator's own group stays allowed as before.
-                        let current = current_topology.coordinator_of(&output.target_id);
-                        let next = next_coordinators.get(&output.target_id).map(String::as_str);
-                        account_id != auth.account_id
-                            || (current != next
-                                && next != Some(output.target_id.as_str())
-                                && current != Some(request.coordinator_id.as_str()))
-                    })
-                });
-                if conflicts {
-                    return RpcResponse::OutputGroupSet(OutputGroupSetOutcome::Unavailable(
-                    RpcFailure::permanent(
-                        "output.groupBusy",
-                        "the requested regrouping would move a target owned by an output session",
-                    ),
-                ));
+                let mut moved = Vec::new();
+                for (account_id, session) in existing_sessions {
+                    let Some(output) = session.output else {
+                        continue;
+                    };
+                    if output.plugin_id != request.plugin_id
+                        || !affected_room_ids.contains(output.target_id.as_str())
+                    {
+                        continue;
+                    }
+                    if account_id != auth.account_id {
+                        return RpcResponse::OutputGroupSet(OutputGroupSetOutcome::Unavailable(
+                            RpcFailure::permanent(
+                                "output.groupBusy",
+                                "another account owns a room in the affected group",
+                            ),
+                        ));
+                    }
+                    let next = next_coordinators.get(&output.target_id).map(String::as_str);
+                    if current_topology.coordinator_of(&output.target_id) != next
+                        && next != Some(output.target_id.as_str())
+                    {
+                        moved.push((session.id, output));
+                    }
                 }
                 match state.outputs.set_group(
                     &auth,
@@ -395,6 +403,43 @@ pub fn dispatch(state: &AppState, request: RpcRequest, auth: Option<AuthContext>
                     &request.member_ids,
                 ) {
                     Ok(topology) => {
+                        let confirmed = topology.authoritative
+                            && desired_rooms.iter().all(|room| {
+                                topology.coordinator_of(room) == Some(&request.coordinator_id)
+                            })
+                            && affected_room_ids.iter().all(|room| {
+                                topology.coordinator_of(room)
+                                    == next_coordinators.get(*room).map(String::as_str)
+                            })
+                            && topology
+                                .groups
+                                .iter()
+                                .filter(|group| group.coordinator_id == request.coordinator_id)
+                                .flat_map(|g| &g.rooms)
+                                .all(|room| desired_rooms.contains(&room.id));
+                        if !confirmed {
+                            return RpcResponse::OutputGroupSet(
+                                OutputGroupSetOutcome::Unavailable(RpcFailure::retryable(
+                                    "output.groupNotConverged",
+                                    "plugin topology did not confirm the requested group",
+                                )),
+                            );
+                        }
+                        // Joining the coordinator already switched the renderer. A physical
+                        // Stop here would silence the new group, not the released session.
+                        match state.sessions.release_outputs(&auth, &moved) {
+                            Ok(released) => {
+                                for (session, (_, output)) in released.into_iter().zip(&moved) {
+                                    state.outputs.release_target(&auth.account_id, output);
+                                    publish_session(state, &auth, &rpc_session(session));
+                                }
+                            }
+                            Err(error) => {
+                                return RpcResponse::OutputGroupSet(
+                                    OutputGroupSetOutcome::Unavailable(session_failure(error)),
+                                )
+                            }
+                        }
                         state.sessions.replace_output_reachability(
                             &auth.account_id,
                             &request.plugin_id,
@@ -1366,6 +1411,9 @@ fn dispatch_output_command(
 ) -> RpcResponse {
     let output = session.output.as_ref().expect("output session has binding");
     state.outputs.serialize_plugin(&output.plugin_id, || {
+        if !matches!(state.sessions.get(auth,&session.id), Ok(Some(current)) if current.output.as_ref() == Some(output)) {
+            return RpcResponse::SessionCommandSend(SessionCommandSendOutcome::Unreachable);
+        }
         if let Err(error) = state.outputs.claim_target(&auth.account_id, output) {
             return RpcResponse::SessionCommandSend(SessionCommandSendOutcome::Unavailable(
                 output_failure(error),
@@ -1584,6 +1632,13 @@ pub(crate) fn reconcile_all_output_sessions(state: &AppState) {
     let Ok(sessions) = state.sessions.all_output_sessions() else {
         return;
     };
+    reconcile_output_scan(state, sessions);
+}
+
+pub(crate) fn reconcile_output_scan(
+    state: &AppState,
+    sessions: Vec<(crate::db::store::AccountId, Session)>,
+) {
     let mut groups = std::collections::HashMap::<_, Vec<Session>>::new();
     for (account_id, session) in sessions {
         let Some(output) = &session.output else {
@@ -1612,6 +1667,9 @@ pub(crate) fn reconcile_all_output_sessions(state: &AppState) {
                 .replace_output_reachability(&auth.account_id, &plugin_id, target_ids);
             for session in sessions {
                 if let Ok(Some(current)) = state.sessions.get(&auth, &session.id) {
+                    if current.output != session.output {
+                        continue;
+                    }
                     if let Some(output) = current.output.clone() {
                         if current.reachable
                             && state
@@ -1641,16 +1699,18 @@ fn refresh_one_output_session(state: &AppState, auth: &AuthContext, session: Ses
     let Some(output) = session.output.clone() else {
         return;
     };
-    if !session.reachable
-        || state
-            .outputs
-            .claim_target(&auth.account_id, &output)
-            .is_err()
-    {
-        return;
-    }
     state.outputs.serialize_plugin(&output.plugin_id, || {
-        refresh_one_output_session_locked(state, auth, &session, &output);
+        if let Ok(Some(current)) = state.sessions.get(auth, &session.id) {
+            if current.reachable
+                && current.output.as_ref() == Some(&output)
+                && state
+                    .outputs
+                    .claim_target(&auth.account_id, &output)
+                    .is_ok()
+            {
+                refresh_one_output_session_locked(state, auth, &current, &output);
+            }
+        }
     });
 }
 

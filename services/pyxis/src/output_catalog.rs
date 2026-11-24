@@ -268,6 +268,10 @@ impl OutputCatalog {
             .is_some_and(|owner| owner == account_id.as_str())
         {
             owners.remove(&key);
+            self.active_streams
+                .lock()
+                .expect("output active streams poisoned")
+                .remove(&key);
         }
     }
 

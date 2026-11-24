@@ -102,8 +102,12 @@ fn main() -> anyhow::Result<()> {
         }
 
         let mut value = BTreeMap::new();
-        let topology_override = std::env::var("PYXIS_LAB_OUTPUT_TOPOLOGY_FILE")
-            .ok()
+        let group_result = (call.operation == "group.set")
+            .then(|| std::env::var("PYXIS_LAB_GROUP_RESULT_FILE").ok())
+            .flatten()
+            .filter(|path| std::path::Path::new(path).exists());
+        let topology_override = group_result
+            .or_else(|| std::env::var("PYXIS_LAB_OUTPUT_TOPOLOGY_FILE").ok())
             .and_then(|path| std::fs::read_to_string(path).ok())
             .and_then(|text| serde_json::from_str::<serde_json::Value>(&text).ok());
         if matches!(call.operation.as_str(), "discover" | "group.set")
