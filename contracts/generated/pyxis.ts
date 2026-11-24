@@ -671,6 +671,14 @@ export interface RpcSessionDirective {
 	directiveId: string;
 }
 
+export interface RpcShelf {
+	id: string;
+	name: string;
+	tagExpression: RpcTagExpression;
+	sort: RpcAlbumSort;
+	revision: number;
+}
+
 export interface RpcSourceAlbum {
 	externalId: string;
 	title: string;
@@ -826,6 +834,25 @@ export interface SessionIdRequest {
  */
 export interface SessionListRequest {
 	includeUnreachable?: boolean;
+}
+
+export interface ShelfAlbumsListRequest {
+	shelfId: string;
+	limit?: number;
+	cursor?: string;
+}
+
+export interface ShelfRemoveRequest {
+	shelfId: string;
+	expectedRevision: number;
+}
+
+export interface ShelfSaveRequest {
+	shelfId?: string;
+	expectedRevision?: number;
+	name: string;
+	tagExpression: RpcTagExpression;
+	sort: RpcAlbumSort;
 }
 
 export interface ShuffleSetCommand {
@@ -1053,6 +1080,10 @@ export type RpcRequest =
 	| { _tag: "library.album.add", payload: LibraryAlbumAddRequest }
 	| { _tag: "library.tracks.get", payload: TracksGetRequest }
 	| { _tag: "library.albums.query", payload: AlbumsQueryRequest }
+	| { _tag: "library.shelf.save", payload: ShelfSaveRequest }
+	| { _tag: "library.shelf.remove", payload: ShelfRemoveRequest }
+	| { _tag: "library.shelves.list", payload: EmptyRequest }
+	| { _tag: "library.shelf.albums.list", payload: ShelfAlbumsListRequest }
 	| { _tag: "library.albums.list", payload: EmptyRequest }
 	| { _tag: "library.album.command.run", payload: AlbumCommandRequest }
 	| { _tag: "library.bookmarks.list", payload: EmptyRequest }
@@ -1097,6 +1128,10 @@ export type RpcResponse =
 	| { _tag: "library.album.add", outcome: AlbumAddOutcome }
 	| { _tag: "library.tracks.get", outcome: TracksGetOutcome }
 	| { _tag: "library.albums.query", outcome: AlbumsQueryOutcome }
+	| { _tag: "library.shelf.save", outcome: ShelfSaveOutcome }
+	| { _tag: "library.shelf.remove", outcome: ShelfRemoveOutcome }
+	| { _tag: "library.shelves.list", outcome: ShelvesListOutcome }
+	| { _tag: "library.shelf.albums.list", outcome: ShelfAlbumsListOutcome }
 	| { _tag: "library.albums.list", outcome: AlbumListOutcome }
 	| { _tag: "library.album.command.run", outcome: AlbumCommandOutcome }
 	| { _tag: "library.bookmarks.list", outcome: BookmarkListOutcome }
@@ -1183,6 +1218,29 @@ export type SessionListOutcome =
 export type SessionStateOutcome =
 	| { status: "ready", value: RpcSession }
 	| { status: "unknown", value?: undefined }
+	| { status: "unavailable", value: RpcFailure };
+
+export type ShelfAlbumsListOutcome =
+	| { status: "ready", value: RpcAlbumPage }
+	| { status: "unknown", value?: undefined }
+	| { status: "invalid", value: RpcFailure }
+	| { status: "unavailable", value: RpcFailure };
+
+export type ShelfRemoveOutcome =
+	| { status: "removed", value?: undefined }
+	| { status: "unknown", value?: undefined }
+	| { status: "conflict", value: number }
+	| { status: "unavailable", value: RpcFailure };
+
+export type ShelfSaveOutcome =
+	| { status: "ready", value: RpcShelf }
+	| { status: "unknown", value?: undefined }
+	| { status: "invalid", value: RpcFailure }
+	| { status: "conflict", value: number }
+	| { status: "unavailable", value: RpcFailure };
+
+export type ShelvesListOutcome =
+	| { status: "ready", value: RpcShelf[] }
 	| { status: "unavailable", value: RpcFailure };
 
 export type SourceAlbumGetOutcome =

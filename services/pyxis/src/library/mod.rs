@@ -6,6 +6,7 @@
 pub mod albums;
 mod artwork;
 mod query;
+mod shelves;
 mod tracks;
 
 use std::collections::HashMap;
@@ -41,6 +42,12 @@ pub enum LibraryError {
     InvalidAlbum,
     #[error("trackIds exceeds 200 entries")]
     TooManyTracks,
+    #[error("{0}")]
+    InvalidShelf(&'static str),
+    #[error("unknown shelf")]
+    UnknownShelf,
+    #[error("shelf revision is now {0}")]
+    ShelfConflict(u32),
     #[error("{0}")]
     InvalidQuery(&'static str),
     #[error("tags must contain at most 64 distinct nonempty labels of at most 64 characters without control characters")]

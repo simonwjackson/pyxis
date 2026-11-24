@@ -362,3 +362,6 @@ async fn add_tagged(
     assert_eq!(result["status"], "applied");
     result["value"].clone()
 }
+
+#[path = "library_rpc/shelves.rs"]
+mod shelves;

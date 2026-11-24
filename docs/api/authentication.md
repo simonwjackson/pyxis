@@ -111,8 +111,8 @@ is a person's own client rather than delegated automation.
 | `session:read` | List sessions, read session state |
 | `session:control` | Create sessions, run and send session commands, hand off |
 | `source:read` | Search sources, browse source albums |
-| `library:read` | Read albums, bookmarks, playlists, matching evaluation |
-| `library:write` | Add and change albums, bookmarks, playlists, matching overrides |
+| `library:read` | Read tracks, albums, shelves, bookmarks, playlists, matching evaluation |
+| `library:write` | Add and change albums, shelves, bookmarks, playlists, matching overrides |
 | `listen:read` | Read listening history |
 | `listen:write` | Append listen events |
 

@@ -19,6 +19,7 @@ pub const ACCOUNTS: &str = "accounts";
 pub const DEVICES: &str = "devices";
 pub const SESSIONS: &str = "sessions";
 pub const SESSION_COMMAND_RECEIPTS: &str = "sessionCommandReceipts";
+pub const SHELVES: &str = "shelves";
 pub const ALBUMS: &str = "albums";
 pub const ALBUM_SOURCE_REFS: &str = "albumSourceRefs";
 pub const ALBUM_TRACKS: &str = "albumTracks";
@@ -169,6 +170,19 @@ pub fn session_command_receipts() -> CollectionDescriptor {
             field("fingerprint", SchemaNode::Str),
             field("applied", SchemaNode::Bool),
             field("expectedRevision", optional(SchemaNode::Num)),
+        ],
+    ))
+}
+
+pub fn shelves() -> CollectionDescriptor {
+    added_after_m1(scoped(
+        SHELVES,
+        vec![
+            field("name", SchemaNode::Str),
+            // A recursive union has no finite ProseQL descriptor. The typed shelf record
+            // decodes it and the shared expression validator runs before every save.
+            field("tagExpression", SchemaNode::Unknown),
+            field("sort", SchemaNode::Str),
         ],
     ))
 }
@@ -453,6 +467,7 @@ pub fn all() -> Vec<CollectionDescriptor> {
         sessions(),
         session_command_receipts(),
         albums(),
+        shelves(),
         album_source_refs(),
         album_tracks(),
         tracks(),

@@ -1256,6 +1256,90 @@ pub enum AlbumsQueryOutcome {
     Unavailable(RpcFailure),
 }
 
+// --- Shelves (U43) ---
+#[typeshare]
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct RpcShelf {
+    pub id: String,
+    pub name: String,
+    pub tag_expression: RpcTagExpression,
+    pub sort: RpcAlbumSort,
+    pub revision: u32,
+}
+
+#[typeshare]
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct ShelfSaveRequest {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub shelf_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub expected_revision: Option<u32>,
+    pub name: String,
+    #[serde(deserialize_with = "tag_expression::decode")]
+    pub tag_expression: RpcTagExpression,
+    pub sort: RpcAlbumSort,
+}
+
+#[typeshare]
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct ShelfRemoveRequest {
+    pub shelf_id: String,
+    pub expected_revision: u32,
+}
+
+#[typeshare]
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct ShelfAlbumsListRequest {
+    pub shelf_id: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub limit: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cursor: Option<String>,
+}
+
+#[typeshare]
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(tag = "status", content = "value", rename_all = "camelCase")]
+pub enum ShelfSaveOutcome {
+    Ready(RpcShelf),
+    Unknown,
+    Invalid(RpcFailure),
+    Conflict(u32),
+    Unavailable(RpcFailure),
+}
+
+#[typeshare]
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(tag = "status", content = "value", rename_all = "camelCase")]
+pub enum ShelfRemoveOutcome {
+    Removed,
+    Unknown,
+    Conflict(u32),
+    Unavailable(RpcFailure),
+}
+
+#[typeshare]
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(tag = "status", content = "value", rename_all = "camelCase")]
+pub enum ShelvesListOutcome {
+    Ready(Vec<RpcShelf>),
+    Unavailable(RpcFailure),
+}
+
+#[typeshare]
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(tag = "status", content = "value", rename_all = "camelCase")]
+pub enum ShelfAlbumsListOutcome {
+    Ready(RpcAlbumPage),
+    Unknown,
+    Invalid(RpcFailure),
+    Unavailable(RpcFailure),
+}
+
 #[typeshare]
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
 #[serde(tag = "status", content = "value", rename_all = "camelCase")]
@@ -1729,6 +1813,15 @@ pub enum RpcRequest {
     // --- library.albums.query (U41) ---
     #[serde(rename = "library.albums.query")]
     LibraryAlbumsQuery(AlbumsQueryRequest),
+    // --- Shelves (U43) ---
+    #[serde(rename = "library.shelf.save")]
+    LibraryShelfSave(ShelfSaveRequest),
+    #[serde(rename = "library.shelf.remove")]
+    LibraryShelfRemove(ShelfRemoveRequest),
+    #[serde(rename = "library.shelves.list")]
+    LibraryShelvesList(EmptyRequest),
+    #[serde(rename = "library.shelf.albums.list")]
+    LibraryShelfAlbumsList(ShelfAlbumsListRequest),
     #[serde(rename = "library.albums.list")]
     LibraryAlbumsList(EmptyRequest),
     #[serde(rename = "library.album.command.run")]
@@ -1830,6 +1923,15 @@ pub enum RpcResponse {
     // --- library.albums.query (U41) ---
     #[serde(rename = "library.albums.query")]
     LibraryAlbumsQuery(AlbumsQueryOutcome),
+    // --- Shelves (U43) ---
+    #[serde(rename = "library.shelf.save")]
+    LibraryShelfSave(ShelfSaveOutcome),
+    #[serde(rename = "library.shelf.remove")]
+    LibraryShelfRemove(ShelfRemoveOutcome),
+    #[serde(rename = "library.shelves.list")]
+    LibraryShelvesList(ShelvesListOutcome),
+    #[serde(rename = "library.shelf.albums.list")]
+    LibraryShelfAlbumsList(ShelfAlbumsListOutcome),
     #[serde(rename = "library.albums.list")]
     LibraryAlbumsList(AlbumListOutcome),
     #[serde(rename = "library.album.command.run")]
@@ -1875,7 +1977,7 @@ pub enum RpcResponse {
 }
 
 impl RpcRequest {
-    pub const KNOWN_TAGS: [&'static str; 42] = [
+    pub const KNOWN_TAGS: [&'static str; 46] = [
         "system.status.get",
         "auth.device.claim",
         "auth.device.pair",
@@ -1900,6 +2002,11 @@ impl RpcRequest {
         "library.tracks.get",
         // --- library.albums.query (U41) ---
         "library.albums.query",
+        // --- Shelves (U43) ---
+        "library.shelf.save",
+        "library.shelf.remove",
+        "library.shelves.list",
+        "library.shelf.albums.list",
         "library.albums.list",
         "library.album.command.run",
         "library.bookmarks.list",
@@ -1949,6 +2056,11 @@ impl RpcRequest {
             RpcRequest::LibraryTracksGet(_) => "library.tracks.get",
             // --- library.albums.query (U41) ---
             RpcRequest::LibraryAlbumsQuery(_) => "library.albums.query",
+            // --- Shelves (U43) ---
+            RpcRequest::LibraryShelfSave(_) => "library.shelf.save",
+            RpcRequest::LibraryShelfRemove(_) => "library.shelf.remove",
+            RpcRequest::LibraryShelvesList(_) => "library.shelves.list",
+            RpcRequest::LibraryShelfAlbumsList(_) => "library.shelf.albums.list",
             RpcRequest::LibraryAlbumsList(_) => "library.albums.list",
             RpcRequest::LibraryAlbumCommandRun(_) => "library.album.command.run",
             RpcRequest::LibraryBookmarksList(_) => "library.bookmarks.list",
@@ -2004,6 +2116,11 @@ impl RpcRequest {
             RpcRequest::LibraryTracksGet(_) => Some("library:read"),
             // --- library.albums.query (U41) ---
             RpcRequest::LibraryAlbumsQuery(_) => Some("library:read"),
+            // --- Shelves (U43) ---
+            RpcRequest::LibraryShelfSave(_) => Some("library:write"),
+            RpcRequest::LibraryShelfRemove(_) => Some("library:write"),
+            RpcRequest::LibraryShelvesList(_) => Some("library:read"),
+            RpcRequest::LibraryShelfAlbumsList(_) => Some("library:read"),
             RpcRequest::LibraryAlbumsList(_)
             | RpcRequest::LibraryBookmarksList(_)
             | RpcRequest::LibraryPlaylistsList(_) => Some("library:read"),
@@ -2036,7 +2153,7 @@ impl RpcRequest {
 }
 
 impl RpcResponse {
-    pub const KNOWN_OPERATION_TAGS: [&'static str; 42] = RpcRequest::KNOWN_TAGS;
+    pub const KNOWN_OPERATION_TAGS: [&'static str; 46] = RpcRequest::KNOWN_TAGS;
 
     pub fn tag(&self) -> &'static str {
         match self {
@@ -2064,6 +2181,11 @@ impl RpcResponse {
             RpcResponse::LibraryTracksGet(_) => "library.tracks.get",
             // --- library.albums.query (U41) ---
             RpcResponse::LibraryAlbumsQuery(_) => "library.albums.query",
+            // --- Shelves (U43) ---
+            RpcResponse::LibraryShelfSave(_) => "library.shelf.save",
+            RpcResponse::LibraryShelfRemove(_) => "library.shelf.remove",
+            RpcResponse::LibraryShelvesList(_) => "library.shelves.list",
+            RpcResponse::LibraryShelfAlbumsList(_) => "library.shelf.albums.list",
             RpcResponse::LibraryAlbumsList(_) => "library.albums.list",
             RpcResponse::LibraryAlbumCommandRun(_) => "library.album.command.run",
             RpcResponse::LibraryBookmarksList(_) => "library.bookmarks.list",

@@ -25,6 +25,7 @@ struct Snapshot {
     id: Ulid,
     issued: Instant,
     account: AccountId,
+    shelf_id: Option<String>,
     albums: Vec<Album>,
 }
 
@@ -42,6 +43,15 @@ impl Library {
     pub(crate) fn query_albums(
         &self,
         account: &AccountId,
+        query: AlbumsQueryRequest,
+    ) -> Result<AlbumPage, LibraryError> {
+        self.query_page(account, None, query)
+    }
+
+    pub(super) fn query_page(
+        &self,
+        account: &AccountId,
+        shelf_id: Option<&str>,
         mut query: AlbumsQueryRequest,
     ) -> Result<AlbumPage, LibraryError> {
         let limit = query.limit.unwrap_or(50) as usize;
@@ -72,6 +82,7 @@ impl Library {
                 .find(|s| {
                     s.id == id
                         && s.account == *account
+                        && s.shelf_id.as_deref() == shelf_id
                         && s.issued.elapsed() < LIFETIME
                         && offset < s.albums.len()
                 })
@@ -114,6 +125,7 @@ impl Library {
             id: Ulid::new(),
             issued: Instant::now(),
             account: account.clone(),
+            shelf_id: shelf_id.map(str::to_owned),
             albums,
         };
         let page = snapshot.page(0, limit);

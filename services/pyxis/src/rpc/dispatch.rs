@@ -891,6 +891,75 @@ pub fn dispatch(state: &AppState, request: RpcRequest, auth: Option<AuthContext>
                 },
             )
         }
+        // --- Shelves (U43) ---
+        RpcRequest::LibraryShelfSave(request) => {
+            use crate::rpc::contract::ShelfSaveOutcome;
+            let Some(auth) = auth else {
+                return auth_required();
+            };
+            RpcResponse::LibraryShelfSave(
+                match state
+                    .library
+                    .save_shelf(&auth.account_id, request, auth.principal_id())
+                {
+                    Ok(shelf) => ShelfSaveOutcome::Ready(shelf),
+                    Err(LibraryError::InvalidShelf(message)) => ShelfSaveOutcome::Invalid(
+                        RpcFailure::permanent("library.invalidShelf", message),
+                    ),
+                    Err(LibraryError::UnknownShelf) => ShelfSaveOutcome::Unknown,
+                    Err(LibraryError::ShelfConflict(revision)) => {
+                        ShelfSaveOutcome::Conflict(revision)
+                    }
+                    Err(error) => ShelfSaveOutcome::Unavailable(library_failure(error)),
+                },
+            )
+        }
+        RpcRequest::LibraryShelfRemove(request) => {
+            use crate::rpc::contract::ShelfRemoveOutcome;
+            let Some(auth) = auth else {
+                return auth_required();
+            };
+            RpcResponse::LibraryShelfRemove(
+                match state.library.remove_shelf(
+                    &auth.account_id,
+                    &request.shelf_id,
+                    request.expected_revision,
+                ) {
+                    Ok(()) => ShelfRemoveOutcome::Removed,
+                    Err(LibraryError::UnknownShelf) => ShelfRemoveOutcome::Unknown,
+                    Err(LibraryError::ShelfConflict(revision)) => {
+                        ShelfRemoveOutcome::Conflict(revision)
+                    }
+                    Err(error) => ShelfRemoveOutcome::Unavailable(library_failure(error)),
+                },
+            )
+        }
+        RpcRequest::LibraryShelvesList(_) => {
+            use crate::rpc::contract::ShelvesListOutcome;
+            let Some(auth) = auth else {
+                return auth_required();
+            };
+            RpcResponse::LibraryShelvesList(match state.library.list_shelves(&auth.account_id) {
+                Ok(shelves) => ShelvesListOutcome::Ready(shelves),
+                Err(error) => ShelvesListOutcome::Unavailable(library_failure(error)),
+            })
+        }
+        RpcRequest::LibraryShelfAlbumsList(request) => {
+            use crate::rpc::contract::ShelfAlbumsListOutcome;
+            let Some(auth) = auth else {
+                return auth_required();
+            };
+            RpcResponse::LibraryShelfAlbumsList(
+                match state.library.shelf_albums(&auth.account_id, request) {
+                    Ok(page) => ShelfAlbumsListOutcome::Ready(rpc_album_page(page)),
+                    Err(LibraryError::InvalidQuery(message)) => ShelfAlbumsListOutcome::Invalid(
+                        RpcFailure::permanent("library.invalidQuery", message),
+                    ),
+                    Err(LibraryError::UnknownShelf) => ShelfAlbumsListOutcome::Unknown,
+                    Err(error) => ShelfAlbumsListOutcome::Unavailable(library_failure(error)),
+                },
+            )
+        }
         RpcRequest::LibraryAlbumsList(_) => {
             let Some(auth) = auth else {
                 return auth_required();

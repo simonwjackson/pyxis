@@ -34,6 +34,10 @@ Read [README.md](README.md) first for the envelope rules, and
 | `library.album.add` | `library:write` | `ready`, `invalid`, `unavailable` |
 | `library.tracks.get` | `library:read` | `ready`, `invalid`, `unavailable` |
 | `library.albums.query` | `library:read` | `ready`, `invalid`, `unavailable` |
+| `library.shelf.save` | `library:write` | `ready`, `unknown`, `invalid`, `conflict`, `unavailable` |
+| `library.shelf.remove` | `library:write` | `removed`, `unknown`, `conflict`, `unavailable` |
+| `library.shelves.list` | `library:read` | `ready`, `unavailable` |
+| `library.shelf.albums.list` | `library:read` | `ready`, `unknown`, `invalid`, `unavailable` |
 | `library.albums.list` | `library:read` | `ready`, `unavailable` |
 | `library.album.command.run` | `library:write` | `applied`, `removed`, `unknown`, `unavailable` |
 | `library.bookmarks.list` | `library:read` | `ready`, `unavailable` |
@@ -107,6 +111,22 @@ normalization and limits as `tags.set`. The whole expression must be valid (at m
 not change between pages. Filters/sort cannot be changed with a cursor. Cursors belong
 to one account. They expire on restart, after 30 minutes, or when the bounded snapshot
 cache evicts them. On `invalid` cursor, start a new query.
+
+## Shelves
+
+A shelf saves one tag expression and sort for one account. To create one, send
+`library.shelf.save {name,tagExpression,sort}`. Its `ready` value includes the new `id`
+and revision 1. Names need 1–128 characters after trimming, with no control characters.
+To replace it, send all three fields plus `shelfId` and `expectedRevision`. Each successful
+replacement increments the revision. Remove with `library.shelf.remove {shelfId,expectedRevision}`.
+For both writes, `conflict` carries the current revision and changes nothing. Missing and
+foreign IDs both return `unknown`.
+
+`library.shelves.list {}` returns the account's definitions sorted by name, then ID.
+`library.shelf.albums.list {shelfId,limit?,cursor?}` uses the same page shape, limits and
+ordering as `library.albums.query`. Each first page evaluates the current shelf on current
+albums; continuations retain their snapshot and belong only to that shelf. Deleting the
+shelf ends access to its continuations. Shelves are online only, not an offline sync domain.
 
 ## Album tags and external organization
 
