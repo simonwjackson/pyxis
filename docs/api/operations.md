@@ -263,3 +263,21 @@ automatic scorer will be wrong occasionally and a person must be able to end the
 `plugin.config.set` stores account-scoped credentials encrypted with XChaCha20-Poly1305.
 **No operation ever returns plugin configuration.** There is no read call, by design. A
 client can know that a plugin is `configured`, and nothing more.
+
+### Session sleep timer
+
+Use `session.command.send` with `sleep.set` and exactly one of `at` (an RFC 3339 time
+with offset) or `minutes` (a positive integer). Optional `fadeSeconds` is an unsigned
+integer, default zero. A past deadline is rejected. Example:
+
+```json
+{"_tag":"session.command.send","payload":{"sessionId":"…","command":{"_tag":"sleep.set","payload":{"minutes":30,"fadeSeconds":15}}}}
+```
+
+Read `sleepTimer: {id, deadline, fadeSeconds}` on session snapshots and realtime updates.
+A new set replaces the timer; `sleep.cancel {}` removes it. Neither command stops playback.
+The core persists the absolute deadline. On an output it steps the renderer volume down,
+stops, then restores the pre-fade volume. Device hosts observe the same deadline locally.
+At expiry the core also sends `transport.stop {sleepTimerId: id}` to the host until it
+reports Stop. Both paths use command ID `sleep:<id>` and must not act on a different
+timer. Ordinary `transport.stop {}` also disarms the timer.

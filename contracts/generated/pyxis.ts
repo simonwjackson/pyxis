@@ -567,6 +567,12 @@ export interface RpcSearchTrack {
 	sourcePluginId: string;
 }
 
+export interface RpcSleepTimer {
+	id: string;
+	deadline: string;
+	fadeSeconds: number;
+}
+
 export enum RpcTransport {
 	Stopped = "stopped",
 	Playing = "playing",
@@ -575,6 +581,7 @@ export enum RpcTransport {
 }
 
 export interface RpcSession {
+	sleepTimer?: RpcSleepTimer;
 	repeat: RpcRepeatMode;
 	shuffle: boolean;
 	/**
@@ -600,6 +607,8 @@ export interface RpcSession {
 }
 
 export type RpcSessionCommand =
+	| { _tag: "sleep.set", payload: SleepSetCommand }
+	| { _tag: "sleep.cancel", payload: EmptyRequest }
 	| { _tag: "queue.add", payload: QueueAddCommand }
 	| { _tag: "queue.remove", payload: QueueRemoveCommand }
 	| { _tag: "queue.clear", payload: EmptyRequest }
@@ -609,7 +618,7 @@ export type RpcSessionCommand =
 	| { _tag: "transport.seek", payload: SeekCommand }
 	| { _tag: "transport.play", payload: EmptyRequest }
 	| { _tag: "transport.pause", payload: EmptyRequest }
-	| { _tag: "transport.stop", payload: EmptyRequest }
+	| { _tag: "transport.stop", payload: StopCommand }
 	| { _tag: "transport.trackEnded", payload: EmptyRequest }
 	| { _tag: "position.report", payload: PositionReportCommand }
 	| { _tag: "volume.set", payload: VolumeSetCommand };
@@ -782,6 +791,12 @@ export interface ShuffleSetCommand {
 	enabled: boolean;
 }
 
+export interface SleepSetCommand {
+	at?: string;
+	minutes?: number;
+	fadeSeconds?: number;
+}
+
 export interface SourceAlbumGetRequest {
 	pluginId: string;
 	externalId: string;
@@ -813,6 +828,11 @@ export interface SourceStationNextRequest {
 export interface SourceStationSearchRequest {
 	query: string;
 	limit?: number;
+}
+
+export interface StopCommand {
+	/** Only stop if this timer is still armed. Local and backstop Stops share a receipt. */
+	sleepTimerId?: string;
 }
 
 export interface TagsSetCommand {

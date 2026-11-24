@@ -878,6 +878,38 @@
           "properties": {
             "_tag": {
               "type": "string",
+              "const": "sleep.set"
+            },
+            "payload": {
+              "$ref": "#/$defs/SleepSetCommand"
+            }
+          },
+          "required": [
+            "_tag",
+            "payload"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "_tag": {
+              "type": "string",
+              "const": "sleep.cancel"
+            },
+            "payload": {
+              "$ref": "#/$defs/EmptyRequest"
+            }
+          },
+          "required": [
+            "_tag",
+            "payload"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "_tag": {
+              "type": "string",
               "const": "queue.add"
             },
             "payload": {
@@ -1025,7 +1057,7 @@
               "const": "transport.stop"
             },
             "payload": {
-              "$ref": "#/$defs/EmptyRequest"
+              "$ref": "#/$defs/StopCommand"
             }
           },
           "required": [
@@ -1082,6 +1114,34 @@
           ]
         }
       ]
+    },
+    "SleepSetCommand": {
+      "type": "object",
+      "properties": {
+        "at": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "minutes": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint32",
+          "minimum": 0
+        },
+        "fadeSeconds": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint32",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false
     },
     "QueueAddCommand": {
       "type": "object",
@@ -1180,6 +1240,19 @@
       "required": [
         "positionMs"
       ]
+    },
+    "StopCommand": {
+      "type": "object",
+      "properties": {
+        "sleepTimerId": {
+          "description": "Only stop if this timer is still armed. Local and backstop Stops share a receipt.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "additionalProperties": false
     },
     "PositionReportCommand": {
       "type": "object",
@@ -3380,6 +3453,16 @@
     "RpcSession": {
       "type": "object",
       "properties": {
+        "sleepTimer": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/RpcSleepTimer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "repeat": {
           "$ref": "#/$defs/RpcRepeatMode"
         },
@@ -3491,6 +3574,28 @@
         "reachable",
         "revision",
         "updatedAt"
+      ]
+    },
+    "RpcSleepTimer": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "deadline": {
+          "type": "string"
+        },
+        "fadeSeconds": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "deadline",
+        "fadeSeconds"
       ]
     },
     "RpcTransport": {

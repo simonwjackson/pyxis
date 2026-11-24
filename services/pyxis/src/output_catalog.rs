@@ -163,7 +163,7 @@ pub struct OutputCatalog {
     target_locks: Arc<Mutex<HashMap<String, Arc<Mutex<()>>>>>,
     plugin_locks: Arc<Mutex<HashMap<String, Arc<Mutex<()>>>>>,
     target_owners: Arc<Mutex<HashMap<String, String>>>,
-    active_streams: Arc<Mutex<HashMap<String, (String, String)>>>,
+    active_streams: Arc<Mutex<HashMap<String, (String, blake3::Hash)>>>,
 }
 
 impl OutputCatalog {
@@ -230,6 +230,16 @@ impl OutputCatalog {
         for (account_id, session) in sessions {
             if let Some(output) = &session.output {
                 self.claim_target(account_id, output)?;
+                if let Some(hash) = session
+                    .stream_digest
+                    .as_deref()
+                    .and_then(|s| blake3::Hash::from_hex(s).ok())
+                {
+                    self.active_streams
+                        .lock()
+                        .expect("output active streams poisoned")
+                        .insert(target_key(output), (session.id.clone(), hash));
+                }
             }
         }
         Ok(())
@@ -275,6 +285,15 @@ impl OutputCatalog {
         }
     }
 
+    pub fn stream_digest(&self, session_id: &str, output: &OutputBinding) -> Option<blake3::Hash> {
+        self.active_streams
+            .lock()
+            .expect("output active streams poisoned")
+            .get(&target_key(output))
+            .filter(|(owner, _)| owner == session_id)
+            .map(|(_, hash)| *hash)
+    }
+
     pub fn stream_belongs_to(
         &self,
         session_id: &str,
@@ -288,7 +307,9 @@ impl OutputCatalog {
             .lock()
             .expect("output active streams poisoned")
             .get(&target_key(output))
-            .is_some_and(|(owner, expected)| owner == session_id && expected == stream_url)
+            .is_some_and(|(owner, expected)| {
+                owner == session_id && expected == &blake3::hash(stream_url.as_bytes())
+            })
     }
 
     pub fn discover(
@@ -320,6 +341,36 @@ impl OutputCatalog {
             .map_err(|error| OutputError::InvalidOutput(error.to_string()))?;
         validate_topology(&topology)?;
         Ok(topology)
+    }
+
+    pub(crate) fn ensure_sleep_owner(
+        &self,
+        id: &str,
+        output: &OutputBinding,
+        state: &OutputTransportState,
+    ) -> Result<(), OutputError> {
+        // A stopped renderer can still have another app's URI loaded.
+        if state.stream_url.is_some()
+            && !self.stream_belongs_to(id, output, state.stream_url.as_deref())
+        {
+            return Err(OutputError::RendererOwnershipLost);
+        }
+        self.ensure_stream_owner(id, output, state)
+    }
+
+    pub fn fade_volume(
+        &self,
+        auth: &AuthContext,
+        session_id: &str,
+        output: &OutputBinding,
+        volume: u8,
+    ) -> Result<(), OutputError> {
+        let state = self.state(auth, output)?;
+        self.ensure_sleep_owner(session_id, output, &state)?;
+        if state.volume != Some(volume) {
+            self.set_volume(auth, output, volume)?;
+        }
+        Ok(())
     }
 
     pub fn state(
@@ -418,10 +469,15 @@ impl OutputCatalog {
                     rollback_duration_ms: state.duration_ms,
                 })
             }
-            SessionCommand::Stop => {
+            SessionCommand::Stop | SessionCommand::SleepStop(_) => {
                 let state = self.state(auth, output)?;
-                self.ensure_stream_owner(session_id, output, &state)?;
+                if matches!(command, SessionCommand::SleepStop(_)) {
+                    self.ensure_sleep_owner(session_id, output, &state)?;
+                } else {
+                    self.ensure_stream_owner(session_id, output, &state)?;
+                }
                 self.stop(auth, output)?;
+
                 Ok(OutputEffect {
                     physical: true,
                     rollback_transport: output_transport(&state),
@@ -458,6 +514,22 @@ impl OutputCatalog {
                     rollback_duration_ms: state.duration_ms,
                     ..OutputEffect::default()
                 })
+            }
+            SessionCommand::SleepSet(_) | SessionCommand::SleepCancel => {
+                // End any transient fade before replacing its deadline.
+                if current.fading {
+                    let state = self.state(auth, output)?;
+                    // Disarming is core intent, not permission to change another stream.
+                    if self.ensure_sleep_owner(session_id, output, &state).is_err() {
+                        return Ok(OutputEffect::default());
+                    }
+                    self.set_volume(auth, output, current.volume)?;
+                    return Ok(OutputEffect {
+                        physical: true,
+                        ..OutputEffect::default()
+                    });
+                }
+                Ok(OutputEffect::default())
             }
             SessionCommand::QueueAdd { .. }
             | SessionCommand::QueueRemove { .. }
@@ -650,13 +722,6 @@ impl OutputCatalog {
         if let Some(artwork_url) = track.artwork_url {
             metadata.insert("artworkUrl".into(), Value::String(artwork_url));
         }
-        self.active_streams
-            .lock()
-            .expect("output active streams poisoned")
-            .insert(
-                target_key(output),
-                (session_id.to_string(), stream_url.clone()),
-            );
         self.call(
             auth,
             &output.plugin_id,
@@ -668,6 +733,13 @@ impl OutputCatalog {
                 "metadata": metadata,
             }),
         )?;
+        self.active_streams
+            .lock()
+            .expect("output active streams poisoned")
+            .insert(
+                target_key(output),
+                (session_id.to_string(), blake3::hash(stream_url.as_bytes())),
+            );
         Ok(())
     }
 

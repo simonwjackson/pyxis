@@ -20,8 +20,12 @@ pub enum Repeat {
     One,
 }
 
-#[derive(Debug, thiserror::Error, PartialEq, Eq)]
+#[derive(Debug, Clone, thiserror::Error, PartialEq, Eq)]
 pub enum MachineError {
+    #[error("set exactly one future RFC3339 time or positive number of minutes")]
+    InvalidSleep,
+    #[error("sleep timer no longer armed")]
+    StaleSleep,
     #[error("cannot play an empty queue")]
     EmptyQueue,
     #[error(

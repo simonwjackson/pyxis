@@ -515,6 +515,7 @@ fn output_seek_receipt_fences_both_preparation_and_commit() {
         "seek",
         "seek-content",
         OutputConfirmation {
+            stream_digest: None,
             position_ms: Some(45_000),
             duration_ms: Some(180_000),
         },

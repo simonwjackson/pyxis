@@ -202,6 +202,8 @@ pub async fn serve(settings: &Settings, state: AppState) -> anyhow::Result<()> {
         listener,
         router_with_web(state.clone(), settings.web_root.clone()),
     );
+    let device_sleep = spawn_sleep_monitor(state.clone(), crate::rpc::dispatch::SleepLane::Device);
+    let output_sleep = spawn_sleep_monitor(state.clone(), crate::rpc::dispatch::SleepLane::Output);
     let output_monitor = spawn_output_monitor(state.clone());
     let fidelity_monitor = spawn_fidelity_monitor(state.clone());
     let lan_url = std::env::var("PYXIS_LAN_BASE_URL")
@@ -217,6 +219,8 @@ pub async fn serve(settings: &Settings, state: AppState) -> anyhow::Result<()> {
             .await
             .context("serve HTTP");
         state.fidelity_upgrader.cancel();
+        device_sleep.abort();
+        output_sleep.abort();
         output_monitor.abort();
         fidelity_monitor.abort();
         return result;
@@ -240,6 +244,8 @@ pub async fn serve(settings: &Settings, state: AppState) -> anyhow::Result<()> {
         () = shutdown_signal() => Ok(()),
     };
     state.fidelity_upgrader.cancel();
+    device_sleep.abort();
+    output_sleep.abort();
     output_monitor.abort();
     fidelity_monitor.abort();
     result
@@ -274,6 +280,25 @@ fn spawn_fidelity_monitor(state: AppState) -> tokio::task::JoinHandle<()> {
                 Ok(Ok(UpgradeRun::Idle | UpgradeRun::Satisfied { .. })) => {}
                 Ok(Err(error)) => tracing::warn!(%error, "fidelity monitor run failed"),
                 Err(error) => tracing::warn!(%error, "fidelity monitor task failed"),
+            }
+        }
+    })
+}
+
+fn spawn_sleep_monitor(
+    state: AppState,
+    lane: crate::rpc::dispatch::SleepLane,
+) -> tokio::task::JoinHandle<()> {
+    tokio::spawn(async move {
+        let mut ticks = tokio::time::interval(std::time::Duration::from_secs(1));
+        ticks.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+        loop {
+            ticks.tick().await;
+            let state = state.clone();
+            match tokio::task::spawn_blocking(move || lane.run(&state, chrono::Utc::now)).await {
+                Ok(Ok(())) => {}
+                Ok(Err(error)) => tracing::warn!(%error,"sleep timer scan failed"),
+                Err(error) => tracing::warn!(%error,"sleep monitor task failed"),
             }
         }
     })

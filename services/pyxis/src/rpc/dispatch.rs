@@ -4,6 +4,9 @@
 //! receives a valid request plus its account context and always returns the matching
 //! operation tag. Domain failures become operation outcomes rather than framework errors.
 
+mod sleep;
+pub use sleep::SleepLane;
+
 use crate::accounts::{
     Account, AccountError, ApiTokenGrant, AuthContext, AuthGrant, ClaimOutcome, PairOutcome,
     Principal,
@@ -593,6 +596,40 @@ pub fn dispatch(state: &AppState, request: RpcRequest, auth: Option<AuthContext>
             {
                 return dispatch_output_command(state, &auth, &request, output_session);
             }
+            // --- sleep timer (U44): core owns intent, host owns the eventual Stop ---
+            if matches!(
+                request.command,
+                RpcSessionCommand::SleepSet(_) | RpcSessionCommand::SleepCancel(_)
+            ) {
+                if session.as_ref().is_some_and(|s| !s.reachable) {
+                    return RpcResponse::SessionCommandSend(SessionCommandSendOutcome::Unreachable);
+                }
+                let fingerprint =
+                    serde_json::to_string(&request.command).expect("session command serializes");
+                let receipt = request
+                    .command_id
+                    .as_deref()
+                    .map(|id| (id, fingerprint.as_str()));
+                return RpcResponse::SessionCommandSend(
+                    match state.sessions.set_device_sleep(
+                        &auth,
+                        &request.session_id,
+                        domain_command(request.command),
+                        receipt,
+                    ) {
+                        Ok(session) => {
+                            publish_session(state, &auth, &rpc_session(session));
+                            SessionCommandSendOutcome::Dispatched
+                        }
+                        Err(SessionError::UnknownSession) => {
+                            SessionCommandSendOutcome::UnknownSession
+                        }
+                        Err(error) => {
+                            SessionCommandSendOutcome::Unavailable(output_session_failure(error))
+                        }
+                    },
+                );
+            }
             match console::route(session.as_ref()) {
                 console::Route::UnknownSession => {
                     RpcResponse::SessionCommandSend(SessionCommandSendOutcome::UnknownSession)
@@ -684,7 +721,7 @@ pub fn dispatch(state: &AppState, request: RpcRequest, auth: Option<AuthContext>
                         &source.host_device_id,
                         directive(
                             &source.id,
-                            RpcSessionCommand::Stop(EmptyRequest {}),
+                            RpcSessionCommand::Stop(Default::default()),
                             auth.principal_id(),
                             None,
                             None,
@@ -1516,6 +1553,7 @@ fn dispatch_output_command_locked(
         &command_id,
         &fingerprint,
         OutputConfirmation {
+            stream_digest: state.outputs.stream_digest(&current.id, &output),
             position_ms: effect.commit_position_ms,
             duration_ms: effect.commit_duration_ms,
         },
@@ -1524,6 +1562,9 @@ fn dispatch_output_command_locked(
             state
                 .sessions
                 .set_output_reachable(&auth.account_id, &output, true);
+            if let Err(error) = sleep::restore_pending(state, auth, &session, &output) {
+                tracing::warn!(session_id=%session.id,%error,"volume restore pending after confirmed command");
+            }
             let session = rpc_session(session);
             publish_session(state, auth, &session);
             RpcResponse::SessionCommandSend(SessionCommandSendOutcome::Dispatched)
@@ -1785,7 +1826,9 @@ fn refresh_one_output_session_locked(
             transport,
             position_ms,
             duration_ms,
-            physical.volume,
+            physical
+                .volume
+                .filter(|_| !session.fading && session.pending_restore.is_none()),
         ) {
             if updated.revision != session.revision {
                 publish_session(state, auth, &rpc_session(updated));
@@ -2038,6 +2081,16 @@ pub(crate) fn rpc_session(session: Session) -> RpcSession {
     let current_track_id = session.current_track_id().map(str::to_string);
     let stream_path = session.stream_path();
     RpcSession {
+        sleep_timer: session
+            .sleep_timer
+            .map(|t| super::contract::RpcSleepTimer {
+                id: t.id,
+                deadline: t
+                    .deadline
+                    .to_rfc3339_opts(chrono::SecondsFormat::Millis, true),
+                fade_seconds: t.fade_seconds,
+            })
+            .map(Box::new),
         repeat: match session.repeat {
             crate::sessions::Repeat::Off => crate::rpc::contract::RpcRepeatMode::Off,
             crate::sessions::Repeat::All => crate::rpc::contract::RpcRepeatMode::All,
@@ -2132,6 +2185,18 @@ fn domain_command(command: RpcSessionCommand) -> DomainSessionCommand {
         },
         RpcSessionCommand::Play(_) => DomainSessionCommand::Play,
         RpcSessionCommand::Pause(_) => DomainSessionCommand::Pause,
+        RpcSessionCommand::SleepSet(c) => {
+            DomainSessionCommand::SleepSet(crate::sessions::sleep::SleepTimer::new(
+                c.at.as_deref(),
+                c.minutes,
+                c.fade_seconds.unwrap_or_default(),
+                chrono::Utc::now(),
+            ))
+        }
+        RpcSessionCommand::SleepCancel(_) => DomainSessionCommand::SleepCancel,
+        RpcSessionCommand::Stop(c) if c.sleep_timer_id.is_some() => {
+            DomainSessionCommand::SleepStop(c.sleep_timer_id.unwrap())
+        }
         RpcSessionCommand::Stop(_) => DomainSessionCommand::Stop,
         RpcSessionCommand::TrackEnded(_) => DomainSessionCommand::TrackEnded,
         RpcSessionCommand::PositionReport(command) => DomainSessionCommand::PositionReport {

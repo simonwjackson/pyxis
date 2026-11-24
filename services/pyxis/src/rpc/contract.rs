@@ -667,10 +667,44 @@ pub struct ShuffleSetCommand {
     pub enabled: bool,
 }
 
+// --- sleep timer (U44) ---
+#[typeshare]
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct SleepSetCommand {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub at: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub minutes: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub fade_seconds: Option<u32>,
+}
+
+#[typeshare]
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct RpcSleepTimer {
+    pub id: String,
+    pub deadline: String,
+    pub fade_seconds: u32,
+}
+
+#[typeshare]
+#[derive(Clone, Debug, Default, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct StopCommand {
+    /// Only stop if this timer is still armed. Local and backstop Stops share a receipt.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sleep_timer_id: Option<String>,
+}
+// --- end sleep timer ---
+
 #[typeshare]
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct RpcSession {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sleep_timer: Option<Box<RpcSleepTimer>>,
     pub repeat: RpcRepeatMode,
     pub shuffle: bool,
     /// Occurrence ordinals in effective queue order. Ascending order restores the original
@@ -791,6 +825,11 @@ pub struct VolumeSetCommand {
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
 #[serde(tag = "_tag", content = "payload")]
 pub enum RpcSessionCommand {
+    // --- sleep timer (U44) ---
+    #[serde(rename = "sleep.set")]
+    SleepSet(SleepSetCommand),
+    #[serde(rename = "sleep.cancel")]
+    SleepCancel(EmptyRequest),
     #[serde(rename = "queue.add")]
     QueueAdd(QueueAddCommand),
     #[serde(rename = "queue.remove")]
@@ -810,7 +849,7 @@ pub enum RpcSessionCommand {
     #[serde(rename = "transport.pause")]
     Pause(EmptyRequest),
     #[serde(rename = "transport.stop")]
-    Stop(EmptyRequest),
+    Stop(StopCommand),
     #[serde(rename = "transport.trackEnded")]
     TrackEnded(EmptyRequest),
     #[serde(rename = "position.report")]

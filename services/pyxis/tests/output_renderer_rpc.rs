@@ -41,6 +41,8 @@ struct Harness {
     root: PathBuf,
     app: axum::Router,
     token: String,
+    state: AppState,
+    host: PluginHost,
 }
 
 impl Harness {
@@ -52,6 +54,8 @@ impl Harness {
         }
         let candidate =
             PluginCandidate::new(PathBuf::from(env!("CARGO_BIN_EXE_pyxis-plugin-laboratory")))
+                .with_env("PYXIS_LAB_DISCOVERY_GATE", root.join("gate.sock"))
+                .with_env("PYXIS_LAB_VOLUME_REFUSAL", root.join("refused-volume"))
                 .with_env("PYXIS_LAB_ID", "sonos")
                 .with_env("PYXIS_LAB_CAPABILITY", "output")
                 .with_env("PYXIS_LAB_OUTPUT_STATE_FILE", root.join("output-state"))
@@ -85,7 +89,7 @@ impl Harness {
             .expect("album");
         let state = AppState::open_with_plugins_and_lan_base(
             store,
-            host,
+            host.clone(),
             Some("http://192.168.1.2:4488".into()),
         )
         .expect("state");
@@ -101,7 +105,7 @@ impl Harness {
                 "test",
             )
             .expect("candidate");
-        let app = router(state);
+        let app = router(state.clone());
         let claim = app
             .clone()
             .oneshot(
@@ -130,6 +134,8 @@ impl Harness {
             root,
             app,
             token,
+            state,
+            host,
         }
     }
 
@@ -436,21 +442,7 @@ async fn failed_regroup_keeps_playing_and_success_publishes_one_release() {
     assert_eq!(before["transport"], "playing");
     assert_eq!(before["output"]["targetId"], "A");
     std::fs::write(result_path, topology(&[("B", &["A", "B"])]).to_string()).unwrap();
-    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
-    let addr = listener.local_addr().unwrap();
-    let app = harness.app.clone();
-    tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
-    let (mut socket, _) = tokio_tungstenite::connect_async(format!("ws://{addr}/realtime"))
-        .await
-        .unwrap();
-    socket.send(tokio_tungstenite::tungstenite::Message::Text(json!({"_tag":"realtime.hello","payload":{"bearerToken":harness.token,"topics":["sessions"],"contractId":pyxis::rpc::contract::CONTRACT_ID}}).to_string())).await.unwrap();
-    let frame = |msg: tokio_tungstenite::tungstenite::Message| {
-        serde_json::from_str::<Value>(msg.to_text().unwrap()).unwrap()
-    };
-    assert_eq!(
-        frame(socket.next().await.unwrap().unwrap())["_tag"],
-        "realtime.welcome"
-    );
+    let mut socket = subscribe(&harness).await;
     assert_eq!(harness.call(regroup).await["outcome"]["status"], "ready");
     let after = harness.session(&session).await;
     assert_eq!(after["transport"], "stopped");
@@ -468,4 +460,336 @@ async fn failed_regroup_keeps_playing_and_success_publishes_one_release() {
             .unwrap();
         assert_eq!(frame(msg)["payload"]["state"]["payload"]["name"], expected);
     }
+}
+
+fn frame(msg: tokio_tungstenite::tungstenite::Message) -> Value {
+    serde_json::from_str(msg.to_text().unwrap()).unwrap()
+}
+async fn subscribe(
+    harness: &Harness,
+) -> tokio_tungstenite::WebSocketStream<tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>> {
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    let app = harness.app.clone();
+    tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+    let (mut socket, _) = tokio_tungstenite::connect_async(format!("ws://{addr}/realtime"))
+        .await
+        .unwrap();
+    socket.send(tokio_tungstenite::tungstenite::Message::Text(json!({"_tag":"realtime.hello","payload":{"bearerToken":harness.token,"topics":["sessions"],"contractId":pyxis::rpc::contract::CONTRACT_ID}}).to_string())).await.unwrap();
+    assert_eq!(
+        frame(socket.next().await.unwrap().unwrap())["_tag"],
+        "realtime.welcome"
+    );
+    socket
+}
+
+async fn playing(h: &Harness) -> String {
+    let id = h.output_session("RINCON_TEST", &h.token).await;
+    for cmd in [
+        json!({"_tag":"queue.add","payload":{"trackIds":["track-1"]}}),
+        json!({"_tag":"transport.play","payload":{}}),
+        json!({"_tag":"volume.set","payload":{"volume":70}}),
+    ] {
+        assert_eq!(h.command(&id, cmd).await["outcome"]["status"], "dispatched");
+    }
+    id
+}
+fn tick(state: &AppState, at: &str) {
+    use pyxis::rpc::dispatch::SleepLane;
+    for lane in [SleepLane::Device, SleepLane::Output] {
+        lane.run(state, || at.parse().unwrap()).unwrap();
+    }
+}
+async fn set(h: &Harness, id: &str, payload: Value) {
+    assert_eq!(
+        h.command(id, json!({"_tag":"sleep.set","payload":payload}))
+            .await["outcome"]["status"],
+        "dispatched"
+    );
+}
+
+#[tokio::test]
+async fn output_sleep_survives_restart_mid_fade_stops_then_restores_volume() {
+    let mut h = Harness::start(None).await;
+    let id = playing(&h).await;
+    set(
+        &h,
+        &id,
+        json!({"at":"2099-07-03T00:00:10Z","fadeSeconds":10}),
+    )
+    .await;
+    tick(&h.state, "2099-07-03T00:00:05Z");
+    assert_eq!(h.session(&id).await["volume"], 70);
+    // Discard the entire core (including output ownership and stream tokens), but
+    // leave the external renderer running, as it would across a service restart.
+    drop(h.app);
+    drop(h.state);
+    h.state = AppState::open_with_plugins_and_lan_base(
+        Store::open(&h.root).unwrap(),
+        h.host.clone(),
+        Some("http://192.168.1.2:4488".into()),
+    )
+    .unwrap();
+    h.app = router(h.state.clone());
+    tick(&h.state, "2099-07-03T00:00:09Z");
+    tick(&h.state, "2099-07-03T00:00:10Z");
+    let s = h.session(&id).await;
+    assert_eq!(s["transport"], "stopped");
+    assert!(s.get("sleepTimer").is_none());
+    assert_eq!(s["volume"], 70);
+    let writes = renderer_writes(&h);
+    assert_eq!(writes, ["70", "35", "7", "0", "stop", "70"]);
+}
+#[tokio::test]
+async fn rejects_past_deadline_and_only_the_last_uncancelled_sleep_fires() {
+    let h = Harness::start(None).await;
+    let id = playing(&h).await;
+    for invalid in [
+        json!({"at":"1970-01-01T00:00:00Z"}),
+        json!({"minutes":0}),
+        json!({"at":"2099-01-01T00:00:00Z","minutes":1}),
+    ] {
+        assert_eq!(
+            h.command(&id, json!({"_tag":"sleep.set","payload":invalid}))
+                .await["outcome"]["value"]["code"],
+            "session.invalidTransportCommand"
+        );
+    }
+    set(&h, &id, json!({"minutes":5})).await;
+    assert!(h.session(&id).await["sleepTimer"]["deadline"].is_string());
+    h.command(&id, json!({"_tag":"sleep.cancel","payload":{}}))
+        .await;
+    tick(&h.state, "2099-01-01T00:00:00Z");
+    assert_eq!(h.calls("transport.stop"), 0);
+    set(&h, &id, json!({"at":"2099-01-01T00:00:00Z"})).await;
+    set(&h, &id, json!({"at":"2099-01-02T00:00:00Z"})).await;
+    tick(&h.state, "2099-01-01T00:00:00Z");
+    assert_eq!(h.calls("transport.stop"), 0);
+    tick(&h.state, "2099-01-02T00:00:00Z");
+    assert_eq!(h.calls("transport.stop"), 1);
+    assert_eq!(h.calls("volume.set"), 1);
+}
+#[tokio::test]
+async fn device_backstop_addresses_the_host_and_waits_for_its_report() {
+    let h = Harness::start(None).await;
+    let mut socket = subscribe(&h).await;
+    let s = h
+        .call(json!({"_tag":"session.create","payload":{"name":"host"}}))
+        .await;
+    let id = s["outcome"]["value"]["id"].as_str().unwrap();
+    set(&h, id, json!({"at":"2099-01-01T00:00:00Z"})).await;
+    let timer = h.session(id).await["sleepTimer"]["id"].clone();
+    tick(&h.state, "2099-01-01T00:00:00Z");
+    let msg = tokio::time::timeout(std::time::Duration::from_secs(5), async {
+        loop {
+            let msg = frame(socket.next().await.unwrap().unwrap());
+            if msg["payload"]["command"].is_object() {
+                break msg["payload"].clone();
+            }
+        }
+    })
+    .await
+    .unwrap();
+    assert_eq!(
+        msg["command"],
+        json!({"_tag":"transport.stop","payload":{"sleepTimerId":timer}})
+    );
+    assert_eq!(h.session(id).await["sleepTimer"]["id"], timer);
+    let report = json!({"_tag":"session.command.run","payload":{"command":msg["command"],"sessionId":id,"commandId":msg["directiveId"]}});
+    let applied = h.call(report.clone()).await;
+    assert_eq!(applied["outcome"]["status"], "applied");
+    assert!(applied["outcome"]["value"].get("sleepTimer").is_none());
+    assert_eq!(h.call(report).await, applied);
+}
+
+#[tokio::test]
+async fn failed_final_fade_still_stops_and_restores() {
+    let h = Harness::start(None).await;
+    let id = playing(&h).await;
+    set(
+        &h,
+        &id,
+        json!({"at":"2099-07-03T00:00:10Z","fadeSeconds":10}),
+    )
+    .await;
+    tick(&h.state, "2099-07-03T00:00:05Z");
+    std::fs::write(h.root.join("refused-volume"), "0").unwrap();
+    tick(&h.state, "2099-07-03T00:00:10Z");
+    let s = h.session(&id).await;
+    assert_eq!(s["transport"], "stopped");
+    assert!(s.get("sleepTimer").is_none());
+    assert_eq!(s["volume"], 70);
+    assert_eq!(h.calls("transport.stop"), 1);
+}
+fn renderer_writes(h: &Harness) -> Vec<String> {
+    std::fs::read_to_string(h.root.join("calls.log"))
+        .unwrap()
+        .lines()
+        .filter_map(|line| {
+            let (op, data) = line.split_once('|')?;
+            match op {
+                "volume.set" => {
+                    Some(serde_json::from_str::<Value>(data).unwrap()["volume"].to_string())
+                }
+                "transport.stop" => Some("stop".into()),
+                _ => None,
+            }
+        })
+        .collect()
+}
+
+#[tokio::test]
+async fn second_timer_stops_on_time_without_losing_pending_restore() {
+    let h = Harness::start(None).await;
+    let id = playing(&h).await;
+    set(
+        &h,
+        &id,
+        json!({"at":"2099-07-03T00:00:10Z","fadeSeconds":10}),
+    )
+    .await;
+    std::fs::write(h.root.join("refused-volume"), "70").unwrap();
+    tick(&h.state, "2099-07-03T00:00:10Z");
+    assert_eq!(h.calls("transport.stop"), 1);
+    assert_eq!(
+        h.command(&id, json!({"_tag":"transport.play","payload":{}}))
+            .await["outcome"]["status"],
+        "dispatched"
+    );
+    set(
+        &h,
+        &id,
+        json!({"at":"2099-07-03T00:00:20Z","fadeSeconds":10}),
+    )
+    .await;
+    tick(&h.state, "2099-07-03T00:00:15Z");
+    std::fs::remove_file(h.root.join("refused-volume")).unwrap();
+    tick(&h.state, "2099-07-03T00:00:20Z");
+    assert_eq!(h.calls("transport.stop"), 2);
+    let s = h.session(&id).await;
+    assert!(s.get("sleepTimer").is_none());
+    assert_eq!(
+        renderer_writes(&h)
+            .iter()
+            .rev()
+            .find(|s| s.as_str() != "stop")
+            .unwrap(),
+        "70"
+    );
+    assert_eq!(s["volume"], 70);
+}
+
+#[tokio::test]
+async fn failed_restore_retries_only_volume_after_restart() {
+    let mut h = Harness::start(None).await;
+    let id = playing(&h).await;
+    set(
+        &h,
+        &id,
+        json!({"at":"2099-07-03T00:00:10Z","fadeSeconds":10}),
+    )
+    .await;
+    tick(&h.state, "2099-07-03T00:00:05Z");
+    std::fs::write(h.root.join("refused-volume"), "70").unwrap();
+    tick(&h.state, "2099-07-03T00:00:10Z");
+    let s = h.session(&id).await;
+    assert!(s.get("sleepTimer").is_none());
+    assert_eq!(s["transport"], "stopped");
+    drop(h.app);
+    drop(h.state);
+    h.state = AppState::open_with_plugins(Store::open(&h.root).unwrap(), h.host.clone()).unwrap();
+    h.app = router(h.state.clone());
+    std::fs::remove_file(h.root.join("refused-volume")).unwrap();
+    let before = renderer_writes(&h).len();
+    tick(&h.state, "2099-07-03T00:00:20Z");
+    assert_eq!(&renderer_writes(&h)[before..], ["70"]);
+    assert_eq!(h.session(&id).await["volume"], 70);
+    tick(&h.state, "2099-07-03T00:00:30Z");
+    assert_eq!(&renderer_writes(&h)[before..], ["70"]);
+}
+#[tokio::test]
+async fn foreign_stream_never_claims_a_fade_or_prevents_disarming_it() {
+    for (already_fading, replace) in [(false, false), (true, false), (true, true)] {
+        let h = Harness::start(None).await;
+        let id = playing(&h).await;
+        set(
+            &h,
+            &id,
+            json!({"at":"2099-07-03T00:00:10Z","fadeSeconds":10}),
+        )
+        .await;
+        if already_fading {
+            tick(&h.state, "2099-07-03T00:00:05Z");
+        }
+        h.renderer(json!({"state":"PLAYING","streamUrl":"foreign","volume":53}));
+        let calls = h.calls("volume.set");
+        tick(&h.state, "2099-07-03T00:00:07Z");
+        if !already_fading {
+            assert_eq!(h.session(&id).await["volume"], 53);
+        }
+        let cmd = if replace {
+            json!({"_tag":"sleep.set","payload":{"at":"2099-07-04T00:00:10Z"}})
+        } else {
+            json!({"_tag":"sleep.cancel","payload":{}})
+        };
+        assert_eq!(h.command(&id, cmd).await["outcome"]["status"], "dispatched");
+        tick(&h.state, "2099-07-03T00:00:12Z");
+        assert_eq!(h.calls("volume.set"), calls);
+        assert_eq!(h.calls("transport.stop"), 0);
+    }
+}
+
+#[tokio::test]
+async fn device_backstop_does_not_wait_for_output_and_output_rechecks_time_after_discovery() {
+    use pyxis::rpc::dispatch::SleepLane;
+    use std::sync::{
+        atomic::{AtomicI64, Ordering},
+        Arc,
+    };
+    use tokio::io::AsyncWriteExt;
+    let h = Harness::start(None).await;
+    let output = playing(&h).await;
+    let mut socket = subscribe(&h).await;
+    let device = h
+        .call(json!({"_tag":"session.create","payload":{"name":"device"}}))
+        .await;
+    let id = device["outcome"]["value"]["id"].as_str().unwrap();
+    let deadline = "2099-07-03T00:00:10Z";
+    for target in [id, output.as_str()] {
+        set(&h, target, json!({"at":deadline,"fadeSeconds":10})).await;
+    }
+    let end = deadline.parse::<chrono::DateTime<chrono::Utc>>().unwrap();
+    let time = Arc::new(AtomicI64::new(end.timestamp() - 1));
+    let path = h.root.join("gate.sock");
+    let listener = tokio::net::UnixListener::bind(&path).unwrap();
+    let clock = time.clone();
+    let state = h.state.clone();
+    let waiting = tokio::task::spawn_blocking(move || {
+        SleepLane::Output.run(&state, || {
+            chrono::DateTime::from_timestamp(clock.load(Ordering::SeqCst), 0).unwrap()
+        })
+    });
+    let (mut gate, _) = tokio::time::timeout(std::time::Duration::from_secs(5), listener.accept())
+        .await
+        .unwrap()
+        .unwrap();
+    time.store(end.timestamp(), Ordering::SeqCst);
+    SleepLane::Device.run(&h.state, || end).unwrap();
+    tokio::time::timeout(std::time::Duration::from_secs(5), async {
+        loop {
+            let frame = frame(socket.next().await.unwrap().unwrap());
+            if frame["payload"]["command"]["_tag"] == "transport.stop" {
+                assert_eq!(frame["payload"]["sessionId"], id);
+                break;
+            }
+        }
+    })
+    .await
+    .unwrap();
+    assert_eq!(h.calls("transport.stop"), 0);
+    std::fs::remove_file(path).unwrap();
+    gate.write_all(b"!").await.unwrap();
+    waiting.await.unwrap().unwrap();
+    assert_eq!(h.calls("transport.stop"), 1);
+    assert_eq!(h.session(&output).await["transport"], "stopped");
 }

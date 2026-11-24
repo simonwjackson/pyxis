@@ -9,6 +9,8 @@ pub mod console;
 pub mod handoff;
 pub mod machine;
 pub mod queue;
+pub mod sleep;
+use sleep::SleepTimer;
 
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, RwLock};
@@ -78,6 +80,10 @@ impl OutputBinding {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Session {
+    pub sleep_timer: Option<SleepTimer>,
+    pub(crate) fading: bool,
+    pub(crate) pending_restore: Option<u8>,
+    pub(crate) stream_digest: Option<String>,
     pub repeat: Repeat,
     pub shuffle: bool,
     pub queue_order: Vec<u32>,
@@ -111,6 +117,9 @@ impl Session {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SessionCommand {
+    SleepSet(Result<SleepTimer, MachineError>),
+    SleepCancel,
+    SleepStop(String),
     QueueAdd {
         track_ids: Vec<String>,
         /// Effective insert position; `None` appends.
@@ -157,6 +166,7 @@ pub enum PreparedOutputCommand {
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct OutputConfirmation {
+    pub stream_digest: Option<blake3::Hash>,
     pub position_ms: Option<u64>,
     pub duration_ms: Option<u64>,
 }
@@ -164,6 +174,14 @@ pub struct OutputConfirmation {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct SessionRecord {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    sleep_timer: Option<SleepTimer>,
+    #[serde(default)]
+    fading: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pending_restore: Option<u8>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    stream_digest: Option<String>,
     #[serde(default)]
     repeat: Repeat,
     #[serde(default)]
@@ -286,6 +304,10 @@ impl Sessions {
         let _guard = self.mutation.lock().expect("session mutation poisoned");
         let timestamp = now();
         let record = SessionRecord {
+            sleep_timer: None,
+            stream_digest: None,
+            fading: false,
+            pending_restore: None,
             repeat: Repeat::Off,
             shuffle: false,
             queue_order: Vec::new(),
@@ -357,6 +379,23 @@ impl Sessions {
     pub fn all_output_sessions(
         &self,
     ) -> Result<Vec<(crate::db::store::AccountId, Session)>, SessionError> {
+        self.matching_sessions(|record| record.output_ref.is_some())
+    }
+
+    pub fn sleep_sessions(
+        &self,
+        outputs: bool,
+    ) -> Result<Vec<(crate::db::store::AccountId, Session)>, SessionError> {
+        self.matching_sessions(|r| {
+            r.output_ref.is_some() == outputs
+                && (r.sleep_timer.is_some() || r.pending_restore.is_some())
+        })
+    }
+
+    fn matching_sessions(
+        &self,
+        predicate: impl Fn(&SessionRecord) -> bool,
+    ) -> Result<Vec<(crate::db::store::AccountId, Session)>, SessionError> {
         let mut result = Vec::new();
         for account in self.store.list_accounts::<AccountIdentity>()? {
             let account_id = crate::db::store::AccountId::new(account.id);
@@ -364,7 +403,7 @@ impl Sessions {
                 .store
                 .list::<SessionRecord>(schema::SESSIONS, &account_id)?
                 .into_iter()
-                .filter(|record| output_binding(record).is_some())
+                .filter(|record| predicate(record))
             {
                 result.push((account_id.clone(), self.session(record)));
             }
@@ -392,7 +431,11 @@ impl Sessions {
                 return Err(SessionError::NotOutput);
             }
             machine::stop(&mut record.transport, &mut record.position_ms);
+            record.fading = false;
+            record.pending_restore = None;
             record.output_ref = None;
+            record.sleep_timer = None;
+            record.stream_digest = None;
             record.host_device_id = format!("released:{id}");
             record.revision += 1;
             record.updated_by = auth.principal_id().into();
@@ -490,6 +533,36 @@ impl Sessions {
         command_receipt: Option<(&str, &str)>,
     ) -> Result<Session, SessionError> {
         let caller = device_id(auth)?;
+        self.apply_device_command(auth, session_id, command, command_receipt, Some(caller))
+    }
+
+    /// Timer intent belongs to the core, even on a device-hosted session. No other
+    /// command can bypass host confirmation through this entry point.
+    pub fn set_device_sleep(
+        &self,
+        auth: &AuthContext,
+        session_id: &str,
+        command: SessionCommand,
+        receipt: Option<(&str, &str)>,
+    ) -> Result<Session, SessionError> {
+        if !matches!(
+            command,
+            SessionCommand::SleepSet(_) | SessionCommand::SleepCancel
+        ) {
+            return Err(SessionError::NotHost);
+        }
+        self.apply_device_command(auth, session_id, command, receipt, None)
+    }
+
+    fn apply_device_command(
+        &self,
+        auth: &AuthContext,
+        session_id: &str,
+        command: SessionCommand,
+        command_receipt: Option<(&str, &str)>,
+        host: Option<&str>,
+    ) -> Result<Session, SessionError> {
+        let caller = auth.principal_id();
         let _guard = self.mutation.lock().expect("session mutation poisoned");
         let Some(mut record) =
             self.store
@@ -497,7 +570,7 @@ impl Sessions {
         else {
             return Err(SessionError::UnknownSession);
         };
-        if record.host_device_id != caller {
+        if record.output_ref.is_some() || host.is_some_and(|id| id != record.host_device_id) {
             return Err(SessionError::NotHost);
         }
         let mut receipt = if let Some((command_id, fingerprint)) = command_receipt {
@@ -683,6 +756,9 @@ impl Sessions {
         }
         self.validate_seek(&auth.account_id, &mut record, command)?;
         apply_command(&mut record, command)?;
+        if let Some(hash) = confirmation.stream_digest {
+            record.stream_digest = Some(hash.to_hex().to_string());
+        }
         if let Some(position_ms) = confirmation.position_ms {
             record.position_ms = position_ms;
         }
@@ -707,6 +783,54 @@ impl Sessions {
                 )?,
             ],
         )?;
+        Ok(self.session(record))
+    }
+
+    /// Renderer-only bookkeeping under the plugin lane. No visible state or revision changes.
+    pub(crate) fn complete_restore(
+        &self,
+        auth: &AuthContext,
+        id: &str,
+    ) -> Result<(), SessionError> {
+        let _guard = self.mutation.lock().expect("session mutation poisoned");
+        let mut record = self
+            .store
+            .get::<SessionRecord>(schema::SESSIONS, &auth.account_id, id)?
+            .ok_or(SessionError::UnknownSession)?;
+        record.pending_restore = None;
+        self.store
+            .put_session_snapshot(&auth.account_id, id, &record)?;
+        Ok(())
+    }
+
+    /// Remember the live pre-fade volume before the first renderer write so that a
+    /// restart halfway through a fade never mistakes the attenuated volume for its base.
+    pub fn begin_fade(
+        &self,
+        auth: &AuthContext,
+        session_id: &str,
+        timer_id: &str,
+        volume: Option<u8>,
+    ) -> Result<Session, SessionError> {
+        let _guard = self.mutation.lock().expect("session mutation poisoned");
+        let mut record = self
+            .store
+            .get::<SessionRecord>(schema::SESSIONS, &auth.account_id, session_id)?
+            .ok_or(SessionError::UnknownSession)?;
+        if record.output_ref.is_none()
+            || record.sleep_timer.as_ref().is_none_or(|t| t.id != timer_id)
+        {
+            return Err(MachineError::StaleSleep.into());
+        }
+        if !record.fading {
+            record.fading = true;
+            record.volume = volume.filter(|v| *v <= 100).unwrap_or(record.volume);
+            record.revision += 1;
+            record.updated_by = auth.principal_id().to_string();
+            record.updated_at = now();
+            self.store
+                .put_session_snapshot(&auth.account_id, session_id, &record)?;
+        }
         Ok(self.session(record))
     }
 
@@ -931,6 +1055,10 @@ impl Sessions {
             .contains_key(&record.host_device_id);
         let output = output_binding(&record);
         Session {
+            fading: record.fading,
+            pending_restore: record.pending_restore,
+            sleep_timer: record.sleep_timer,
+            stream_digest: record.stream_digest,
             repeat: record.repeat,
             shuffle: record.shuffle,
             queue_order: if record.queue_order.is_empty() {
@@ -1048,7 +1176,30 @@ fn apply_command(record: &mut SessionRecord, command: &SessionCommand) -> Result
             record.queue.is_empty(),
         )?,
         SessionCommand::Pause => machine::pause(&mut record.transport)?,
-        SessionCommand::Stop => machine::stop(&mut record.transport, &mut record.position_ms),
+        SessionCommand::SleepSet(timer) => {
+            record.sleep_timer = Some(timer.clone()?);
+            record.fading = false;
+        }
+        SessionCommand::SleepCancel => {
+            record.sleep_timer = None;
+            record.fading = false;
+        }
+        SessionCommand::SleepStop(id)
+            if record
+                .sleep_timer
+                .as_ref()
+                .is_none_or(|timer| timer.id != *id) =>
+        {
+            return Err(MachineError::StaleSleep.into())
+        }
+        SessionCommand::SleepStop(_) | SessionCommand::Stop => {
+            if record.fading {
+                record.pending_restore = Some(record.volume);
+            }
+            record.fading = false;
+            record.sleep_timer = None;
+            machine::stop(&mut record.transport, &mut record.position_ms);
+        }
         SessionCommand::TrackEnded => {
             if record.repeat == Repeat::One {
                 if record.transport != Transport::Playing {
@@ -1084,6 +1235,7 @@ fn apply_command(record: &mut SessionRecord, command: &SessionCommand) -> Result
         }
         SessionCommand::VolumeSet { volume } => {
             machine::set_volume(&mut record.volume, *volume)?;
+            record.pending_restore = None;
         }
     }
     Ok(())

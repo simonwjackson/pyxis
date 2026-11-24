@@ -151,6 +151,14 @@ fn main() -> anyhow::Result<()> {
             value.insert("authoritative".into(), PluginValue::Bool(true));
         }
         if capability == PluginCapability::Output {
+            if call.operation == "discover" {
+                if let Some(gate) = std::env::var_os("PYXIS_LAB_DISCOVERY_GATE")
+                    .filter(|p| std::path::Path::new(p).exists())
+                {
+                    let socket = std::os::unix::net::UnixStream::connect(gate)?;
+                    std::io::Read::read_exact(&mut &socket, &mut [0u8])?;
+                }
+            }
             if call.operation == "transport.seek" {
                 let seek_behavior = std::env::var("PYXIS_LAB_SEEK_BEHAVIOR_FILE")
                     .ok()
@@ -203,7 +211,29 @@ fn main() -> anyhow::Result<()> {
             if call.operation == "volume.set" {
                 if let PluginValue::Object(input) = &call.input {
                     if let Some(volume) = input.get("volume") {
-                        output_volume = serde_json::Value::from(volume.clone()).as_u64();
+                        let requested = serde_json::Value::from(volume.clone()).as_u64();
+                        if let Some(refused) = std::env::var_os("PYXIS_LAB_VOLUME_REFUSAL")
+                            .and_then(|path| std::fs::read_to_string(path).ok())
+                            .and_then(|s| s.trim().parse().ok())
+                        {
+                            if requested == Some(refused) {
+                                send(
+                                    &mut stdout,
+                                    PluginResponseEnvelope {
+                                        id: envelope.id,
+                                        response: PluginResponse::CapabilityCall(
+                                            PluginCallOutcome::Unavailable(PluginFailure {
+                                                code: "output.volumeRefused".into(),
+                                                message: "volume write refused".into(),
+                                                retryable: true,
+                                            }),
+                                        ),
+                                    },
+                                )?;
+                                continue;
+                            }
+                        }
+                        output_volume = requested;
                     }
                 }
             }

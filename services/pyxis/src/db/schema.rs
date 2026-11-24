@@ -136,6 +136,19 @@ pub fn sessions() -> CollectionDescriptor {
             field("durationMs", optional(SchemaNode::Num)),
             field("volume", SchemaNode::Num),
             field("cursor", optional(SchemaNode::Num)),
+            field(
+                "sleepTimer",
+                optional(SchemaNode::Struct {
+                    fields: vec![
+                        field("id", SchemaNode::Str),
+                        field("deadline", SchemaNode::Str),
+                        field("fadeSeconds", SchemaNode::Num),
+                    ],
+                }),
+            ),
+            field("pendingRestore", optional(SchemaNode::Num)),
+            field("fading", optional(SchemaNode::Bool)),
+            field("streamDigest", optional(SchemaNode::Str)),
             field("outputRef", optional(SchemaNode::Str)),
             field(
                 "queue",

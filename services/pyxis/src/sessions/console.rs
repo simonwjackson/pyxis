@@ -48,6 +48,10 @@ mod tests {
 
     fn session(reachable: bool) -> Session {
         Session {
+            sleep_timer: None,
+            stream_digest: None,
+            fading: false,
+            pending_restore: None,
             repeat: super::super::Repeat::Off,
             shuffle: false,
             queue_order: Vec::new(),
