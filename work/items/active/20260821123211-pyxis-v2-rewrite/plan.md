@@ -315,6 +315,7 @@ Settled. Do not re-open without the user asking.
 | D34 | After the UI deletion, `clients/app` keeps `worker/`, `rpc/`, `pwa/` and `playback/confirmed-host.ts` as a headless host library. The package drops `PYXIS_WEB_ROOT`, so `/` answers 404, while the optional web-root flag stays in the core. Device-side sleep timers become a documented worker helper, and the core keeps the backstop Stop directive. `pyxis-prototypes.service` on zao is removed with `prototypes/` | User decisions, 2026-11-24 grilling. Narrows D31's device clause and U45. Cost: the phone's installed PWA stops loading after the next deploy, and `pwa/` stays without an app shell to install. |
 | D35 | Lean-back is data, not UI: the worker offers "resume for this device" and "takeover candidates" with a handoff helper. Sessions gain `session.retire`, plus automatic retirement of unreachable, idle device sessions after 30 days. Output sessions never expire. A one-time cleanup retires today's stale live sessions. M15 (U50–U56) carries D32–D35 and runs before M13 | User decisions, 2026-11-24 grilling. The resume rule moves out of the deleted player's `chooseLocalSession`. Cost: a device offline for more than 30 days loses its session and starts fresh. |
 | D36 | Maximize YouTube Music reach after M14: port the three unported Raziel pieces (canonical OLAK album ids from `mprebToOlak`, the 429 rate limiter with exponential backoff, playlist search) and add playlist-seeded radio, artist radio, related tracks, and an artist discography read limited to albums and singles (no top songs) | User decisions, 2026-11-24 Raziel parity grilling. Raziel at `229045b` contained only search, album browse and an uncalled watch-next parser; everything beyond it is new work from documented endpoints. Cost: more dependence on an undocumented upstream API that can change without notice. |
+| D37 | M16 scope: playlist radio seeds are an album (its OLAK playlist) or a YouTube Music playlist found through playlist search; Pyxis playlists cannot seed radio. The artist discography is a read-only catalog call; albums still enter only through explicit add. Moods, genres and charts are dropped, and browse stays "not in the first release" | User decisions, 2026-11-24. Cost: no radio from a Pyxis playlist, because its core track ids have no single upstream playlist. |
 
 ---
 
@@ -477,6 +478,7 @@ milestone below answers a question the user can only answer by using the thing.
 | M15 | **No UI, and the primitives match VISION** (built before M13) | U50, U51, U52, U53, U54, U55, U56 | Does Pyxis run cleanly as a service plus data plane, with a journal that answers time travel, honest source priority, lean-back as data and no stale sessions? |
 | M13 | **The core has what an agent needs** | U40, U41, U42, U43, U44, U45 | Can every MCP tool be built on public RPC alone, with names, queries, shelves, regrouping and sleep timers that tell the truth? |
 | M14 | **My agents drive Pyxis over MCP** | U46, U47, U48, U49 | Can my own agents play, queue, search, tag and run the speakers through a stateless `2026-07-28` MCP server? |
+| M16 | **YouTube Music reaches further** (after M14, before M10) | U57, U58, U59, U60, U61 | Do albums stay single, does the plugin back off politely, and can radio start from an album, a playlist or an artist? |
 
 Notes on sequencing:
 
@@ -508,6 +510,8 @@ Notes on sequencing:
   the generic contract tests the abstraction against real provider behavior with the least new
   provider research. YouTube Music needs a watch-next request and continuations that no code in
   this repo has ever made.
+- **M16 was added on 2026-11-24** from the Raziel parity grilling (D36, D37). It runs after M14
+  and before M10, so continuous radio builds on every seed kind.
 - **M15 was added on 2026-11-24** from the VISION parity grilling (D32–D35) and runs **before
   M13**. Deleting the UI first shrinks every later verify run and keeps M13 and M14 off client UI.
   MCP's history and session tools depend on U51 and U55.
@@ -2155,6 +2159,79 @@ session revision; the listen stream ends cleanly when the client disconnects.
 user present.
 
 ---
+
+## YouTube Music reach (D36, D37)
+
+M16 runs after M14 and before M10. All changes live in `plugins/ytmusic` unless a unit names a
+contract change. Each unit adds fixture-replay tests; live calls only through read-only probes.
+
+### U57. Canonical OLAK album ids
+
+**Goal:** port Raziel's `mprebToOlak`: album search, album get and import resolve an `MPREb…`
+browse id to its canonical `OLAK5uy_…` id through `microformat.urlCanonical` (or the header's
+watch endpoint), so one album has one source id. A read-only check on unzen counts existing
+albums that hold both forms; merging any found duplicates uses the existing matching override path
+and is recorded in `docs/operations/`.
+
+**Dependencies:** U16, U28
+
+**Test scenarios:** an MPREb id resolves to OLAK; an OLAK id is unchanged; a missing canonical URL
+keeps the requested id and logs it; search and get agree on the id.
+
+**Verification:** focused plugin tests; the unzen duplicate count before and after.
+
+### U58. Rate limiting and backoff
+
+**Goal:** port Raziel's limiter: a token bucket shared by every request in the plugin process, and
+exponential backoff with jitter on 429 and 5xx, bounded retries, then a retryable failure. Limits are
+plugin config with defaults.
+
+**Dependencies:** U17
+
+**Test scenarios:** a burst is spread; 429 backs off and succeeds; retries exhaust into a retryable
+error; concurrent callers share the bucket.
+
+**Verification:** focused plugin tests with a controlled clock.
+
+### U59. Playlist search
+
+**Goal:** port Raziel's playlist filter token with a new parser, and add a `playlists` kind to
+`source.search.run` (id, title, owner, track count, artwork). Sources that do not answer the kind
+degrade under D19 and D22.
+
+**Dependencies:** U28, U29
+
+**Test scenarios:** the parser on fixtures; a source without the kind; limits per kind.
+
+**Verification:** focused plugin and source RPC tests, contract drift.
+
+### U60. Album, playlist and artist radio
+
+**Goal:** new station seed kinds `album`, `playlist` and `artist`, declared in the manifest (D22).
+Album and playlist seeds call the watch endpoint with the OLAK or playlist id in radio mode. An artist
+seed reads the artist page for its radio reference (and shuffle reference when present) and follows
+it. Batches reuse the existing watch-queue parser, continuations and D18 upload filtering.
+
+**Dependencies:** U30, U31, U57, U59
+
+**Test scenarios:** each seed on fixtures; a continuation; an artist without a radio reference fails
+honestly; an unsupported seed kind is refused by the SDK check.
+
+**Verification:** focused plugin and station RPC tests, contract drift.
+
+### U61. Related tracks and artist discography
+
+**Goal:** two read-only catalog operations. Related tracks for a song come from the watch response's
+related section. An artist discography lists the artist's albums and singles, never top songs, with
+OLAK ids from U57. Neither adds anything to the library. MCP exposes both through its search and
+artist tools.
+
+**Dependencies:** U57, U28
+
+**Test scenarios:** parsers on fixtures; an artist with only singles; a paged discography; related for
+a track with no related section.
+
+**Verification:** focused plugin and source RPC tests, contract drift.
 
 ## System-Wide Impact
 
