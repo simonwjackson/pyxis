@@ -1,11 +1,13 @@
 import { expect, spyOn, test } from "bun:test"
 import { radioPlaylistId } from "./internal-api"
 import {
+  isRecord,
   parseAlbum,
   parseAlbumSearch,
   parseArtistSearch,
   parseSongSearch,
   parseWatchQueue,
+  walk,
 } from "./renderers"
 
 const artistRun = (name: string, browseId = "UC1234567890123456789012") => ({
@@ -581,6 +583,50 @@ test("album browse preserves OLAK identity for either request form", async () =>
   expect(parseAlbum(fixture, canonical).externalId).toBe(canonical)
 })
 
+test("album radio follows the album header's issued mix endpoint", async () => {
+  const { createYtMusicInternalApi } = await import("./internal-api")
+  const recorded = (await import("../fixtures/album.json")).default
+  const olak = "OLAK5uy_kW9hN-oBmekJ06jhhfStpwRd5pcRKIztY"
+  // Change the issued id so a prefix-built `RDAMPL${olak}` cannot pass.
+  const issued = JSON.parse(
+    JSON.stringify(recorded).replace(`"RDAMPL${olak}"`, '"RDAMPLissued-by-server"'),
+  )
+  const withoutRadio = JSON.parse(JSON.stringify(recorded))
+  walk(withoutRadio, (record) => {
+    if (isRecord(record.musicResponsiveHeaderRenderer))
+      record.musicResponsiveHeaderRenderer.buttons = []
+  })
+  let page: unknown = issued
+  const browsed: unknown[] = []
+  const bodies: Record<string, unknown>[] = []
+  const api = createYtMusicInternalApi((async (url, options) => {
+    const body = JSON.parse(String(options?.body))
+    if (body.browseId) {
+      browsed.push(body.browseId)
+      return Response.json(page)
+    }
+    if (!String(url).includes("/next?"))
+      return Response.json({ responseContext: { visitorData: "v" } })
+    bodies.push(body)
+    return Response.json(watchResponse([queueItem("one", "First")]))
+  }) as typeof fetch)
+
+  const station = await api.mixStation("album", olak, false)
+  await api.watchQueue(station, undefined, 10)
+  expect(browsed[0]).toBe(`VL${olak}`)
+  expect(bodies.at(-1)).toMatchObject({ playlistId: "RDAMPLissued-by-server", params: "wAEB" })
+
+  page = recorded
+  await api.watchQueue(await api.mixStation("album", "MPREb_Tr9YVfRfip1", false), undefined, 10)
+  expect(browsed.at(-1)).toBe("MPREb_Tr9YVfRfip1")
+  expect(bodies.at(-1)).toMatchObject({ playlistId: `RDAMPL${olak}`, params: "wAEB" })
+
+  page = withoutRadio
+  await expect(api.mixStation("album", olak, false)).rejects.toMatchObject({
+    code: "ytmusic.noAlbumMix",
+  })
+})
+
 test("playlist search reads the playlist owner and never mistakes views for track count", async () => {
   const { parsePlaylists } = await import("./renderers")
   const data = (await import("../fixtures/search-playlists.json")).default
@@ -622,12 +668,6 @@ test("artist mixes follow header ids; playlist shuffle params stay percent-encod
     ["artist", "channel", false, "RDEMA703AE9PNaNYb3T-XAhR9g"],
     ["artist", "channel", true, "RDAOA703AE9PNaNYb3T-XAhR9g"],
     ["album", "OLAKabc", true, "OLAKabc"],
-    [
-      "album",
-      "OLAK5uy_m8Yan_MSAia_ZYmZpl6xm1AINDg8LF1NI",
-      false,
-      "RDAMPLOLAK5uy_m8Yan_MSAia_ZYmZpl6xm1AINDg8LF1NI",
-    ],
     ["playlist", "PLabc", true, "PLabc"],
     ["playlist", "PLabc", false, "RDAMPLPLabc"],
   ] as const) {

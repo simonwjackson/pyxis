@@ -125,8 +125,44 @@ export function radioPlaylistId(seedVideoId: string): string {
 const SONG_FILTER = "EgWKAQIIAWoQEAMQBBAJEAoQBRAREBAQFQ%3D%3D"
 const ALBUM_FILTER = "EgWKAQIYAWoOEAMQBBAJEAoQERAQEBU%3D"
 const ARTIST_FILTER = "EgWKAQIgAWoQEAMQBBAJEAoQBRAREBAQFQ%3D%3D"
+
+/// The album header's "Start mix" menu item (icon `MIX`), exactly as the server issued it.
+export function albumRadioEndpoint(
+  page: unknown,
+): { playlistId: string; params?: string } | undefined {
+  let found: { playlistId: string; params?: string } | undefined
+  walk(page, (record) => {
+    if (found || !isRecord(record.musicResponsiveHeaderRenderer)) return
+    walk(record.musicResponsiveHeaderRenderer.buttons, (node) => {
+      const item = node.menuNavigationItemRenderer
+      if (found || stringAt(item, ["icon", "iconType"]) !== "MIX") return
+      const playlistId = stringAt(item, [
+        "navigationEndpoint",
+        "watchPlaylistEndpoint",
+        "playlistId",
+      ])
+      const params = stringAt(item, ["navigationEndpoint", "watchPlaylistEndpoint", "params"])
+      if (playlistId) found = params ? { playlistId, params } : { playlistId }
+    })
+  })
+  return found
+}
+
 export function createYtMusicInternalApi(fetcher: typeof fetch = fetch): YtMusicInternalApi {
   const request = createTransport(fetcher)
+  /// An OLAK id resolves through its playlist page to the MPRE album page when one is linked.
+  async function albumPage(externalId: string): Promise<unknown> {
+    const requestedBrowseId = externalId.startsWith("OLAK") ? `VL${externalId}` : externalId
+    let page = await request("browse", { browseId: requestedBrowseId })
+    if (externalId.startsWith("OLAK")) {
+      let albumId: string | undefined
+      walk(page, (record) => {
+        if (pageType(record) === ALBUM_PAGE_TYPE) albumId ??= browseId(record)
+      })
+      if (albumId?.startsWith("MPRE")) page = await request("browse", { browseId: albumId })
+    }
+    return page
+  }
   async function searchPage<T>(
     query: string,
     params: string,
@@ -205,15 +241,7 @@ export function createYtMusicInternalApi(fetcher: typeof fetch = fetch): YtMusic
       return { ...page, items }
     },
     async getAlbum(externalId) {
-      const requestedBrowseId = externalId.startsWith("OLAK") ? `VL${externalId}` : externalId
-      let page = await request("browse", { browseId: requestedBrowseId })
-      if (externalId.startsWith("OLAK")) {
-        let albumId: string | undefined
-        walk(page, (record) => {
-          if (pageType(record) === ALBUM_PAGE_TYPE) albumId ??= browseId(record)
-        })
-        if (albumId?.startsWith("MPRE")) page = await request("browse", { browseId: albumId })
-      }
+      const page = await albumPage(externalId)
       // album.get is atomic. Materialize the track shelf, not recommendation carousels.
       let items: unknown[] | undefined
       walk(page, (record) => {
@@ -265,6 +293,12 @@ export function createYtMusicInternalApi(fetcher: typeof fetch = fetch): YtMusic
             false,
           )
         playlistId = found
+      } else if (kind === "album" && !shuffle) {
+        // Album radio follows the album header's "Start mix" endpoint as issued.
+        const radio = albumRadioEndpoint(await albumPage(id))
+        if (!radio)
+          throw new YtMusicProviderError("ytmusic.noAlbumMix", "Album does not offer radio", false)
+        return encodeMix(radio)
       } else {
         if (kind === "album" && !id.startsWith("OLAK"))
           playlistId = canonicalAlbumId(await request("browse", { browseId: id }), id)
