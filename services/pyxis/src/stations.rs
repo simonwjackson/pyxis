@@ -201,6 +201,7 @@ impl Stations {
         plugin_id: &str,
         seed_kind: StationSeedKind,
         seed_external_id: &str,
+        mode: Option<crate::rpc::contract::StationMode>,
     ) -> Result<StationCreateOutcome, SourceCatalogError> {
         // The declaration is checked before the call, so a source that never accepts this seed
         // is not asked at all. That is the point of declaring: no probing round trip.
@@ -211,13 +212,15 @@ impl Stations {
             .credentials
             .get(&auth.account_id, plugin_id)?
             .map(serde_json::Value::from);
+        let mut seed = serde_json::json!({"kind":seed_kind,"externalId":seed_external_id});
+        if let Some(mode) = mode {
+            seed["mode"] = serde_json::json!(mode);
+        }
         let value = match self.plugins.call_for_account(
             plugin_id,
             "source",
             "station.create",
-            serde_json::json!({
-                "seed": { "kind": seed_kind, "externalId": seed_external_id }
-            }),
+            serde_json::json!({"seed":seed}),
             auth.account_id.as_str(),
             config,
         ) {

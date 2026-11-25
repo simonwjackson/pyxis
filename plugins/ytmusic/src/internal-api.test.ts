@@ -586,3 +586,47 @@ test("playlist search reads the playlist owner and never mistakes views for trac
     },
   ])
 })
+
+test("artist mixes follow header ids; playlist shuffle params stay percent-encoded", async () => {
+  const { createYtMusicInternalApi } = await import("./internal-api")
+  const artist = (await import("../fixtures/artist-mixes.json")).default
+  const bodies: Record<string, unknown>[] = []
+  const api = createYtMusicInternalApi((async (url, options) => {
+    const body = JSON.parse(String(options?.body))
+    bodies.push(body)
+    if (body.browseId) return Response.json(artist)
+    return Response.json(
+      String(url).includes("/next?")
+        ? watchResponse([
+            {
+              automixPreviewVideoRenderer: {
+                content: {
+                  automixPlaylistVideoRenderer: {
+                    navigationEndpoint: { watchPlaylistEndpoint: { playlistId: "issued-auto" } },
+                  },
+                },
+              },
+            },
+          ])
+        : { responseContext: { visitorData: "visitor" } },
+    )
+  }) as typeof fetch)
+  for (const [kind, id, shuffle, expected] of [
+    ["artist", "channel", false, "RDEMA703AE9PNaNYb3T-XAhR9g"],
+    ["artist", "channel", true, "RDAOA703AE9PNaNYb3T-XAhR9g"],
+    ["album", "OLAKabc", true, "OLAKabc"],
+    ["playlist", "PLabc", true, "PLabc"],
+    ["playlist", "PLabc", false, "RDAMPLPLabc"],
+  ] as const) {
+    const station = await api.mixStation(kind, id, shuffle)
+    const batch = await api.watchQueue(station, undefined, 10)
+    expect(bodies.at(-1)).toMatchObject({
+      playlistId: expected,
+      params: shuffle ? "wAEB8gECKAE%3D" : "wAEB",
+      tunerSettingValue: "AUTOMIX_SETTING_NORMAL",
+    })
+    expect(batch.continuation).toContain("issued-auto")
+    await api.watchQueue(station, batch.continuation, 10)
+    expect(bodies.at(-1)?.playlistId).toBe("issued-auto")
+  }
+})

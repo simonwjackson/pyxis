@@ -2653,6 +2653,16 @@
       "description": "What a station is started from. The kind must be one the source declared in `plugin.list`.",
       "type": "object",
       "properties": {
+        "mode": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/StationMode"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "kind": {
           "$ref": "#/$defs/StationSeedKind"
         },
@@ -2667,13 +2677,21 @@
         "externalId"
       ]
     },
+    "StationMode": {
+      "type": "string",
+      "enum": [
+        "radio",
+        "shuffle"
+      ]
+    },
     "StationSeedKind": {
       "description": "What a station can be started from.\n\nA source declares the kinds it accepts so a client can offer \"start a station here\" only\nwhere it works. `Album` is in the vocabulary because the library is album-centric, and no\nshipped plugin accepts it yet: declaring support is exactly how that stays visible instead\nof being discovered through a failed call.",
       "type": "string",
       "enum": [
         "track",
         "album",
-        "artist"
+        "artist",
+        "playlist"
       ]
     },
     "SourceStationNextRequest": {

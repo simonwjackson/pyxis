@@ -1,0 +1,32 @@
+{
+  "header": {
+    "musicImmersiveHeaderRenderer": {
+      "startRadioButton": {
+        "buttonRenderer": {
+          "navigationEndpoint": {
+            "watchPlaylistEndpoint": {
+              "playlistId": "RDEMA703AE9PNaNYb3T-XAhR9g",
+              "params": "wAEB"
+            }
+          }
+        }
+      },
+      "playButton": {
+        "buttonRenderer": {
+          "navigationEndpoint": {
+            "watchEndpoint": {
+              "videoId": "G2PDJTkFiA8",
+              "playlistId": "RDAOA703AE9PNaNYb3T-XAhR9g",
+              "params": "wAEB8gECGAE%3D",
+              "loggingContext": {
+                "vssLoggingContext": {
+                  "serializedContextData": "GhpSREFPQTcwM0FFOVBOYU5ZYjNULVhBaFI5Zw%3D%3D"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

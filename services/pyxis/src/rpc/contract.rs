@@ -36,6 +36,7 @@ pub enum StationSeedKind {
     Track,
     Album,
     Artist,
+    Playlist,
 }
 
 /// Source abilities that an operation name alone cannot express.
@@ -98,6 +99,13 @@ pub enum SourceReadOutcome<T> {
     Unavailable(RpcFailure),
 }
 
+#[typeshare]
+#[derive(Clone, Copy, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub enum StationMode {
+    Radio,
+    Shuffle,
+}
 /// Wire identity, not a rewrite number. Incompatible clients fail closed before writes.
 /// Persisted current-rewrite sessions default new mode fields; v1 formats are never read.
 pub const CONTRACT_ID: &str = "pyxis-rpc-v4";
@@ -615,6 +623,8 @@ pub struct RpcStation {
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct RpcStationSeed {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub mode: Option<StationMode>,
     pub kind: StationSeedKind,
     /// The source's reference for the seed, as it appeared in a search result.
     pub external_id: String,

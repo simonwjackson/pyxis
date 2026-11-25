@@ -109,6 +109,22 @@ export async function dispatchCapability(
   }
 
   try {
+    if (
+      operation === "station.create" &&
+      capability === "source" &&
+      input &&
+      typeof input === "object" &&
+      "seed" in input
+    ) {
+      const seed = input.seed
+      if (
+        !seed ||
+        typeof seed !== "object" ||
+        !("kind" in seed) ||
+        !definition.manifest.source?.stationSeedKinds?.some((kind) => kind === seed.kind)
+      )
+        throw new PluginOperationError("capability.invalidInput", "Unsupported station seed")
+    }
     return { status: "ready", value: await handler(input, context) }
   } catch (error) {
     return { status: "unavailable", value: pluginFailure(error) }

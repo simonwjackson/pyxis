@@ -134,7 +134,7 @@ describe("YouTube Music stations", () => {
     const runtime = createPluginRuntime(createYtMusicPlugin(working, internal))
 
     const result = await call(runtime, "station.create", {
-      seed: { kind: "artist", externalId: "UC1234567890123456789012" },
+      seed: { kind: "genre", externalId: "UC1234567890123456789012" },
     })
 
     expect(result).toMatchObject({

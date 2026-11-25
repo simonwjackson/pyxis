@@ -25,12 +25,14 @@ export function createYtMusicPlugin(
       name: "YouTube Music",
       version: "1.0.0",
       capabilities: [PluginCapability.Source],
-      // A YouTube Music station is derived from a recording, so a track seed is the only one
-      // this source can honor. It owns no stations of its own, which is why `station.list` is
-      // absent rather than answering with an empty list it would have to invent.
       source: {
         operations: ["playlist.search", "search.suggest"],
-        stationSeedKinds: [StationSeedKind.Track],
+        stationSeedKinds: [
+          StationSeedKind.Track,
+          StationSeedKind.Album,
+          StationSeedKind.Artist,
+          StationSeedKind.Playlist,
+        ],
       },
       configSchema: transportSchema,
     },
@@ -78,13 +80,17 @@ export function createYtMusicPlugin(
           const externalId = validInput(() => externalIdOf(input))
           return providerCall(() => internalApi.getAlbum(externalId))
         },
-        // Creating a station makes no upstream request. The radio playlist id is derived from
-        // the seed recording, so this cannot fail upstream and needs no account.
         "station.create": async (input) => {
-          const seed = validInput(() => trackSeedOf(input))
+          const seed = validInput(() => stationSeed(input))
+          const kind = seed.kind
           return {
             station: {
-              externalId: radioPlaylistId(seed),
+              externalId:
+                kind === "track"
+                  ? radioPlaylistId(seed.externalId)
+                  : await providerCall(() =>
+                      internalApi.mixStation(kind, seed.externalId, seed.shuffle),
+                    ),
               name: "YouTube Music radio",
             },
           }
@@ -149,7 +155,7 @@ function seedVideoId(stationId: string): string {
   return stationId.startsWith("RDAMVM") ? stationId.slice("RDAMVM".length) : stationId
 }
 
-function trackSeedOf(input: unknown): string {
+function stationSeed(input: unknown) {
   if (typeof input !== "object" || input === null || !("seed" in input)) {
     throw new Error("station.create input requires a seed")
   }
@@ -164,10 +170,21 @@ function trackSeedOf(input: unknown): string {
   ) {
     throw new Error("station.create seed requires kind and externalId")
   }
-  if (seed.kind !== "track") {
+  if (
+    seed.kind !== "track" &&
+    seed.kind !== "album" &&
+    seed.kind !== "playlist" &&
+    seed.kind !== "artist"
+  ) {
     throw new Error(`YouTube Music stations start from a track, not '${String(seed.kind)}'`)
   }
-  return seed.externalId
+  const shuffle = "mode" in seed && seed.mode === "shuffle"
+  if (shuffle && seed.kind === "track") throw new Error("Shuffle requires a collection")
+  return {
+    kind: seed.kind as "track" | "album" | "playlist" | "artist",
+    externalId: seed.externalId,
+    shuffle,
+  }
 }
 
 function stationNextInput(input: unknown): {

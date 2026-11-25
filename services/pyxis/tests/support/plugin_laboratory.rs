@@ -686,6 +686,7 @@ fn declared_seed_kinds() -> Option<Vec<StationSeedKind>> {
             .split(',')
             .filter_map(|kind| match kind.trim() {
                 "track" => Some(StationSeedKind::Track),
+                "playlist" => Some(StationSeedKind::Playlist),
                 "album" => Some(StationSeedKind::Album),
                 "artist" => Some(StationSeedKind::Artist),
                 _ => None,

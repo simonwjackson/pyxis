@@ -4,3 +4,5 @@ and all but the first track were removed.
 
 `search-playlists.json` is the `searchPlaylists` API response excerpt from
 zS1L3NT/ts-npm-ytmusic-api `src/tests/fixtures/youtube-music.json` (ea59bc1).
+`artist-mixes.json` contains only the header mix endpoints from ytmusicapi's
+`tests/data/2026_05_get_artist1.json` (same revision as `album.json`).

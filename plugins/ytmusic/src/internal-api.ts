@@ -73,6 +73,7 @@ export interface YtMusicInternalApi {
     exact?: boolean,
   ): Promise<readonly YtMusicArtistSummary[]>
   getAlbum(externalId: string): Promise<YtMusicAlbum>
+  mixStation(kind: "album" | "artist" | "playlist", id: string, shuffle: boolean): Promise<string>
   watchQueue(
     seedVideoId: string,
     continuation: string | undefined,
@@ -213,16 +214,59 @@ export function createYtMusicInternalApi(fetcher: typeof fetch = fetch): YtMusic
       return parseAlbum(page, externalId)
     },
 
+    async mixStation(kind, id, shuffle) {
+      let playlistId = id
+      const params = shuffle ? "wAEB8gECKAE%3D" : "wAEB"
+      if (kind === "artist") {
+        const artist = await request("browse", { browseId: id })
+        let found: string | undefined
+        walk(isRecord(artist) ? artist.header : undefined, (node) => {
+          const button = node[shuffle ? "playButton" : "startRadioButton"]
+          walk(button, (r) => {
+            found ??=
+              stringAt(r, ["watchPlaylistEndpoint", "playlistId"]) ??
+              stringAt(r, ["watchEndpoint", "playlistId"])
+          })
+        })
+        if (!found)
+          throw new YtMusicProviderError(
+            "ytmusic.noArtistMix",
+            "Artist does not offer this mix",
+            false,
+          )
+        playlistId = found
+      } else {
+        if (kind === "album" && !id.startsWith("OLAK"))
+          playlistId = canonicalAlbumId(await request("browse", { browseId: id }), id)
+        if (kind === "album" && !playlistId.startsWith("OLAK"))
+          throw new YtMusicProviderError("ytmusic.noAlbumMix", "No album playlist", false)
+        if (!shuffle && kind === "playlist") playlistId = `RDAMPL${playlistId}`
+      }
+      return encodeMix({ playlistId, params })
+    },
     async watchQueue(seedVideoId, continuation, limit) {
-      const body =
-        continuation === undefined
-          ? {
-              videoId: seedVideoId,
-              playlistId: radioPlaylistId(seedVideoId),
-              isAudioOnly: true,
-            }
-          : { continuation }
-      return parseWatchQueue(await request("next", body), limit)
+      const initial = {
+        playlistId: radioPlaylistId(seedVideoId),
+        videoId: seedVideoId,
+        params: "wAEB",
+      }
+      const resumed = decodeMix(continuation)
+      const mix = resumed ?? decodeMix(seedVideoId) ?? initial
+      const body = {
+        playlistId: mix.playlistId,
+        videoId: mix.videoId,
+        params: mix.params,
+        isAudioOnly: true,
+        enablePersistentPlaylistPanel: true,
+        tunerSettingValue: "AUTOMIX_SETTING_NORMAL",
+      }
+      const queue = parseWatchQueue(
+        await request("next", body, false, resumed ? resumed.token : continuation),
+        limit,
+      )
+      if (resumed && queue.continuation && !decodeMix(queue.continuation))
+        return { ...queue, continuation: encodeMix({ ...mix, token: queue.continuation }) }
+      return queue
     },
   }
 }
@@ -293,13 +337,47 @@ export function parseWatchQueue(value: unknown, limit: number): YtMusicWatchQueu
     })
   }
 
-  const continuation = watchContinuation(panel)
+  const continuation = watchContinuation(panel) ?? automixContinuation(panel)
   return {
     tracks: [...songs.values()].slice(0, limit),
     ...(continuation === undefined ? {} : { continuation }),
   }
 }
 
+interface Mix {
+  playlistId: string
+  params?: string
+  videoId?: string
+  token?: string
+}
+function encodeMix(mix: Mix) {
+  return `mix:${JSON.stringify(mix)}`
+}
+function decodeMix(value?: string): Mix | undefined {
+  if (!value?.startsWith("mix:")) return undefined
+  const mix = JSON.parse(value.slice(4))
+  if (!isRecord(mix) || typeof mix.playlistId !== "string") throw new Error("Invalid station")
+  return {
+    playlistId: mix.playlistId,
+    ...(typeof mix.params === "string" && { params: mix.params }),
+    ...(typeof mix.videoId === "string" && { videoId: mix.videoId }),
+    ...(typeof mix.token === "string" && { token: mix.token }),
+  }
+}
+function automixContinuation(panel: Record<string, unknown>) {
+  let next: string | undefined
+  walk(panel, (node) =>
+    walk(node.automixPreviewVideoRenderer, (r) => {
+      const endpoint = r.watchPlaylistEndpoint
+      if (isRecord(endpoint) && typeof endpoint.playlistId === "string")
+        next ??= encodeMix({
+          playlistId: endpoint.playlistId,
+          ...(typeof endpoint.params === "string" && { params: endpoint.params }),
+        })
+    }),
+  )
+  return next
+}
 /// A radio page advertises its next page under one of two continuation shapes.
 function watchContinuation(panel: Record<string, unknown>): string | undefined {
   let found: string | undefined

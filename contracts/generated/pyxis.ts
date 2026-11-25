@@ -284,6 +284,7 @@ export enum StationSeedKind {
 	Track = "track",
 	Album = "album",
 	Artist = "artist",
+	Playlist = "playlist",
 }
 
 /**
@@ -849,8 +850,14 @@ export interface RpcStationListResult {
 	failures: RpcSourceFailure[];
 }
 
+export enum StationMode {
+	Radio = "radio",
+	Shuffle = "shuffle",
+}
+
 /** What a station is started from. The kind must be one the source declared in `plugin.list`. */
 export interface RpcStationSeed {
+	mode?: StationMode;
 	kind: StationSeedKind;
 	/** The source's reference for the seed, as it appeared in a search result. */
 	externalId: string;

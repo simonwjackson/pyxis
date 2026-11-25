@@ -1558,6 +1558,7 @@ pub fn dispatch(state: &AppState, request: RpcRequest, auth: Option<AuthContext>
                 &request.plugin_id,
                 request.seed.kind,
                 &request.seed.external_id,
+                request.seed.mode,
             ) {
                 Ok(StationCreateOutcome::Ready(station)) => RpcResponse::SourceStationCreate(
                     SourceStationCreateOutcome::Ready(rpc_station(station)),
