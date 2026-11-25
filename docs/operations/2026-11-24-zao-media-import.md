@@ -45,3 +45,23 @@ Lossless imports satisfy the job with the normal seven-day recheck; lossy import
 the normal retry schedule. Re-runs also repair unsatisfied jobs for existing lossless
 copies. Storage failures exit nonzero; prior per-track commits remain. Fix the error
 and re-run. There is no extra receipt, checkpoint or persistent import state.
+
+## Run on unzen, 2026-11-25
+
+Deployed `d7a0cec` on `service-apps-unzen`. Two packaging fixes were needed first, because that
+branch runs core tests inside Nix: the locked Ajv tarballs from `bun.nix` for the v4 schema
+tests (`4cafad8`), and `ffmpeg-headless` for the import tests (`d7a0cec`). Database backup:
+`/var/lib/pyxis-backup-20261125-pre-import`.
+
+- The dry run would import 298 files (8,073,114,863 bytes) and skip 0.
+- The import imported 298 files with 0 skips. The media file count went from 1,910 to 2,208.
+- The JSON summaries are in `/var/lib/pyxis/import-zao-20261124/`. The staged copies were deleted afterwards.
+
+**Incident.** The nightly `app-update-pyxis` timer (05:15 UTC) redeployed the same candidate
+while Pyxis was stopped for the import. Its readiness check failed, so deploy-rs rolled the
+profile back to the previous build (`c8a9a89`), and the trap then started that old build.
+The old build cannot decode the imported candidate records: they have no `sourcePriority`, a
+field the old build requires. It logged decode errors for about ten minutes, until
+`app-update-pyxis` was run again and the profile returned to `d7a0cec`, which reads them
+cleanly. **Rolling back below `d7a0cec` now needs the pre-import database backup.**
+Next time, stop the updater timer before stopping Pyxis for operator work.
