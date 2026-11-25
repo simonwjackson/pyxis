@@ -135,6 +135,22 @@
           "properties": {
             "_tag": {
               "type": "string",
+              "const": "listen.journal.list"
+            },
+            "payload": {
+              "$ref": "#/$defs/JournalListRequest"
+            }
+          },
+          "required": [
+            "_tag",
+            "payload"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "_tag": {
+              "type": "string",
               "const": "account.list"
             },
             "payload": {
@@ -833,6 +849,53 @@
       "additionalProperties": false,
       "required": [
         "tokenId"
+      ]
+    },
+    "JournalListRequest": {
+      "type": "object",
+      "properties": {
+        "from": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "to": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "cursor": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "limit": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint32",
+          "minimum": 0
+        },
+        "kinds": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "$ref": "#/$defs/JournalKind"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "JournalKind": {
+      "type": "string",
+      "enum": [
+        "trackPlayed"
       ]
     },
     "AccountCreateRequest": {
@@ -2417,6 +2480,22 @@
           "properties": {
             "_tag": {
               "type": "string",
+              "const": "listen.journal.list"
+            },
+            "outcome": {
+              "$ref": "#/$defs/JournalListOutcome"
+            }
+          },
+          "required": [
+            "_tag",
+            "outcome"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "_tag": {
+              "type": "string",
               "const": "account.list"
             },
             "outcome": {
@@ -3522,6 +3601,99 @@
           "required": [
             "status",
             "value"
+          ]
+        }
+      ]
+    },
+    "JournalListOutcome": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "const": "ready"
+            },
+            "value": {
+              "$ref": "#/$defs/JournalPage"
+            }
+          },
+          "required": [
+            "status",
+            "value"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "const": "invalid"
+            },
+            "value": {
+              "$ref": "#/$defs/RpcFailure"
+            }
+          },
+          "required": [
+            "status",
+            "value"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "const": "unavailable"
+            },
+            "value": {
+              "$ref": "#/$defs/RpcFailure"
+            }
+          },
+          "required": [
+            "status",
+            "value"
+          ]
+        }
+      ]
+    },
+    "JournalPage": {
+      "type": "object",
+      "properties": {
+        "events": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/JournalEvent"
+          }
+        },
+        "nextCursor": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "events"
+      ]
+    },
+    "JournalEvent": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "trackPlayed"
+            },
+            "event": {
+              "$ref": "#/$defs/ListenTrackEventInput"
+            }
+          },
+          "required": [
+            "kind",
+            "event"
           ]
         }
       ]

@@ -81,6 +81,26 @@ export interface DevicePairRequest {
 export interface EmptyRequest {
 }
 
+export enum JournalKind {
+	TrackPlayed = "trackPlayed",
+}
+
+export interface JournalListRequest {
+	from?: string;
+	to?: string;
+	cursor?: string;
+	limit?: number;
+	kinds?: JournalKind[];
+}
+
+export type JournalEvent =
+	| { kind: "trackPlayed", event: ListenTrackEventInput };
+
+export interface JournalPage {
+	events: JournalEvent[];
+	nextCursor?: string;
+}
+
 export interface LibrarySourceReference {
 	pluginId: string;
 	externalId: string;
@@ -975,6 +995,11 @@ export type DevicePairOutcome =
 	| { status: "expired", value?: undefined }
 	| { status: "unavailable", value: RpcFailure };
 
+export type JournalListOutcome =
+	| { status: "ready", value: JournalPage }
+	| { status: "invalid", value: RpcFailure }
+	| { status: "unavailable", value: RpcFailure };
+
 export type ListenAppendOutcome =
 	| { status: "ready", value: RpcListenAppendResult }
 	| { status: "invalid", value: RpcFailure }
@@ -1064,6 +1089,7 @@ export type RpcRequest =
 	| { _tag: "auth.pairing.create", payload: EmptyRequest }
 	| { _tag: "auth.token.create", payload: ApiTokenCreateRequest }
 	| { _tag: "auth.token.revoke", payload: ApiTokenRevokeRequest }
+	| { _tag: "listen.journal.list", payload: JournalListRequest }
 	| { _tag: "account.list", payload: EmptyRequest }
 	| { _tag: "account.create", payload: AccountCreateRequest }
 	| { _tag: "plugin.list", payload: EmptyRequest }
@@ -1112,6 +1138,7 @@ export type RpcResponse =
 	| { _tag: "auth.pairing.create", outcome: PairingCreateOutcome }
 	| { _tag: "auth.token.create", outcome: ApiTokenCreateOutcome }
 	| { _tag: "auth.token.revoke", outcome: CommandOutcome }
+	| { _tag: "listen.journal.list", outcome: JournalListOutcome }
 	| { _tag: "account.list", outcome: AccountListOutcome }
 	| { _tag: "account.create", outcome: AccountCreateOutcome }
 	| { _tag: "plugin.list", outcome: PluginListOutcome }

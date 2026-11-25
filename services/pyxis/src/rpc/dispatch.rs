@@ -1214,7 +1214,7 @@ pub fn dispatch(state: &AppState, request: RpcRequest, auth: Option<AuthContext>
                     device_id: event.device_id,
                     source_plugin_id: event.source_plugin_id,
                     listened_at: event.listened_at,
-                    played_ms: event.played_ms.map(u64::from),
+                    played_ms: event.played_ms,
                     completed: event.completed,
                     context: event.context,
                     context_id: event.context_id,
@@ -1246,6 +1246,35 @@ pub fn dispatch(state: &AppState, request: RpcRequest, auth: Option<AuthContext>
                 )),
             }
         }
+        RpcRequest::ListenJournalList(request) => {
+            use super::contract::{JournalListOutcome as Outcome, JournalPage};
+            let Some(auth) = auth else {
+                return auth_required();
+            };
+            let limit = request.limit.unwrap_or(100).clamp(1, 1000) as usize;
+            RpcResponse::ListenJournalList(
+                match state.listen.history_page(
+                    &auth.account_id,
+                    limit,
+                    request.from.as_deref(),
+                    request.to.as_deref(),
+                    request.cursor.as_deref(),
+                    request.kinds.as_deref(),
+                ) {
+                    Ok((events, next_cursor)) => Outcome::Ready(JournalPage {
+                        events,
+                        next_cursor,
+                    }),
+                    Err(error @ (ListenError::InvalidCursor | ListenError::InvalidTime(_))) => {
+                        Outcome::Invalid(RpcFailure::permanent(
+                            "listen.invalidPage",
+                            error.to_string(),
+                        ))
+                    }
+                    Err(error) => Outcome::Unavailable(listen_failure(error)),
+                },
+            )
+        }
         RpcRequest::ListenHistoryList(request) => {
             let Some(auth) = auth else {
                 return auth_required();
@@ -1262,9 +1291,7 @@ pub fn dispatch(state: &AppState, request: RpcRequest, auth: Option<AuthContext>
                             device_id: event.device_id,
                             source_plugin_id: event.source_plugin_id,
                             listened_at: event.listened_at,
-                            played_ms: event
-                                .played_ms
-                                .map(|played| u32::try_from(played).unwrap_or(u32::MAX)),
+                            played_ms: event.played_ms,
                             completed: event.completed,
                             context: event.context,
                             context_id: event.context_id,

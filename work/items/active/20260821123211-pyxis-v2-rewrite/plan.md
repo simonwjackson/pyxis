@@ -1946,8 +1946,9 @@ player, so tell the user before the deploy.
 
 ### U51. History date ranges and paging
 
-**Goal:** `listen.history.list` accepts `from`, `to` and an opaque cursor, newest first, with a
-bounded page size. `limit` stays. This makes time travel answerable without downloading all
+**Goal:** Keep `listen.history.list` unchanged on v4. Add `listen.journal.list` with
+`from` (inclusive), `to` (exclusive), optional `kinds`, an opaque cursor and bounded page
+size. Return newest first in `{events,nextCursor?}` with a tagged row per kind. This makes time travel answerable without downloading all
 history.
 
 **Dependencies:** U9

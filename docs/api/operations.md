@@ -47,6 +47,7 @@ Read [README.md](README.md) first for the envelope rules, and
 | `library.playlist.tracks.add` | `library:write` | `applied`, `unknownPlaylist`, `rejected`, `unavailable` |
 | `listen.events.append` | `listen:write` | `ready`, `invalid`, `conflict`, `unavailable` |
 | `listen.history.list` | `listen:read` | `ready`, `unavailable` |
+| `listen.journal.list` | `listen:read` | `ready`, `invalid`, `unavailable` |
 | `matching.evaluate` | `library:read` | `ready`, `unavailable` |
 | `matching.override.set` | `library:write` | `succeeded`, `unknown`, `unavailable` |
 | `matching.override.remove` | `library:write` | `succeeded`, `unknown`, `unavailable` |
@@ -154,11 +155,11 @@ A new command ID deliberately appends again. Create/list keep their existing con
 
 ## Result sizes
 
-Two unpaginated calls need care:
+Use these bounds when reading large collections:
 
 | Call | Behaviour |
 |---|---|
-| `listen.history.list` | `limit` defaults to 100 and is capped at 1000. Exceeding the cap silently clamps, so a client computing statistics must not assume it received everything |
+| `listen.journal.list` | `limit` defaults to 100 and is capped at 1000. Follow the page’s `nextCursor` until absent to read the full range |
 | `library.albums.list` | Returns every album with every track, unpaginated. A real library of a few hundred albums is a single large response |
 
 Fetch the library once and keep it, rather than polling it. Realtime carries the changes.
@@ -297,7 +298,14 @@ answers `conflict`, which catches a client generating colliding ids rather than 
 accepting a lie.
 
 `listen.history.list` returns 100 events unless `limit` says otherwise, and never more than
-1000.
+1000. Its request and track-only array response are unchanged.
+
+`listen.journal.list` returns `{events, nextCursor?}`. Each event is `{kind,event}`.
+The optional `kinds` array selects kinds, and an empty array matches none.
+`limit` defaults to 100 and is clamped to 1–1000. Optional RFC3339 `from` (inclusive) and `to` (exclusive) restrict the time range.
+Events sort by instant then event id, both descending. If more events match, the page has `nextCursor`. Pass it as `cursor` with the same bounds. Treat it as opaque.
+New appends ahead of the cursor do not shift subsequent pages. Unknown cursors and
+malformed times answer `invalid`.
 
 External tools can derive listening signals from this raw history. Pyxis computes no hot-album projection.
 

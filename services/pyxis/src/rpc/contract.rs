@@ -1464,7 +1464,7 @@ pub enum PlaylistListOutcome {
 }
 
 #[typeshare]
-#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct ListenTrackEventInput {
     pub id: String,
@@ -1505,6 +1505,50 @@ pub enum ListenAppendOutcome {
     Ready(RpcListenAppendResult),
     Invalid(RpcFailure),
     Conflict(RpcFailure),
+    Unavailable(RpcFailure),
+}
+
+#[typeshare]
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct JournalListRequest {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub from: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub to: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cursor: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub limit: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub kinds: Option<Vec<JournalKind>>,
+}
+#[typeshare]
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub enum JournalKind {
+    TrackPlayed,
+}
+#[typeshare]
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize, JsonSchema)]
+#[serde(tag = "kind", content = "event", rename_all = "camelCase")]
+pub enum JournalEvent {
+    TrackPlayed(ListenTrackEventInput),
+}
+#[typeshare]
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct JournalPage {
+    pub events: Vec<JournalEvent>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub next_cursor: Option<String>,
+}
+#[typeshare]
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(tag = "status", content = "value", rename_all = "camelCase")]
+pub enum JournalListOutcome {
+    Ready(JournalPage),
+    Invalid(RpcFailure),
     Unavailable(RpcFailure),
 }
 
@@ -1779,6 +1823,8 @@ pub enum RpcRequest {
     AuthTokenCreate(ApiTokenCreateRequest),
     #[serde(rename = "auth.token.revoke")]
     AuthTokenRevoke(ApiTokenRevokeRequest),
+    #[serde(rename = "listen.journal.list")]
+    ListenJournalList(JournalListRequest),
     #[serde(rename = "account.list")]
     AccountList(EmptyRequest),
     #[serde(rename = "account.create")]
@@ -1889,6 +1935,8 @@ pub enum RpcResponse {
     AuthTokenCreate(ApiTokenCreateOutcome),
     #[serde(rename = "auth.token.revoke")]
     AuthTokenRevoke(CommandOutcome),
+    #[serde(rename = "listen.journal.list")]
+    ListenJournalList(JournalListOutcome),
     #[serde(rename = "account.list")]
     AccountList(AccountListOutcome),
     #[serde(rename = "account.create")]
@@ -1977,13 +2025,14 @@ pub enum RpcResponse {
 }
 
 impl RpcRequest {
-    pub const KNOWN_TAGS: [&'static str; 46] = [
+    pub const KNOWN_TAGS: [&'static str; 47] = [
         "system.status.get",
         "auth.device.claim",
         "auth.device.pair",
         "auth.pairing.create",
         "auth.token.create",
         "auth.token.revoke",
+        "listen.journal.list",
         "account.list",
         "account.create",
         "plugin.list",
@@ -2038,6 +2087,7 @@ impl RpcRequest {
             RpcRequest::AuthPairingCreate(_) => "auth.pairing.create",
             RpcRequest::AuthTokenCreate(_) => "auth.token.create",
             RpcRequest::AuthTokenRevoke(_) => "auth.token.revoke",
+            RpcRequest::ListenJournalList(_) => "listen.journal.list",
             RpcRequest::AccountList(_) => "account.list",
             RpcRequest::AccountCreate(_) => "account.create",
             RpcRequest::PluginList(_) => "plugin.list",
@@ -2102,6 +2152,7 @@ impl RpcRequest {
             RpcRequest::SystemStatusGet(_)
             | RpcRequest::AuthDeviceClaim(_)
             | RpcRequest::AuthDevicePair(_) => None,
+            RpcRequest::ListenJournalList(_) => Some("listen:read"),
             RpcRequest::AccountList(_) | RpcRequest::PluginList(_) => Some("account:read"),
             RpcRequest::OutputTargetsList(_) => Some("session:read"),
             RpcRequest::SessionList(_) | RpcRequest::SessionStateGet(_) => Some("session:read"),
@@ -2153,7 +2204,7 @@ impl RpcRequest {
 }
 
 impl RpcResponse {
-    pub const KNOWN_OPERATION_TAGS: [&'static str; 46] = RpcRequest::KNOWN_TAGS;
+    pub const KNOWN_OPERATION_TAGS: [&'static str; 47] = RpcRequest::KNOWN_TAGS;
 
     pub fn tag(&self) -> &'static str {
         match self {
@@ -2163,6 +2214,7 @@ impl RpcResponse {
             RpcResponse::AuthPairingCreate(_) => "auth.pairing.create",
             RpcResponse::AuthTokenCreate(_) => "auth.token.create",
             RpcResponse::AuthTokenRevoke(_) => "auth.token.revoke",
+            RpcResponse::ListenJournalList(_) => "listen.journal.list",
             RpcResponse::AccountList(_) => "account.list",
             RpcResponse::AccountCreate(_) => "account.create",
             RpcResponse::PluginList(_) => "plugin.list",

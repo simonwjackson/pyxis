@@ -132,3 +132,20 @@ fn history_orders_timezone_offsets_by_instant_not_text() {
 
     assert_eq!(history[0].listened_at, "2026-08-20T10:30:00Z");
 }
+
+#[test]
+fn history_cursor_cannot_address_another_accounts_event() {
+    let dir = tempfile::tempdir().unwrap();
+    let log = ListenLog::open(Store::open(dir.path()).unwrap());
+    let id = "01M0K000000000000000000004";
+    log.append_batch(
+        &AccountId::new("a"),
+        vec![event(id, "album", "2026-08-20T12:00:00Z")],
+        "device",
+    )
+    .unwrap();
+    assert!(matches!(
+        log.history_page(&AccountId::new("b"), 1, None, None, Some(id), None),
+        Err(ListenError::InvalidCursor)
+    ));
+}

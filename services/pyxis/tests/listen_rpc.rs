@@ -1,10 +1,11 @@
+mod v4_schema;
 use axum::body::{to_bytes, Body};
 use axum::http::{header, Request, StatusCode};
-use chrono::{Duration, SecondsFormat, Utc};
 use pyxis::api::{router, AppState};
 use pyxis::db::store::Store;
 use serde_json::{json, Value};
 use tower::ServiceExt;
+use v4_schema::check_v4_schema;
 
 async fn rpc(app: &axum::Router, request: Value, bearer: Option<&str>) -> Value {
     let mut builder = Request::builder()
@@ -50,10 +51,11 @@ async fn batch_append_replay_and_history_are_public_contracts() {
     let device_id = claim["outcome"]["value"]["device"]["id"]
         .as_str()
         .expect("device id");
-    // Use ordered recent timestamps for the history assertions.
-    let now = Utc::now();
-    let listened_at = [3, 2, 1]
-        .map(|hours| (now - Duration::hours(hours)).to_rfc3339_opts(SecondsFormat::Secs, true));
+    let listened_at = [
+        "2026-08-20T10:00:00Z",
+        "2026-08-20T11:00:00Z",
+        "2026-08-20T12:00:00Z",
+    ];
     let events = json!([
         {
             "id": "01M0K00000000000000000000C",
@@ -125,6 +127,45 @@ async fn batch_append_replay_and_history_are_public_contracts() {
     .await;
     assert_eq!(history["outcome"]["value"].as_array().unwrap().len(), 3);
     assert_eq!(history["outcome"]["value"][0]["listenedAt"], listened_at[2]);
+    check_v4_schema("RpcResponse", &history);
+    let page = |payload| {
+        rpc(
+            &app,
+            json!({"_tag":"listen.journal.list", "payload":payload}),
+            Some(token),
+        )
+    };
+    let range = json!({"from":listened_at[0], "to":listened_at[2], "limit":1});
+    let first = page(range.clone()).await;
+    let row = &first["outcome"]["value"]["events"][0]["event"];
+    assert_eq!(row["listenedAt"], listened_at[1]);
+    let mut newer = events[0].clone();
+    newer["id"] = json!("01M0K00000000000000000000G");
+    newer["listenedAt"] = json!("2026-08-20T11:30:00Z");
+    let appended = rpc(
+        &app,
+        json!({"_tag":"listen.events.append","payload":{"events":[newer]}}),
+        Some(token),
+    )
+    .await;
+    assert_eq!(appended["outcome"]["value"]["accepted"], 1);
+    let mut next = range;
+    next["cursor"] = first["outcome"]["value"]["nextCursor"].clone();
+    let last = page(next).await;
+    assert_eq!(
+        last["outcome"]["value"]["events"][0]["event"]["listenedAt"],
+        listened_at[0]
+    );
+    assert!(last["outcome"]["value"]["nextCursor"].is_null());
+    assert_eq!(
+        page(json!({"from":listened_at[2],"to":listened_at[2]})).await["outcome"]["value"]
+            ["events"],
+        json!([])
+    );
+    assert_eq!(
+        page(json!({"cursor":"unknown"})).await["outcome"]["status"],
+        "invalid"
+    );
 }
 
 #[tokio::test]
