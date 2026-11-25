@@ -11,7 +11,7 @@ export function watchSessions(
   base: URL,
   bearerToken: string,
   signal: AbortSignal,
-  updated: (id: string, revision: number) => void,
+  updated: (id: string, revision?: number) => void,
   ended: () => void,
 ): Promise<void> {
   const url = new URL("/realtime", base)
@@ -42,6 +42,7 @@ export function watchSessions(
             bearerToken,
             contractId: RPC_CONTRACT_ID,
             topics: [RpcRealtimeTopic.Sessions],
+            sessionRetirements: true,
           },
         } satisfies RealtimeClientMessage),
       )
@@ -61,11 +62,15 @@ export function watchSessions(
           welcomed = true
           clearTimeout(timer)
           resolve()
-        } else if (
-          frame._tag === "realtime.event" &&
-          frame.payload.state._tag === "session.state"
-        ) {
-          const { id, revision } = frame.payload.state.payload
+        } else if (frame._tag === "realtime.event") {
+          const { state } = frame.payload
+          if (state._tag === "session.retired") {
+            revisions.delete(state.payload.id)
+            updated(state.payload.id)
+            return
+          }
+          if (state._tag !== "session.state") return
+          const { id, revision } = state.payload
           if (revision > (revisions.get(id) ?? -1)) {
             revisions.set(id, revision)
             updated(id, revision)

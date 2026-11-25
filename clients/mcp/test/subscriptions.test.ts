@@ -176,3 +176,40 @@ test("two account streams observing the same URI only deliver their own session 
     stop.abort()
   }
 })
+
+test("the now-playing hello opts in to retirements and the same feed keeps delivering updates", async () => {
+  // The real core sends resyncRequired and disconnects on retirement unless hello opted in.
+  const cancel = new AbortController()
+  try {
+    const stream = messages(await h.post("subscriptions/listen", listen, { signal: cancel.signal }))
+    expect((await stream.next()).value.method).toBe("notifications/subscriptions/acknowledged")
+    const create = async () => {
+      const session = await h.owner.call({ _tag: "session.create", payload: { name: "Test host" } })
+      if (session.status !== "ready") throw Error(session.status)
+      expect((await stream.next()).value).toMatchObject({
+        method: "notifications/resources/updated",
+        params: {
+          uri,
+          _meta: {
+            "pyxis.dev/sessionId": session.value.id,
+            "pyxis.dev/revision": session.value.revision,
+          },
+        },
+      })
+      return session.value.id
+    }
+    const sessionId = await create()
+    expect(await h.owner.call({ _tag: "session.retire", payload: { sessionId } })).toEqual({
+      status: "retired",
+    })
+    const removal = (await stream.next()).value
+    expect(removal).toMatchObject({
+      method: "notifications/resources/updated",
+      params: { uri, _meta: { "pyxis.dev/sessionId": sessionId } },
+    })
+    expect(Object.hasOwn(removal.params._meta, "pyxis.dev/revision")).toBe(false)
+    await create()
+  } finally {
+    cancel.abort()
+  }
+})

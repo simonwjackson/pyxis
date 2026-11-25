@@ -75,7 +75,12 @@ export function subscriptionHandler(factory: McpServerFactory, base: URL) {
             bus.publish({
               kind: "resource_updated",
               uri: nowPlaying,
-              params: { _meta: { "pyxis.dev/sessionId": id, "pyxis.dev/revision": revision } },
+              params: {
+                _meta: {
+                  "pyxis.dev/sessionId": id,
+                  ...(revision !== undefined && { "pyxis.dev/revision": revision }),
+                },
+              },
             }),
           () => {
             void handler.close()

@@ -178,8 +178,8 @@ frame (`sessions` topic, `session:read` required). Pyxis checks the token at han
 on each event. Revoking a token blocks new requests but does not terminate an already
 accepted Pyxis socket. The adapter honors only the now-playing URI.
 Each new session revision invalidates that URI once; `notifications/resources/updated`
-includes `pyxis.dev/sessionId` and `pyxis.dev/revision` in `_meta`. Read again for current
-state. Closing the SSE stream closes its upstream socket. After a disconnect, listen and
+includes `pyxis.dev/sessionId` and `pyxis.dev/revision` in `_meta`. Retirement also
+invalidates the URI, with the session ID but no revision. Read again for current state. Closing the SSE stream closes its upstream socket. After a disconnect, listen and
 read again: there is no saved cursor or replay across MCP requests.
 
 Use `prompts/list` to discover **DJ** (`mood` required) and **Rediscover** (no arguments).
