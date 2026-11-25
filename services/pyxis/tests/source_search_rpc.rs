@@ -543,7 +543,7 @@ async fn positional_source_pages_and_discography_rows_are_rejected() {
 async fn atomic_metadata_reads_send_only_the_documented_selectors() {
     let dir = tempfile::tempdir().unwrap();
     let log = dir.path().join("inputs");
-    let reads = json!({"track.details":{"items":[]},"track.credits":[]});
+    let reads = json!({"track.details":{"items":[]},"track.credits":[],"track.lyrics":{"status":"notFound"}});
     let host = PluginHost::start(
         vec![search_plugin()
             .with_env("PYXIS_LAB_READS", reads.to_string())
@@ -556,6 +556,7 @@ async fn atomic_metadata_reads_send_only_the_documented_selectors() {
     for (op, selector) in [
         ("track.details", json!({"externalIds":["id"]})),
         ("track.credits", json!({"externalId":"id"})),
+        ("track.lyrics", json!({"externalId":"id"})),
     ] {
         let mut payload = selector.clone();
         payload["pluginId"] = "search-source".into();

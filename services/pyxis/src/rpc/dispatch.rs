@@ -886,8 +886,6 @@ pub fn dispatch(state: &AppState, request: RpcRequest, auth: Option<AuthContext>
                 &request.plugin_id,
                 "track.lyrics",
                 serde_json::json!({"externalId":request.external_id}),
-                None,
-                None,
             ))
         }
         RpcRequest::SourceTrackCredits(request) => {
