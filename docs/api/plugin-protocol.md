@@ -91,18 +91,25 @@ degrades only that plugin's contribution.
 ## Source operations
 
 These are the operations the core actually calls on a `source`. A plugin that implements
-only `search` is useful. One that implements all six is a full source.
+only `search` is useful. Declare optional catalog reads in `source.operations` so
+clients can discover them in `plugin.list.sourceOperations`.
 
 | Operation | Input |
 |---|---|
 | `search` | `{ query, limit, cursor? }` |
 | `album.search` | `{ query, limit?, cursor? }` |
 | `artist.search` | `{ query, limit, cursor? }` |
+| `playlist.search` | `{ query, limit, exactMatch?, cursor? }` → `{ playlists, cursor? }` |
+| `search.suggest` | `{ query, limit, cursor? }` → `{ items: string[], cursor? }` |
+| `artist.discography` | `{ externalId, limit, cursor? }` → `{ items: album summaries, cursor? }` |
+| `track.related`, `playlist.tracks` | `{ externalId, limit, cursor? }` → `{ items: tracks, cursor? }` |
+| `track.details` | `{ externalIds }` (1–50 source ids) → `{ items: tracks }` |
+| `track.credits` | `{ externalId }` → `[{ role, names }]` |
 | `album.get` | `{ externalId }` |
 | `stream.resolve` | `{ trackId, preferredFormats? }` |
 | `stream.fetch` | `{ trackId, targetPath, preferredFormats? }` |
 
-One `source.search.run` asks every live source for songs, albums and artists. Refusing an
+One `source.search.run` asks every live source for songs, albums, artists and declared playlists. Refusing an
 operation you do not implement is expected and costs nothing: the core reports the kinds you
 do answer and does not put your plugin in the result's `failures`. Answer with the SDK's
 ordinary unknown-operation outcome, which `definePlugin` produces for you by simply not

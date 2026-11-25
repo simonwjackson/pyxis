@@ -756,7 +756,14 @@ export interface RpcShelf {
 	revision: number;
 }
 
+export enum ReleaseType {
+	Album = "album",
+	Single = "single",
+	Ep = "ep",
+}
+
 export interface RpcSourceAlbum {
+	releaseType?: ReleaseType;
 	externalId: string;
 	title: string;
 	artist: string;
@@ -767,6 +774,7 @@ export interface RpcSourceAlbum {
 }
 
 export interface RpcSourceAlbumSummary {
+	releaseType?: ReleaseType;
 	externalId: string;
 	title: string;
 	artist: string;
@@ -967,6 +975,18 @@ export interface SourceAlbumSearchRequest {
 	query: string;
 }
 
+export interface SourceEntityPageRequest {
+	pluginId: string;
+	externalId: string;
+	cursor?: string;
+	limit?: number;
+}
+
+export interface SourceEntityRequest {
+	pluginId: string;
+	externalId: string;
+}
+
 export interface SourcePage<T> {
 	items: T[];
 	cursor?: string;
@@ -1012,6 +1032,16 @@ export interface StopCommand {
 
 export interface TagsSetCommand {
 	tags: string[];
+}
+
+export interface TrackCredit {
+	role: string;
+	names: string[];
+}
+
+export interface TrackDetailsRequest {
+	pluginId: string;
+	externalIds: string[];
 }
 
 export interface TracksGetRequest {
@@ -1203,6 +1233,11 @@ export type RpcRequest =
 	| { _tag: "session.command.send", payload: SessionCommandRequest }
 	| { _tag: "session.handoff", payload: SessionHandoffRequest }
 	| { _tag: "source.search.suggest", payload: SourceSuggestRequest }
+	| { _tag: "source.artist.discography", payload: SourceEntityPageRequest }
+	| { _tag: "source.track.related", payload: SourceEntityPageRequest }
+	| { _tag: "source.track.details", payload: TrackDetailsRequest }
+	| { _tag: "source.track.credits", payload: SourceEntityRequest }
+	| { _tag: "source.playlist.tracks", payload: SourceEntityPageRequest }
 	| { _tag: "source.search.run", payload: SourceSearchRequest }
 	| { _tag: "library.album.add", payload: LibraryAlbumAddRequest }
 	| { _tag: "library.tracks.get", payload: TracksGetRequest }
@@ -1256,6 +1291,11 @@ export type RpcResponse =
 	| { _tag: "session.command.send", outcome: SessionCommandSendOutcome }
 	| { _tag: "session.handoff", outcome: SessionHandoffOutcome }
 	| { _tag: "source.search.suggest", outcome: SourceReadOutcome<SourcePage<string>> }
+	| { _tag: "source.artist.discography", outcome: SourceReadOutcome<SourcePage<RpcSourceAlbumSummary>> }
+	| { _tag: "source.track.related", outcome: SourceReadOutcome<SourcePage<RpcSearchTrack>> }
+	| { _tag: "source.track.details", outcome: SourceReadOutcome<SourcePage<RpcSearchTrack>> }
+	| { _tag: "source.track.credits", outcome: SourceReadOutcome<TrackCredit[]> }
+	| { _tag: "source.playlist.tracks", outcome: SourceReadOutcome<SourcePage<RpcSearchTrack>> }
 	| { _tag: "source.search.run", outcome: SourceSearchOutcome }
 	| { _tag: "library.album.add", outcome: AlbumAddOutcome }
 	| { _tag: "library.tracks.get", outcome: TracksGetOutcome }

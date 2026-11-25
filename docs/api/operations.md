@@ -32,6 +32,12 @@ Read [README.md](README.md) first for the envelope rules, and
 | `session.command.send` | `session:control` | `dispatched`, `unknownSession`, `unreachable`, `busy`, `hostOnly`, `unavailable` |
 | `session.handoff` | `session:control` | `ready`, `unknownSession`, `unknownTarget`, `sourceUnreachable`, `targetUnreachable`, `targetBusy`, `sameSession`, `outputUnsupported`, `unavailable` |
 | `source.search.run` | `source:read` | `ready`, `noSources`, `invalid`, `unavailable` |
+| `source.search.suggest` | `source:read` | `ready`, `unsupported`, `invalid`, `unavailable` |
+| `source.artist.discography` | `source:read` | `ready`, `unsupported`, `invalid`, `unavailable` |
+| `source.playlist.tracks` | `source:read` | `ready`, `unsupported`, `invalid`, `unavailable` |
+| `source.track.details` | `source:read` | `ready`, `unsupported`, `invalid`, `unavailable` |
+| `source.track.credits` | `source:read` | `ready`, `unsupported`, `invalid`, `unavailable` |
+| `source.track.related` | `source:read` | `ready`, `unsupported`, `invalid`, `unavailable` |
 | `source.album.search` | `source:read` | `ready`, `unavailable` |
 | `source.album.get` | `source:read` | `ready`, `unavailable` |
 | `library.album.add` | `library:write` | `ready`, `invalid`, `unavailable` |

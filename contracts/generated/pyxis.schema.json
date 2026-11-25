@@ -407,6 +407,86 @@
           "properties": {
             "_tag": {
               "type": "string",
+              "const": "source.artist.discography"
+            },
+            "payload": {
+              "$ref": "#/$defs/SourceEntityPageRequest"
+            }
+          },
+          "required": [
+            "_tag",
+            "payload"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "_tag": {
+              "type": "string",
+              "const": "source.track.related"
+            },
+            "payload": {
+              "$ref": "#/$defs/SourceEntityPageRequest"
+            }
+          },
+          "required": [
+            "_tag",
+            "payload"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "_tag": {
+              "type": "string",
+              "const": "source.track.details"
+            },
+            "payload": {
+              "$ref": "#/$defs/TrackDetailsRequest"
+            }
+          },
+          "required": [
+            "_tag",
+            "payload"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "_tag": {
+              "type": "string",
+              "const": "source.track.credits"
+            },
+            "payload": {
+              "$ref": "#/$defs/SourceEntityRequest"
+            }
+          },
+          "required": [
+            "_tag",
+            "payload"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "_tag": {
+              "type": "string",
+              "const": "source.playlist.tracks"
+            },
+            "payload": {
+              "$ref": "#/$defs/SourceEntityPageRequest"
+            }
+          },
+          "required": [
+            "_tag",
+            "payload"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "_tag": {
+              "type": "string",
               "const": "source.search.run"
             },
             "payload": {
@@ -1581,6 +1661,71 @@
       "required": [
         "pluginId",
         "query"
+      ]
+    },
+    "SourceEntityPageRequest": {
+      "type": "object",
+      "properties": {
+        "pluginId": {
+          "type": "string"
+        },
+        "externalId": {
+          "type": "string"
+        },
+        "cursor": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "limit": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint32",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "pluginId",
+        "externalId"
+      ]
+    },
+    "TrackDetailsRequest": {
+      "type": "object",
+      "properties": {
+        "pluginId": {
+          "type": "string"
+        },
+        "externalIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "pluginId",
+        "externalIds"
+      ]
+    },
+    "SourceEntityRequest": {
+      "type": "object",
+      "properties": {
+        "pluginId": {
+          "type": "string"
+        },
+        "externalId": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "pluginId",
+        "externalId"
       ]
     },
     "SourceSearchRequest": {
@@ -3088,6 +3233,86 @@
             },
             "outcome": {
               "$ref": "#/$defs/SourceReadOutcome"
+            }
+          },
+          "required": [
+            "_tag",
+            "outcome"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "_tag": {
+              "type": "string",
+              "const": "source.artist.discography"
+            },
+            "outcome": {
+              "$ref": "#/$defs/SourceReadOutcome2"
+            }
+          },
+          "required": [
+            "_tag",
+            "outcome"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "_tag": {
+              "type": "string",
+              "const": "source.track.related"
+            },
+            "outcome": {
+              "$ref": "#/$defs/SourceReadOutcome3"
+            }
+          },
+          "required": [
+            "_tag",
+            "outcome"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "_tag": {
+              "type": "string",
+              "const": "source.track.details"
+            },
+            "outcome": {
+              "$ref": "#/$defs/SourceReadOutcome3"
+            }
+          },
+          "required": [
+            "_tag",
+            "outcome"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "_tag": {
+              "type": "string",
+              "const": "source.track.credits"
+            },
+            "outcome": {
+              "$ref": "#/$defs/SourceReadOutcome4"
+            }
+          },
+          "required": [
+            "_tag",
+            "outcome"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "_tag": {
+              "type": "string",
+              "const": "source.playlist.tracks"
+            },
+            "outcome": {
+              "$ref": "#/$defs/SourceReadOutcome3"
             }
           },
           "required": [
@@ -5374,6 +5599,382 @@
         "items"
       ]
     },
+    "SourceReadOutcome2": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "const": "ready"
+            },
+            "value": {
+              "$ref": "#/$defs/SourcePage2"
+            }
+          },
+          "required": [
+            "status",
+            "value"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "const": "unsupported"
+            }
+          },
+          "required": [
+            "status"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "const": "invalid"
+            },
+            "value": {
+              "$ref": "#/$defs/RpcFailure"
+            }
+          },
+          "required": [
+            "status",
+            "value"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "const": "unavailable"
+            },
+            "value": {
+              "$ref": "#/$defs/RpcFailure"
+            }
+          },
+          "required": [
+            "status",
+            "value"
+          ]
+        }
+      ]
+    },
+    "SourcePage2": {
+      "type": "object",
+      "properties": {
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/RpcSourceAlbumSummary"
+          }
+        },
+        "cursor": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "items"
+      ]
+    },
+    "RpcSourceAlbumSummary": {
+      "type": "object",
+      "properties": {
+        "releaseType": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ReleaseType"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "externalId": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "artist": {
+          "type": "string"
+        },
+        "year": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint32",
+          "minimum": 0
+        },
+        "artworkUrl": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "sourcePluginId": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "externalId",
+        "title",
+        "artist",
+        "sourcePluginId"
+      ]
+    },
+    "ReleaseType": {
+      "type": "string",
+      "enum": [
+        "album",
+        "single",
+        "ep"
+      ]
+    },
+    "SourceReadOutcome3": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "const": "ready"
+            },
+            "value": {
+              "$ref": "#/$defs/SourcePage3"
+            }
+          },
+          "required": [
+            "status",
+            "value"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "const": "unsupported"
+            }
+          },
+          "required": [
+            "status"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "const": "invalid"
+            },
+            "value": {
+              "$ref": "#/$defs/RpcFailure"
+            }
+          },
+          "required": [
+            "status",
+            "value"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "const": "unavailable"
+            },
+            "value": {
+              "$ref": "#/$defs/RpcFailure"
+            }
+          },
+          "required": [
+            "status",
+            "value"
+          ]
+        }
+      ]
+    },
+    "SourcePage3": {
+      "type": "object",
+      "properties": {
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/RpcSearchTrack"
+          }
+        },
+        "cursor": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "items"
+      ]
+    },
+    "RpcSearchTrack": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "externalId": {
+          "description": "The source's own reference for this recording. It addresses `source.station.create`\nwith a `track` seed, so a client can start a station from a song it just found.\nWithout it a client can list and play stations but can never begin one.",
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "artist": {
+          "type": "string"
+        },
+        "album": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "albumExternalId": {
+          "description": "The source's reference for the album this recording belongs to, when it has one.\nIt addresses `source.album.get`, so a client can open the album behind a song.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "durationMs": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint32",
+          "minimum": 0
+        },
+        "trackNumber": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint32",
+          "minimum": 0
+        },
+        "artworkUrl": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "sourcePluginId": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "externalId",
+        "title",
+        "artist",
+        "sourcePluginId"
+      ]
+    },
+    "SourceReadOutcome4": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "const": "ready"
+            },
+            "value": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/TrackCredit"
+              }
+            }
+          },
+          "required": [
+            "status",
+            "value"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "const": "unsupported"
+            }
+          },
+          "required": [
+            "status"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "const": "invalid"
+            },
+            "value": {
+              "$ref": "#/$defs/RpcFailure"
+            }
+          },
+          "required": [
+            "status",
+            "value"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "const": "unavailable"
+            },
+            "value": {
+              "$ref": "#/$defs/RpcFailure"
+            }
+          },
+          "required": [
+            "status",
+            "value"
+          ]
+        }
+      ]
+    },
+    "TrackCredit": {
+      "type": "object",
+      "properties": {
+        "role": {
+          "type": "string"
+        },
+        "names": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "role",
+        "names"
+      ]
+    },
     "SourceSearchOutcome": {
       "oneOf": [
         {
@@ -5529,108 +6130,6 @@
       "required": [
         "externalId",
         "title",
-        "sourcePluginId"
-      ]
-    },
-    "RpcSearchTrack": {
-      "type": "object",
-      "properties": {
-        "id": {
-          "type": "string"
-        },
-        "externalId": {
-          "description": "The source's own reference for this recording. It addresses `source.station.create`\nwith a `track` seed, so a client can start a station from a song it just found.\nWithout it a client can list and play stations but can never begin one.",
-          "type": "string"
-        },
-        "title": {
-          "type": "string"
-        },
-        "artist": {
-          "type": "string"
-        },
-        "album": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "albumExternalId": {
-          "description": "The source's reference for the album this recording belongs to, when it has one.\nIt addresses `source.album.get`, so a client can open the album behind a song.",
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "durationMs": {
-          "type": [
-            "integer",
-            "null"
-          ],
-          "format": "uint32",
-          "minimum": 0
-        },
-        "trackNumber": {
-          "type": [
-            "integer",
-            "null"
-          ],
-          "format": "uint32",
-          "minimum": 0
-        },
-        "artworkUrl": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "sourcePluginId": {
-          "type": "string"
-        }
-      },
-      "additionalProperties": false,
-      "required": [
-        "id",
-        "externalId",
-        "title",
-        "artist",
-        "sourcePluginId"
-      ]
-    },
-    "RpcSourceAlbumSummary": {
-      "type": "object",
-      "properties": {
-        "externalId": {
-          "type": "string"
-        },
-        "title": {
-          "type": "string"
-        },
-        "artist": {
-          "type": "string"
-        },
-        "year": {
-          "type": [
-            "integer",
-            "null"
-          ],
-          "format": "uint32",
-          "minimum": 0
-        },
-        "artworkUrl": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "sourcePluginId": {
-          "type": "string"
-        }
-      },
-      "additionalProperties": false,
-      "required": [
-        "externalId",
-        "title",
-        "artist",
         "sourcePluginId"
       ]
     },
@@ -7076,6 +7575,16 @@
     "RpcSourceAlbum": {
       "type": "object",
       "properties": {
+        "releaseType": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ReleaseType"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "externalId": {
           "type": "string"
         },

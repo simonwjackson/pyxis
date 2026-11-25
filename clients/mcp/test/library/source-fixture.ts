@@ -22,10 +22,13 @@ await runPlugin(
       version: "1",
       configSchema: {},
       capabilities: [PluginCapability.Source],
+      source: { operations: ["artist.discography", "track.related"] },
     },
     capabilities: {
       source: {
         search: () => results,
+        "artist.discography": () => ({ items: [album] }),
+        "track.related": () => ({ items: results.tracks }),
         "album.search": () => ({ albums: [album] }),
         "artist.search": () => ({ artists: [{ externalId: "artist-ref", name: album.artist }] }),
         "album.get": () => ({ ...album, tracks: [{ ...track, trackNumber: 1 }] }),

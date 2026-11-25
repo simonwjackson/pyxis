@@ -59,6 +59,40 @@ async function addSourceAlbum(
   )
 }
 export function registerCatalog(server: McpServer, pyxis: PyxisClient) {
+  const sourcePage = {
+    pluginId: id,
+    externalId: id,
+    cursor: id.optional(),
+    limit: z.int().positive().max(100).optional(),
+  }
+  tool(
+    server,
+    "artist.discography",
+    "Read releases from one source artist, without saving them.",
+    sourcePage,
+    "read",
+    async ({ pluginId, externalId, cursor, limit }) =>
+      outcome(
+        await pyxis.call({
+          _tag: "source.artist.discography",
+          payload: { pluginId, externalId, ...(cursor && { cursor }), ...(limit && { limit }) },
+        }),
+      ),
+  )
+  tool(
+    server,
+    "search.related",
+    "Read recordings related to one source track.",
+    sourcePage,
+    "read",
+    async ({ pluginId, externalId, cursor, limit }) =>
+      outcome(
+        await pyxis.call({
+          _tag: "source.track.related",
+          payload: { pluginId, externalId, ...(cursor && { cursor }), ...(limit && { limit }) },
+        }),
+      ),
+  )
   tool(
     server,
     "search.sources",
@@ -76,6 +110,8 @@ export function registerCatalog(server: McpServer, pyxis: PyxisClient) {
       return outcome({
         status: "ready",
         value: {
+          playlists: result.value.playlists ?? [],
+          pages: result.value.pages ?? [],
           tracks: tracks.map((t) => ({ ...t, inLibrary: member.track(t.id) })),
           albums: found.map(member.album),
           artists: artists.map((a) => ({ ...a, inLibrary: member.artist(a.name) })),

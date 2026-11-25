@@ -26,7 +26,15 @@ export function createYtMusicPlugin(
       version: "1.0.0",
       capabilities: [PluginCapability.Source],
       source: {
-        operations: ["playlist.search", "search.suggest"],
+        operations: [
+          "playlist.search",
+          "search.suggest",
+          "artist.discography",
+          "track.details",
+          "track.related",
+          "playlist.tracks",
+          "track.credits",
+        ],
         stationSeedKinds: [
           StationSeedKind.Track,
           StationSeedKind.Album,
@@ -41,6 +49,40 @@ export function createYtMusicPlugin(
     },
     capabilities: {
       source: {
+        "artist.discography": async (input) => {
+          const { id, limit, cursor } = validInput(() => entityPage(input))
+          return providerCall(() => internalApi.discography(id, limit, cursor))
+        },
+        "playlist.tracks": async (input) => {
+          const { id, limit, cursor } = validInput(() => entityPage(input))
+          const page = await providerCall(() => internalApi.playlistTracks(id, limit, cursor))
+          return { ...page, items: page.items.map(sourceTrack) }
+        },
+        "track.related": async (input) => {
+          const { id, limit, cursor } = validInput(() => entityPage(input))
+          const page = await providerCall(() => internalApi.related(id, limit, cursor))
+          return { ...page, items: page.items.map(sourceTrack) }
+        },
+        "track.credits": async (input) => {
+          const id = validInput(() => externalIdOf(input))
+          return providerCall(() => internalApi.credits(id))
+        },
+        "track.details": async (input) => {
+          const ids = validInput(() => {
+            if (
+              !input ||
+              typeof input !== "object" ||
+              !("externalIds" in input) ||
+              !Array.isArray(input.externalIds) ||
+              input.externalIds.length === 0 ||
+              input.externalIds.length > 50 ||
+              input.externalIds.some((id) => typeof id !== "string" || !id)
+            )
+              throw new Error("Expected 1 to 50 externalIds")
+            return input.externalIds as string[]
+          })
+          return { items: (await providerCall(() => internalApi.details(ids))).map(sourceTrack) }
+        },
         "playlist.search": async (input) => {
           const r = validInput(() => searchInput(input))
           const { items, ...page } = await providerCall(() =>
@@ -143,6 +185,7 @@ function sourceTrack(song: YtMusicSong): SourceTrack {
     externalId: song.externalId,
     title: song.title,
     artist: song.artist,
+    ...(song.albumExternalId && { albumExternalId: song.albumExternalId }),
     ...(song.album === undefined ? {} : { album: song.album }),
     ...(song.durationMs === undefined ? {} : { durationMs: song.durationMs }),
     ...(song.artworkUrl === undefined ? {} : { artworkUrl: song.artworkUrl }),
@@ -212,6 +255,15 @@ function stationNextInput(input: unknown): {
   return { stationId: input.stationId, cursor, limit }
 }
 
+function entityPage(input: unknown) {
+  const id = externalIdOf(input)
+  const record = input as Record<string, unknown>
+  return {
+    id,
+    limit: typeof record.limit === "number" ? Math.min(100, Math.max(1, record.limit)) : 25,
+    cursor: typeof record.cursor === "string" ? record.cursor : undefined,
+  }
+}
 function externalIdOf(input: unknown): string {
   if (
     typeof input !== "object" ||

@@ -1,12 +1,12 @@
 import { expect, test } from "bun:test"
+import { radioPlaylistId } from "./internal-api"
 import {
   parseAlbum,
   parseAlbumSearch,
   parseArtistSearch,
   parseSongSearch,
   parseWatchQueue,
-  radioPlaylistId,
-} from "./internal-api"
+} from "./renderers"
 
 const artistRun = (name: string, browseId = "UC1234567890123456789012") => ({
   text: name,
@@ -575,7 +575,7 @@ test("album browse preserves OLAK identity for either request form", async () =>
 })
 
 test("playlist search reads the playlist owner and never mistakes views for track count", async () => {
-  const { parsePlaylists } = await import("./internal-api")
+  const { parsePlaylists } = await import("./renderers")
   const data = (await import("../fixtures/search-playlists.json")).default
   expect(parsePlaylists(data)).toEqual([
     {

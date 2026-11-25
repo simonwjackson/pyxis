@@ -6,3 +6,5 @@ and all but the first track were removed.
 zS1L3NT/ts-npm-ytmusic-api `src/tests/fixtures/youtube-music.json` (ea59bc1).
 `artist-mixes.json` contains only the header mix endpoints from ytmusicapi's
 `tests/data/2026_05_get_artist1.json` (same revision as `album.json`).
+`singles.json` reduces the same artist recording to its title and two singles.
+`queue-track.json` takes one panel row from the `next` response in ea59bc1.

@@ -372,3 +372,46 @@ async fn declared_catalog_pages_are_bounded_and_query_sealed() {
         "invalid"
     );
 }
+
+#[tokio::test]
+async fn related_tracks_are_playable_but_not_saved_and_discography_pages_bind_artist() {
+    let dir = tempfile::tempdir().unwrap();
+    let reads = json!({"track.related":{"items":[{"source":"lab","externalId":"recording","title":"Related","artist":"Artist"}],"cursor":"next"},"artist.discography":{"items":[{"externalId":"release","title":"Single","artist":"Artist","releaseType":"single"}],"cursor":"next"}});
+    let host = PluginHost::start(
+        vec![search_plugin().with_env("PYXIS_LAB_READS", reads.to_string())],
+        HostPolicy::default(),
+    )
+    .unwrap();
+    let app = router(AppState::open_with_plugins(Store::open(dir.path()).unwrap(), host).unwrap());
+    let token = claim(&app).await;
+    let read = |tag: &str, id: &str| json!({"_tag":tag,"payload":{"pluginId":"search-source","externalId":id}});
+    let page = rpc(&app, read("source.track.related", "seed"), Some(&token)).await;
+    let track = &page["outcome"]["value"]["items"][0];
+    assert_eq!(track["externalId"], "recording");
+    let lookup = rpc(
+        &app,
+        json!({"_tag":"library.tracks.get","payload":{"trackIds":[track["id"]]}}),
+        Some(&token),
+    )
+    .await;
+    assert_eq!(lookup["outcome"]["value"]["tracks"][0]["title"], "Related");
+    assert!(lookup["outcome"]["value"]["tracks"][0]
+        .get("albumId")
+        .is_none());
+    let page = rpc(
+        &app,
+        read("source.artist.discography", "artist"),
+        Some(&token),
+    )
+    .await;
+    assert_eq!(
+        page["outcome"]["value"]["items"][0]["releaseType"],
+        "single"
+    );
+    let mut wrong = read("source.artist.discography", "other");
+    wrong["payload"]["cursor"] = page["outcome"]["value"]["cursor"].clone();
+    assert_eq!(
+        rpc(&app, wrong, Some(&token)).await["outcome"]["status"],
+        "invalid"
+    );
+}

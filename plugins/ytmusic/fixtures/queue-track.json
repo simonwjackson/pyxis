@@ -1,0 +1,81 @@
+{
+  "playlistPanelVideoRenderer": {
+    "title": {
+      "runs": [
+        {
+          "text": "Hong Kong (feat. \u738b\u83f2\u5b63\u5019\u98a8)"
+        }
+      ]
+    },
+    "longBylineText": {
+      "runs": [
+        {
+          "text": "The Weeknd",
+          "navigationEndpoint": {
+            "browseEndpoint": {
+              "browseId": "UClYV6hHlupm_S_ObS1W-DYw",
+              "browseEndpointContextSupportedConfigs": {
+                "browseEndpointContextMusicConfig": {
+                  "pageType": "MUSIC_PAGE_TYPE_ARTIST"
+                }
+              }
+            }
+          }
+        },
+        {
+          "text": " \u2022 "
+        },
+        {
+          "text": "Hong Kong (feat. \u738b\u83f2\u5b63\u5019\u98a8)",
+          "navigationEndpoint": {
+            "browseEndpoint": {
+              "browseId": "MPREb_5qHogi2HE7p",
+              "browseEndpointContextSupportedConfigs": {
+                "browseEndpointContextMusicConfig": {
+                  "pageType": "MUSIC_PAGE_TYPE_ALBUM"
+                }
+              }
+            }
+          }
+        },
+        {
+          "text": " \u2022 "
+        },
+        {
+          "text": "2026"
+        }
+      ]
+    },
+    "thumbnail": {
+      "thumbnails": [
+        {
+          "url": "https://yt3.googleusercontent.com/aDv_6aa5_03mJmrylOsch6oTUXKb1dKu4G8ieu50-2mtpEzR_wgDFS1qbKRRkg2i3gTvrTol2ea4D3vF",
+          "width": 544,
+          "height": 544
+        }
+      ]
+    },
+    "lengthText": {
+      "runs": [
+        {
+          "text": "3:37"
+        }
+      ]
+    },
+    "selected": true,
+    "navigationEndpoint": {
+      "watchEndpoint": {
+        "videoId": "3QZOazpGIQc",
+        "playlistId": "RDAMVM3QZOazpGIQc",
+        "index": 0,
+        "watchEndpointMusicSupportedConfigs": {
+          "watchEndpointMusicConfig": {
+            "hasPersistentPlaylistPanel": true,
+            "musicVideoType": "MUSIC_VIDEO_TYPE_ATV"
+          }
+        }
+      }
+    },
+    "videoId": "3QZOazpGIQc"
+  }
+}

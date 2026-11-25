@@ -1,0 +1,128 @@
+{
+  "header": {
+    "musicImmersiveHeaderRenderer": {
+      "title": {
+        "runs": [
+          {
+            "text": "Hatsune Miku"
+          }
+        ]
+      }
+    }
+  },
+  "musicCarouselShelfRenderer": {
+    "header": {
+      "musicCarouselShelfBasicHeaderRenderer": {
+        "title": {
+          "runs": [
+            {
+              "text": "Singles & EPs"
+            }
+          ]
+        }
+      }
+    },
+    "contents": [
+      {
+        "musicTwoRowItemRenderer": {
+          "title": {
+            "runs": [
+              {
+                "text": "KOWARECHATTA!!",
+                "navigationEndpoint": {
+                  "clickTrackingParams": "CJ0FEKCzAhgAIhMImKqEm7aalAMVdSm3AB3Tmw4XygEE7_khsA==",
+                  "browseEndpoint": {
+                    "browseId": "MPREb_vWZntfIoEh0",
+                    "params": "ggMrGilPTEFLNXV5X205NzNwbGNHNzNkczFjSkRtT2VwTnV5dE5tV1BKSDlkdw%3D%3D",
+                    "browseEndpointContextSupportedConfigs": {
+                      "browseEndpointContextMusicConfig": {
+                        "pageType": "MUSIC_PAGE_TYPE_ALBUM"
+                      }
+                    }
+                  }
+                }
+              }
+            ]
+          },
+          "subtitle": {
+            "runs": [
+              {
+                "text": "Single"
+              },
+              {
+                "text": " \u2022 "
+              },
+              {
+                "text": "2026"
+              }
+            ]
+          },
+          "navigationEndpoint": {
+            "browseEndpoint": {
+              "browseId": "MPREb_vWZntfIoEh0"
+            }
+          },
+          "thumbnailOverlay": {
+            "musicPlayButtonRenderer": {
+              "playNavigationEndpoint": {
+                "watchPlaylistEndpoint": {
+                  "playlistId": "OLAK5uy_m973plcG73ds1cJDmOepNuytNmWPJH9dw"
+                }
+              }
+            }
+          }
+        }
+      },
+      {
+        "musicTwoRowItemRenderer": {
+          "title": {
+            "runs": [
+              {
+                "text": "Observer A",
+                "navigationEndpoint": {
+                  "clickTrackingParams": "CI4FEKCzAhgBIhMImKqEm7aalAMVdSm3AB3Tmw4XygEE7_khsA==",
+                  "browseEndpoint": {
+                    "browseId": "MPREb_sudznVJVAyR",
+                    "params": "ggMrGilPTEFLNXV5X2xvbWY1bm5uczlFM091cUFoUno0enBzYmRlb0R2R1pMbw%3D%3D",
+                    "browseEndpointContextSupportedConfigs": {
+                      "browseEndpointContextMusicConfig": {
+                        "pageType": "MUSIC_PAGE_TYPE_ALBUM"
+                      }
+                    }
+                  }
+                }
+              }
+            ]
+          },
+          "subtitle": {
+            "runs": [
+              {
+                "text": "Single"
+              },
+              {
+                "text": " \u2022 "
+              },
+              {
+                "text": "2026"
+              }
+            ]
+          },
+          "navigationEndpoint": {
+            "browseEndpoint": {
+              "browseId": "MPREb_sudznVJVAyR"
+            }
+          },
+          "thumbnailOverlay": {
+            "musicPlayButtonRenderer": {
+              "playNavigationEndpoint": {
+                "watchPlaylistEndpoint": {
+                  "playlistId": "OLAK5uy_lomf5nnns9E3OuqAhRz4zpsbdeoDvGZLo"
+                }
+              }
+            }
+          }
+        }
+      }
+    ]
+  }
+}

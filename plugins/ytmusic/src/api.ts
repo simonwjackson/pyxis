@@ -3,6 +3,7 @@ export interface SourceTrack {
   readonly externalId: string
   readonly title: string
   readonly artist: string
+  readonly albumExternalId?: string
   readonly album?: string
   readonly durationMs?: number
   readonly artworkUrl?: string

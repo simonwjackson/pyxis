@@ -2296,7 +2296,9 @@ These widen U57–U61; the base text above still holds where it does not conflic
   both continuation keys, and returns the automix continuation as the next sealed cursor (D40). The
   plugin never chains batches itself.
 - **U61** also returns album type (album, single, EP), adds source-neutral song details by id and
-  credits, and uses `music/get_queue` for batch song details.
+  credits, and uses `music/get_queue` for batch song details. U63 supplied the seal, not a playlist
+  track-list RPC. U61 exposes U57’s playlist browse paging as `source.playlist.tracks` through the
+  same read-only track registration and page boundary as related tracks.
 
 ### U62. Lyrics and artwork
 

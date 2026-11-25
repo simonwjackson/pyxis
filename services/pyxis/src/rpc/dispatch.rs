@@ -806,6 +806,85 @@ pub fn dispatch(state: &AppState, request: RpcRequest, auth: Option<AuthContext>
                 )),
             }
         }
+        RpcRequest::SourceArtistDiscography(request) => {
+            let Some(auth) = auth else {
+                return auth_required();
+            };
+            RpcResponse::SourceArtistDiscography(state.sources.read(
+                &auth,
+                &request.plugin_id,
+                "artist.discography",
+                serde_json::json!({"externalId":request.external_id}),
+                request.cursor.as_deref(),
+                request.limit,
+            ))
+        }
+        RpcRequest::SourcePlaylistTracks(request) => {
+            let Some(auth) = auth else {
+                return auth_required();
+            };
+            RpcResponse::SourcePlaylistTracks(state.sources.track_read(
+                &auth,
+                &request.plugin_id,
+                "playlist.tracks",
+                serde_json::json!({"externalId":request.external_id}),
+                request.cursor.as_deref(),
+                request.limit,
+            ))
+        }
+        RpcRequest::SourceTrackRelated(request) => {
+            let Some(auth) = auth else {
+                return auth_required();
+            };
+            RpcResponse::SourceTrackRelated(state.sources.track_read(
+                &auth,
+                &request.plugin_id,
+                "track.related",
+                serde_json::json!({"externalId":request.external_id}),
+                request.cursor.as_deref(),
+                request.limit,
+            ))
+        }
+        RpcRequest::SourceTrackDetails(request) => {
+            let Some(auth) = auth else {
+                return auth_required();
+            };
+            if request.external_ids.is_empty()
+                || request.external_ids.len() > 50
+                || request
+                    .external_ids
+                    .iter()
+                    .any(|id| !crate::source_catalog::valid_text(id))
+            {
+                return RpcResponse::SourceTrackDetails(
+                    crate::rpc::contract::SourceReadOutcome::Invalid(RpcFailure::permanent(
+                        "source.invalidIds",
+                        "expected 1 to 50 recording ids",
+                    )),
+                );
+            }
+            RpcResponse::SourceTrackDetails(state.sources.track_read(
+                &auth,
+                &request.plugin_id,
+                "track.details",
+                serde_json::json!({"externalIds":request.external_ids}),
+                None,
+                Some(50),
+            ))
+        }
+        RpcRequest::SourceTrackCredits(request) => {
+            let Some(auth) = auth else {
+                return auth_required();
+            };
+            RpcResponse::SourceTrackCredits(state.sources.read(
+                &auth,
+                &request.plugin_id,
+                "track.credits",
+                serde_json::json!({"externalId":request.external_id}),
+                None,
+                None,
+            ))
+        }
         RpcRequest::SourceSearchSuggest(request) => {
             let Some(auth) = auth else {
                 return auth_required();
@@ -864,6 +943,7 @@ pub fn dispatch(state: &AppState, request: RpcRequest, auth: Option<AuthContext>
                                 title: album.title,
                                 artist: album.artist,
                                 year: album.year,
+                                release_type: album.release_type,
                                 artwork_url: album.artwork_url,
                                 source_plugin_id: album.source_plugin_id,
                             })
@@ -1498,6 +1578,7 @@ pub fn dispatch(state: &AppState, request: RpcRequest, auth: Option<AuthContext>
                             title: album.title,
                             artist: album.artist,
                             year: album.year,
+                            release_type: album.release_type,
                             artwork_url: album.artwork_url,
                             source_plugin_id: album.source_plugin_id,
                         })
@@ -1522,6 +1603,7 @@ pub fn dispatch(state: &AppState, request: RpcRequest, auth: Option<AuthContext>
                         title: album.title,
                         artist: album.artist,
                         year: album.year,
+                        release_type: album.release_type,
                         artwork_url: album.artwork_url,
                         source_plugin_id: album.source_plugin_id,
                         tracks: album.tracks.into_iter().map(rpc_search_track).collect(),
@@ -1620,7 +1702,7 @@ pub(crate) fn rpc_station(station: crate::stations::Station) -> RpcStation {
     }
 }
 
-fn rpc_search_track(track: crate::source_catalog::SearchTrack) -> RpcSearchTrack {
+pub(crate) fn rpc_search_track(track: crate::source_catalog::SearchTrack) -> RpcSearchTrack {
     RpcSearchTrack {
         id: track.id,
         external_id: track.external_id,

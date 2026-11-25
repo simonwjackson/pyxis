@@ -83,3 +83,16 @@ test("station capture saves the source album with registered track IDs; search m
     result: { structuredContent: { albums: [album] } },
   })
 })
+
+test("source artist releases and related songs are read-only tools", async () => {
+  expect(
+    await call("artist.discography", { pluginId: "catalog", externalId: "artist-ref" }),
+  ).toMatchObject({
+    result: { structuredContent: { value: { items: [{ externalId: "album-ref" }] } } },
+  })
+  expect(
+    await call("search.related", { pluginId: "catalog", externalId: "track-ref" }),
+  ).toMatchObject({
+    result: { structuredContent: { value: { items: [{ externalId: "track-ref" }] } } },
+  })
+})

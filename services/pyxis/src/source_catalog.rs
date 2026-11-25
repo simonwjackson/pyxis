@@ -44,6 +44,7 @@ pub struct SearchFailure {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CatalogAlbumSummary {
+    pub release_type: Option<crate::rpc::contract::ReleaseType>,
     pub external_id: String,
     pub title: String,
     pub artist: String,
@@ -54,6 +55,7 @@ pub struct CatalogAlbumSummary {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CatalogAlbum {
+    pub release_type: Option<crate::rpc::contract::ReleaseType>,
     pub external_id: String,
     pub title: String,
     pub artist: String,
@@ -160,6 +162,7 @@ struct PluginAlbumSearchOutput {
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct PluginAlbumSummary {
+    pub release_type: Option<crate::rpc::contract::ReleaseType>,
     external_id: String,
     title: String,
     artist: String,
@@ -170,6 +173,7 @@ struct PluginAlbumSummary {
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct PluginAlbum {
+    pub release_type: Option<crate::rpc::contract::ReleaseType>,
     external_id: String,
     title: String,
     artist: String,
@@ -477,6 +481,13 @@ impl SourceCatalog {
                 }
                 if let Some(items) = record.get_mut("items").and_then(|v| v.as_array_mut()) {
                     items.truncate(bound as usize);
+                    if op == "artist.discography" {
+                        for item in items {
+                            if let Some(row) = item.as_object_mut() {
+                                row.insert("sourcePluginId".into(), plugin.into());
+                            }
+                        }
+                    }
                 }
             }
             serde_json::from_value(output)
@@ -490,6 +501,43 @@ impl SourceCatalog {
         }
     }
 
+    pub(crate) fn track_read(
+        &self,
+        auth: &AuthContext,
+        plugin: &str,
+        op: &str,
+        selectors: serde_json::Value,
+        cursor: Option<&str>,
+        limit: Option<u32>,
+    ) -> SourceReadOutcome<crate::rpc::contract::SourcePage<crate::rpc::contract::RpcSearchTrack>>
+    {
+        use crate::rpc::contract::SourcePage;
+        match self.read::<SourcePage<PluginSearchTrack>>(auth, plugin, op, selectors, cursor, limit)
+        {
+            SourceReadOutcome::Ready(page) => {
+                let items = page
+                    .items
+                    .into_iter()
+                    .map(|t| {
+                        register_source_track(&self.media, auth, plugin, t)
+                            .map(crate::rpc::dispatch::rpc_search_track)
+                    })
+                    .collect::<Result<Vec<_>, _>>();
+                match items {
+                    Ok(items) => SourceReadOutcome::Ready(SourcePage {
+                        items,
+                        cursor: page.cursor,
+                    }),
+                    Err(e) => SourceReadOutcome::Unavailable(crate::rpc::dispatch::source_failure(
+                        "catalog", e,
+                    )),
+                }
+            }
+            SourceReadOutcome::Unsupported => SourceReadOutcome::Unsupported,
+            SourceReadOutcome::Invalid(e) => SourceReadOutcome::Invalid(e),
+            SourceReadOutcome::Unavailable(e) => SourceReadOutcome::Unavailable(e),
+        }
+    }
     pub fn search_albums(
         &self,
         auth: &AuthContext,
@@ -589,6 +637,7 @@ impl SourceCatalog {
             title: album.title,
             artist: album.artist,
             year: album.year,
+            release_type: album.release_type,
             artwork_url: album.artwork_url,
             source_plugin_id: plugin_id.into(),
             tracks,
@@ -614,6 +663,7 @@ impl PluginAlbumSummary {
             title: self.title,
             artist: self.artist,
             year: self.year,
+            release_type: self.release_type,
             artwork_url: self.artwork_url,
             source_plugin_id: plugin_id.into(),
         }
