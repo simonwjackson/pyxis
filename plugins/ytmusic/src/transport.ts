@@ -18,12 +18,14 @@ const properties = {
   maxRetries: { type: "integer", minimum: 0, maximum: 5, default: 2 },
 }
 export const transportSchema = { type: "object", properties, additionalProperties: false }
-const configScope = new AsyncLocalStorage<unknown>()
-export function withTransportConfig<T>(config: unknown, call: () => T): T {
-  return configScope.run(config, call)
+// Leave three seconds of the host’s 30-second call timeout for decoding and stdio.
+const operationBudgetMs = 27_000
+const configScope = new AsyncLocalStorage<{ config: unknown; deadline: number }>()
+export function withTransportConfig<T>(config: unknown, call: () => T, now = Date.now): T {
+  return configScope.run({ config, deadline: now() + operationBudgetMs }, call)
 }
 function setting(key: keyof typeof properties) {
-  const config = configScope.getStore()
+  const config = configScope.getStore()?.config
   const value = config && typeof config === "object" ? Reflect.get(config, key) : undefined
   const { minimum, maximum, default: fallback } = properties[key]
   if (value === undefined) return fallback
@@ -40,11 +42,12 @@ export function createTransport(
   fetcher: (url: URL, options: RequestInit) => Promise<Response> = fetch,
   time = clock,
 ) {
-  // Reserve from a shared virtual timeline before yielding, including retries and bootstrap.
-  let next = 0
+  // Only consume a slot at dispatch. Sleepers recheck both the bucket and any new cooldown.
+  let next = -Infinity
   let coolingUntil = 0
   let visitor: Promise<string> | undefined
   async function post(
+    deadline: number,
     endpoint: string,
     body: Record<string, unknown>,
     visitorData?: string,
@@ -52,27 +55,21 @@ export function createTransport(
     token?: string,
   ): Promise<unknown> {
     for (let attempt = 0; ; attempt++) {
-      const step = 1000 / setting("requestsPerSecond"),
-        now = time.now()
-      if (coolingUntil - now > 30000)
-        throw new YtMusicProviderError(
-          "ytmusic.cooldown",
-          "Upstream Retry-After is still in effect",
-          true,
-        )
-      next = Math.max(next, now - (setting("burstSize") - 1) * step, coolingUntil || -Infinity)
-      const delay = next - now
-      next += step
-      if (delay > 0) await time.sleep(delay)
-      while (time.now() < coolingUntil) {
-        const remaining = coolingUntil - time.now()
-        if (remaining > 30000)
+      const step = 1000 / setting("requestsPerSecond")
+      for (;;) {
+        const now = time.now()
+        const slot = Math.max(next, now - (setting("burstSize") - 1) * step, coolingUntil)
+        if (Math.max(now, slot) >= deadline)
           throw new YtMusicProviderError(
-            "ytmusic.cooldown",
-            "Upstream Retry-After is still in effect",
+            "ytmusic.deadline",
+            "Request cannot fit in the remaining call budget",
             true,
           )
-        await time.sleep(remaining)
+        if (slot <= now) {
+          next = slot + step
+          break
+        }
+        await time.sleep(slot - now)
       }
       const version = android
         ? "7.27.52"
@@ -146,7 +143,7 @@ export function createTransport(
             },
             ...body,
           }),
-          signal: AbortSignal.timeout(30000),
+          signal: AbortSignal.timeout(Math.max(1, Math.ceil(deadline - time.now()))),
         })
       } catch (error) {
         throw new YtMusicProviderError("ytmusic.network", String(error), true)
@@ -181,7 +178,7 @@ export function createTransport(
         Number.isFinite(retryAt) ? retryAt : 0,
         time.now() + 2 ** attempt * 250 + time.random() * 250,
       )
-      if (attempt >= setting("maxRetries") || coolingUntil - time.now() > 30000) throw error
+      if (attempt >= setting("maxRetries") || coolingUntil >= deadline) throw error
     }
   }
   return async (
@@ -190,7 +187,8 @@ export function createTransport(
     android = false,
     token?: string,
   ) => {
-    visitor ??= post("browse", {})
+    const deadline = configScope.getStore()?.deadline ?? time.now() + operationBudgetMs
+    visitor ??= post(deadline, "browse", {})
       .then((data) => {
         const v = (data as { responseContext?: { visitorData?: unknown } })?.responseContext
           ?.visitorData
@@ -206,6 +204,6 @@ export function createTransport(
         visitor = undefined
         throw error
       })
-    return post(endpoint, body, await visitor, android, token)
+    return post(deadline, endpoint, body, await visitor, android, token)
   }
 }
