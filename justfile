@@ -75,4 +75,8 @@ proseql-pin:
     rev=$(git ls-remote https://github.com/simonwjackson/proseql.git refs/heads/main | cut -f1)
     sed -i -E "s|(github:simonwjackson/proseql/)[0-9a-f]{40}|\1$rev|" flake.nix
     nix flake update proseql
-    echo "proseql pinned to $rev"
+    # The dev shell links the new proseql crates; resolve them into Cargo.lock now, because
+    # the Nix build runs cargo --offline against the committed lock.
+    nix develop --command cargo metadata --format-version 1 > /dev/null
+    nix develop --command cargo metadata --format-version 1 --locked > /dev/null
+    echo "proseql pinned to $rev; commit flake.nix, flake.lock and Cargo.lock together"
