@@ -101,14 +101,18 @@ async function pullSessions(
   database: WorkerDatabase,
   rpc: WorkerRpc,
 ): Promise<DomainPull<RemoteSessions>> {
+  const fence = await database.beginSessionList()
   let remote: readonly RpcSession[]
   try {
     remote = await rpc.listSessions()
   } catch (cause) {
     return pullFailure(cause)
   }
+  const count = await database.applyRemoteSessions(remote, fence)
+  // Do not drain pending commands against a list we discarded.
+  if (count === "superseded") return { count: 0, offline: false, authRequired: false }
   return {
-    count: await database.applyRemoteSessions(remote),
+    count,
     offline: false,
     authRequired: false,
     remote: new Map(remote.map((row) => [row.id, row])),

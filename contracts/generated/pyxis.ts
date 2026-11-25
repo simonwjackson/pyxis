@@ -370,6 +370,7 @@ export enum RpcRealtimeTopic {
  * client that misses an event and refetches converges on the same value.
  */
 export type RpcRealtimeState =
+	| { _tag: "session.retired", payload: RpcRealtimeRemoval }
 	| { _tag: "session.state", payload: RpcSession }
 	| { _tag: "library.album.state", payload: RpcLibraryAlbum }
 	| { _tag: "library.album.removed", payload: RpcRealtimeRemoval };
@@ -388,6 +389,7 @@ export interface RealtimeEvent {
  * keeps the token in the message body, where the RPC transport already keeps it.
  */
 export interface RealtimeHello {
+	sessionRetirements?: boolean;
 	contractId?: string;
 	bearerToken: string;
 	topics: RpcRealtimeTopic[];
@@ -1140,6 +1142,7 @@ export type RpcRequest =
 	| { _tag: "listen.journal.list", payload: JournalListRequest }
 	| { _tag: "account.settings.get", payload: EmptyRequest }
 	| { _tag: "account.settings.set", payload: AccountSettingsSetRequest }
+	| { _tag: "session.retire", payload: SessionIdRequest }
 	| { _tag: "account.list", payload: EmptyRequest }
 	| { _tag: "account.create", payload: AccountCreateRequest }
 	| { _tag: "plugin.list", payload: EmptyRequest }
@@ -1191,6 +1194,7 @@ export type RpcResponse =
 	| { _tag: "listen.journal.list", outcome: JournalListOutcome }
 	| { _tag: "account.settings.get", outcome: AccountSettingsGetOutcome }
 	| { _tag: "account.settings.set", outcome: AccountSettingsSetOutcome }
+	| { _tag: "session.retire", outcome: SessionRetireOutcome }
 	| { _tag: "account.list", outcome: AccountListOutcome }
 	| { _tag: "account.create", outcome: AccountCreateOutcome }
 	| { _tag: "plugin.list", outcome: PluginListOutcome }
@@ -1292,6 +1296,14 @@ export type SessionHandoffOutcome =
 
 export type SessionListOutcome =
 	| { status: "ready", value: RpcSession[] }
+	| { status: "unavailable", value: RpcFailure };
+
+export type SessionRetireOutcome =
+	| { status: "retired", value?: undefined }
+	| { status: "stopRequested", value?: undefined }
+	| { status: "unknownSession", value?: undefined }
+	| { status: "unreachable", value?: undefined }
+	| { status: "busy", value?: undefined }
 	| { status: "unavailable", value: RpcFailure };
 
 export type SessionStateOutcome =

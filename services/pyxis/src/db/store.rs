@@ -389,6 +389,34 @@ impl Store {
             .map_err(engine)
     }
 
+    /// Host command receipts have no meaning once the addressed session is gone.
+    pub(crate) fn retire_session(&self, account: &AccountId, id: &str) -> Result<()> {
+        // The session mutation guard fences receipt creation across this read and commit.
+        let receipts = self
+            .list::<Value>(schema::SESSION_COMMAND_RECEIPTS, account)?
+            .into_iter()
+            .filter(|row| row["sessionId"].as_str() == Some(id))
+            .filter_map(|row| row["id"].as_str().map(str::to_owned))
+            .collect::<Vec<_>>();
+        let account = account.clone();
+        let id = id.to_owned();
+        self.runtime
+            .mutate(move |db| {
+                if !db
+                    .find_by_id(schema::SESSIONS, &id)?
+                    .is_some_and(|row| belongs_to(&row, &account))
+                {
+                    return Ok(());
+                }
+                for receipt in receipts {
+                    db.delete(schema::SESSION_COMMAND_RECEIPTS, &receipt)?;
+                }
+                db.delete(schema::SESSIONS, &id)?;
+                Ok(())
+            })
+            .map_err(engine)
+    }
+
     /// Delete a record from an account's scope. Deleting another account's id is a no-op.
     pub fn delete(&self, collection: &str, account: &AccountId, id: &str) -> Result<bool> {
         let collection_name = collection.to_string();

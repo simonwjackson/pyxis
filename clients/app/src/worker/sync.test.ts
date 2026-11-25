@@ -1,7 +1,9 @@
-import { describe, expect, test, vi } from "vitest"
+import { Option } from "effect"
+import { describe, expect, expectTypeOf, test, vi } from "vitest"
 import {
   type ListenTrackEventInput,
   type RpcLibraryAlbum,
+  RpcRealtimeTopic,
   RpcRepeatMode,
   type RpcSession,
   type RpcSessionCommand,
@@ -15,11 +17,18 @@ import {
   type WorkerRpc,
 } from "../rpc/client"
 import { accountFencedDatabase } from "./account-fenced-database"
-import type { WorkerAlbum, WorkerDatabase, WorkerOutboxEntry } from "./contract"
+import type {
+  StoredWorkerSession,
+  WorkerAlbum,
+  WorkerDatabase,
+  WorkerOutboxEntry,
+} from "./contract"
 import { createMemoryEngine, openWorkerDatabase } from "./database"
 import { browserOfflineExclusive } from "./downloads"
 import { LISTEN_BATCH_SIZE } from "./listen-sync"
+import { type WorkerSessionFeed, workerSessionFeed } from "./session-feed"
 import { applySessionCommand } from "./session-local"
+import { SessionRows } from "./session-rows"
 import { sync } from "./sync"
 
 function album(id: string, revision: number): WorkerAlbum {
@@ -692,4 +701,104 @@ test("offline mode replay retains the confirmed occurrence order and restores th
     positionMs: 42000,
     shuffle: false,
   })
+})
+
+describe("retirement wins over the confirming stop acknowledgement", () => {
+  test.each(["event first", "ack first"])("%s, including after disconnect", async (order) => {
+    const db = await database([])
+    const initial = hostedSession({ transport: RpcTransport.Playing, queue: ["song"], cursor: 0 })
+    await db.putSession(initial)
+    await db.queueSessionCommand(initial, { _tag: "transport.stop", payload: {} }, "stop-directive")
+    const feed = workerSessionFeed({
+      applySessionRetirement: (id) => db.applySessionRetirement(id),
+      applySessionEvent: (row) => db.applyRemoteSession(row),
+    })
+    expect(feed.hello("token").payload).toMatchObject({ sessionRetirements: true })
+    const remove = () =>
+      feed.apply({
+        topic: RpcRealtimeTopic.Sessions,
+        resumeToken: "1",
+        state: { _tag: "session.retired", payload: { id: initial.id } },
+      })
+    const remote = server()
+    remote.rpc.listSessions = async () => [initial]
+    remote.rpc.runSessionCommand = async () => {
+      if (order === "event first") await remove()
+      return { ...initial, transport: RpcTransport.Stopped, revision: 2 }
+    }
+    expect((await sync(db, remote.rpc)).pushed).toBe(1)
+    if (order === "ack first") await remove()
+    remote.rpc.listSessions = async () => {
+      throw new RpcError("disconnected", true)
+    }
+    expect((await sync(db, remote.rpc, "sessions")).offline).toBe(true)
+    expect(await db.sessions()).toEqual([])
+    expect(await db.session(initial.id)).toBeUndefined()
+    expect(await db.outbox()).toEqual([])
+  })
+})
+
+test("a creation event received during a delayed empty list stays visible", async () => {
+  const db = await database([])
+  const live = hostedSession()
+  const remote = server().rpc
+  remote.listSessions = async () => {
+    // The server has taken its empty snapshot. Deliver the subsequent creation
+    // on the other channel before allowing the older list to reach the worker.
+    expect((await db.applyRemoteSession(live)).status).toBe("applied")
+    return []
+  }
+  await sync(db, remote, "sessions")
+  expect(await db.session(live.id)).toMatchObject(live)
+  remote.listSessions = async () => [live]
+  await sync(db, remote, "sessions")
+  expect(await db.sessions()).toHaveLength(1)
+})
+
+test("a later list or event restores a session evicted by a completed list", async () => {
+  const db = await database([]),
+    live = hostedSession()
+  await db.putSession(live)
+  await db.applyRemoteSessions([], await db.beginSessionList())
+  expect(await db.sessions()).toEqual([])
+  await db.applyRemoteSessions([live], await db.beginSessionList())
+  expect(await db.session(live.id)).toMatchObject(live)
+  await db.applyRemoteSessions([], await db.beginSessionList())
+  expect(await db.sessions()).toEqual([])
+  expect((await db.applyRemoteSession(live)).status).toBe("applied")
+})
+
+test("a command against a retired id leaves existing outbox writes untouched", async () => {
+  const db = await database([listenWrite("saved", "song")]),
+    live = hostedSession()
+  await db.putSession(live)
+  await db.applySessionRetirement(live.id)
+  const before = await db.outbox()
+  await expect(
+    db.queueSessionCommand(live, { _tag: "queue.add", payload: { trackIds: ["track"] } }, "late"),
+  ).rejects.toThrow(/retired/)
+  expect(await db.outbox()).toEqual(before)
+})
+
+test("the typed session feed selects Some for live state and None after retirement", async () => {
+  const engine = createMemoryEngine(),
+    rows = new SessionRows(engine),
+    db = await openWorkerDatabase({ engine })
+  const live = hostedSession(),
+    feed = workerSessionFeed({
+      applySessionRetirement: (id) => db.applySessionRetirement(id),
+      applySessionEvent: (e) => db.applyRemoteSession(e),
+    })
+  expectTypeOf(feed).toEqualTypeOf<WorkerSessionFeed>()
+  expectTypeOf(rows.get(live.id)).toEqualTypeOf<Promise<Option.Option<StoredWorkerSession>>>()
+  expect(Option.isNone(await rows.get(live.id))).toBe(true)
+  const envelope = { topic: RpcRealtimeTopic.Sessions, resumeToken: "1" }
+  expect(
+    await feed.apply({ ...envelope, state: { _tag: "session.state", payload: live } }),
+  ).toMatchObject({ status: "applied" })
+  expect(Option.getOrThrow(await rows.get(live.id))).toMatchObject(live)
+  expect(
+    await feed.apply({ ...envelope, state: { _tag: "session.retired", payload: { id: live.id } } }),
+  ).toEqual({ status: "retired" })
+  expect(Option.isNone(await rows.get(live.id))).toBe(true)
 })

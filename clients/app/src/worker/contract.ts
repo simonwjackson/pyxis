@@ -17,7 +17,7 @@ import type { ListenEventInput } from "../rpc/client"
 /// Bumped whenever the stored shape changes. An existing database at a lower version is
 /// migrated in order. A database at a higher version belongs to a newer build, which this
 /// one cannot understand, so it is reset rather than guessed at.
-export const WORKER_SCHEMA_VERSION = 8
+export const WORKER_SCHEMA_VERSION = 9
 
 export const WORKER_DATABASE_NAME = "pyxis-worker"
 
@@ -64,6 +64,8 @@ export interface WorkerSettings {
   readonly bearerToken?: string
   /// Opaque realtime cursor. Persisted so a reload resumes instead of refetching.
   readonly resumeToken?: string
+  /// Opaque list reservation. Invalidated by a sessions event or a newer list.
+  readonly sessionListToken?: string
   /// Durable user-visible outcomes. Bounded to the newest 100 notices.
   readonly syncNotices?: readonly WorkerSyncNotice[]
   /// Cross-tab sequence reserved before candidate re-resolution. Higher generations win
@@ -82,6 +84,7 @@ export type StoredWorkerSession = WorkerSession & {
 }
 
 export type WorkerSessionEventResult =
+  | { readonly status: "retired" }
   | { readonly status: "applied"; readonly session: WorkerSession }
   | { readonly status: "queued"; readonly timerProjection?: WorkerSession }
 
@@ -253,9 +256,13 @@ export interface WorkerDatabase {
   removeAlbum(id: string): Promise<boolean>
   sessions(): Promise<readonly WorkerSession[]>
   session(id: string): Promise<WorkerSession | undefined>
-  /// Apply one authoritative server snapshot while preserving sessions with queued commands.
-  /// Returns the number of rows inserted, updated, or removed.
-  applyRemoteSessions(sessions: readonly WorkerSession[]): Promise<number>
+  /// Reserve before issuing session.list. Pass its token back under the refreshed lock.
+  beginSessionList(): Promise<string>
+  /// A superseded pull is not a basis for either cache updates or outbox replay.
+  applyRemoteSessions(
+    sessions: readonly WorkerSession[],
+    fence: string,
+  ): Promise<number | "superseded">
   /// Apply one realtime snapshot under the caller's account-fenced lock. Preserve queued
   /// host intent and newer local revisions; never remove unrelated sessions or read albums.
   /// A queued result did not apply the event: retain it and retry after synchronization
@@ -271,7 +278,9 @@ export interface WorkerDatabase {
   /// account-fenced operation. Exclude the settled write without removing any outbox entry.
   /// Stop replaying at the first command the current state rejects, so one invalid later
   /// command cannot hide the earlier command that just succeeded.
-  applySessionVerdict(session: WorkerSession, writeId: string): Promise<WorkerSession>
+  applySessionVerdict(session: WorkerSession, writeId: string): Promise<WorkerSession | undefined>
+  /// Only a confirmed retirement may make a durable marker. List absence is eviction.
+  applySessionRetirement(id: string): Promise<boolean>
   removeSession(id: string): Promise<boolean>
   offlinePins(): Promise<readonly OfflinePin[]>
   offlinePin(id: string): Promise<OfflinePin | undefined>
@@ -327,6 +336,7 @@ export interface WorkerCollections {
   readonly settings: WorkerCollection<WorkerSettings>
   readonly albums: WorkerCollection<WorkerAlbum>
   readonly sessions: WorkerCollection<StoredWorkerSession>
+  readonly retiredSessions: WorkerCollection<{ readonly id: string }>
   readonly offlinePins: WorkerCollection<OfflinePin>
   readonly offlineMedia: WorkerCollection<OfflineMedia>
   readonly commandReceipts: WorkerCollection<WorkerCommandReceipt>
@@ -366,4 +376,11 @@ export const WORKER_MIGRATIONS: WorkerMigrations = {
   7: async () => undefined,
   /// Version 8 adds pinned-album intent and complete offline-media records.
   8: async () => undefined,
+  // Version 8 snapshots and pending outbox entries stay valid. Pre-release inline
+  // markers did not distinguish a missing list row from confirmed retirement:
+  // evict those ambiguous rows instead of promoting them to permanent markers.
+  9: async (engine) => {
+    for (const row of await engine.sessions.all())
+      if ("retired" in row && row.retired === true) await engine.sessions.delete(row.id)
+  },
 }

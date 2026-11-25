@@ -325,3 +325,45 @@ async fn seek_is_owned_bounded_track_aware_and_content_idempotent() {
     let unknown = rpc(&app, json!({"_tag":"session.command.run","payload":{"sessionId":id,"command":{"_tag":"transport.seek","payload":{"positionMs":0}}}}), Some(bearer)).await;
     assert_eq!(unknown["outcome"]["status"], "rejected");
 }
+
+#[tokio::test]
+async fn host_can_retire_an_idle_session_a_stranger_cannot() {
+    let dir = tempfile::tempdir().unwrap();
+    let app = router(AppState::open(Store::open(dir.path()).unwrap()).unwrap());
+    let host = claim(&app, "desk").await;
+    let created = rpc(
+        &app,
+        json!({"_tag":"session.create","payload":{"name":"Desk"}}),
+        Some(token(&host)),
+    )
+    .await;
+    let id = &created["outcome"]["value"]["id"];
+    let other = rpc(
+        &app,
+        json!({"_tag":"account.create","payload":{"name":"family","deviceName":"tablet"}}),
+        Some(token(&host)),
+    )
+    .await;
+    let retire = json!({"_tag":"session.retire","payload":{"sessionId":id}});
+    assert_eq!(
+        rpc(&app, retire.clone(), Some(token(&other))).await["outcome"]["status"],
+        "unknownSession"
+    );
+    assert_eq!(
+        rpc(&app, retire.clone(), Some(token(&host))).await["outcome"]["status"],
+        "retired"
+    );
+    assert_eq!(
+        rpc(&app, retire, Some(token(&host))).await["outcome"]["status"],
+        "unknownSession"
+    );
+    assert_eq!(
+        rpc(
+            &app,
+            json!({"_tag":"session.list","payload":{"includeUnreachable":true}}),
+            Some(token(&host))
+        )
+        .await["outcome"]["value"],
+        json!([])
+    );
+}

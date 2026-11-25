@@ -204,6 +204,7 @@ pub async fn serve(settings: &Settings, state: AppState) -> anyhow::Result<()> {
     );
     let device_sleep = spawn_sleep_monitor(state.clone(), crate::rpc::dispatch::SleepLane::Device);
     let output_sleep = spawn_sleep_monitor(state.clone(), crate::rpc::dispatch::SleepLane::Output);
+    let expiry_monitor = spawn_session_expiry(state.clone());
     let output_monitor = spawn_output_monitor(state.clone());
     let fidelity_monitor = spawn_fidelity_monitor(state.clone());
     let lan_url = std::env::var("PYXIS_LAN_BASE_URL")
@@ -222,6 +223,7 @@ pub async fn serve(settings: &Settings, state: AppState) -> anyhow::Result<()> {
         device_sleep.abort();
         output_sleep.abort();
         output_monitor.abort();
+        expiry_monitor.abort();
         fidelity_monitor.abort();
         return result;
     };
@@ -247,8 +249,44 @@ pub async fn serve(settings: &Settings, state: AppState) -> anyhow::Result<()> {
     device_sleep.abort();
     output_sleep.abort();
     output_monitor.abort();
+    expiry_monitor.abort();
     fidelity_monitor.abort();
     result
+}
+
+fn spawn_session_expiry(state: AppState) -> tokio::task::JoinHandle<()> {
+    let hour = std::time::Duration::from_secs(3600);
+    tokio::spawn(run_session_expiry(hour, move || {
+        let state = state.clone();
+        async move {
+            match tokio::task::spawn_blocking(move || {
+                state
+                    .sessions
+                    .expire_unreachable(chrono::Utc::now(), |account, id| {
+                        crate::rpc::retirement::publish_retired(&state, account, id)
+                    })
+            })
+            .await
+            {
+                Ok(Ok(())) => {}
+                Ok(Err(e)) => tracing::warn!(%e,"session expiry failed"),
+                Err(e) => tracing::warn!(%e,"session expiry task failed"),
+            }
+        }
+    }))
+}
+
+async fn run_session_expiry<F: std::future::Future<Output = ()>>(
+    period: std::time::Duration,
+    mut sweep: impl FnMut() -> F,
+) {
+    // Presence starts empty. Give hosts a full period to reconnect before any deletion.
+    let mut ticks = tokio::time::interval_at(tokio::time::Instant::now() + period, period);
+    ticks.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+    loop {
+        ticks.tick().await;
+        sweep().await;
+    }
 }
 
 fn spawn_fidelity_monitor(state: AppState) -> tokio::task::JoinHandle<()> {
@@ -388,4 +426,32 @@ async fn shutdown_signal() {
     }
 
     tracing::info!("shutdown signal received");
+}
+
+#[cfg(test)]
+mod expiry_tests {
+    use super::run_session_expiry;
+    use futures_util::FutureExt;
+    use std::{cell::Cell, time::Duration};
+
+    #[tokio::test(start_paused = true)]
+    async fn expiry_waits_a_full_period_before_each_sweep_including_the_first() {
+        let period = Duration::from_secs(3600);
+        let count = Cell::new(0);
+        let monitor = run_session_expiry(period, || {
+            count.set(count.get() + 1);
+            std::future::ready(())
+        });
+        tokio::pin!(monitor);
+        assert!(monitor.as_mut().now_or_never().is_none());
+        assert_eq!(count.get(), 0);
+        for n in 1..=2 {
+            tokio::time::advance(period - Duration::from_millis(1)).await;
+            assert!(monitor.as_mut().now_or_never().is_none());
+            assert_eq!(count.get(), n - 1);
+            tokio::time::advance(Duration::from_millis(1)).await;
+            assert!(monitor.as_mut().now_or_never().is_none());
+            assert_eq!(count.get(), n);
+        }
+    }
 }

@@ -4,6 +4,7 @@
 /// build, is discarded and reported rather than half-read. A client that silently renders
 /// half a database is worse than one that refetches.
 
+import { Option } from "effect"
 import { monotonicFactory } from "ulid"
 import type { RpcSessionCommand } from "../../../../contracts/generated/pyxis"
 import { type ListenEventInput, listenEventId } from "../rpc/client"
@@ -34,6 +35,7 @@ import {
 } from "./contract"
 import { hasRetiredSessionIntent } from "./retired-session-intent"
 import { applySessionCommand, normalizeSessionModes } from "./session-local"
+import { SessionRows } from "./session-rows"
 import { settleOutbox } from "./sync-settlement"
 
 const nextOutboxId = monotonicFactory()
@@ -133,20 +135,30 @@ async function migrate(
 }
 
 async function isEmpty(engine: WorkerEngine): Promise<boolean> {
-  const [settings, albums, sessions, offlinePins, offlineMedia, commandReceipts, outbox] =
-    await Promise.all([
-      engine.settings.all(),
-      engine.albums.all(),
-      engine.sessions.all(),
-      engine.offlinePins.all(),
-      engine.offlineMedia.all(),
-      engine.commandReceipts.all(),
-      engine.outbox.all(),
-    ])
+  const [
+    settings,
+    albums,
+    sessions,
+    retiredSessions,
+    offlinePins,
+    offlineMedia,
+    commandReceipts,
+    outbox,
+  ] = await Promise.all([
+    engine.settings.all(),
+    engine.albums.all(),
+    engine.sessions.all(),
+    engine.retiredSessions.all(),
+    engine.offlinePins.all(),
+    engine.offlineMedia.all(),
+    engine.commandReceipts.all(),
+    engine.outbox.all(),
+  ])
   return (
     settings.length === 0 &&
     albums.length === 0 &&
     sessions.length === 0 &&
+    retiredSessions.length === 0 &&
     offlinePins.length === 0 &&
     offlineMedia.length === 0 &&
     commandReceipts.length === 0 &&
@@ -169,6 +181,7 @@ async function clearCollections(engine: WorkerEngine): Promise<void> {
     engine.settings,
     engine.albums,
     engine.sessions,
+    engine.retiredSessions,
     engine.offlinePins,
     engine.offlineMedia,
     engine.commandReceipts,
@@ -236,10 +249,13 @@ class LocalWorkerDatabase implements WorkerDatabase {
   private settingsMutation: Promise<void> = Promise.resolve()
   private settlementMutation: Promise<void> = Promise.resolve()
 
+  private readonly sessionRows: SessionRows
   constructor(
     private readonly engine: WorkerEngine,
     readonly report: WorkerOpenReport,
-  ) {}
+  ) {
+    this.sessionRows = new SessionRows(engine)
+  }
 
   async settings(): Promise<WorkerSettings> {
     const stored = await this.engine.settings.findById(SETTINGS_ROW_ID)
@@ -288,6 +304,8 @@ class LocalWorkerDatabase implements WorkerDatabase {
       for (const session of await this.engine.sessions.all()) {
         await this.engine.sessions.delete(session.id)
       }
+      for (const marker of await this.engine.retiredSessions.all())
+        await this.engine.retiredSessions.delete(marker.id)
       for (const pin of await this.engine.offlinePins.all()) {
         await this.engine.offlinePins.delete(pin.id)
       }
@@ -300,6 +318,7 @@ class LocalWorkerDatabase implements WorkerDatabase {
       // A realtime cursor is scoped to the old account and cannot cross the boundary.
       const {
         resumeToken: _resumeToken,
+        sessionListToken: _sessionListToken,
         syncNotices: _syncNotices,
         ...withoutAccountLocalState
       } = current
@@ -449,21 +468,40 @@ class LocalWorkerDatabase implements WorkerDatabase {
   }
 
   async sessions(): Promise<readonly WorkerSession[]> {
-    return (await this.engine.sessions.all()).map((row) =>
-      normalizeSessionModes(publicSession(row)),
-    )
+    return (await this.sessionRows.all()).map((row) => normalizeSessionModes(publicSession(row)))
   }
 
   async session(id: string): Promise<WorkerSession | undefined> {
-    const stored = await this.engine.sessions.findById(id)
-    return stored === undefined ? undefined : normalizeSessionModes(publicSession(stored))
+    const stored = await this.sessionRows.get(id)
+    return Option.getOrUndefined(
+      Option.map(stored, (row) => normalizeSessionModes(publicSession(row))),
+    )
   }
 
-  async applyRemoteSessions(sessions: readonly WorkerSession[]): Promise<number> {
-    const [outbox, existing] = await Promise.all([
-      this.engine.outbox.all(),
-      this.engine.sessions.all(),
-    ])
+  // Reserve before sending the RPC. The token survives the refresh under the next
+  // Web Lock. A concurrent list supersedes this one; a session event invalidates it.
+  beginSessionList(): Promise<string> {
+    return this.sessionRows.exclusive(async () => {
+      const token = crypto.randomUUID()
+      await this.writeSettings({ sessionListToken: token })
+      return token
+    })
+  }
+  private async sessionListToken(): Promise<string> {
+    return (await this.engine.settings.findById(SETTINGS_ROW_ID))?.sessionListToken ?? ""
+  }
+
+  async applyRemoteSessions(
+    sessions: readonly WorkerSession[],
+    fence: string,
+  ): Promise<number | "superseded"> {
+    return this.sessionRows.exclusive(async () => {
+      if (!fence || fence !== (await this.sessionListToken())) return "superseded"
+      return this.applyList(sessions)
+    })
+  }
+  private async applyList(sessions: readonly WorkerSession[]): Promise<number> {
+    const [outbox, existing] = await Promise.all([this.engine.outbox.all(), this.sessionRows.all()])
     const queued = new Set(
       outbox
         .filter((entry) => entry.kind === "session.command")
@@ -491,12 +529,13 @@ class LocalWorkerDatabase implements WorkerDatabase {
       ) {
         continue
       }
-      await this.putSession(session)
+      if (await this.sessionRows.retired(session.id)) continue
+      await this.storeLiveSession(session, false)
       count += 1
     }
     for (const local of existing) {
       if (remoteIds.has(local.id)) continue
-      await this.removeSession(local.id)
+      await this.engine.sessions.delete(local.id)
       count += 1
     }
     return count
@@ -523,7 +562,17 @@ class LocalWorkerDatabase implements WorkerDatabase {
     return projected.sleepTimer?.id !== local.sleepTimer?.id ? projected : undefined
   }
 
-  async applyRemoteSession(session: WorkerSession): Promise<WorkerSessionEventResult> {
+  applyRemoteSession(session: WorkerSession): Promise<WorkerSessionEventResult> {
+    return this.sessionRows.exclusive(async () => {
+      await this.invalidateSessionList()
+      return this.applyEvent(session)
+    })
+  }
+  private async invalidateSessionList(): Promise<void> {
+    if (await this.sessionListToken()) await this.writeSettings({ sessionListToken: "" })
+  }
+  private async applyEvent(session: WorkerSession): Promise<WorkerSessionEventResult> {
+    if (await this.sessionRows.retired(session.id)) return { status: "retired" }
     const [stored, outbox] = await Promise.all([
       this.engine.sessions.findById(session.id),
       this.engine.outbox.all(),
@@ -544,7 +593,7 @@ class LocalWorkerDatabase implements WorkerDatabase {
     if (local !== undefined && canonicalJson(session) === canonicalJson(local)) {
       return { status: "applied", session: local }
     }
-    return { status: "applied", session: await this.putSession(session) }
+    return { status: "applied", session: await this.storeLiveSession(session, false) }
   }
 
   private async storeSession(
@@ -555,19 +604,28 @@ class LocalWorkerDatabase implements WorkerDatabase {
     return session
   }
 
-  async putSession(session: WorkerSession): Promise<WorkerSession> {
-    const existing = await this.session(session.id)
-    if (existing !== undefined && existing.revision > session.revision) return existing
-    return this.replaceSession(session)
+  putSession(session: WorkerSession): Promise<WorkerSession> {
+    return this.sessionRows.exclusive(() => this.storeLiveSession(session, false))
   }
-
-  async replaceSession(session: WorkerSession): Promise<WorkerSession> {
-    const previous = (await this.engine.sessions.findById(session.id))?.timerAuthority
-    const latest = latestTimerAuthority(previous, session)
+  replaceSession(session: WorkerSession): Promise<WorkerSession> {
+    return this.sessionRows.exclusive(() => this.storeLiveSession(session, true))
+  }
+  private async storeLiveSession(session: WorkerSession, replace: boolean): Promise<WorkerSession> {
+    if (await this.sessionRows.retired(session.id)) throw new Error("session is retired")
+    const existing = await this.engine.sessions.findById(session.id)
+    if (!replace && existing && existing.revision > session.revision) return publicSession(existing)
+    const latest = latestTimerAuthority(existing?.timerAuthority, session)
     return this.storeSession(withTimer(session, latest.sleepTimer), latest)
   }
 
-  async applySessionVerdict(session: WorkerSession, writeId: string): Promise<WorkerSession> {
+  applySessionVerdict(session: WorkerSession, writeId: string): Promise<WorkerSession | undefined> {
+    return this.sessionRows.exclusive(() => this.applyVerdict(session, writeId))
+  }
+  private async applyVerdict(
+    session: WorkerSession,
+    writeId: string,
+  ): Promise<WorkerSession | undefined> {
+    if (await this.sessionRows.retired(session.id)) return undefined
     // Both the pending-command read and the replacement stay inside the caller's
     // account-fenced lock. A local command must run wholly before or after this operation,
     // never between them, or its optimistic result is overwritten while it stays queued.
@@ -613,7 +671,13 @@ class LocalWorkerDatabase implements WorkerDatabase {
   }
 
   async removeSession(id: string): Promise<boolean> {
-    return this.engine.sessions.delete(id)
+    return this.sessionRows.exclusive(() => this.engine.sessions.delete(id))
+  }
+  applySessionRetirement(id: string): Promise<boolean> {
+    return this.sessionRows.exclusive(async () => {
+      await this.invalidateSessionList()
+      return this.sessionRows.retire(id)
+    })
   }
 
   async offlinePins(): Promise<readonly OfflinePin[]> {
@@ -715,6 +779,17 @@ class LocalWorkerDatabase implements WorkerDatabase {
     commandId?: string,
     expectedRevision?: number,
   ): Promise<WorkerSession> {
+    return this.sessionRows.exclusive(() =>
+      this.queueLiveCommand(session, command, commandId, expectedRevision),
+    )
+  }
+  private async queueLiveCommand(
+    session: WorkerSession,
+    command: RpcSessionCommand,
+    commandId?: string,
+    expectedRevision?: number,
+  ): Promise<WorkerSession> {
+    if (await this.sessionRows.retired(session.id)) throw new Error("session is retired")
     const row = await this.engine.sessions.findById(session.id)
     const current = row ? normalizeSessionModes(publicSession(row)) : session
     const timerAuthority = row?.timerAuthority ?? authority(current)
@@ -885,6 +960,7 @@ export function createMemoryEngine(): WorkerEngine {
     settings: new MemoryCollection(),
     albums: new MemoryCollection(),
     sessions: new MemoryCollection(),
+    retiredSessions: new MemoryCollection(),
     offlinePins: new MemoryCollection(),
     offlineMedia: new MemoryCollection(),
     commandReceipts: new MemoryCollection(),

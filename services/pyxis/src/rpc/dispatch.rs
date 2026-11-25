@@ -7,7 +7,6 @@
 mod sleep;
 pub use sleep::SleepLane;
 
-
 use super::contract::{JournalEvent, ListenEventInput};
 use crate::accounts::{
     Account, AccountError, ApiTokenGrant, AuthContext, AuthGrant, ClaimOutcome, PairOutcome,
@@ -527,6 +526,12 @@ pub fn dispatch(state: &AppState, request: RpcRequest, auth: Option<AuthContext>
                 )),
             }
         }
+        RpcRequest::SessionRetire(request) => {
+            let Some(auth) = auth else {
+                return auth_required();
+            };
+            RpcResponse::SessionRetire(super::retirement::retire(state, &auth, &request.session_id))
+        }
         RpcRequest::SessionList(request) => {
             let Some(auth) = auth else {
                 return auth_required();
@@ -571,11 +576,15 @@ pub fn dispatch(state: &AppState, request: RpcRequest, auth: Option<AuthContext>
                 .map(|id| (id, command_fingerprint.as_str()));
             match state
                 .sessions
-                .command_once(&auth, &request.session_id, command, command_receipt)
+                .host_command(&auth, &request.session_id, command, command_receipt)
             {
-                Ok(session) => {
+                Ok((session, retired)) => {
                     let session = rpc_session(session);
-                    publish_session(state, &auth, &session);
+                    if retired {
+                        super::retirement::publish_retired(state, &auth.account_id, &session.id);
+                    } else {
+                        publish_session(state, &auth, &session);
+                    }
                     RpcResponse::SessionCommandRun(SessionCommandOutcome::Applied(Box::new(
                         session,
                     )))
@@ -1619,41 +1628,62 @@ fn dispatch_output_command(
 ) -> RpcResponse {
     let output = session.output.as_ref().expect("output session has binding");
     state.outputs.serialize_plugin(&output.plugin_id, || {
-        if !matches!(state.sessions.get(auth,&session.id), Ok(Some(current)) if current.output.as_ref() == Some(output)) {
-            return RpcResponse::SessionCommandSend(SessionCommandSendOutcome::Unreachable);
+        checked_output_command(state, auth, request, output)
+    })
+}
+
+/// Caller holds the plugin lock, which fences topology discovery, the effect and its commit.
+pub(super) fn checked_output_command(
+    state: &AppState,
+    auth: &AuthContext,
+    request: &SessionCommandRequest,
+    output: &OutputBinding,
+) -> RpcResponse {
+    match state.sessions.get(auth, &request.session_id) {
+        Ok(Some(current)) if current.output.as_ref() == Some(output) => {}
+        Ok(Some(_)) => {
+            return RpcResponse::SessionCommandSend(SessionCommandSendOutcome::Unreachable)
         }
-        if let Err(error) = state.outputs.claim_target(&auth.account_id, output) {
+        Ok(None) => {
+            return RpcResponse::SessionCommandSend(SessionCommandSendOutcome::UnknownSession)
+        }
+        Err(e) => {
+            return RpcResponse::SessionCommandSend(SessionCommandSendOutcome::Unavailable(
+                session_failure(e),
+            ))
+        }
+    }
+    if let Err(error) = state.outputs.claim_target(&auth.account_id, output) {
+        return RpcResponse::SessionCommandSend(SessionCommandSendOutcome::Unavailable(
+            output_failure(error),
+        ));
+    }
+    let topology = match state.outputs.discover(auth, &output.plugin_id) {
+        Ok(topology) => topology,
+        Err(error) => {
+            state.sessions.replace_output_reachability(
+                &auth.account_id,
+                &output.plugin_id,
+                Vec::new(),
+            );
+            publish_output_session(state, auth, &request.session_id);
             return RpcResponse::SessionCommandSend(SessionCommandSendOutcome::Unavailable(
                 output_failure(error),
             ));
         }
-        let topology = match state.outputs.discover(auth, &output.plugin_id) {
-            Ok(topology) => topology,
-            Err(error) => {
-                state.sessions.replace_output_reachability(
-                    &auth.account_id,
-                    &output.plugin_id,
-                    Vec::new(),
-                );
-                publish_output_session(state, auth, &session.id);
-                return RpcResponse::SessionCommandSend(SessionCommandSendOutcome::Unavailable(
-                    output_failure(error),
-                ));
-            }
-        };
-        let reachable = safe_output_target_ids(state, &output.plugin_id, &topology);
-        state.sessions.replace_output_reachability(
-            &auth.account_id,
-            &output.plugin_id,
-            reachable.clone(),
-        );
-        if !reachable.iter().any(|target| target == &output.target_id) {
-            publish_output_session(state, auth, &session.id);
-            return RpcResponse::SessionCommandSend(SessionCommandSendOutcome::Unreachable);
-        }
-        state.outputs.serialize_target(output, || {
-            dispatch_output_command_locked(state, auth, request)
-        })
+    };
+    let reachable = safe_output_target_ids(state, &output.plugin_id, &topology);
+    state.sessions.replace_output_reachability(
+        &auth.account_id,
+        &output.plugin_id,
+        reachable.clone(),
+    );
+    if !reachable.iter().any(|target| target == &output.target_id) {
+        publish_output_session(state, auth, &request.session_id);
+        return RpcResponse::SessionCommandSend(SessionCommandSendOutcome::Unreachable);
+    }
+    state.outputs.serialize_target(output, || {
+        dispatch_output_command_locked(state, auth, request)
     })
 }
 
@@ -2212,7 +2242,7 @@ fn rpc_api_token_grant(grant: ApiTokenGrant) -> RpcApiTokenGrant {
 
 /// One addressed command, uniquely identified so a host that reconnects mid-delivery can
 /// discard a repeat instead of applying it twice.
-fn directive(
+pub(super) fn directive(
     session_id: &str,
     command: RpcSessionCommand,
     issued_by: &str,
@@ -2232,12 +2262,14 @@ fn directive(
 
 /// Publish after the write succeeded, never before. A subscriber must not see state that
 /// the store rejected.
-fn publish_session(state: &AppState, auth: &AuthContext, session: &RpcSession) {
-    state.realtime.publish(
-        &auth.account_id,
-        RpcRealtimeTopic::Sessions,
-        RpcRealtimeState::SessionState(session.clone()),
-    );
+pub(super) fn publish_session(state: &AppState, auth: &AuthContext, session: &RpcSession) {
+    state.sessions.with_current(auth, &session.id, |current| {
+        state.realtime.publish(
+            &auth.account_id,
+            RpcRealtimeTopic::Sessions,
+            RpcRealtimeState::SessionState(rpc_session(current)),
+        )
+    });
 }
 
 fn publish_album(state: &AppState, auth: &AuthContext, album: &RpcLibraryAlbum) {
@@ -2449,7 +2481,7 @@ fn auth_required() -> RpcResponse {
     ))
 }
 
-fn session_failure(error: SessionError) -> RpcFailure {
+pub(super) fn session_failure(error: SessionError) -> RpcFailure {
     RpcFailure::retryable("session.unavailable", error.to_string())
 }
 

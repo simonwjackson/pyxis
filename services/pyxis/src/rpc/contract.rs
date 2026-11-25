@@ -1003,6 +1003,18 @@ pub enum SessionListOutcome {
 #[typeshare]
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
 #[serde(tag = "status", content = "value", rename_all = "camelCase")]
+pub enum SessionRetireOutcome {
+    Retired,
+    StopRequested,
+    UnknownSession,
+    Unreachable,
+    Busy,
+    Unavailable(RpcFailure),
+}
+
+#[typeshare]
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(tag = "status", content = "value", rename_all = "camelCase")]
 pub enum SessionStateOutcome {
     Ready(Box<RpcSession>),
     Unknown,
@@ -1807,6 +1819,8 @@ impl RpcRealtimeTopic {
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct RealtimeHello {
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub session_retirements: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub contract_id: Option<String>,
     pub bearer_token: String,
     pub topics: Vec<RpcRealtimeTopic>,
@@ -1863,6 +1877,8 @@ pub struct RpcRealtimeRemoval {
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
 #[serde(tag = "_tag", content = "payload")]
 pub enum RpcRealtimeState {
+    #[serde(rename = "session.retired")]
+    SessionRetired(RpcRealtimeRemoval),
     #[serde(rename = "session.state")]
     SessionState(RpcSession),
     #[serde(rename = "library.album.state")]
@@ -1922,6 +1938,8 @@ pub enum RpcRequest {
     AccountSettingsGet(EmptyRequest),
     #[serde(rename = "account.settings.set")]
     AccountSettingsSet(AccountSettingsSetRequest),
+    #[serde(rename = "session.retire")]
+    SessionRetire(SessionIdRequest),
     #[serde(rename = "account.list")]
     AccountList(EmptyRequest),
     #[serde(rename = "account.create")]
@@ -2038,6 +2056,8 @@ pub enum RpcResponse {
     AccountSettingsGet(AccountSettingsGetOutcome),
     #[serde(rename = "account.settings.set")]
     AccountSettingsSet(AccountSettingsSetOutcome),
+    #[serde(rename = "session.retire")]
+    SessionRetire(SessionRetireOutcome),
     #[serde(rename = "account.list")]
     AccountList(AccountListOutcome),
     #[serde(rename = "account.create")]
@@ -2126,7 +2146,7 @@ pub enum RpcResponse {
 }
 
 impl RpcRequest {
-    pub const KNOWN_TAGS: [&'static str; 49] = [
+    pub const KNOWN_TAGS: [&'static str; 50] = [
         "system.status.get",
         "auth.device.claim",
         "auth.device.pair",
@@ -2136,6 +2156,7 @@ impl RpcRequest {
         "listen.journal.list",
         "account.settings.get",
         "account.settings.set",
+        "session.retire",
         "account.list",
         "account.create",
         "plugin.list",
@@ -2193,6 +2214,7 @@ impl RpcRequest {
             RpcRequest::ListenJournalList(_) => "listen.journal.list",
             RpcRequest::AccountSettingsGet(_) => "account.settings.get",
             RpcRequest::AccountSettingsSet(_) => "account.settings.set",
+            RpcRequest::SessionRetire(_) => "session.retire",
             RpcRequest::AccountList(_) => "account.list",
             RpcRequest::AccountCreate(_) => "account.create",
             RpcRequest::PluginList(_) => "plugin.list",
@@ -2260,6 +2282,7 @@ impl RpcRequest {
             RpcRequest::ListenJournalList(_) => Some("listen:read"),
             RpcRequest::AccountSettingsGet(_) => Some("account:read"),
             RpcRequest::AccountSettingsSet(_) => Some("account:admin"),
+            RpcRequest::SessionRetire(_) => Some("session:control"),
             RpcRequest::AccountList(_) | RpcRequest::PluginList(_) => Some("account:read"),
             RpcRequest::OutputTargetsList(_) => Some("session:read"),
             RpcRequest::SessionList(_) | RpcRequest::SessionStateGet(_) => Some("session:read"),
@@ -2311,7 +2334,7 @@ impl RpcRequest {
 }
 
 impl RpcResponse {
-    pub const KNOWN_OPERATION_TAGS: [&'static str; 49] = RpcRequest::KNOWN_TAGS;
+    pub const KNOWN_OPERATION_TAGS: [&'static str; 50] = RpcRequest::KNOWN_TAGS;
 
     pub fn tag(&self) -> &'static str {
         match self {
@@ -2324,6 +2347,7 @@ impl RpcResponse {
             RpcResponse::ListenJournalList(_) => "listen.journal.list",
             RpcResponse::AccountSettingsGet(_) => "account.settings.get",
             RpcResponse::AccountSettingsSet(_) => "account.settings.set",
+            RpcResponse::SessionRetire(_) => "session.retire",
             RpcResponse::AccountList(_) => "account.list",
             RpcResponse::AccountCreate(_) => "account.create",
             RpcResponse::PluginList(_) => "plugin.list",

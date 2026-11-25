@@ -8,4 +8,15 @@ const schema = JSON.parse(
 const ajv = new Ajv2020({ validateFormats: false })
 ajv.addSchema(schema, "a0718de")
 const validate = ajv.compile({ $ref: `a0718de#/$defs/${process.argv[2]}` })
-if (!validate(JSON.parse(process.argv[3]))) throw new Error(ajv.errorsText(validate.errors))
+const message = JSON.parse(process.argv[3])
+if (validate(message) !== (process.argv[4] === "accept"))
+  throw new Error(`unexpected a0718de result: ${ajv.errorsText(validate.errors)}`)
+if (process.argv[4] === "reject") {
+  ajv.addSchema(
+    JSON.parse(
+      readFileSync(new URL("../../../../contracts/generated/pyxis.schema.json", import.meta.url)),
+    ),
+    "current",
+  )
+  if (!ajv.validate(`current#/$defs/${process.argv[2]}`, message)) throw new Error(ajv.errorsText())
+}

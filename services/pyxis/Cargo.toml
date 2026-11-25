@@ -49,6 +49,7 @@ ulid = "1"
 unicode-normalization = "0.1"
 
 [dev-dependencies]
+tokio = { version = "1", features = ["test-util"] }
 proptest = "1"
 tempfile = "3"
 tokio-tungstenite = "0.24"

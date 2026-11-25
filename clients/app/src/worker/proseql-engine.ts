@@ -13,6 +13,7 @@ import { Schema } from "effect"
 import {
   type OfflineMedia,
   type OfflinePin,
+  type StoredWorkerSession,
   WORKER_DATABASE_NAME,
   type WorkerAlbum,
   type WorkerCollection,
@@ -21,7 +22,6 @@ import {
   type WorkerEngine,
   type WorkerOutboxEntry,
   type WorkerSchemaRow,
-  type WorkerSession,
   type WorkerSettings,
 } from "./contract"
 
@@ -46,6 +46,7 @@ const SettingsSchema = Schema.Struct({
   deviceName: Schema.optional(Schema.String),
   bearerToken: Schema.optional(Schema.String),
   resumeToken: Schema.optional(Schema.String),
+  sessionListToken: Schema.optional(Schema.String),
   syncNotices: Schema.optional(Schema.Unknown),
   offlineResolutionGeneration: Schema.optional(Schema.Number),
   streamEpoch: Schema.optional(Schema.Number),
@@ -95,6 +96,11 @@ const config = {
   meta: { schema: MetaSchema, file: "./pyxis/meta.json", relationships: {} },
   settings: { schema: SettingsSchema, file: "./pyxis/settings.json", relationships: {} },
   albums: { schema: AlbumSchema, file: "./pyxis/albums.json", relationships: {} },
+  retiredSessions: {
+    schema: Schema.Struct({ id: Schema.String }),
+    file: "./pyxis/retired-sessions.json",
+    relationships: {},
+  },
   sessions: { schema: SessionSchema, file: "./pyxis/sessions.json", relationships: {} },
   offlinePins: {
     schema: OfflinePinSchema,
@@ -185,6 +191,7 @@ export async function createProseqlEngine(
         raw.settings,
         raw.albums,
         raw.sessions,
+        raw.retiredSessions,
         raw.offlinePins,
         raw.offlineMedia,
         raw.commandReceipts,
@@ -235,6 +242,7 @@ interface RawCollections {
   readonly meta: RawCollection
   readonly settings: RawCollection
   readonly albums: RawCollection
+  readonly retiredSessions: RawCollection
   readonly sessions: RawCollection
   readonly offlinePins: RawCollection
   readonly offlineMedia: RawCollection
@@ -255,7 +263,8 @@ function adaptCollections(raw: RawCollections): WorkerCollections {
       id: album.id,
       revision: album.revision,
     })),
-    sessions: wrapped<WorkerSession>(raw.sessions, (session) => ({
+    retiredSessions: adapt<{ readonly id: string }>(raw.retiredSessions),
+    sessions: wrapped<StoredWorkerSession>(raw.sessions, (session) => ({
       id: session.id,
       revision: session.revision,
     })),

@@ -129,6 +129,7 @@ impl AccountChannel {
 }
 
 struct Attachment {
+    head: String,
     receiver: broadcast::Receiver<Arc<RealtimeEvent>>,
     missed: Vec<Arc<RealtimeEvent>>,
     resume_token: String,
@@ -260,6 +261,7 @@ impl Realtime {
             return Attachment {
                 receiver,
                 missed: Vec::new(),
+                head: head.clone(),
                 resume_token: head,
                 resumed: false,
                 missed_events_dropped: false,
@@ -279,6 +281,7 @@ impl Realtime {
             None => Attachment {
                 receiver,
                 missed: Vec::new(),
+                head: head.clone(),
                 resume_token: head,
                 resumed: false,
                 missed_events_dropped: true,
@@ -293,6 +296,7 @@ impl Realtime {
                 Attachment {
                     receiver,
                     missed,
+                    head,
                     // Stay at the requested cursor rather than jumping to the head. A
                     // client that persists this token and then dies before applying the
                     // replay must be able to ask for the same backlog again.
@@ -397,11 +401,7 @@ async fn publish_hosted_sessions(state: &Arc<AppState>, context: &AuthContext, d
             .into_iter()
             .filter(|session| session.host_device_id == device)
         {
-            state.realtime.publish(
-                &context.account_id,
-                RpcRealtimeTopic::Sessions,
-                RpcRealtimeState::SessionState(rpc_session(session)),
-            );
+            super::dispatch::publish_session(&state, &context, &rpc_session(session));
         }
     })
     .await;
@@ -428,6 +428,7 @@ async fn serve_socket(state: Arc<AppState>, socket: WebSocket) {
     let registration = accepted.registration;
     pump(
         accepted.context,
+        accepted.session_retirements,
         accepted.topics,
         accepted.receiver,
         accepted.directed,
@@ -444,6 +445,7 @@ async fn serve_socket(state: Arc<AppState>, socket: WebSocket) {
 }
 
 struct Accepted {
+    session_retirements: bool,
     context: AuthContext,
     topics: HashSet<RpcRealtimeTopic>,
     receiver: broadcast::Receiver<Arc<RealtimeEvent>>,
@@ -566,19 +568,28 @@ async fn accept(
         .attach(context.account_id.as_str(), hello.resume_token.as_deref());
     let topics: HashSet<_> = hello.topics.iter().copied().collect();
 
+    let session_retirements = hello.session_retirements.unwrap_or(false);
+    let requires_pull = !session_retirements
+        && attachment.missed.iter().any(|e| {
+            topics.contains(&e.topic) && matches!(e.state, RpcRealtimeState::SessionRetired(_))
+        });
     let welcome = RealtimeServerMessage::Welcome(RealtimeWelcome {
         account_id: context.account_id.as_str().to_string(),
         contract_id: CONTRACT_ID.to_string(),
         topics: sorted(&topics),
-        resume_token: attachment.resume_token.clone(),
-        resumed: attachment.resumed,
-        missed_events_dropped: attachment.missed_events_dropped,
+        resume_token: if requires_pull {
+            attachment.head
+        } else {
+            attachment.resume_token
+        },
+        resumed: attachment.resumed && !requires_pull,
+        missed_events_dropped: attachment.missed_events_dropped || requires_pull,
     });
     if send(sink, &welcome).await.is_err() {
         return None;
     }
     for event in &attachment.missed {
-        if !topics.contains(&event.topic) {
+        if requires_pull || !topics.contains(&event.topic) {
             continue;
         }
         if send(sink, &RealtimeServerMessage::Event((**event).clone()))
@@ -592,6 +603,7 @@ async fn accept(
     // The receiver was created before replay was computed, so events published while the
     // backlog was being written are queued rather than lost.
     Some(Accepted {
+        session_retirements,
         context,
         topics,
         receiver: attachment.receiver,
@@ -604,6 +616,7 @@ async fn accept(
 
 async fn pump(
     context: AuthContext,
+    session_retirements: bool,
     mut topics: HashSet<RpcRealtimeTopic>,
     mut receiver: broadcast::Receiver<Arc<RealtimeEvent>>,
     directed: Option<mpsc::Receiver<RealtimeServerMessage>>,
@@ -648,6 +661,10 @@ async fn pump(
                 Ok(event) => {
                     if !topics.contains(&event.topic) {
                         continue;
+                    }
+                    if !session_retirements && matches!(event.state,RpcRealtimeState::SessionRetired(_)) {
+                        let _=refuse(&mut sink,RpcFailure::retryable("realtime.resyncRequired","sessions changed; reconnect and refetch session.list")).await;
+                        return;
                     }
                     if send(&mut sink, &RealtimeServerMessage::Event((*event).clone()))
                         .await

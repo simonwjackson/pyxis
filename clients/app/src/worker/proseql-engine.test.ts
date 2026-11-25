@@ -55,6 +55,7 @@ async function open(
   cells: Map<string, string>,
   writes?: string[],
   behavior: PersistenceBehavior = {},
+  version?: number,
 ) {
   const host = createWebStorageEngineStorageHost({
     storage: storageBackedBy(cells, writes),
@@ -71,7 +72,11 @@ async function open(
       },
     },
   })
-  return openWorkerDatabase({ engine: handle.engine, clear: handle.clear })
+  return openWorkerDatabase({
+    engine: handle.engine,
+    clear: handle.clear,
+    ...(version === undefined ? {} : { version }),
+  })
 }
 
 function album(id: string, revision = 1, title = "Heroes"): WorkerAlbum {
@@ -538,7 +543,7 @@ describe("the real ProseQL engine", () => {
     const writes: string[] = []
     for (let round = 0; round < 3; round += 1) {
       const reopened = await open(cells, writes)
-      expect(reopened.report).toMatchObject({ reason: "opened", version: 8 })
+      expect(reopened.report).toMatchObject({ reason: "opened", version: 9 })
       expect(await reopened.session("session-1")).toEqual(queued)
       expect(await reopened.albums()).toEqual([album("album-1")])
       expect((await reopened.settings()).deviceId).toBe("device-1")
@@ -835,9 +840,13 @@ describe("the real ProseQL engine", () => {
     expect(await reopened.sessions()).toEqual([
       { ...snapshot, cursor: 0, currentTrackId: "track-1" },
     ])
-    expect(await reopened.applyRemoteSessions([snapshot])).toBe(1)
+    expect(await reopened.applyRemoteSessions([snapshot], await reopened.beginSessionList())).toBe(
+      1,
+    )
     expect(await reopened.session(snapshot.id)).toEqual(snapshot)
-    expect(await reopened.applyRemoteSessions([snapshot])).toBe(0)
+    expect(await reopened.applyRemoteSessions([snapshot], await reopened.beginSessionList())).toBe(
+      0,
+    )
   })
 
   test("a complete offline pin snapshot removes an omitted error", async () => {
@@ -1039,7 +1048,10 @@ test("a durable sleep replacement and cancellation fence an old backstop after w
   )
   await first.close()
   const pulling = await open(cells)
-  await pulling.applyRemoteSessions([{ ...session, sleepTimer: replacement, revision: 5 }])
+  await pulling.applyRemoteSessions(
+    [{ ...session, sleepTimer: replacement, revision: 5 }],
+    await pulling.beginSessionList(),
+  )
   // An event and command acknowledgement in flight before the replacement cannot undo it.
   await pulling.applyRemoteSession({ ...session, sleepTimer: original, revision: 4 })
   await pulling.close()
@@ -1067,4 +1079,149 @@ test("a durable sleep replacement and cancellation fence an old backstop after w
   expect(await final.session(session.id)).not.toHaveProperty("sleepTimer")
   expect((await final.session(session.id))?.transport).toBe(RpcTransport.Playing)
   await final.close()
+})
+
+test("retirement survives a worker restart before the Stop verdict arrives", async () => {
+  const cells = new Map<string, string>()
+  const first = await open(cells)
+  const playing: RpcSession = {
+    id: "desk",
+    name: "Desk",
+    hostDeviceId: "host",
+    repeat: RpcRepeatMode.Off,
+    shuffle: false,
+    queue: ["song"],
+    cursor: 0,
+    transport: RpcTransport.Playing,
+    positionMs: 0,
+    volume: 100,
+    reachable: true,
+    revision: 1,
+    updatedAt: "2026-01-01T12:00:00Z",
+  }
+  await first.putSession(playing)
+  await first.queueSessionCommand(
+    playing,
+    { _tag: "transport.stop", payload: {} },
+    "stop-directive",
+  )
+  await first.applySessionRetirement(playing.id)
+  await first.close()
+  const second = await open(cells)
+  const [entry] = await second.outbox()
+  if (!entry) throw new Error("expected durable Stop command")
+  expect(await second.sessions()).toEqual([])
+  expect(
+    await second.settleOutbox(entry.id, {
+      _tag: "Settle",
+      verdict: {
+        _tag: "SessionAccepted",
+        session: { ...playing, revision: 2, transport: RpcTransport.Stopped },
+      },
+    }),
+  ).toMatchObject({ outcome: "pushed" })
+  await second.close()
+  const offline = await open(cells)
+  expect(await offline.applyRemoteSessions([playing], await offline.beginSessionList())).toBe(0)
+  expect(await offline.sessions()).toEqual([])
+  expect(await offline.outbox()).toEqual([])
+  await offline.close()
+})
+
+test("a schema 8 reopen upgrades without losing pending writes and stores no marker in playable sessions", async () => {
+  const cells = new Map<string, string>()
+  const v8 = await open(cells, undefined, {}, 8)
+  const playing: RpcSession = {
+    id: "desk",
+    name: "Desk",
+    hostDeviceId: "host",
+    repeat: RpcRepeatMode.Off,
+    shuffle: false,
+    queue: ["song"],
+    cursor: 0,
+    transport: RpcTransport.Playing,
+    positionMs: 0,
+    volume: 100,
+    reachable: true,
+    revision: 1,
+    updatedAt: "2026-01-01T12:00:00Z",
+  }
+  const armed = {
+    ...playing,
+    sleepTimer: { id: "timer", deadline: "2099-07-03T00:00:10Z", fadeSeconds: 5 },
+  }
+  await v8.putSession(armed)
+  await v8.queueSessionCommand(
+    armed,
+    { _tag: "volume.set", payload: { volume: 80 } },
+    "pending-volume",
+  )
+  await v8.queueListen({
+    id: "01M0K000000000000000000001",
+    trackId: "song",
+    deviceId: "host",
+    listenedAt: playing.updatedAt,
+    completed: true,
+    context: "queue",
+  })
+  await v8.close()
+  const seeded = await open(cells, undefined, {}, 8)
+  const pending = await seeded.outbox()
+  expect(pending).toHaveLength(2)
+  await seeded.close()
+  const upgraded = await open(cells)
+  expect(upgraded.report).toMatchObject({ reason: "migrated", fromVersion: 8, version: 9 })
+  expect(await upgraded.outbox()).toEqual(pending)
+  expect(await upgraded.session(playing.id)).toMatchObject({
+    transport: RpcTransport.Playing,
+    sleepTimer: armed.sleepTimer,
+    volume: 80,
+  })
+  await upgraded.applySessionRetirement(playing.id)
+  await upgraded.close()
+  const handle = await createProseqlEngine({
+    wasm,
+    storageHost: createWebStorageEngineStorageHost({
+      storage: storageBackedBy(cells),
+      keyPrefix: "pyxis-test:",
+    }),
+  })
+  expect(await handle.engine.sessions.all()).toEqual([])
+  expect(await handle.engine.retiredSessions.all()).toEqual([{ id: "desk" }])
+  await handle.engine.close()
+  const reopened = await open(cells)
+  expect(await reopened.applyRemoteSessions([playing], await reopened.beginSessionList())).toBe(0)
+  expect(await reopened.sessions()).toEqual([])
+  expect(await reopened.outbox()).toEqual(pending)
+  await reopened.close()
+})
+
+test("a list fence survives refresh and protects a same-revision presence event", async () => {
+  const cells = new Map<string, string>()
+  const first = await open(cells)
+  const snapshot: RpcSession = {
+    id: "desk",
+    name: "Desk",
+    hostDeviceId: "host",
+    repeat: RpcRepeatMode.Off,
+    shuffle: false,
+    queue: [],
+    transport: RpcTransport.Stopped,
+    positionMs: 0,
+    volume: 100,
+    reachable: false,
+    revision: 1,
+    updatedAt: "2026-01-01T12:00:00Z",
+  }
+  await first.putSession(snapshot)
+  const token = await first.beginSessionList()
+  await first.close()
+  const socket = await open(cells)
+  const reachable = { ...snapshot, reachable: true }
+  expect(await socket.applyRemoteSession(reachable)).toMatchObject({ status: "applied" })
+  await socket.close()
+  const response = await open(cells)
+  expect(await response.applyRemoteSessions([snapshot], token)).toBe("superseded")
+  expect(await response.session(snapshot.id)).toMatchObject(reachable)
+  await response.close()
 })

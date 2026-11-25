@@ -4,3 +4,5 @@ pub mod contract;
 pub mod dispatch;
 pub mod realtime;
 pub mod transport;
+
+pub(crate) mod retirement;

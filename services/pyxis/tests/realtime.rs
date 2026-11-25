@@ -3,8 +3,10 @@
 //! Every test binds an ephemeral port and speaks the published protocol, so a change that
 //! breaks third-party clients breaks these tests too.
 
+mod v4_schema;
 use std::net::SocketAddr;
 use std::time::Duration;
+use v4_schema::check_v4_schema;
 
 use futures_util::{SinkExt, StreamExt};
 use pyxis::api::{router, AppState};
@@ -1072,4 +1074,107 @@ async fn stale_realtime_clients_never_gain_host_authority() {
     let failure = next(&mut socket).await.unwrap();
     assert_eq!(failure["_tag"], "realtime.failure");
     assert_eq!(failure["payload"]["code"], "contract.mismatch");
+}
+
+#[tokio::test]
+async fn retirement_waits_for_the_host_stop_report_then_publishes_removal() {
+    let server = serve().await;
+    let host = claim(&server, "host").await;
+    let owner = claim(&server, "owner console").await;
+    let mut socket = open(&server).await;
+    hello(&mut socket, &host, json!([]), None).await;
+    next(&mut socket).await.unwrap();
+    let created = rpc(
+        &server,
+        json!({"_tag":"session.create","payload":{"name":"Desk"}}),
+        Some(&host),
+    )
+    .await;
+    let id = &created["outcome"]["value"]["id"];
+    for command in [
+        json!({"_tag":"queue.add","payload":{"trackIds":["song"]}}),
+        json!({"_tag":"transport.play","payload":{}}),
+    ] {
+        assert_eq!(
+            rpc(
+                &server,
+                json!({"_tag":"session.command.run","payload":{"sessionId":id,"command":command}}),
+                Some(&host)
+            )
+            .await["outcome"]["status"],
+            "applied"
+        );
+    }
+    let mut watch = open(&server).await;
+    watch.send(Message::Text(json!({"_tag":"realtime.hello","payload":{"contractId":"pyxis-rpc-v4","topics":["sessions"],"sessionRetirements":true,"bearerToken":owner}}).to_string())).await.unwrap();
+    next(&mut watch).await.unwrap();
+    let mut old = open(&server).await;
+    hello(&mut old, &owner, json!(["sessions"]), None).await;
+    let welcome = next(&mut old).await.unwrap();
+    check_v4_schema("RealtimeServerMessage", &welcome);
+    let retire = json!({"_tag":"session.retire","payload":{"sessionId":id}});
+    assert_eq!(
+        rpc(&server, retire, Some(&owner)).await["outcome"]["status"],
+        "stopRequested"
+    );
+    let directive = next(&mut socket).await.unwrap();
+    assert_eq!(directive["_tag"], "realtime.command");
+    assert_eq!(directive["payload"]["command"]["_tag"], "transport.stop");
+    let list = json!({"_tag":"session.list","payload":{"includeUnreachable":true}});
+    assert_eq!(
+        rpc(&server, list.clone(), Some(&owner)).await["outcome"]["value"][0]["transport"],
+        "playing"
+    );
+    let stopped=rpc(&server,json!({"_tag":"session.command.run","payload":{"sessionId":id,"command":directive["payload"]["command"],"commandId":directive["payload"]["directiveId"]}}),Some(&host)).await;
+    assert_eq!(stopped["outcome"]["value"]["transport"], "stopped");
+    let event = next(&mut watch).await.unwrap();
+    v4_schema::assert_schema_compatibility("RealtimeServerMessage", &event, false);
+    assert_eq!(event["payload"]["topic"], "sessions");
+    assert_eq!(
+        event["payload"]["state"],
+        json!({"_tag":"session.retired","payload":{"id":id}})
+    );
+    assert_eq!(
+        rpc(&server, list, Some(&owner)).await["outcome"]["value"],
+        json!([])
+    );
+    let resync = next(&mut old).await.unwrap();
+    check_v4_schema("RealtimeServerMessage", &resync);
+    assert_eq!(resync["payload"]["code"], "realtime.resyncRequired");
+    let mut resumed = open(&server).await;
+    hello(
+        &mut resumed,
+        &owner,
+        json!(["sessions"]),
+        welcome["payload"]["resumeToken"].as_str(),
+    )
+    .await;
+    let welcome = next(&mut resumed).await.unwrap();
+    check_v4_schema("RealtimeServerMessage", &welcome);
+    assert_eq!(welcome["payload"]["missedEventsDropped"], true);
+    let recovery_cursor = welcome["payload"]["resumeToken"].as_str().unwrap();
+    assert_eq!(
+        rpc(
+            &server,
+            json!({"_tag":"session.list","payload":{"includeUnreachable":true}}),
+            Some(&owner)
+        )
+        .await["outcome"]["value"],
+        json!([])
+    );
+    drop(resumed);
+    let mut quiet = open(&server).await;
+    hello(
+        &mut quiet,
+        &owner,
+        json!(["sessions"]),
+        Some(recovery_cursor),
+    )
+    .await;
+    let quiet = next(&mut quiet).await.unwrap();
+    assert_eq!(
+        quiet["payload"]["resumed"], true,
+        "a completed full pull on a quiet account must resume"
+    );
+    assert_eq!(quiet["payload"]["missedEventsDropped"], false);
 }

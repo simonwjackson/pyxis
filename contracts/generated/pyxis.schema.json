@@ -183,6 +183,22 @@
           "properties": {
             "_tag": {
               "type": "string",
+              "const": "session.retire"
+            },
+            "payload": {
+              "$ref": "#/$defs/SessionIdRequest"
+            }
+          },
+          "required": [
+            "_tag",
+            "payload"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "_tag": {
+              "type": "string",
               "const": "account.list"
             },
             "payload": {
@@ -953,6 +969,18 @@
         "sourcePriority"
       ]
     },
+    "SessionIdRequest": {
+      "type": "object",
+      "properties": {
+        "sessionId": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "sessionId"
+      ]
+    },
     "AccountCreateRequest": {
       "type": "object",
       "properties": {
@@ -1047,18 +1075,6 @@
         }
       },
       "additionalProperties": false
-    },
-    "SessionIdRequest": {
-      "type": "object",
-      "properties": {
-        "sessionId": {
-          "type": "string"
-        }
-      },
-      "additionalProperties": false,
-      "required": [
-        "sessionId"
-      ]
     },
     "SessionCommandRequest": {
       "type": "object",
@@ -2749,6 +2765,22 @@
           "properties": {
             "_tag": {
               "type": "string",
+              "const": "session.retire"
+            },
+            "outcome": {
+              "$ref": "#/$defs/SessionRetireOutcome"
+            }
+          },
+          "required": [
+            "_tag",
+            "outcome"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "_tag": {
+              "type": "string",
               "const": "account.list"
             },
             "outcome": {
@@ -4036,6 +4068,86 @@
           "required": [
             "status",
             "value"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "const": "unavailable"
+            },
+            "value": {
+              "$ref": "#/$defs/RpcFailure"
+            }
+          },
+          "required": [
+            "status",
+            "value"
+          ]
+        }
+      ]
+    },
+    "SessionRetireOutcome": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "const": "retired"
+            }
+          },
+          "required": [
+            "status"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "const": "stopRequested"
+            }
+          },
+          "required": [
+            "status"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "const": "unknownSession"
+            }
+          },
+          "required": [
+            "status"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "const": "unreachable"
+            }
+          },
+          "required": [
+            "status"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "const": "busy"
+            }
+          },
+          "required": [
+            "status"
           ]
         },
         {
@@ -7014,6 +7126,12 @@
       "description": "The first message on every socket.\n\nBrowsers cannot set an `Authorization` header when opening a WebSocket, and a query\nstring would copy the bearer token into proxy and server logs. An explicit hello frame\nkeeps the token in the message body, where the RPC transport already keeps it.",
       "type": "object",
       "properties": {
+        "sessionRetirements": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
         "contractId": {
           "type": [
             "string",
@@ -7214,6 +7332,22 @@
     "RpcRealtimeState": {
       "description": "Published state. Every variant carries the whole record rather than a delta, so a\nclient that misses an event and refetches converges on the same value.",
       "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "_tag": {
+              "type": "string",
+              "const": "session.retired"
+            },
+            "payload": {
+              "$ref": "#/$defs/RpcRealtimeRemoval"
+            }
+          },
+          "required": [
+            "_tag",
+            "payload"
+          ]
+        },
         {
           "type": "object",
           "properties": {

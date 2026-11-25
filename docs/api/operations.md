@@ -25,6 +25,7 @@ Read [README.md](README.md) first for the envelope rules, and
 | `output.session.create` | `session:control` | `ready`, `unknownTarget`, `unavailable` |
 | `output.group.set` | `session:control` | `ready`, `unavailable` |
 | `session.create` | `session:control` | `ready`, `notDevice`, `unavailable` |
+| `session.retire` | `session:control` | `retired`, `stopRequested`, `unknownSession`, `unreachable`, `busy`, `unavailable` |
 | `session.list` | `session:read` | `ready`, `unavailable` |
 | `session.state.get` | `session:read` | `ready`, `unknown`, `unavailable` |
 | `session.command.run` | `session:control` | `applied`, `unknownSession`, `notHost`, `notDevice`, `rejected`, `unavailable` |
@@ -259,6 +260,21 @@ exist. `reachable` means one specific thing. The host is holding a live realtime
 It is never persisted, so a crashed or sleeping host cannot leave a session looking
 controllable. List order is unspecified and can change after a session update. Keep selection
 by session ID and sort a copy when the display needs a stable order.
+
+`session.retire {sessionId}` removes a session on the caller's account. The host or a console
+with `session:control` on the owning account can retire it. Another account gets `unknownSession`.
+A `retired` session is absent even with `includeUnreachable:true`. If a device is playing
+or paused, `stopRequested` means the core delivered `transport.stop`; the session stays live
+until the host confirms Stop through `session.command.run` with the directive id as `commandId`.
+`unreachable` and `busy` are not success: retry retirement when the host can accept Stop.
+For a playing or paused output the core stops the renderer first. A failed Stop retains the session.
+
+The first sweep runs one hour after startup so hosts have time to reconnect. Sweeps then run
+hourly. A device session expires if its host is unreachable and its `updatedAt` is strictly
+older than 30 days, regardless of transport or queue contents. Output sessions and sessions
+with a pending volume restore do not expire. Both kinds of retirement publish `session.retired` on the `sessions` topic to sockets
+that opted in with `sessionRetirements:true` at hello. Other sessions subscribers must
+refetch their session list (see [realtime](realtime.md)).
 
 Two operations look similar and are not:
 

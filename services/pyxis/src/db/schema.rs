@@ -124,6 +124,7 @@ pub fn sessions() -> CollectionDescriptor {
         vec![
             field("name", SchemaNode::Str),
             field("hostDeviceId", SchemaNode::Str),
+            field("retireCommandId", optional(SchemaNode::Str)),
             field("repeat", optional(SchemaNode::Str)),
             field("shuffle", optional(SchemaNode::Bool)),
             field(

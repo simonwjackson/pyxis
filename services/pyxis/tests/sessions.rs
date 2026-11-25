@@ -705,3 +705,69 @@ fn a_retried_unapplied_seek_keeps_its_original_reserved_revision() {
         changed.revision
     );
 }
+
+#[test]
+fn expiry_respects_updated_at_and_reachability_not_transport_or_queue() {
+    use chrono::{DateTime, Duration, Utc};
+    let dir = tempfile::tempdir().unwrap();
+    let store = Store::open(dir.path()).unwrap();
+    pyxis::accounts::Accounts::open(store.clone()).unwrap();
+    let start = "2026-01-01T00:00:00Z".parse::<DateTime<Utc>>().unwrap();
+    let sessions = Sessions::with_clock(store, move || start);
+    let offline = auth("default", "offline");
+    let online = auth("default", "online");
+    sessions.attach_device("online");
+    let play = |host: &AuthContext, name: &str| {
+        let id = sessions.create(host, name).unwrap().id;
+        sessions
+            .command(
+                host,
+                &id,
+                SessionCommand::QueueAdd {
+                    track_ids: vec!["song".into()],
+                    index: None,
+                },
+            )
+            .unwrap();
+        sessions
+            .command(host, &id, SessionCommand::Play)
+            .unwrap()
+            .id
+    };
+    let playing = play(&offline, "Reference browser");
+    let paused = play(&offline, "worked example");
+    sessions
+        .command(&offline, &paused, SessionCommand::Pause)
+        .unwrap();
+    let connected = play(&online, "connected");
+    let output = sessions
+        .create_output(
+            &offline,
+            "speaker",
+            OutputBinding {
+                plugin_id: "renderer".into(),
+                target_id: "room".into(),
+            },
+        )
+        .unwrap()
+        .id;
+    let boundary = start + Duration::days(30);
+    sessions
+        .expire_unreachable(boundary, |_, _| panic!("exactly 30 days old"))
+        .unwrap();
+    assert!(sessions.get(&offline, &playing).unwrap().is_some());
+    let mut retired = std::collections::BTreeSet::new();
+    sessions
+        .expire_unreachable(boundary + Duration::milliseconds(1), |account, id| {
+            assert_eq!(account, &offline.account_id);
+            assert!(retired.insert(id.to_owned()));
+        })
+        .unwrap();
+    assert_eq!(retired, [playing.clone(), paused.clone()].into());
+    for id in [playing, paused] {
+        assert!(sessions.get(&offline, &id).unwrap().is_none());
+    }
+    for id in [connected, output] {
+        assert!(sessions.get(&offline, &id).unwrap().is_some());
+    }
+}

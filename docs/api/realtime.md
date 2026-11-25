@@ -48,7 +48,7 @@ closed with `realtime.helloRequired`.
 
 | Topic | Requires | Carries |
 |---|---|---|
-| `sessions` | `session:read` | `session.state` |
+| `sessions` | `session:read` | `session.state`, opt-in `session.retired` |
 | `library` | `library:read` | `library.album.state`, `library.album.removed` |
 
 Each topic requires the same scope its RPC read operations require, so a token cannot watch
@@ -59,6 +59,23 @@ believes it is watching a topic which will never deliver is worse than an error.
 Subscriptions are always scoped to your account. Each account has its own channel, so
 cross-account delivery is impossible by construction rather than by a filter that could be
 forgotten.
+
+### Retirement opt-in
+
+Add `"sessionRetirements":true` to the `realtime.hello` payload to receive removals
+on the `sessions` topic. It applies for the life of the connection, including replay.
+The headless adapter `worker/session-feed.ts` builds this hello for the host's socket.
+Pass each session event to its `apply` method before saving the resume token. A `queued`
+state needs replay after pending intent settles. A retirement wins over late state and
+command acknowledgements, including after the worker reopens its local store.
+
+Omitting the flag (or sending `false`) keeps the existing v4 frame union. A live removal
+on a subscribed topic sends a retryable `realtime.failure` (`realtime.resyncRequired`)
+and closes the socket. If a resume would replay a removal, the server welcomes the client
+with `resumed:false, missedEventsDropped:true` instead. Pull `session.list` with
+`includeUnreachable:true` and replace the local view; do not merge it with old rows.
+Save the welcome cursor after the pull succeeds: it points to the subscription head
+captured at attachment, not the replay point the server refused.
 
 ## Welcome
 
@@ -93,7 +110,9 @@ restart, not a rare edge case, because a restart changes the resume epoch.
 }
 ```
 
-Every event carries the **whole record**, never a delta. A client that misses an event and
+State events carry the **whole record**, never a delta. Removal events carry only its id.
+For example, `{"_tag":"session.retired","payload":{"id":"…"}}` on `sessions` removes the
+session from every list, including the unreachable view. A client that misses an event and
 refetches converges on the same value, which is what makes reconnection simple.
 
 Two ordering rules matter:

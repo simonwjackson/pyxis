@@ -475,7 +475,7 @@ async fn subscribe(
     let (mut socket, _) = tokio_tungstenite::connect_async(format!("ws://{addr}/realtime"))
         .await
         .unwrap();
-    socket.send(tokio_tungstenite::tungstenite::Message::Text(json!({"_tag":"realtime.hello","payload":{"bearerToken":harness.token,"topics":["sessions"],"contractId":pyxis::rpc::contract::CONTRACT_ID}}).to_string())).await.unwrap();
+    socket.send(tokio_tungstenite::tungstenite::Message::Text(json!({"_tag":"realtime.hello","payload":{"bearerToken":harness.token,"topics":["sessions"],"sessionRetirements":true,"contractId":pyxis::rpc::contract::CONTRACT_ID}}).to_string())).await.unwrap();
     assert_eq!(
         frame(socket.next().await.unwrap().unwrap())["_tag"],
         "realtime.welcome"
@@ -699,6 +699,12 @@ async fn failed_restore_retries_only_volume_after_restart() {
     drop(h.state);
     h.state = AppState::open_with_plugins(Store::open(&h.root).unwrap(), h.host.clone()).unwrap();
     h.app = router(h.state.clone());
+    assert_eq!(
+        h.call(json!({"_tag":"session.retire","payload":{"sessionId":id}}))
+            .await["outcome"]["status"],
+        "busy",
+        "retirement must not discard a pending volume restore"
+    );
     std::fs::remove_file(h.root.join("refused-volume")).unwrap();
     let before = renderer_writes(&h).len();
     tick(&h.state, "2099-07-03T00:00:20Z");
@@ -792,4 +798,129 @@ async fn device_backstop_does_not_wait_for_output_and_output_rechecks_time_after
     waiting.await.unwrap().unwrap();
     assert_eq!(h.calls("transport.stop"), 1);
     assert_eq!(h.session(&output).await["transport"], "stopped");
+}
+
+#[tokio::test]
+async fn retiring_a_playing_output_stops_the_renderer_and_releases_the_room() {
+    let harness = Harness::start(None).await;
+    let id = harness.output_session("RINCON_TEST", &harness.token).await;
+    for command in [
+        json!({"_tag":"queue.add","payload":{"trackIds":["track-1"]}}),
+        json!({"_tag":"transport.play","payload":{}}),
+    ] {
+        assert_eq!(
+            harness.command(&id, command).await["outcome"]["status"],
+            "dispatched"
+        );
+    }
+    set(&harness, &id, json!({"at":"2099-07-03T00:00:10Z"})).await;
+    assert_eq!(
+        harness
+            .call(json!({"_tag":"session.retire","payload":{"sessionId":id}}))
+            .await["outcome"]["status"],
+        "retired"
+    );
+    tick(&harness.state, "2099-07-03T00:00:11Z");
+    assert!(harness
+        .state
+        .sessions
+        .sleep_sessions(true)
+        .unwrap()
+        .is_empty());
+    assert_eq!(
+        harness.calls("transport.stop"),
+        1,
+        "only the retirement Stop may reach the renderer"
+    );
+    assert_eq!(
+        harness
+            .call(json!({"_tag":"session.list","payload":{"includeUnreachable":true}}))
+            .await["outcome"]["value"],
+        json!([])
+    );
+    let other = harness.second_account_token().await;
+    assert_ne!(harness.output_session("RINCON_TEST", &other).await, id);
+}
+
+#[tokio::test]
+async fn retirement_never_stops_rooms_merged_after_play() {
+    let harness = Harness::start(Some(topology(&[
+        ("ROOM1", &["ROOM1"]),
+        ("ROOM2", &["ROOM2"]),
+    ])))
+    .await;
+    let id = harness.output_session("ROOM1", &harness.token).await;
+    let _other = harness.output_session("ROOM2", &harness.token).await;
+    for command in [
+        json!({"_tag":"queue.add","payload":{"trackIds":["track-1"]}}),
+        json!({"_tag":"transport.play","payload":{}}),
+    ] {
+        assert_eq!(
+            harness.command(&id, command).await["outcome"]["status"],
+            "dispatched"
+        );
+    }
+    std::fs::write(
+        harness.root.join("topology.json"),
+        topology(&[("ROOM1", &["ROOM1", "ROOM2"])]).to_string(),
+    )
+    .unwrap();
+    assert_eq!(
+        harness
+            .call(json!({"_tag":"session.retire","payload":{"sessionId":id}}))
+            .await["outcome"]["status"],
+        "unreachable"
+    );
+    assert_eq!(harness.calls("transport.stop"), 0);
+}
+
+#[tokio::test]
+async fn retirement_discards_an_already_scanned_device_sleep_deadline() {
+    use pyxis::rpc::dispatch::SleepLane;
+    let h = Harness::start(None).await;
+    let mut socket = subscribe(&h).await;
+    let create = |name: &str| json!({"_tag":"session.create","payload":{"name":name}});
+    let id = h.call(create("bedroom")).await["outcome"]["value"]["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let deadline = "2099-07-03T00:00:10Z";
+    set(&h, &id, json!({"at":deadline})).await;
+    let (scanned, ready) = tokio::sync::oneshot::channel();
+    let (release, wait) = std::sync::mpsc::channel();
+    let state = h.state.clone();
+    let lane = tokio::task::spawn_blocking(move || {
+        let scanned = std::cell::Cell::new(Some(scanned));
+        SleepLane::Device.run(&state, || {
+            if let Some(tx) = scanned.take() {
+                tx.send(()).unwrap();
+                wait.recv().unwrap();
+            }
+            deadline.parse().unwrap()
+        })
+    });
+    ready.await.unwrap();
+    let retired = h
+        .call(json!({"_tag":"session.retire","payload":{"sessionId":id}}))
+        .await;
+    release.send(()).unwrap();
+    lane.await.unwrap().unwrap();
+    assert_eq!(retired["outcome"]["status"], "retired");
+    assert!(h.state.sessions.sleep_sessions(false).unwrap().is_empty());
+    // Use a later state event as a delivery barrier, not a timeout as proof of absence.
+    h.call(create("barrier")).await;
+    tokio::time::timeout(std::time::Duration::from_secs(5), async {
+        loop {
+            let msg = frame(socket.next().await.unwrap().unwrap());
+            assert_ne!(
+                msg["_tag"], "realtime.command",
+                "stale sleep directive: {msg}"
+            );
+            if msg["payload"]["state"]["payload"]["name"] == "barrier" {
+                break;
+            }
+        }
+    })
+    .await
+    .unwrap();
 }

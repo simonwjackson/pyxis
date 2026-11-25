@@ -55,17 +55,24 @@ impl SleepLane {
                 .sleep_timer
                 .filter(|t| t.deadline <= clock() && session.reachable)
             {
-                let request = stop_request(&session.id, &timer);
-                state.realtime.deliver(
-                    &session.host_device_id,
-                    directive(
-                        &session.id,
-                        request.command,
-                        "core-sleep",
-                        request.command_id.as_deref(),
-                        None,
-                    ),
-                );
+                // Scanning and delivery are not atomic. Fence the directive against
+                // retirement or timer replacement while holding the session mutation lock.
+                state.sessions.with_current(&auth, &session.id, |current| {
+                    if !current.reachable || current.sleep_timer.as_ref() != Some(&timer) {
+                        return;
+                    }
+                    let request = stop_request(&current.id, &timer);
+                    state.realtime.deliver(
+                        &current.host_device_id,
+                        directive(
+                            &current.id,
+                            request.command,
+                            "core-sleep",
+                            request.command_id.as_deref(),
+                            None,
+                        ),
+                    );
+                });
             }
         }
         Ok(())

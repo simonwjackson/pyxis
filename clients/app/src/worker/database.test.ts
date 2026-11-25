@@ -99,9 +99,9 @@ describe("session command verdicts", () => {
 
     const visible = await store.applySessionVerdict(verdict, "01SETTLED")
 
-    expect(visible.queue).toEqual(["first", "second", "third"])
+    expect(visible?.queue).toEqual(["first", "second", "third"])
     // A replay must not invent a new timestamp, or an unrelated later revision looks newer.
-    expect(visible.updatedAt).toBe("later")
+    expect(visible?.updatedAt).toBe("later")
     expect(await store.outbox()).toEqual(before)
     await store.close()
   })
@@ -153,8 +153,8 @@ describe("session command verdicts", () => {
     // apply out of order.
     const visible = await store.applySessionVerdict({ ...initial, revision: 2 }, "01SETTLED")
 
-    expect(visible.queue).toEqual(["first"])
-    expect(visible.revision).toBe(2)
+    expect(visible?.queue).toEqual(["first"])
+    expect(visible?.revision).toBe(2)
     expect(await store.outbox()).toHaveLength(2)
     await store.close()
   })
@@ -223,7 +223,7 @@ describe("schema versions", () => {
 
     const upgraded = await openWorkerDatabase({ engine })
 
-    expect(upgraded.report).toMatchObject({ reason: "migrated", fromVersion: 2, version: 8 })
+    expect(upgraded.report).toMatchObject({ reason: "migrated", fromVersion: 2, version: 9 })
     expect(await upgraded.albums()).toHaveLength(1)
     expect((await upgraded.settings()).bearerToken).toBe("token")
   })
@@ -299,6 +299,7 @@ describe("a corrupt local database", () => {
 describe("storage that cannot even be repaired", () => {
   test("falls back to an ephemeral store rather than refusing to open", async () => {
     const unusable: WorkerEngine = {
+      ...createMemoryEngine(),
       meta: {
         findById: async () => {
           throw new Error("IndexedDB is unavailable")
@@ -309,15 +310,6 @@ describe("storage that cannot even be repaired", () => {
         },
         delete: async () => false,
       },
-      settings: createMemoryEngine().settings,
-      albums: createMemoryEngine().albums,
-      sessions: createMemoryEngine().sessions,
-      offlinePins: createMemoryEngine().offlinePins,
-      offlineMedia: createMemoryEngine().offlineMedia,
-      commandReceipts: createMemoryEngine().commandReceipts,
-      outbox: createMemoryEngine().outbox,
-      batch: createMemoryEngine().batch,
-      close: async () => undefined,
     }
 
     const opened = await openWorkerDatabase({

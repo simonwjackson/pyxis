@@ -11,6 +11,7 @@ pub mod machine;
 pub mod queue;
 pub mod sleep;
 use sleep::SleepTimer;
+pub mod retirement;
 
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, RwLock};
@@ -182,6 +183,8 @@ struct SessionRecord {
     pending_restore: Option<u8>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     stream_digest: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    retire_command_id: Option<String>,
     #[serde(default)]
     repeat: Repeat,
     #[serde(default)]
@@ -246,7 +249,7 @@ impl SessionRecord {
         }
     }
 
-    fn apply(&mut self, playback: handoff::Playback, actor: &str) {
+    fn apply(&mut self, playback: handoff::Playback, actor: &str, timestamp: String) {
         self.repeat = playback.repeat;
         self.shuffle = playback.shuffle;
         self.queue_order = playback.queue_order;
@@ -257,12 +260,13 @@ impl SessionRecord {
         self.transport = playback.transport;
         self.revision += 1;
         self.updated_by = actor.to_string();
-        self.updated_at = now();
+        self.updated_at = timestamp;
     }
 }
 
 #[derive(Clone)]
 pub struct Sessions {
+    clock: Arc<dyn Fn() -> chrono::DateTime<Utc> + Send + Sync>,
     store: Store,
     /// Live realtime sockets per device. A device with several open clients stays reachable
     /// until the last one goes away, so closing one tab cannot strand a playing session.
@@ -272,7 +276,14 @@ pub struct Sessions {
 
 impl Sessions {
     pub fn open(store: Store) -> Self {
+        Self::with_clock(store, Utc::now)
+    }
+    pub fn with_clock(
+        store: Store,
+        clock: impl Fn() -> chrono::DateTime<Utc> + Send + Sync + 'static,
+    ) -> Self {
         Sessions {
+            clock: Arc::new(clock),
             store,
             reachable_devices: Arc::new(RwLock::new(HashMap::new())),
             mutation: Arc::new(Mutex::new(())),
@@ -302,12 +313,13 @@ impl Sessions {
         output: Option<OutputBinding>,
     ) -> Result<Session, SessionError> {
         let _guard = self.mutation.lock().expect("session mutation poisoned");
-        let timestamp = now();
+        let timestamp = self.timestamp();
         let record = SessionRecord {
             sleep_timer: None,
             stream_digest: None,
             fading: false,
             pending_restore: None,
+            retire_command_id: None,
             repeat: Repeat::Off,
             shuffle: false,
             queue_order: Vec::new(),
@@ -439,7 +451,7 @@ impl Sessions {
             record.host_device_id = format!("released:{id}");
             record.revision += 1;
             record.updated_by = auth.principal_id().into();
-            record.updated_at = now();
+            record.updated_at = self.timestamp();
             writes.push(Store::session_snapshot(id, &record)?);
             sessions.push(self.session(record));
         }
@@ -494,7 +506,7 @@ impl Sessions {
                 Err(SessionError::CommandIdConflict)
             };
         }
-        let timestamp = now();
+        let timestamp = self.timestamp();
         let receipt = CommandReceiptRecord {
             expected_revision: Some(record.revision),
             id: receipt_id,
@@ -532,6 +544,17 @@ impl Sessions {
         command: SessionCommand,
         command_receipt: Option<(&str, &str)>,
     ) -> Result<Session, SessionError> {
+        self.host_command(auth, session_id, command, command_receipt)
+            .map(|(session, _)| session)
+    }
+
+    pub(crate) fn host_command(
+        &self,
+        auth: &AuthContext,
+        session_id: &str,
+        command: SessionCommand,
+        command_receipt: Option<(&str, &str)>,
+    ) -> Result<(Session, bool), SessionError> {
         let caller = device_id(auth)?;
         self.apply_device_command(auth, session_id, command, command_receipt, Some(caller))
     }
@@ -552,6 +575,7 @@ impl Sessions {
             return Err(SessionError::NotHost);
         }
         self.apply_device_command(auth, session_id, command, receipt, None)
+            .map(|(session, _)| session)
     }
 
     fn apply_device_command(
@@ -561,7 +585,7 @@ impl Sessions {
         command: SessionCommand,
         command_receipt: Option<(&str, &str)>,
         host: Option<&str>,
-    ) -> Result<Session, SessionError> {
+    ) -> Result<(Session, bool), SessionError> {
         let caller = auth.principal_id();
         let _guard = self.mutation.lock().expect("session mutation poisoned");
         let Some(mut record) =
@@ -584,7 +608,7 @@ impl Sessions {
                 Some(existing) if existing.fingerprint != fingerprint => {
                     return Err(SessionError::CommandIdConflict)
                 }
-                Some(existing) if existing.applied => return Ok(self.session(record)),
+                Some(existing) if existing.applied => return Ok((self.session(record), false)),
                 Some(existing)
                     if matches!(command, SessionCommand::Seek { .. })
                         && existing
@@ -604,7 +628,7 @@ impl Sessions {
                     applied: false,
                     revision: 1,
                     updated_by: caller.to_string(),
-                    updated_at: now(),
+                    updated_at: self.timestamp(),
                 }),
             }
         } else {
@@ -616,12 +640,19 @@ impl Sessions {
 
         record.revision += 1;
         record.updated_by = caller.to_string();
-        record.updated_at = now();
+        record.updated_at = self.timestamp();
+        if matches!(command, SessionCommand::Stop)
+            && command_receipt
+                .is_some_and(|(id, _)| Some(id) == record.retire_command_id.as_deref())
+        {
+            self.store.retire_session(&auth.account_id, session_id)?;
+            return Ok((self.session(record), true));
+        }
         if let Some(receipt) = &mut receipt {
             receipt.applied = true;
             receipt.revision += 1;
             receipt.updated_by = caller.to_string();
-            receipt.updated_at = now();
+            receipt.updated_at = self.timestamp();
             self.store.put_mixed_batch(
                 &auth.account_id,
                 &[
@@ -637,7 +668,7 @@ impl Sessions {
             self.store
                 .put_session_snapshot(&auth.account_id, session_id, &record)?;
         }
-        Ok(self.session(record))
+        Ok((self.session(record), false))
     }
 
     pub fn prepare_output_command(
@@ -690,7 +721,7 @@ impl Sessions {
                     applied: false,
                     revision: 1,
                     updated_by: actor.to_string(),
-                    updated_at: now(),
+                    updated_at: self.timestamp(),
                 };
                 self.store.put(
                     schema::SESSION_COMMAND_RECEIPTS,
@@ -706,7 +737,7 @@ impl Sessions {
         apply_command(&mut next, command)?;
         next.revision += 1;
         next.updated_by = actor.to_string();
-        next.updated_at = now();
+        next.updated_at = self.timestamp();
         Ok(PreparedOutputCommand::Ready {
             current: Box::new(current),
             next: Box::new(self.session(next)),
@@ -767,11 +798,11 @@ impl Sessions {
         }
         record.revision += 1;
         record.updated_by = actor.to_string();
-        record.updated_at = now();
+        record.updated_at = self.timestamp();
         receipt.applied = true;
         receipt.revision += 1;
         receipt.updated_by = actor.to_string();
-        receipt.updated_at = now();
+        receipt.updated_at = self.timestamp();
         self.store.put_mixed_batch(
             &auth.account_id,
             &[
@@ -827,7 +858,7 @@ impl Sessions {
             record.volume = volume.filter(|v| *v <= 100).unwrap_or(record.volume);
             record.revision += 1;
             record.updated_by = auth.principal_id().to_string();
-            record.updated_at = now();
+            record.updated_at = self.timestamp();
             self.store
                 .put_session_snapshot(&auth.account_id, session_id, &record)?;
         }
@@ -872,7 +903,7 @@ impl Sessions {
         record.volume = next_volume;
         record.revision += 1;
         record.updated_by = actor.to_string();
-        record.updated_at = now();
+        record.updated_at = self.timestamp();
         self.store
             .put_session_snapshot(&auth.account_id, session_id, &record)?;
         Ok(self.session(record))
@@ -929,8 +960,8 @@ impl Sessions {
 
         let mut playback = source.playback();
         let carried = handoff::take(&mut playback);
-        source.apply(playback, &actor);
-        target.apply(carried, &actor);
+        source.apply(playback, &actor, self.timestamp());
+        target.apply(carried, &actor, self.timestamp());
 
         self.store.put_mixed_batch(
             &auth.account_id,
@@ -1266,6 +1297,8 @@ fn device_id(auth: &AuthContext) -> Result<&str, SessionError> {
     }
 }
 
-fn now() -> String {
-    Utc::now().to_rfc3339_opts(SecondsFormat::Nanos, true)
+impl Sessions {
+    fn timestamp(&self) -> String {
+        (self.clock)().to_rfc3339_opts(SecondsFormat::Nanos, true)
+    }
 }
