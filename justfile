@@ -68,12 +68,11 @@ build:
 nix-lock:
     bun2nix --lock-file bun.lock --output-file bun.nix
 
-# Repoint the proseql input at the local checkout's current HEAD.
-# The rev is pinned in flake.nix because Nix cannot lock a dirty local input.
+# Repoint the proseql input at GitHub main. Push proseql first; builders fetch from GitHub.
 proseql-pin:
     #!/usr/bin/env bash
     set -euo pipefail
-    rev=$(git -C ~/code/github/simonwjackson/proseql rev-parse HEAD)
-    sed -i -E "s|(proseql\?rev=)[0-9a-f]{40}|\1$rev|" flake.nix
-    nix flake lock --update-input proseql
+    rev=$(git ls-remote https://github.com/simonwjackson/proseql.git refs/heads/main | cut -f1)
+    sed -i -E "s|(github:simonwjackson/proseql/)[0-9a-f]{40}|\1$rev|" flake.nix
+    nix flake update proseql
     echo "proseql pinned to $rev"

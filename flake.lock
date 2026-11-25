@@ -173,18 +173,18 @@
         "systems": "systems_4"
       },
       "locked": {
-        "lastModified": 1786087757,
-        "narHash": "sha256-NXW8VopPXQPxdaf76hdeDg0cKT2I6+GCGxYXU+WVFi0=",
-        "ref": "refs/heads/main",
-        "rev": "0f9c9cc46fe2a1219dc4efccaa75092518dd7724",
-        "revCount": 1310,
-        "type": "git",
-        "url": "file:///home/simonwjackson/code/github/simonwjackson/proseql"
+        "lastModified": 1793134376,
+        "narHash": "sha256-lJDIh5wWAYhEjdwW+BLJsSYH37tbEwQd8/UpgSCWlXQ=",
+        "owner": "simonwjackson",
+        "repo": "proseql",
+        "rev": "4a7893f3701d2bbe96e7a6483462304876e065c6",
+        "type": "github"
       },
       "original": {
-        "rev": "0f9c9cc46fe2a1219dc4efccaa75092518dd7724",
-        "type": "git",
-        "url": "file:///home/simonwjackson/code/github/simonwjackson/proseql"
+        "owner": "simonwjackson",
+        "repo": "proseql",
+        "rev": "4a7893f3701d2bbe96e7a6483462304876e065c6",
+        "type": "github"
       }
     },
     "root": {

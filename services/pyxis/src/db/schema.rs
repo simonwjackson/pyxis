@@ -12,7 +12,7 @@
 //! beside existing data, while changes to an existing collection still require migrations.
 
 use proseql_engine::descriptor::{
-    CollectionDescriptor, IdStrategy, SchemaNode, StructField, ValidationMode,
+    CollectionDescriptor, DuplicateIdPolicy, IdStrategy, SchemaNode, StructField, ValidationMode,
 };
 
 pub const ACCOUNTS: &str = "accounts";
@@ -56,6 +56,7 @@ fn base(name: &str, fields: Vec<StructField>, append_only: bool) -> CollectionDe
         id_strategy: IdStrategy::Provided,
         relationships: vec![],
         indexes: vec![],
+        ordered_indexes: vec![],
         unique_fields: vec![],
         before_create_hooks: vec![],
         after_create_hooks: vec![],
@@ -70,6 +71,7 @@ fn base(name: &str, fields: Vec<StructField>, append_only: bool) -> CollectionDe
         version: Some(1),
         migrations: vec![],
         append_only,
+        duplicate_ids: DuplicateIdPolicy::Error,
         validation_mode: ValidationMode::Strict,
     }
 }

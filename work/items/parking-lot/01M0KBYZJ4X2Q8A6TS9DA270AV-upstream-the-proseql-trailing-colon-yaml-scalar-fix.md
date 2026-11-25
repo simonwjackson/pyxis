@@ -27,9 +27,9 @@ Pyxis now carries a local dependency patch because ProseQL 0f9c9cc emits invalid
 
 ## Acceptance Criteria
 
-- [ ] ProseQL quotes plain YAML scalar values that end in `:`.
-- [ ] The ProseQL format conformance test covers encode and decode of `Note to Self:`.
-- [ ] Pyxis pins the upstream fixed revision and removes `nix/patches/proseql-yaml-trailing-colon.patch`.
+- [x] ProseQL quotes plain YAML scalar values that end in `:` (upstream `codecs.rs`, `should_use_plain_yaml_scalar`, at 4a7893f).
+- [ ] The ProseQL format conformance test covers encode and decode of `Note to Self:`. Still open upstream: 4a7893f tests `a: b` but not a trailing colon. Pyxis keeps its own round-trip in `services/pyxis/tests/library.rs`.
+- [x] Pyxis pins the upstream fixed revision and removes `nix/patches/proseql-yaml-trailing-colon.patch` (pin moved to `github:simonwjackson/proseql/4a7893f`, 2026-11-25).
 
 ## Related
 
