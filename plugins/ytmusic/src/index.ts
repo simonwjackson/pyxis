@@ -53,7 +53,11 @@ export function createYtMusicPlugin(
         },
         "album.search": async (input) => {
           const request = validInput(() => searchInput(input))
-          return { albums: await providerCall(() => internalApi.searchAlbums(request.query)) }
+          return {
+            albums: await providerCall(() =>
+              internalApi.searchAlbums(request.query, request.limit),
+            ),
+          }
         },
         "album.get": async (input) => {
           const externalId = validInput(() => externalIdOf(input))

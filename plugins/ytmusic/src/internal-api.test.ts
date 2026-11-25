@@ -566,3 +566,10 @@ test("a continuation page is read, not mistaken for an unknown layout", () => {
   expect(queue.tracks.map((track) => track.externalId)).toEqual(["videoTwo"])
   expect(queue.continuation).toBe("page-three")
 })
+
+test("album browse preserves OLAK identity for either request form", async () => {
+  const fixture = (await import("../fixtures/album.json")).default
+  const canonical = "OLAK5uy_kW9hN-oBmekJ06jhhfStpwRd5pcRKIztY"
+  expect(parseAlbum(fixture, "MPREb_Tr9YVfRfip1").externalId).toBe(canonical)
+  expect(parseAlbum(fixture, canonical).externalId).toBe(canonical)
+})

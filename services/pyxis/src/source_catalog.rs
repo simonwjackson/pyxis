@@ -424,7 +424,7 @@ impl SourceCatalog {
         )?;
         let album: PluginAlbum = serde_json::from_value(value)
             .map_err(|error| SourceCatalogError::InvalidOutput(error.to_string()))?;
-        validate_album(&album, external_id)?;
+        validate_album(&album)?;
         self.media.ensure_plugin_candidates(
             &auth.account_id,
             album
@@ -609,13 +609,8 @@ pub(crate) fn unimplemented_operation(error: &PluginCallError) -> bool {
     matches!(error, PluginCallError::Plugin { code, .. } if code == "capability.unknownOperation")
 }
 
-fn validate_album(album: &PluginAlbum, requested_id: &str) -> Result<(), SourceCatalogError> {
-    if album.external_id != requested_id {
-        return Err(SourceCatalogError::InvalidOutput(format!(
-            "album externalId '{}' did not match requested id '{requested_id}'",
-            album.external_id
-        )));
-    }
+// A source can resolve a browse alias to its canonical album id.
+fn validate_album(album: &PluginAlbum) -> Result<(), SourceCatalogError> {
     if !valid_text(&album.external_id)
         || !valid_text(&album.title)
         || !valid_text(&album.artist)

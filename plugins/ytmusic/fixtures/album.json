@@ -1,0 +1,156 @@
+{
+  "microformat": {
+    "microformatDataRenderer": {
+      "urlCanonical": "https://music.youtube.com/playlist?list=OLAK5uy_kW9hN-oBmekJ06jhhfStpwRd5pcRKIztY"
+    }
+  },
+  "musicResponsiveHeaderRenderer": {
+    "title": {
+      "runs": [
+        {
+          "text": "17"
+        }
+      ]
+    },
+    "straplineTextOne": {
+      "runs": [
+        {
+          "text": "XXXTENTACION",
+          "navigationEndpoint": {
+            "clickTrackingParams": "CAQQneEIGAAiEwj-y9HutZqUAxUiLrcAHQasLCnKAQTxzuo9",
+            "browseEndpoint": {
+              "browseId": "UCnAcxgRZ065f_eXK1o85c1w",
+              "browseEndpointContextSupportedConfigs": {
+                "browseEndpointContextMusicConfig": {
+                  "pageType": "MUSIC_PAGE_TYPE_ARTIST"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "subtitle": {
+      "runs": [
+        {
+          "text": "Album"
+        },
+        {
+          "text": " \u2022 "
+        },
+        {
+          "text": "2017"
+        }
+      ]
+    }
+  },
+  "musicShelfRenderer": {
+    "contents": [
+      {
+        "musicResponsiveListItemRenderer": {
+          "flexColumns": [
+            {
+              "musicResponsiveListItemFlexColumnRenderer": {
+                "text": {
+                  "runs": [
+                    {
+                      "text": "The Explanation",
+                      "navigationEndpoint": {
+                        "clickTrackingParams": "CI0DEMn0AhgAIhMI_svR7rWalAMVIi63AB0GrCwpygEE8c7qPQ==",
+                        "watchEndpoint": {
+                          "videoId": "0m68rsj48X0",
+                          "playlistId": "OLAK5uy_kW9hN-oBmekJ06jhhfStpwRd5pcRKIztY",
+                          "playerParams": "0gcJCcUB0OBS9m0t",
+                          "loggingContext": {
+                            "vssLoggingContext": {
+                              "serializedContextData": "GilPTEFLNXV5X2tXOWhOLW9CbWVrSjA2amhoZlN0cHdSZDVwY1JLSXp0WQ%3D%3D"
+                            }
+                          },
+                          "watchEndpointMusicSupportedConfigs": {
+                            "watchEndpointMusicConfig": {
+                              "musicVideoType": "MUSIC_VIDEO_TYPE_OMV"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                },
+                "displayPriority": "MUSIC_RESPONSIVE_LIST_ITEM_COLUMN_DISPLAY_PRIORITY_HIGH"
+              }
+            },
+            {
+              "musicResponsiveListItemFlexColumnRenderer": {
+                "text": {
+                  "runs": [
+                    {
+                      "text": "XXXTENTACION",
+                      "navigationEndpoint": {
+                        "clickTrackingParams": "CI0DEMn0AhgAIhMI_svR7rWalAMVIi63AB0GrCwpygEE8c7qPQ==",
+                        "browseEndpoint": {
+                          "browseId": "UCnAcxgRZ065f_eXK1o85c1w",
+                          "browseEndpointContextSupportedConfigs": {
+                            "browseEndpointContextMusicConfig": {
+                              "pageType": "MUSIC_PAGE_TYPE_ARTIST"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ],
+                  "accessibility": {
+                    "accessibilityData": {
+                      "label": "XXXTENTACION"
+                    }
+                  }
+                },
+                "displayPriority": "MUSIC_RESPONSIVE_LIST_ITEM_COLUMN_DISPLAY_PRIORITY_HIGH"
+              }
+            },
+            {
+              "musicResponsiveListItemFlexColumnRenderer": {
+                "text": {
+                  "runs": [
+                    {
+                      "text": "26M plays"
+                    }
+                  ],
+                  "accessibility": {
+                    "accessibilityData": {
+                      "label": "26 million plays"
+                    }
+                  }
+                },
+                "displayPriority": "MUSIC_RESPONSIVE_LIST_ITEM_COLUMN_DISPLAY_PRIORITY_HIGH"
+              }
+            }
+          ],
+          "playlistItemData": {
+            "playlistSetVideoId": "4D470E71D33A4BB2",
+            "videoId": "0m68rsj48X0"
+          },
+          "fixedColumns": [
+            {
+              "musicResponsiveListItemFixedColumnRenderer": {
+                "text": {
+                  "runs": [
+                    {
+                      "text": "0:51"
+                    }
+                  ],
+                  "accessibility": {
+                    "accessibilityData": {
+                      "label": "51 seconds"
+                    }
+                  }
+                },
+                "displayPriority": "MUSIC_RESPONSIVE_LIST_ITEM_COLUMN_DISPLAY_PRIORITY_HIGH",
+                "size": "MUSIC_RESPONSIVE_LIST_ITEM_FIXED_COLUMN_SIZE_SMALL"
+              }
+            }
+          ]
+        }
+      }
+    ]
+  }
+}

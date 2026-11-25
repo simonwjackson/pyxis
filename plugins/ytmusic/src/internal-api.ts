@@ -46,7 +46,7 @@ export interface YtMusicWatchQueue {
 
 export interface YtMusicInternalApi {
   searchSongs(query: string, limit: number): Promise<readonly YtMusicSong[]>
-  searchAlbums(query: string): Promise<readonly YtMusicAlbumSummary[]>
+  searchAlbums(query: string, limit?: number): Promise<readonly YtMusicAlbumSummary[]>
   searchArtists(query: string, limit: number): Promise<readonly YtMusicArtistSummary[]>
   getAlbum(externalId: string): Promise<YtMusicAlbum>
   watchQueue(
@@ -153,12 +153,25 @@ export function createYtMusicInternalApi(fetcher: typeof fetch = fetch): YtMusic
       return parseSongSearch(await request("search", { query, params: SONG_FILTER }), limit)
     },
 
-    async searchAlbums(query) {
-      return parseAlbumSearch(
+    async searchAlbums(query, limit = 10) {
+      const albums = parseAlbumSearch(
         await request("search", {
           query,
           params: ALBUM_FILTER,
         }),
+      )
+      return Promise.all(
+        albums
+          .slice(0, limit)
+          .map(async (album) => ({
+            ...album,
+            externalId: album.externalId.startsWith("OLAK")
+              ? album.externalId
+              : canonicalAlbumId(
+                  await request("browse", { browseId: album.externalId }),
+                  album.externalId,
+                ),
+          })),
       )
     },
 
@@ -167,8 +180,43 @@ export function createYtMusicInternalApi(fetcher: typeof fetch = fetch): YtMusic
     },
 
     async getAlbum(externalId) {
-      const browseId = externalId.startsWith("OLAK") ? `VL${externalId}` : externalId
-      return parseAlbum(await request("browse", { browseId }), externalId)
+      const requestedBrowseId = externalId.startsWith("OLAK") ? `VL${externalId}` : externalId
+      let page = await request("browse", { browseId: requestedBrowseId })
+      if (externalId.startsWith("OLAK")) {
+        let albumId: string | undefined
+        walk(page, (record) => {
+          if (pageType(record) === ALBUM_PAGE_TYPE) albumId ??= browseId(record)
+        })
+        if (albumId?.startsWith("MPRE")) page = await request("browse", { browseId: albumId })
+      }
+      // album.get is atomic. Materialize the track shelf, not recommendation carousels.
+      let items: unknown[] | undefined
+      walk(page, (record) => {
+        const shelf = record.musicPlaylistShelfRenderer ?? record.musicShelfRenderer
+        if (
+          isRecord(shelf) &&
+          Array.isArray(shelf.contents) &&
+          shelf.contents.some(
+            (x) =>
+              isRecord(x) &&
+              stringAt(x, ["musicResponsiveListItemRenderer", "playlistItemData", "videoId"]),
+          )
+        )
+          items ??= shelf.contents
+      })
+      if (items) {
+        const seen = new Set<string>()
+        for (let token = browseContinuation(items); token; token = browseContinuation(items)) {
+          if (seen.has(token) || items.length > 1001) throw new Error("invalid album continuation")
+          seen.add(token)
+          const next = await request("browse", { continuation: token })
+          const action = arrayAt(next, ["onResponseReceivedActions"])?.[0]
+          const more = arrayAt(action, ["appendContinuationItemsAction", "continuationItems"])
+          if (!more) throw new Error("missing album continuation items")
+          items.splice(-1, 1, ...more)
+        }
+      }
+      return parseAlbum(page, externalId)
     },
 
     async watchQueue(seedVideoId, continuation, limit) {
@@ -215,23 +263,28 @@ export function parseWatchQueue(value: unknown, limit: number): YtMusicWatchQueu
   }
 
   const songs = new Map<string, YtMusicSong>()
-  walk(panel, (record) => {
-    const renderer = record.playlistPanelVideoRenderer
-    if (!isRecord(renderer)) return
+  for (const item of arrayAt(panel, ["contents"]) ?? []) {
+    if (!isRecord(item)) continue
+    const primary = isRecord(item.playlistPanelVideoWrapperRenderer)
+      ? item.playlistPanelVideoWrapperRenderer.primaryRenderer
+      : item
+    if (!isRecord(primary)) continue
+    const renderer = primary.playlistPanelVideoRenderer
+    if (!isRecord(renderer)) continue
     // D18 keeps general uploads out of anything that reaches the queue, and a radio page can
     // carry them. Only a catalog recording is accepted. The cost is a smaller batch when a
     // station leans on official music videos; a visibly short batch is better than widening
     // what enters the library path.
-    if (musicVideoType(renderer) !== SONG_VIDEO_TYPE) return
+    if (musicVideoType(renderer) !== SONG_VIDEO_TYPE) continue
     const externalId = videoId(renderer)
-    if (externalId === undefined || songs.has(externalId)) return
+    if (externalId === undefined || songs.has(externalId)) continue
     const title = plainRunTexts(renderer.title)[0]
-    if (title === undefined) return
+    if (title === undefined) continue
     const details = plainRuns(renderer.longBylineText)
     const album = details.find((run) => pageType(run) === ALBUM_PAGE_TYPE)
     const albumTitle = typeof album?.text === "string" ? album.text : undefined
     const artist = songArtist(details, albumTitle)
-    if (artist === undefined) return
+    if (artist === undefined) continue
     const albumExternalId = album === undefined ? undefined : browseId(album)
     const duration = durationMs(plainRunTexts(renderer.lengthText)[0])
     const artworkUrl = largestThumbnail(renderer)
@@ -244,7 +297,7 @@ export function parseWatchQueue(value: unknown, limit: number): YtMusicWatchQueu
       ...(duration === undefined ? {} : { durationMs: duration }),
       ...(artworkUrl === undefined ? {} : { artworkUrl }),
     })
-  })
+  }
 
   const continuation = watchContinuation(panel)
   return {
@@ -414,6 +467,32 @@ export function parseAlbumSearch(value: unknown): readonly YtMusicAlbumSummary[]
   return [...albums.values()]
 }
 
+function browseContinuation(items: readonly unknown[]): string | undefined {
+  const last = items.at(-1)
+  let token: string | undefined
+  if (isRecord(last))
+    walk(last.continuationItemRenderer, (record) => {
+      token ??= stringAt(record, ["continuationCommand", "token"])
+    })
+  return token
+}
+
+function canonicalAlbumId(page: unknown, requested: string): string {
+  if (requested.startsWith("OLAK")) return requested
+  const url = stringAt(page, ["microformat", "microformatDataRenderer", "urlCanonical"])
+  const list = url && URL.canParse(url) ? new URL(url).searchParams.get("list") : null
+  if (list?.startsWith("OLAK5uy_")) return list
+  let id: string | undefined
+  walk(page, (record) =>
+    walk(record.musicResponsiveHeaderRenderer ?? record.musicDetailHeaderRenderer, (node) => {
+      const playlist = stringAt(node, ["watchEndpoint", "playlistId"])
+      if (playlist?.startsWith("OLAK5uy_")) id ??= playlist
+    }),
+  )
+  if (!id) console.warn(`No canonical album id for ${requested}`)
+  return id ?? requested
+}
+
 export function parseAlbum(value: unknown, requestedId: string): YtMusicAlbum {
   let title: string | undefined
   let artist: string | undefined
@@ -463,7 +542,7 @@ export function parseAlbum(value: unknown, requestedId: string): YtMusicAlbum {
     )
   }
   return {
-    externalId: requestedId,
+    externalId: canonicalAlbumId(value, requestedId),
     title,
     artist,
     ...(year === undefined ? {} : { year }),
