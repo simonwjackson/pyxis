@@ -95,6 +95,9 @@ everything provider-shaped lives at the edge behind a plugin protocol.
 
 - Output (Sonos) Play of non-library search/station candidates: `output_catalog` requires `library.get_track`.
   U47 returns the core error; playing a song must never add it to the library.
+- **M14/M15 journal integration.** U48 on the M13 base can only read the latest 1000 plays.
+  Its range and stats report possible truncation. Once integrated with U51/U52, use paged
+  journal reads for deeper history and send entry context when capturing a station album.
 
 - **Station operation docs (M13 review).** The exhaustive `docs/api/operations.md` table
   predates `source.station.{list,search,create,next}` and omits them. Document the existing
@@ -2135,8 +2138,9 @@ succeeds with no prior call.
 **Goal:** the round 1 and 2 picks for playback, queue, sessions and Sonos, including
 "play this album", "play next", mute, the sleep timer (U44), takeover, rooms, room play and
 volume, stop all, grouping (U42) and handoff. U47 owns every tool that starts playback,
-including find and play, play a station, and start a station from a track. Name resolution follows D30. MRTR asks before
-destructive actions, takeover and ambiguous targets, and proceeds when the client cannot answer
+including find and play, station play and starting a station from a track. Name resolution
+follows D30. MRTR asks before destructive actions, takeover and ambiguous targets,
+and proceeds when the client cannot answer
 (D27). The queue read names every track through U40. There is no volume ceiling.
 
 **Dependencies:** U40, U42, U44, U46
@@ -2151,9 +2155,10 @@ reachable match.
 
 **Goal:** library search, album detail, tags, albums by tag, recently added, paged listing,
 artist view and artwork as image content. Writes: tags, album add, bookmarks, playlists and bulk
-tags. Search across sources, album search and an in-library flag. Stations: list and capture the album.
-U47 owns find and play and both station playback tools. History: recent, by range, top, and neglected,
-computed in the MCP server. Organizer: snapshot, a tag plan with dry run and apply, and shelves
+tags through MRTR. Search across sources, album search and an in-library flag. Stations: list
+and capture the album of a station track. All playback starts belong to U47. History: recent,
+by range, top, and neglected, computed in the MCP server. Organizer: snapshot, a tag plan with dry
+run and apply, and shelves
 (U43). "This is the wrong song" sets a match override. Nothing exposes fidelity upgrades.
 
 **Dependencies:** U41, U43, U46

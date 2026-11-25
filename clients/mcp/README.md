@@ -100,3 +100,54 @@ confirmations bypass token scopes. Use `session:read` and `session:control` for 
 Track selection sends clear, add and play in order; it is not a transaction. If Play fails,
 the selected queue remains. Sonos currently requires library tracks with playable candidates;
 playing a non-library search/station result returns the core error, never an implicit add.
+
+## Library tools
+
+Use `tools/list` for the argument schemas. None of these tools changes playback.
+
+| Area | Tools |
+|---|---|
+| Library reads | `library.search`, `library.album`, `library.tags`, `library.byTag`, `library.recentlyAdded`, `library.albums`, `library.artist`, `library.artwork` |
+| Library writes | `library.tags.set`, `library.tags.bulk`, `library.album.add`, `bookmarks.add`, `bookmarks.remove`, `playlists.create`, `playlists.append` |
+| Collection reads | `bookmarks.list`, `playlists.list` |
+| Discovery | `search.sources`, `search.albums`, `stations.list`, `stations.capture` |
+| History | `history.recent`, `history.range`, `history.top`, `history.neglected` |
+| Organization | `organizer.snapshot`, `organizer.tags.preview`, `organizer.tags.apply`, `shelves.save`, `shelves.remove`, `shelves.list`, `shelves.albums` |
+| Matching | `matching.wrongSong` |
+
+**Browse.** `library.search`, `library.byTag`, `library.recentlyAdded` and `library.artist`
+return a first page. Send just `cursor` and optional `limit` to `library.albums` for the
+next page. For a shelf, send its `shelfId` and `cursor` to `shelves.albums`. Shelf replacement
+and removal require the revision you observed.
+
+**Discover and capture.** Catalog search needs `source:read` and `library:read` to report
+`inLibrary`. Tracks match by core ID, albums by normalized title, artist and year, artists by
+normalized album-artist name. The public library read does not expose provider references.
+`library.album.add` reads the source album before saving its tracks, so it also needs
+`source:read`. `stations.capture` takes the station result's `pluginId` (its `sourcePluginId`),
+`trackId` (its core `id`) and `albumExternalId`. It verifies that track belongs to the source
+album. Without an album reference it uses `library:read` to report existing membership or
+metadata for a subsequent search. It never guesses an album or modifies a station.
+
+**Tag plans.** Send the same `changes` (e.g. `[{"albumId":"…","tags":["ambient","live"]}]`)
+to preview and apply. Both use the same planner. Labels replace the entire set, not just the
+labels mentioned. Apply checks every target first. Form-capable clients confirm the actual
+before/after pairs; a changed plan requires a new answer. An explicit refusal writes nothing.
+The core has no multi-album transaction or tag compare-and-swap: another writer can edit
+between calls. On a mid-plan failure, `applied` lists acknowledged writes and `albumId`
+identifies the failed or unacknowledged write. Read current state before retrying.
+
+**History.** A play counts once per raw listen event, including incomplete plays. Range
+bounds are RFC3339 instants (`from` inclusive, `to` exclusive). Top albums and tracks rank
+by count; neglected albums sort by oldest observed play, unobserved first. The core on this
+base exposes the latest 1000 plays without a cursor. `eventsScanned` and
+`historyMayBeTruncated` describe that input window on range, top and neglected results;
+a null `lastPlayedAt` means no observed play **in that window**, not necessarily never played.
+Top and neglected also need `library:read` for album membership.
+
+**Artwork.** Set `PYXIS_MCP_ARTWORK_ORIGINS` to a comma-separated list of trusted exact
+image origins (e.g. `https://images.example.org`). The default permits none. An account can
+write an artwork URL, so a library read must not become an arbitrary network fetch. The
+server fetches only the stored URL, sends no Pyxis bearer, refuses redirects, and accepts PNG,
+JPEG, WebP and GIF responses up to 4 MiB within eight seconds. Image data returns in MCP
+`content`, never on plugin stdio.
