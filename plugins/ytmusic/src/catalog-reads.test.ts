@@ -98,9 +98,9 @@ test("playlist track pages keep repeats in order but omit uploads", async () => 
   const first = await api.playlistTracks("playlist", 2)
   const second = await api.playlistTracks("playlist", 2, first.cursor)
   expect([...first.items, ...second.items].map((row) => row.externalId)).toEqual([
-    a?.musicResponsiveListItemRenderer.playlistItemData.videoId,
-    b?.musicResponsiveListItemRenderer.playlistItemData.videoId,
-    a?.musicResponsiveListItemRenderer.playlistItemData.videoId,
+    "3_R4ulvg8OY",
+    "0VP_LezQ-QE",
+    "3_R4ulvg8OY",
   ])
   expect(second.cursor).toBeUndefined()
 })
