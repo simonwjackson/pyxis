@@ -11,7 +11,7 @@ use crate::media::{Media, MediaError, ResolveOutcome};
 use crate::plugin_credentials::{CredentialError, CredentialVault};
 use crate::plugins::host::{PluginCallError, PluginHost};
 use crate::sessions::{OutputBinding, Session, SessionCommand, Transport};
-use crate::stream::OutputStreamTokens;
+use crate::stream::{OutputStreamGrant, OutputStreamTokens};
 
 #[derive(Debug, thiserror::Error)]
 pub enum OutputError {
@@ -23,6 +23,8 @@ pub enum OutputError {
     Library(#[from] LibraryError),
     #[error(transparent)]
     Media(#[from] MediaError),
+    #[error(transparent)]
+    StreamToken(#[from] crate::sealed_tokens::SealError),
     #[error("output plugin returned invalid data: {0}")]
     InvalidOutput(String),
     #[error("output target '{0}' does not exist")]
@@ -821,12 +823,15 @@ impl OutputCatalog {
             segments.push(track_id);
         }
         let token = self.stream_tokens.mint(
-            account_id,
             track_id,
-            candidate_id,
-            preferred_formats,
-            selected_format,
-        );
+            &OutputStreamGrant {
+                account_id: account_id.as_str().into(),
+                candidate_id: candidate_id.into(),
+                preferred_formats: preferred_formats.into(),
+                selected_format: selected_format.map(str::to_owned),
+            },
+            chrono::Utc::now().timestamp(),
+        )?;
         url.query_pairs_mut().append_pair("outputToken", &token);
         Ok(url.to_string())
     }

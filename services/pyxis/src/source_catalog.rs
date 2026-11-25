@@ -90,7 +90,7 @@ pub enum SearchOutcome {
 #[derive(Debug, thiserror::Error)]
 pub enum SourceCatalogError {
     #[error(transparent)]
-    CursorSeal(#[from] crate::source_cursors::CursorSealError),
+    CursorSeal(#[from] crate::sealed_tokens::SealError),
     #[error(transparent)]
     Media(#[from] crate::media::MediaError),
     #[error(transparent)]

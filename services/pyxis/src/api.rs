@@ -38,6 +38,8 @@ use crate::source_catalog::SourceCatalog;
 use crate::stations::Stations;
 use crate::stream::{self, OutputStreamTokens, StreamService};
 
+pub(crate) const MAX_RPC_BODY_BYTES: usize = 1024 * 1024;
+
 #[derive(Clone)]
 pub struct AppState {
     pub(crate) accounts: Accounts,
@@ -47,6 +49,7 @@ pub struct AppState {
     pub media: Media,
     pub(crate) fidelity_upgrader: FidelityUpgrader,
     pub(crate) outputs: OutputCatalog,
+    pub(crate) album_cursors: crate::sealed_tokens::SealedTokens,
     pub(crate) output_stream_tokens: OutputStreamTokens,
     pub(crate) plugin_credentials: CredentialVault,
     pub(crate) plugins: PluginHost,
@@ -79,13 +82,13 @@ impl AppState {
         lan_base_url: Option<String>,
     ) -> anyhow::Result<Self> {
         let stream = StreamService::open(store.state_dir())?;
-        let output_stream_tokens = OutputStreamTokens::default();
         let accounts = Accounts::open(store.clone())?;
         let library = Library::open(store.clone());
         let listen = ListenLog::open(store.clone());
         let matcher = Matcher::open(store.clone());
         let media = Media::open(store.clone())?;
         let plugin_credentials = CredentialVault::open(store.clone())?;
+        let output_stream_tokens = plugin_credentials.output_stream_tokens();
         let sessions = Sessions::open(store.clone());
         let fidelity_upgrader = FidelityUpgrader::new(
             FidelityUpgradeDependencies {
@@ -124,6 +127,7 @@ impl AppState {
             media,
             fidelity_upgrader,
             outputs,
+            album_cursors: plugin_credentials.album_cursors(),
             output_stream_tokens,
             plugin_credentials,
             plugins,
@@ -172,7 +176,7 @@ pub fn router_with_web(state: AppState, web_root: Option<PathBuf>) -> Router {
         )
         // RPC payloads are metadata and commands, never media bytes. A 1 MiB request is
         // already pathological and should be rejected before it enters the contract parser.
-        .layer(DefaultBodyLimit::max(1024 * 1024))
+        .layer(DefaultBodyLimit::max(MAX_RPC_BODY_BYTES))
         .with_state(Arc::new(state));
 
     match web_root {

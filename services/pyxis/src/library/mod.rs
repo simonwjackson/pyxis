@@ -48,6 +48,8 @@ pub enum LibraryError {
     UnknownShelf,
     #[error("shelf revision is now {0}")]
     ShelfConflict(u32),
+    #[error(transparent)]
+    CursorSeal(#[from] crate::sealed_tokens::SealError),
     #[error("{0}")]
     InvalidQuery(&'static str),
     #[error("tags must contain at most 64 distinct nonempty labels of at most 64 characters without control characters")]
@@ -123,7 +125,6 @@ pub struct Library {
     store: Store,
     artwork: AlbumArtworkStore,
     mutation: Arc<Mutex<()>>,
-    pages: Arc<Mutex<query::AlbumPages>>,
 }
 
 fn append_capture(
@@ -146,7 +147,6 @@ impl Library {
             artwork: AlbumArtworkStore::open(store.state_dir()),
             store,
             mutation: Arc::new(Mutex::new(())),
-            pages: Default::default(),
         }
     }
 

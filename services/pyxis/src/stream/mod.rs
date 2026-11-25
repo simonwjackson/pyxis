@@ -1,24 +1,25 @@
 //! Same-origin audio byte service.
 
 pub mod cache;
+mod output_tokens;
 pub mod proxy;
+pub(crate) use output_tokens::OutputStreamGrant;
+pub use output_tokens::OutputStreamTokens;
 
-use std::collections::HashMap;
 use std::ops::RangeInclusive;
 use std::path::Path;
-use std::sync::{Arc, RwLock};
-use std::time::{Duration, Instant};
+use std::sync::Arc;
 
 use axum::body::Body;
 use axum::extract::{Path as AxumPath, Query, State};
 use axum::http::{header, HeaderMap, HeaderValue, StatusCode};
 use axum::response::{IntoResponse, Response};
 use axum::Json;
+use chrono::Utc;
 use serde::Deserialize;
 use serde_json::json;
 use tokio::io::{AsyncReadExt, AsyncSeekExt};
 use tokio_util::io::ReaderStream;
-use ulid::Ulid;
 
 use crate::accounts::SCOPE_ACCOUNT_READ;
 use crate::api::AppState;
@@ -30,66 +31,6 @@ use crate::rpc::contract::RpcFailure;
 
 use cache::StreamCache;
 use proxy::{fetch_to_cache, ProxyError, RemoteStreamDescriptor, MAX_STREAM_BYTES};
-
-#[derive(Clone, Default)]
-pub struct OutputStreamTokens {
-    tokens: Arc<RwLock<HashMap<String, OutputStreamToken>>>,
-}
-
-#[derive(Clone)]
-struct OutputStreamToken {
-    account_id: AccountId,
-    track_id: String,
-    candidate_id: String,
-    preferred_formats: Vec<String>,
-    selected_format: Option<String>,
-    expires_at: Instant,
-}
-
-impl OutputStreamTokens {
-    pub fn mint(
-        &self,
-        account_id: &AccountId,
-        track_id: &str,
-        candidate_id: &str,
-        preferred_formats: &[String],
-        selected_format: Option<&str>,
-    ) -> String {
-        let token = Ulid::new().to_string();
-        let mut tokens = self.tokens.write().expect("output stream tokens poisoned");
-        let now = Instant::now();
-        tokens.retain(|_, entry| entry.expires_at > now);
-        tokens.insert(
-            token.clone(),
-            OutputStreamToken {
-                account_id: account_id.clone(),
-                track_id: track_id.to_string(),
-                candidate_id: candidate_id.to_string(),
-                preferred_formats: preferred_formats.to_vec(),
-                selected_format: selected_format.map(str::to_string),
-                expires_at: now + Duration::from_secs(6 * 60 * 60),
-            },
-        );
-        token
-    }
-
-    fn authorize(
-        &self,
-        token: &str,
-        track_id: &str,
-    ) -> Option<(AccountId, String, Vec<String>, Option<String>)> {
-        let tokens = self.tokens.read().expect("output stream tokens poisoned");
-        let entry = tokens.get(token)?;
-        (entry.expires_at > Instant::now() && entry.track_id == track_id).then(|| {
-            (
-                entry.account_id.clone(),
-                entry.candidate_id.clone(),
-                entry.preferred_formats.clone(),
-                entry.selected_format.clone(),
-            )
-        })
-    }
-}
 
 #[derive(Clone)]
 pub struct StreamService {
@@ -126,16 +67,16 @@ pub async fn stream(
     headers: HeaderMap,
 ) -> Response {
     let (account_id, expected_candidate_id, preferred_formats, selected_format) =
-        if let Some((account_id, candidate_id, preferred_formats, selected_format)) = query
-            .output_token
-            .as_deref()
-            .and_then(|token| state.output_stream_tokens.authorize(token, &track_id))
-        {
+        if let Some(grant) = query.output_token.as_deref().and_then(|token| {
+            state
+                .output_stream_tokens
+                .authorize(token, &track_id, Utc::now().timestamp())
+        }) {
             (
-                account_id,
-                Some(candidate_id),
-                preferred_formats,
-                selected_format,
+                AccountId::new(grant.account_id),
+                Some(grant.candidate_id),
+                grant.preferred_formats,
+                grant.selected_format,
             )
         } else {
             let Some(bearer) = bearer_token(&headers).map(str::to_owned) else {
@@ -670,46 +611,6 @@ fn proxy_failure(error: ProxyError) -> Response {
     )
 }
 
-#[cfg(test)]
-mod output_token_tests {
-    use super::*;
-
-    #[test]
-    fn media_mime_mapping_is_shared_by_http_and_output_metadata() {
-        assert_eq!(media_mime_type(Some("aac")), "audio/aac");
-        assert_eq!(media_mime_type(Some("m4a/mp4a.40.2")), "audio/mp4");
-        assert_eq!(media_mime_type(Some("webm/opus")), "audio/webm");
-        assert_eq!(media_mime_type(Some("flac")), "audio/flac");
-    }
-
-    #[test]
-    fn output_tokens_are_bound_to_account_track_candidate_and_process_lifetime() {
-        let tokens = OutputStreamTokens::default();
-        let account = AccountId::new("default");
-        let token = tokens.mint(
-            &account,
-            "track-1",
-            "candidate-1",
-            &["m4a".to_string()],
-            Some("m4a/mp4a.40.2"),
-        );
-
-        assert_eq!(
-            tokens.authorize(&token, "track-1"),
-            Some((
-                account,
-                "candidate-1".into(),
-                vec!["m4a".into()],
-                Some("m4a/mp4a.40.2".into()),
-            ))
-        );
-        assert!(tokens.authorize(&token, "track-2").is_none());
-        assert!(OutputStreamTokens::default()
-            .authorize(&token, "track-1")
-            .is_none());
-    }
-}
-
 fn failure(status: StatusCode, failure: RpcFailure) -> Response {
     (
         status,
@@ -724,6 +625,14 @@ fn failure(status: StatusCode, failure: RpcFailure) -> Response {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn media_mime_mapping_is_shared_by_http_and_output_metadata() {
+        assert_eq!(media_mime_type(Some("aac")), "audio/aac");
+        assert_eq!(media_mime_type(Some("m4a/mp4a.40.2")), "audio/mp4");
+        assert_eq!(media_mime_type(Some("webm/opus")), "audio/webm");
+        assert_eq!(media_mime_type(Some("flac")), "audio/flac");
+    }
 
     #[test]
     fn parses_open_ended_and_suffix_ranges() {

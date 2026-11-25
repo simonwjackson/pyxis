@@ -94,6 +94,10 @@ everything provider-shaped lives at the edge behind a plugin protocol.
 
 ### Deferred to Follow-Up Work
 
+- **Cross-origin test lint.** With aka's Nix-shell Clippy, `cross_origin.rs`'s `open_socket`
+  triggers `result_large_err` (the `SocketError` is 136 bytes). Check the pinned toolchain
+  before changing this test; it is unrelated to U64's output and paging paths.
+
 - **Realtime revocation.** Pyxis checks a token when accepting `/realtime`, not while
   pumping events. Revocation blocks subsequent RPCs and reconnects, but not invalidations
   on an existing U49 stream. Immediate termination needs revocation on live core sockets.
@@ -2334,7 +2338,9 @@ cross-query replay is refused; expiry; a multi-kilobyte plugin continuation roun
 
 **Goal:** per D39, Sonos stream tokens become sealed, track-bound tokens with an expiry, replacing the
 process-local six-hour tokens, so a speaker keeps playing across a core restart. Remove any remaining
-in-memory page snapshots found by a sweep (the library group pages left with D25).
+in-memory page snapshots found by a sweep. Group pages left with D25, but U41/U43 share an
+in-memory album snapshot cache. Keep their immutable page values across edits by sealing the
+compressed remaining albums in the cursor; refuse a query whose cursor exceeds the RPC body budget.
 
 **Dependencies:** U18, U63
 

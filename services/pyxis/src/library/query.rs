@@ -1,55 +1,68 @@
 use std::cmp::Reverse;
-use std::collections::{HashMap, VecDeque};
-use std::time::{Duration, Instant};
+use std::collections::HashMap;
 
-use chrono::DateTime;
-use ulid::Ulid;
+use chrono::{DateTime, Utc};
+use miniz_oxide::{deflate::compress_to_vec, inflate::decompress_to_vec_with_limit};
 
 use super::{Album, Library, LibraryError};
 use crate::db::{schema, store::AccountId};
 use crate::listen::events::JournalRecord;
 use crate::rpc::contract::{AlbumsQueryRequest, RpcAlbumSort};
 
-const LIFETIME: Duration = Duration::from_secs(30 * 60);
-const MAX_SNAPSHOTS: usize = 16;
+use crate::sealed_tokens::SealedTokens;
 
-#[derive(Default)]
-pub(super) struct AlbumPages(VecDeque<Snapshot>);
+// Leave room in the 1 MiB RPC body for the continuation request envelope.
+const MAX_CURSOR_BYTES: usize = crate::api::MAX_RPC_BODY_BYTES - 1024;
+// A small, authentic cursor must not expand to an unbounded allocation on each replay.
+const MAX_SNAPSHOT_BYTES: usize = 32 * 1024 * 1024;
+const TOO_LARGE: LibraryError =
+    LibraryError::InvalidQuery("album snapshot is too large; narrow the query");
 
 pub(crate) struct AlbumPage {
     pub albums: Vec<Album>,
     pub cursor: Option<String>,
 }
 
-struct Snapshot {
-    id: Ulid,
-    issued: Instant,
-    account: AccountId,
-    shelf_id: Option<String>,
-    albums: Vec<Album>,
-}
-
-impl Snapshot {
-    fn page(&self, offset: usize, limit: usize) -> AlbumPage {
-        let end = (offset + limit).min(self.albums.len());
-        AlbumPage {
-            albums: self.albums[offset..end].to_vec(),
-            cursor: (end < self.albums.len()).then(|| format!("{}:{end}", self.id)),
-        }
+impl AlbumPage {
+    fn take(
+        mut albums: Vec<Album>,
+        limit: usize,
+        cursors: &SealedTokens,
+        scope: &[u8],
+        issued: i64,
+    ) -> Result<Self, LibraryError> {
+        let cursor = if albums.len() > limit {
+            let remaining = albums.split_off(limit);
+            let body =
+                serde_json::to_vec(&remaining).map_err(|e| LibraryError::Corrupt(e.to_string()))?;
+            if body.len() > MAX_SNAPSHOT_BYTES {
+                return Err(TOO_LARGE);
+            }
+            let cursor = cursors.seal(scope, &compress_to_vec(&body, 1), issued)?;
+            if cursor.len() > MAX_CURSOR_BYTES {
+                return Err(TOO_LARGE);
+            }
+            Some(cursor)
+        } else {
+            None
+        };
+        Ok(Self { albums, cursor })
     }
 }
 
 impl Library {
     pub(crate) fn query_albums(
         &self,
+        cursors: &SealedTokens,
         account: &AccountId,
         query: AlbumsQueryRequest,
     ) -> Result<AlbumPage, LibraryError> {
-        self.query_page(account, None, query)
+        self.query_page(cursors, account, None, query)
     }
 
     pub(super) fn query_page(
         &self,
+        cursors: &SealedTokens,
         account: &AccountId,
         shelf_id: Option<&str>,
         mut query: AlbumsQueryRequest,
@@ -58,6 +71,8 @@ impl Library {
         if !(1..=100).contains(&limit) {
             return Err(LibraryError::InvalidQuery("limit must be 1..100"));
         }
+        let scope = serde_json::json!([account.as_str(), shelf_id]).to_string();
+        let now = Utc::now().timestamp();
         if let Some(cursor) = query.cursor {
             if query.text.is_some()
                 || query.artist.is_some()
@@ -68,26 +83,15 @@ impl Library {
                     "a continuation takes only cursor and limit",
                 ));
             }
-            let invalid = LibraryError::InvalidQuery("invalid or expired album cursor");
-            let Some((id, offset)) = cursor
-                .split_once(':')
-                .and_then(|(id, n)| Some((Ulid::from_string(id).ok()?, n.parse::<usize>().ok()?)))
-            else {
-                return Err(invalid);
-            };
-            let pages = self.pages.lock().expect("album pages poisoned");
-            let snapshot = pages
-                .0
-                .iter()
-                .find(|s| {
-                    s.id == id
-                        && s.account == *account
-                        && s.shelf_id.as_deref() == shelf_id
-                        && s.issued.elapsed() < LIFETIME
-                        && offset < s.albums.len()
-                })
-                .ok_or(invalid)?;
-            return Ok(snapshot.page(offset, limit));
+            let invalid = || LibraryError::InvalidQuery("invalid or expired album cursor");
+            let (issued, body) = cursors
+                .open(scope.as_bytes(), &cursor, now)
+                .ok_or_else(invalid)?;
+            let albums = serde_json::from_slice(
+                &decompress_to_vec_with_limit(&body, MAX_SNAPSHOT_BYTES).map_err(|_| invalid())?,
+            )
+            .map_err(|_| invalid())?;
+            return AlbumPage::take(albums, limit, cursors, scope.as_bytes(), issued);
         }
         if let Some(expr) = &mut query.tag_expression {
             expr.normalize().map_err(LibraryError::InvalidQuery)?;
@@ -121,23 +125,7 @@ impl Library {
             }
             RpcAlbumSort::LastPlayed => self.sort_last_played(account, &mut albums)?,
         }
-        let snapshot = Snapshot {
-            id: Ulid::new(),
-            issued: Instant::now(),
-            account: account.clone(),
-            shelf_id: shelf_id.map(str::to_owned),
-            albums,
-        };
-        let page = snapshot.page(0, limit);
-        if page.cursor.is_some() {
-            let mut pages = self.pages.lock().expect("album pages poisoned");
-            pages.0.retain(|s| s.issued.elapsed() < LIFETIME);
-            if pages.0.len() >= MAX_SNAPSHOTS {
-                pages.0.pop_front();
-            }
-            pages.0.push_back(snapshot);
-        }
-        Ok(page)
+        AlbumPage::take(albums, limit, cursors, scope.as_bytes(), now)
     }
 
     fn sort_last_played(
@@ -179,5 +167,36 @@ impl Library {
             (Reverse(time), album.id.clone())
         });
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use base64::{engine::general_purpose::STANDARD, Engine};
+
+    #[test]
+    fn never_issues_a_cursor_too_large_for_the_next_rpc() {
+        let mut noise = vec![0; crate::api::MAX_RPC_BODY_BYTES];
+        blake3::Hasher::new().finalize_xof().fill(&mut noise);
+        let mut album = Album {
+            id: "first".into(),
+            tags: vec![],
+            title: "first".into(),
+            artist: "artist".into(),
+            year: None,
+            artwork_url: None,
+            added_at: String::new(),
+            revision: 1,
+            tracks: vec![],
+        };
+        let first = album.clone();
+        album.id = "second".into();
+        album.artwork_url = Some(STANDARD.encode(noise));
+        let cursors = SealedTokens::new(&[0; 32], "test album cursors", 1800);
+        assert!(matches!(
+            AlbumPage::take(vec![first, album], 1, &cursors, b"scope", 0),
+            Err(LibraryError::InvalidQuery(_))
+        ));
     }
 }

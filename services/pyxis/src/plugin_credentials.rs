@@ -72,6 +72,14 @@ impl CredentialVault {
         crate::source_cursors::SourceCursors::new(&self.key)
     }
 
+    pub(crate) fn output_stream_tokens(&self) -> crate::stream::OutputStreamTokens {
+        crate::stream::OutputStreamTokens::new(&self.key)
+    }
+
+    pub(crate) fn album_cursors(&self) -> crate::sealed_tokens::SealedTokens {
+        crate::sealed_tokens::SealedTokens::new(&self.key, "pyxis album paging cursors v1", 30 * 60)
+    }
+
     pub fn set(
         &self,
         account: &AccountId,

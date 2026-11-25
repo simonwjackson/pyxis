@@ -111,6 +111,7 @@ async fn continuation_replays_immutable_album_values_and_refuses_foreign_cursors
     let bearer = token(&app).await;
     add_tagged(&app, &bearer, "A", "One", json!(["keep"])).await;
     let b = add_tagged(&app, &bearer, "B", "Two", json!(["keep"])).await;
+    let c = add_tagged(&app, &bearer, "C", "Four", json!(["keep"])).await;
     let first = query(
         &app,
         &bearer,
@@ -141,7 +142,12 @@ async fn continuation_replays_immutable_album_values_and_refuses_foreign_cursors
     .await;
     assert_eq!(edited["status"], "applied");
     add_tagged(&app, &bearer, "AA", "Three", json!(["keep"])).await;
-    let next = query(&app, &bearer, json!({"cursor":cursor})).await;
-    assert_eq!(next["value"], json!({"albums":[b]}));
-    assert_eq!(query(&app, &bearer, json!({"cursor":cursor})).await, next);
+    drop(app);
+    let app = router(AppState::open(Store::open(dir.path()).unwrap()).unwrap());
+    let next = query(&app, &bearer, json!({"cursor":cursor, "limit":1})).await;
+    assert_eq!(next["value"]["albums"], json!([b]));
+    let last = query(&app, &bearer, json!({"cursor":next["value"]["cursor"]})).await;
+    assert_eq!(last["value"], json!({"albums":[c]}));
+    let replay = query(&app, &bearer, json!({"cursor":cursor})).await;
+    assert_eq!(replay["value"], json!({"albums":[b, c]}));
 }

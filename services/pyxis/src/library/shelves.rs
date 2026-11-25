@@ -121,6 +121,7 @@ impl Library {
     }
     pub(crate) fn shelf_albums(
         &self,
+        cursors: &crate::sealed_tokens::SealedTokens,
         account: &AccountId,
         request: ShelfAlbumsListRequest,
     ) -> Result<AlbumPage, LibraryError> {
@@ -134,6 +135,6 @@ impl Library {
             query.tag_expression = Some(shelf.tag_expression);
             query.sort = Some(shelf.sort);
         }
-        self.query_page(account, Some(&shelf.id), query)
+        self.query_page(cursors, account, Some(&shelf.id), query)
     }
 }

@@ -29,6 +29,7 @@ clap = { version = "4", features = ["derive", "env"] }
 constant_time_eq = "0.4"
 fs2 = "0.4"
 futures-util = "0.3"
+miniz_oxide = "0.8"
 proseql-engine = { path = "../../.cache/proseql/crates/proseql-engine" }
 proseql-native = { path = "../../.cache/proseql/crates/proseql-native" }
 rand = "0.8"

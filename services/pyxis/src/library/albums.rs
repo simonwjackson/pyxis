@@ -26,7 +26,7 @@ pub struct AlbumInput {
     pub tracks: Vec<TrackInput>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Track {
     pub id: String,
     pub title: String,
@@ -37,7 +37,7 @@ pub struct Track {
     pub revision: u64,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Album {
     pub tags: Vec<String>,
     pub id: String,

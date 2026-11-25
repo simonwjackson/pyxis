@@ -18,6 +18,7 @@ pub mod output_catalog;
 pub mod plugin_credentials;
 pub mod plugins;
 pub mod rpc;
+mod sealed_tokens;
 pub mod sessions;
 pub mod settings;
 pub mod source_catalog;

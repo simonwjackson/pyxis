@@ -346,6 +346,10 @@ async fn sonos_target_hosts_a_core_session_and_applies_console_transport() {
         .rfind(|line| line.starts_with("transport.play|"))
         .expect("play call");
     assert!(play.contains("http://192.168.1.2:4488/stream/track-1?outputToken="));
+    assert!(
+        !calls.contains(token),
+        "plugin calls must not contain the account bearer"
+    );
     assert!(play.contains("David Bowie"));
     assert!(play.contains("\"mimeType\":\"audio/mpeg\""));
     assert!(play.contains("\"positionMs\":45000"));
@@ -491,6 +495,36 @@ async fn sonos_target_hosts_a_core_session_and_applies_console_transport() {
         Some("http://192.168.1.2:4488/".into()),
     )
     .expect("restarted state");
+    // The speaker reuses its original URL (and Range), not a new Play or account bearer.
+    let after_restart = pyxis::api::stream_router(restarted.clone());
+    let ticket = stream_url
+        .query_pairs()
+        .find(|(key, _)| key == "outputToken")
+        .unwrap()
+        .1;
+    let mut tampered = ticket.to_string();
+    tampered.replace_range(..1, if ticket.starts_with('A') { "B" } else { "A" });
+    for (track, token, expected) in [
+        ("track-2", ticket.as_ref(), StatusCode::UNAUTHORIZED),
+        ("track-1", tampered.as_str(), StatusCode::UNAUTHORIZED),
+        ("track-1", ticket.as_ref(), StatusCode::PARTIAL_CONTENT),
+    ] {
+        let response = after_restart
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .uri(format!("/stream/{track}?outputToken={token}"))
+                    .header(header::RANGE, "bytes=6-")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), expected);
+        if expected == StatusCode::PARTIAL_CONTENT {
+            assert_eq!(to_bytes(response.into_body(), 1024).await.unwrap(), "audio");
+        }
+    }
     let restarted_app = router(restarted);
     let restored_collision = rpc(
         &restarted_app,

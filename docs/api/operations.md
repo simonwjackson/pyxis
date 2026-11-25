@@ -132,8 +132,11 @@ normalization and limits as `tags.set`. The whole expression must be valid (at m
 16 levels and 256 nodes). Each page contains `albums` and an optional continuation
 `cursor`. Continue with just `{cursor,limit?}`: the snapshot, including metadata, does
 not change between pages. Filters/sort cannot be changed with a cursor. Cursors belong
-to one account. They expire on restart, after 30 minutes, or when the bounded snapshot
-cache evicts them. On `invalid` cursor, start a new query.
+to one account. They carry the compressed remaining albums and expire 30 minutes after
+page one. They survive a restart with the same `credentials.key`. On an invalid or expired
+cursor, start a new query. If the remaining albums exceed 32 MiB before compression or the
+cursor cannot fit in a 1 MiB RPC request, the query returns `invalid`. Narrow the filters
+or increase the page size.
 
 ## Shelves
 
@@ -262,9 +265,10 @@ replaces the other stream with the session's current track. The core never takes
 over on its own, for example when a track ends. Each background refresh also copies the
 renderer's volume into the session, so a change made on the speaker shows up in Pyxis.
 
-Output Play mints a process-local, track-bound, six-hour stream token and supplies an
+Output Play mints a sealed, track-bound, six-hour stream token and supplies an
 absolute URL rooted at `PYXIS_LAN_BASE_URL`. This lets a speaker fetch `/stream/:trackId`
-without receiving an account bearer. Tokens cannot cross tracks or survive a core restart.
+without receiving an account bearer. The token authorizes only the selected track, candidate and format.
+It survives a core restart with the same `credentials.key`. Rotating that key invalidates it.
 
 ## Sessions
 

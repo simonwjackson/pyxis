@@ -1,13 +1,8 @@
 //! A source continuation belongs to one account, source operation and query. Authenticate
 //! that scope as associated data: it need not be copied into the client-visible token.
 
-use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
-use chacha20poly1305::{
-    aead::{Aead, AeadCore, Payload},
-    KeyInit, XChaCha20Poly1305, XNonce,
-};
+use crate::sealed_tokens::{SealError, SealedTokens};
 use chrono::Utc;
-use rand::rngs::OsRng;
 use serde_json::{json, Value};
 
 use crate::db::store::AccountId;
@@ -15,21 +10,20 @@ use crate::db::store::AccountId;
 const TTL_SECONDS: i64 = 30 * 60;
 
 #[derive(Clone)]
-pub(crate) struct SourceCursors(XChaCha20Poly1305);
+pub(crate) struct SourceCursors(SealedTokens);
 
 pub(crate) struct PageScope<'a> {
-    cipher: &'a XChaCha20Poly1305,
+    tokens: &'a SealedTokens,
     fingerprint: blake3::Hash,
 }
 
-#[derive(Debug, thiserror::Error)]
-#[error("source continuation could not be sealed")]
-pub struct CursorSealError;
-
 impl SourceCursors {
     pub(crate) fn new(credentials_key: &[u8; 32]) -> Self {
-        let key = blake3::derive_key("pyxis source paging cursors v1", credentials_key);
-        Self(XChaCha20Poly1305::new((&key).into()))
+        Self(SealedTokens::new(
+            credentials_key,
+            "pyxis source paging cursors v1",
+            TTL_SECONDS,
+        ))
     }
 
     /// `query` contains all selectors, not page controls (cursor and limit). Structured
@@ -43,17 +37,14 @@ impl SourceCursors {
     ) -> PageScope<'_> {
         let scope = json!([account.as_str(), plugin, operation, query]);
         PageScope {
-            cipher: &self.0,
+            tokens: &self.0,
             fingerprint: blake3::hash(scope.to_string().as_bytes()),
         }
     }
 }
 
 impl PageScope<'_> {
-    pub(crate) fn seal(
-        &self,
-        continuation: Option<String>,
-    ) -> Result<Option<String>, CursorSealError> {
+    pub(crate) fn seal(&self, continuation: Option<String>) -> Result<Option<String>, SealError> {
         continuation
             .filter(|c| !c.trim().is_empty())
             .map(|c| self.seal_at(&c, Utc::now().timestamp()))
@@ -64,41 +55,14 @@ impl PageScope<'_> {
         self.open_at(token, Utc::now().timestamp())
     }
 
-    fn seal_at(&self, continuation: &str, now: i64) -> Result<String, CursorSealError> {
-        let nonce = XChaCha20Poly1305::generate_nonce(&mut OsRng);
-        let plaintext = [now.to_be_bytes().as_slice(), continuation.as_bytes()].concat();
-        let ciphertext = self
-            .cipher
-            .encrypt(
-                &nonce,
-                Payload {
-                    msg: &plaintext,
-                    aad: self.fingerprint.as_bytes(),
-                },
-            )
-            .map_err(|_| CursorSealError)?;
-        Ok(URL_SAFE_NO_PAD.encode([nonce.as_slice(), &ciphertext].concat()))
+    fn seal_at(&self, continuation: &str, now: i64) -> Result<String, SealError> {
+        self.tokens
+            .seal(self.fingerprint.as_bytes(), continuation.as_bytes(), now)
     }
 
     fn open_at(&self, token: &str, now: i64) -> Option<String> {
-        let bytes = URL_SAFE_NO_PAD.decode(token).ok()?;
-        let (nonce, ciphertext) = bytes.split_at_checked(24)?;
-        let plaintext = self
-            .cipher
-            .decrypt(
-                XNonce::from_slice(nonce),
-                Payload {
-                    msg: ciphertext,
-                    aad: self.fingerprint.as_bytes(),
-                },
-            )
-            .ok()?;
-        let (issued_at, continuation) = plaintext.split_at_checked(8)?;
-        let age = now.checked_sub(i64::from_be_bytes(issued_at.try_into().ok()?))?;
-        if !(0..TTL_SECONDS).contains(&age) {
-            return None;
-        }
-        String::from_utf8(continuation.to_vec()).ok()
+        let (_, body) = self.tokens.open(self.fingerprint.as_bytes(), token, now)?;
+        String::from_utf8(body).ok()
     }
 }
 

@@ -1063,7 +1063,10 @@ pub fn dispatch(state: &AppState, request: RpcRequest, auth: Option<AuthContext>
                 return auth_required();
             };
             RpcResponse::LibraryAlbumsQuery(
-                match state.library.query_albums(&auth.account_id, request) {
+                match state
+                    .library
+                    .query_albums(&state.album_cursors, &auth.account_id, request)
+                {
                     Ok(page) => AlbumsQueryOutcome::Ready(rpc_album_page(page)),
                     Err(LibraryError::InvalidQuery(message)) => AlbumsQueryOutcome::Invalid(
                         RpcFailure::permanent("library.invalidQuery", message),
@@ -1131,7 +1134,10 @@ pub fn dispatch(state: &AppState, request: RpcRequest, auth: Option<AuthContext>
                 return auth_required();
             };
             RpcResponse::LibraryShelfAlbumsList(
-                match state.library.shelf_albums(&auth.account_id, request) {
+                match state
+                    .library
+                    .shelf_albums(&state.album_cursors, &auth.account_id, request)
+                {
                     Ok(page) => ShelfAlbumsListOutcome::Ready(rpc_album_page(page)),
                     Err(LibraryError::InvalidQuery(message)) => ShelfAlbumsListOutcome::Invalid(
                         RpcFailure::permanent("library.invalidQuery", message),
@@ -2206,6 +2212,9 @@ fn output_failure(error: OutputError) -> RpcFailure {
                 RpcFailure::retryable("output.unavailable", plugin_error.to_string())
             }
         },
+        OutputError::StreamToken(error) => {
+            RpcFailure::retryable("output.unavailable", error.to_string())
+        }
         OutputError::RollbackFailed(message) => {
             RpcFailure::retryable("output.rollbackFailed", message)
         }
