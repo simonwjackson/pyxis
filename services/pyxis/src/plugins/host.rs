@@ -58,6 +58,7 @@ impl PluginCandidate {
             status,
             reason: None,
             station_seed_kinds: Vec::new(),
+            source_operations: Vec::new(),
         }
     }
 }

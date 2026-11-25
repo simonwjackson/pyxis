@@ -45,6 +45,7 @@ pub struct PluginInfo {
     /// Seed kinds this source declared for `station.create`. Empty for a non-source plugin,
     /// for a source whose stations are all account-owned, and for a plugin that predates the
     /// declaration. A client reads this instead of probing each source with a call.
+    pub source_operations: Vec<String>,
     pub station_seed_kinds: Vec<StationSeedKind>,
 }
 
@@ -62,6 +63,11 @@ impl PluginInfo {
             requires_config: requires_config(&manifest.config_schema),
             status,
             reason: None,
+            source_operations: manifest
+                .source
+                .as_ref()
+                .map(|s| s.operations.clone())
+                .unwrap_or_default(),
             station_seed_kinds: manifest
                 .source
                 .as_ref()

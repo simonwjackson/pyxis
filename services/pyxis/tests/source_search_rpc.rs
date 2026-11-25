@@ -128,6 +128,7 @@ async fn a_source_that_cannot_search_every_kind_is_not_a_failure() {
     assert_eq!(result["outcome"]["status"], "ready");
     assert_eq!(value["tracks"].as_array().expect("tracks").len(), 1);
     assert_eq!(value["artists"].as_array().expect("artists").len(), 0);
+    assert_eq!(value["playlists"], json!([]));
     assert_eq!(value["failures"].as_array().expect("failures").len(), 0);
 }
 
@@ -329,4 +330,45 @@ async fn search_pages_resume_only_the_issuing_plugin_kind_and_query() {
         .await;
         assert_eq!(refused["outcome"]["status"], "invalid");
     }
+}
+
+#[tokio::test]
+async fn declared_catalog_pages_are_bounded_and_query_sealed() {
+    let dir = tempfile::tempdir().unwrap();
+    let reads = json!({"playlist.search":{"playlists":[{"externalId":"a","title":"A"},{"externalId":"b","title":"B"}],"cursor":"raw"},"search.suggest":{"items":["a","b"],"cursor":"raw"}});
+    let host = PluginHost::start(
+        vec![search_plugin().with_env("PYXIS_LAB_READS", reads.to_string())],
+        HostPolicy::default(),
+    )
+    .unwrap();
+    let app = router(AppState::open_with_plugins(Store::open(dir.path()).unwrap(), host).unwrap());
+    let token = claim(&app).await;
+    let search = rpc(
+        &app,
+        json!({"_tag":"source.search.run","payload":{"query":"a","limit":1}}),
+        Some(&token),
+    )
+    .await;
+    assert_eq!(
+        search["outcome"]["value"]["playlists"]
+            .as_array()
+            .unwrap()
+            .len(),
+        1
+    );
+    assert_ne!(
+        search["outcome"]["value"]["pages"][0]["cursor"]
+            .as_str()
+            .unwrap(),
+        "raw"
+    );
+    let mut req = json!({"_tag":"source.search.suggest","payload":{"pluginId":"search-source","query":"a","limit":1}});
+    let page = rpc(&app, req.clone(), Some(&token)).await;
+    assert_eq!(page["outcome"]["value"]["items"], json!(["a"]), "{page}");
+    req["payload"]["cursor"] = page["outcome"]["value"]["cursor"].clone();
+    req["payload"]["query"] = "b".into();
+    assert_eq!(
+        rpc(&app, req, Some(&token)).await["outcome"]["status"],
+        "invalid"
+    );
 }

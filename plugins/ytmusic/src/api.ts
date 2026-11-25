@@ -9,6 +9,8 @@ export interface SourceTrack {
 }
 
 export interface SearchInput {
+  readonly exactMatch?: boolean
+  readonly cursor?: string
   readonly query: string
   readonly limit?: number
 }
@@ -34,15 +36,20 @@ export interface RemoteStream {
   readonly lossless: boolean
 }
 
-export function searchInput(value: unknown): SearchInput {
+export function searchInput(value: unknown, maxLimit = 50): SearchInput {
   if (!isRecord(value) || typeof value.query !== "string" || value.query.trim().length === 0) {
     throw new Error("search input requires a non-empty query")
   }
   const limit = value.limit === undefined ? 10 : value.limit
-  if (!Number.isSafeInteger(limit) || (limit as number) < 1 || (limit as number) > 50) {
-    throw new Error("search limit must be an integer from 1 to 50")
+  if (!Number.isSafeInteger(limit) || (limit as number) < 1 || (limit as number) > maxLimit) {
+    throw new Error(`search limit must be an integer from 1 to ${maxLimit}`)
   }
-  return { query: value.query.trim(), limit: limit as number }
+  return {
+    query: value.query.trim(),
+    limit: limit as number,
+    exactMatch: value.exactMatch === true,
+    ...(typeof value.cursor === "string" && { cursor: value.cursor }),
+  }
 }
 
 export function streamResolveInput(value: unknown): StreamResolveInput {

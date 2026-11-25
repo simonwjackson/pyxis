@@ -1,3 +1,4 @@
+import { boundedPage, type Page, position } from "./paging"
 import { createTransport, YtMusicProviderError } from "./transport"
 export interface YtMusicAlbumSummary {
   readonly externalId: string
@@ -45,10 +46,32 @@ export interface YtMusicWatchQueue {
   readonly continuation?: string
 }
 
+interface Playlist {
+  externalId: string
+  title: string
+  owner?: string
+  trackCount?: number
+  artworkUrl?: string
+}
 export interface YtMusicInternalApi {
-  searchSongs(query: string, limit: number): Promise<readonly YtMusicSong[]>
-  searchAlbums(query: string, limit?: number): Promise<readonly YtMusicAlbumSummary[]>
-  searchArtists(query: string, limit: number): Promise<readonly YtMusicArtistSummary[]>
+  searchPlaylists(
+    query: string,
+    limit: number,
+    exact?: boolean,
+    cursor?: string,
+  ): Promise<Page<Playlist>>
+  suggest(query: string, limit: number, cursor?: string): Promise<Page<string>>
+  searchSongs(query: string, limit: number, exact?: boolean): Promise<readonly YtMusicSong[]>
+  searchAlbums(
+    query: string,
+    limit?: number,
+    exact?: boolean,
+  ): Promise<readonly YtMusicAlbumSummary[]>
+  searchArtists(
+    query: string,
+    limit: number,
+    exact?: boolean,
+  ): Promise<readonly YtMusicArtistSummary[]>
   getAlbum(externalId: string): Promise<YtMusicAlbum>
   watchQueue(
     seedVideoId: string,
@@ -80,15 +103,51 @@ const MAX_DURATION_MS = 4_294_967_295
 export function createYtMusicInternalApi(fetcher: typeof fetch = fetch): YtMusicInternalApi {
   const request = createTransport(fetcher)
   return {
-    async searchSongs(query, limit) {
-      return parseSongSearch(await request("search", { query, params: SONG_FILTER }), limit)
+    async searchPlaylists(query, limit, exact, cursor) {
+      const pos = position(cursor)
+      const data = await request(
+        "search",
+        pos.token
+          ? { continuation: pos.token }
+          : {
+              query,
+              params: exact
+                ? "Eg-KAQwIABAAGAAgACgBMABCAggBagoQBBADEAkQBRAK"
+                : "EgeKAQQoAEABahAQAxAEEAkQChAFEBEQEBAV",
+            },
+        false,
+        pos.token,
+      )
+      return boundedPage(parsePlaylists(data), pos, limit, continuationToken(data))
+    },
+    async suggest(query, limit, cursor) {
+      const data = await request("music/get_search_suggestions", { input: query })
+      const items: string[] = []
+      walk(data, (node) => {
+        const text = stringAt(node.searchSuggestionRenderer, [
+          "navigationEndpoint",
+          "searchEndpoint",
+          "query",
+        ])
+        if (text) items.push(text)
+      })
+      return boundedPage(items, position(cursor), limit)
+    },
+    async searchSongs(query, limit, exact) {
+      return parseSongSearch(
+        await request("search", {
+          query,
+          params: exact ? "EgWKAQIIAUICCAFqDBAOEAoQAxAEEAkQBQ%3D%3D" : SONG_FILTER,
+        }),
+        limit,
+      )
     },
 
-    async searchAlbums(query, limit = 10) {
+    async searchAlbums(query, limit = 10, exact) {
       const albums = parseAlbumSearch(
         await request("search", {
           query,
-          params: ALBUM_FILTER,
+          params: exact ? "EgWKAQIYAUICCAFqDBAOEAoQAxAEEAkQBQ%3D%3D" : ALBUM_FILTER,
         }),
       )
       return Promise.all(
@@ -104,8 +163,14 @@ export function createYtMusicInternalApi(fetcher: typeof fetch = fetch): YtMusic
       )
     },
 
-    async searchArtists(query, limit) {
-      return parseArtistSearch(await request("search", { query, params: ARTIST_FILTER }), limit)
+    async searchArtists(query, limit, exact) {
+      return parseArtistSearch(
+        await request("search", {
+          query,
+          params: exact ? "EgWKAQIgAUICCAFqDBAOEAoQAxAEEAkQBQ%3D%3D" : ARTIST_FILTER,
+        }),
+        limit,
+      )
     },
 
     async getAlbum(externalId) {
@@ -396,6 +461,40 @@ export function parseAlbumSearch(value: unknown): readonly YtMusicAlbumSummary[]
   return [...albums.values()]
 }
 
+function continuationToken(data: unknown) {
+  let token: string | undefined
+  walk(data, (n) => {
+    token ??= stringAt(n, ["nextContinuationData", "continuation"]) ?? browseContinuation([n])
+  })
+  return token
+}
+export function parsePlaylists(data: unknown): Playlist[] {
+  const rows: Playlist[] = []
+  walk(data, (node) => {
+    const r = node.musicResponsiveListItemRenderer
+    if (!isRecord(r)) return
+    const id = browseId(r),
+      columns = arrayAt(r, ["flexColumns"]),
+      title = runTexts(columns?.[0])[0]
+    if (!id?.startsWith("VL") || !title) return
+    const details = runs(columns?.[1]),
+      owner = details.find((x) => browseId(x)?.startsWith("UC"))?.text
+    const count = details.flatMap((x) =>
+      typeof x.text === "string"
+        ? (/^([\d,]+) (?:songs?|tracks?|videos?)$/i.exec(x.text)?.slice(1) ?? [])
+        : [],
+    )[0]
+    const artworkUrl = largestThumbnail(r)
+    rows.push({
+      externalId: id.slice(2),
+      title,
+      ...(typeof owner === "string" && { owner }),
+      ...(count && { trackCount: Number(count.replaceAll(",", "")) }),
+      ...(artworkUrl && { artworkUrl }),
+    })
+  })
+  return rows
+}
 function browseContinuation(items: readonly unknown[]): string | undefined {
   const last = items.at(-1)
   let token: string | undefined

@@ -21,9 +21,82 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use typeshare::typeshare;
 
-use crate::plugins::protocol::{
-    PluginRequestEnvelope, PluginResponseEnvelope, PluginValue, StationSeedKind,
-};
+use crate::plugins::protocol::{PluginRequestEnvelope, PluginResponseEnvelope, PluginValue};
+
+/// What a station can be started from.
+///
+/// A source declares the kinds it accepts so a client can offer "start a station here" only
+/// where it works. `Album` is in the vocabulary because the library is album-centric, and no
+/// shipped plugin accepts it yet: declaring support is exactly how that stays visible instead
+/// of being discovered through a failed call.
+#[typeshare]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub enum StationSeedKind {
+    Track,
+    Album,
+    Artist,
+}
+
+/// Source abilities that an operation name alone cannot express.
+///
+/// A plugin that implements `station.create` still cannot say which seeds it accepts.
+/// Probing every kind against every source on every render is the cost this removes, and
+/// `plugin.list` is the one place a third-party client has to look.
+#[typeshare]
+#[derive(Clone, Debug, Default, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct SourceFeatures {
+    /// Seed kinds `station.create` accepts. Empty is honest for a provider whose stations are
+    /// all account-owned and cannot be derived from something you point at.
+    #[serde(default)]
+    pub station_seed_kinds: Vec<StationSeedKind>,
+    #[serde(default)]
+    pub operations: Vec<String>,
+}
+
+#[typeshare]
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct RpcSourcePlaylist {
+    pub external_id: String,
+    pub title: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub owner: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub track_count: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub artwork_url: Option<String>,
+    pub source_plugin_id: String,
+}
+#[typeshare]
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct SourceSuggestRequest {
+    pub plugin_id: String,
+    pub query: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cursor: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub limit: Option<u32>,
+}
+#[typeshare]
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct SourcePage<T> {
+    pub items: Vec<T>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cursor: Option<String>,
+}
+#[typeshare]
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(tag = "status", content = "value", rename_all = "camelCase")]
+pub enum SourceReadOutcome<T> {
+    Ready(T),
+    Unsupported,
+    Invalid(RpcFailure),
+    Unavailable(RpcFailure),
+}
 
 /// Wire identity, not a rewrite number. Incompatible clients fail closed before writes.
 /// Persisted current-rewrite sessions default new mode fields; v1 formats are never read.
@@ -298,6 +371,8 @@ pub struct RpcPlugin {
     /// Seed kinds this source accepts for `source.station.create`. Empty for a plugin that is
     /// not a source, and for a source whose stations cannot be derived from a seed.
     pub station_seed_kinds: Vec<StationSeedKind>,
+    #[serde(default)]
+    pub source_operations: Vec<String>,
 }
 
 #[typeshare]
@@ -352,6 +427,8 @@ pub struct PluginConfigRemoveRequest {
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct SourceSearchRequest {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub exact_match: Option<bool>,
     /// Resume only this source and result kind, with the same query. Absent fans out.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub page: Option<RpcSearchPage>,
@@ -367,6 +444,7 @@ pub enum RpcSearchKind {
     Tracks,
     Albums,
     Artists,
+    Playlists,
 }
 
 #[typeshare]
@@ -431,6 +509,8 @@ pub struct RpcSourceArtistSummary {
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct RpcSourceSearchResult {
+    #[serde(default)]
+    pub playlists: Vec<RpcSourcePlaylist>,
     /// One next page per source and kind that supplied a continuation.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub pages: Option<Vec<RpcSearchPage>>,
@@ -1989,6 +2069,8 @@ pub enum RpcRequest {
     SessionCommandSend(SessionCommandRequest),
     #[serde(rename = "session.handoff")]
     SessionHandoff(SessionHandoffRequest),
+    #[serde(rename = "source.search.suggest")]
+    SourceSearchSuggest(SourceSuggestRequest),
     #[serde(rename = "source.search.run")]
     SourceSearchRun(SourceSearchRequest),
     #[serde(rename = "library.album.add")]
@@ -2107,6 +2189,8 @@ pub enum RpcResponse {
     SessionCommandSend(SessionCommandSendOutcome),
     #[serde(rename = "session.handoff")]
     SessionHandoff(SessionHandoffOutcome),
+    #[serde(rename = "source.search.suggest")]
+    SourceSearchSuggest(SourceReadOutcome<SourcePage<String>>),
     #[serde(rename = "source.search.run")]
     SourceSearchRun(SourceSearchOutcome),
     #[serde(rename = "library.album.add")]
@@ -2171,7 +2255,7 @@ pub enum RpcResponse {
 }
 
 impl RpcRequest {
-    pub const KNOWN_TAGS: [&'static str; 50] = [
+    pub const KNOWN_TAGS: [&'static str; 51] = [
         "system.status.get",
         "auth.device.claim",
         "auth.device.pair",
@@ -2194,6 +2278,7 @@ impl RpcRequest {
         "session.command.run",
         "session.command.send",
         "session.handoff",
+        "source.search.suggest",
         "source.search.run",
         "library.album.add",
         // --- library.tracks.get (U40) ---
@@ -2252,6 +2337,7 @@ impl RpcRequest {
             RpcRequest::SessionCommandRun(_) => "session.command.run",
             RpcRequest::SessionCommandSend(_) => "session.command.send",
             RpcRequest::SessionHandoff(_) => "session.handoff",
+            RpcRequest::SourceSearchSuggest(_) => "source.search.suggest",
             RpcRequest::SourceSearchRun(_) => "source.search.run",
             RpcRequest::LibraryAlbumAdd(_) => "library.album.add",
             // --- library.tracks.get (U40) ---
@@ -2344,7 +2430,8 @@ impl RpcRequest {
             RpcRequest::PluginConfigSet(_) | RpcRequest::PluginConfigRemove(_) => {
                 Some("account:admin")
             }
-            RpcRequest::SourceAlbumSearch(_)
+            RpcRequest::SourceSearchSuggest(_)
+            | RpcRequest::SourceAlbumSearch(_)
             | RpcRequest::SourceAlbumGet(_)
             | RpcRequest::SourceStationSearch(_)
             | RpcRequest::SourceStationList(_)
@@ -2359,7 +2446,7 @@ impl RpcRequest {
 }
 
 impl RpcResponse {
-    pub const KNOWN_OPERATION_TAGS: [&'static str; 50] = RpcRequest::KNOWN_TAGS;
+    pub const KNOWN_OPERATION_TAGS: [&'static str; 51] = RpcRequest::KNOWN_TAGS;
 
     pub fn tag(&self) -> &'static str {
         match self {
@@ -2385,6 +2472,7 @@ impl RpcResponse {
             RpcResponse::SessionCommandRun(_) => "session.command.run",
             RpcResponse::SessionCommandSend(_) => "session.command.send",
             RpcResponse::SessionHandoff(_) => "session.handoff",
+            RpcResponse::SourceSearchSuggest(_) => "source.search.suggest",
             RpcResponse::SourceSearchRun(_) => "source.search.run",
             RpcResponse::LibraryAlbumAdd(_) => "library.album.add",
             // --- library.tracks.get (U40) ---

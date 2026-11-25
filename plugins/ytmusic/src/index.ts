@@ -28,7 +28,10 @@ export function createYtMusicPlugin(
       // A YouTube Music station is derived from a recording, so a track seed is the only one
       // this source can honor. It owns no stations of its own, which is why `station.list` is
       // absent rather than answering with an empty list it would have to invent.
-      source: { stationSeedKinds: [StationSeedKind.Track] },
+      source: {
+        operations: ["playlist.search", "search.suggest"],
+        stationSeedKinds: [StationSeedKind.Track],
+      },
       configSchema: transportSchema,
     },
     initialize: async () => {
@@ -36,19 +39,30 @@ export function createYtMusicPlugin(
     },
     capabilities: {
       source: {
+        "playlist.search": async (input) => {
+          const r = validInput(() => searchInput(input))
+          const { items, ...page } = await providerCall(() =>
+            internalApi.searchPlaylists(r.query, r.limit ?? 10, r.exactMatch, r.cursor),
+          )
+          return { playlists: items, ...page }
+        },
+        "search.suggest": async (input) => {
+          const r = validInput(() => searchInput(input, 100))
+          return providerCall(() => internalApi.suggest(r.query, r.limit ?? 10, r.cursor))
+        },
         search: async (input) => {
           const request = validInput(() => searchInput(input))
           return providerCall(async () => ({
-            tracks: (await internalApi.searchSongs(request.query, request.limit ?? 10)).map(
-              sourceTrack,
-            ),
+            tracks: (
+              await internalApi.searchSongs(request.query, request.limit ?? 10, request.exactMatch)
+            ).map(sourceTrack),
           }))
         },
         "artist.search": async (input) => {
           const request = validInput(() => searchInput(input))
           return {
             artists: await providerCall(() =>
-              internalApi.searchArtists(request.query, request.limit ?? 10),
+              internalApi.searchArtists(request.query, request.limit ?? 10, request.exactMatch),
             ),
           }
         },
@@ -56,7 +70,7 @@ export function createYtMusicPlugin(
           const request = validInput(() => searchInput(input))
           return {
             albums: await providerCall(() =>
-              internalApi.searchAlbums(request.query, request.limit),
+              internalApi.searchAlbums(request.query, request.limit, request.exactMatch),
             ),
           }
         },

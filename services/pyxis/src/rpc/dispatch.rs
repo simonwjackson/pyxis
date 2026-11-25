@@ -221,6 +221,7 @@ pub fn dispatch(state: &AppState, request: RpcRequest, auth: Option<AuthContext>
                     configured,
                     reason: plugin.reason,
                     station_seed_kinds: plugin.station_seed_kinds,
+                    source_operations: plugin.source_operations,
                 });
             }
             RpcResponse::PluginList(PluginListOutcome::Ready(plugins))
@@ -805,6 +806,19 @@ pub fn dispatch(state: &AppState, request: RpcRequest, auth: Option<AuthContext>
                 )),
             }
         }
+        RpcRequest::SourceSearchSuggest(request) => {
+            let Some(auth) = auth else {
+                return auth_required();
+            };
+            RpcResponse::SourceSearchSuggest(state.sources.read(
+                &auth,
+                &request.plugin_id,
+                "search.suggest",
+                serde_json::json!({"query":request.query}),
+                request.cursor.as_deref(),
+                request.limit,
+            ))
+        }
         RpcRequest::SourceSearchRun(request) => {
             let Some(auth) = auth else {
                 return auth_required();
@@ -816,10 +830,13 @@ pub fn dispatch(state: &AppState, request: RpcRequest, auth: Option<AuthContext>
                 ));
             }
             let limit = request.limit.unwrap_or(10).clamp(1, 50);
-            match state
-                .sources
-                .search(&auth, query, limit, request.page.as_ref())
-            {
+            match state.sources.search(
+                &auth,
+                query,
+                limit,
+                request.exact_match.unwrap_or(false),
+                request.page.as_ref(),
+            ) {
                 Ok(SearchOutcome::InvalidCursor) => {
                     RpcResponse::SourceSearchRun(SourceSearchOutcome::Invalid(
                         RpcFailure::permanent("source.invalidCursor", "invalid search cursor"),
@@ -832,10 +849,12 @@ pub fn dispatch(state: &AppState, request: RpcRequest, auth: Option<AuthContext>
                     tracks,
                     albums,
                     artists,
+                    playlists,
                     pages,
                     failures,
                 }) => RpcResponse::SourceSearchRun(SourceSearchOutcome::Ready(
                     RpcSourceSearchResult {
+                        playlists,
                         pages: (!pages.is_empty()).then_some(pages),
                         tracks: tracks.into_iter().map(rpc_search_track).collect(),
                         albums: albums
@@ -2133,7 +2152,10 @@ fn source_station_failure(error: crate::source_catalog::SourceCatalogError) -> R
 /// Builds a source failure code for one subject, so a station error never claims to be an
 /// album error. A client routes on the code, and a wrong subject sends it to the wrong
 /// recovery path.
-fn source_failure(subject: &str, error: crate::source_catalog::SourceCatalogError) -> RpcFailure {
+pub(crate) fn source_failure(
+    subject: &str,
+    error: crate::source_catalog::SourceCatalogError,
+) -> RpcFailure {
     use crate::db::store::StoreError;
     use crate::plugin_credentials::CredentialError;
     use crate::plugins::host::PluginCallError;

@@ -30,6 +30,8 @@ fn main() -> anyhow::Result<()> {
         .ok()
         .and_then(|value| PluginCapability::parse(&value))
         .unwrap_or(PluginCapability::Source);
+    let reads: BTreeMap<String, PluginValue> =
+        serde_json::from_str(&std::env::var("PYXIS_LAB_READS").unwrap_or_else(|_| "{}".into()))?;
     let manifest = PluginManifest {
         id: id.clone(),
         name: format!("Laboratory {id}"),
@@ -42,7 +44,11 @@ fn main() -> anyhow::Result<()> {
         capabilities: vec![capability],
         config_schema: PluginValue::Object(BTreeMap::new()),
         source: declared_seed_kinds()
-            .map(|station_seed_kinds| SourceFeatures { station_seed_kinds }),
+            .or_else(|| (!reads.is_empty()).then(Vec::new))
+            .map(|station_seed_kinds| SourceFeatures {
+                station_seed_kinds,
+                operations: reads.keys().cloned().collect(),
+            }),
     };
     send(
         &mut stdout,
@@ -101,6 +107,18 @@ fn main() -> anyhow::Result<()> {
                 .write_all(line.as_bytes())?;
         }
 
+        if let Some(result) = reads.get(&call.operation) {
+            send(
+                &mut stdout,
+                PluginResponseEnvelope {
+                    id: envelope.id,
+                    response: PluginResponse::CapabilityCall(PluginCallOutcome::Ready(
+                        result.clone(),
+                    )),
+                },
+            )?;
+            continue;
+        }
         let mut value = BTreeMap::new();
         let group_result = (call.operation == "group.set")
             .then(|| std::env::var("PYXIS_LAB_GROUP_RESULT_FILE").ok())
@@ -291,6 +309,7 @@ fn main() -> anyhow::Result<()> {
         // answers a missing handler lets the core prove that an unimplemented kind is not
         // reported to clients as a provider failure.
         let unimplemented = match call.operation.as_str() {
+            "playlist.search" => true,
             "artist.search" => std::env::var("PYXIS_LAB_ARTIST").is_err(),
             "album.search" => std::env::var("PYXIS_LAB_ALBUM").is_err(),
             // Station list is configured separately from the rest so a test can build the

@@ -573,3 +573,16 @@ test("album browse preserves OLAK identity for either request form", async () =>
   expect(parseAlbum(fixture, "MPREb_Tr9YVfRfip1").externalId).toBe(canonical)
   expect(parseAlbum(fixture, canonical).externalId).toBe(canonical)
 })
+
+test("playlist search reads the playlist owner and never mistakes views for track count", async () => {
+  const { parsePlaylists } = await import("./internal-api")
+  const data = (await import("../fixtures/search-playlists.json")).default
+  expect(parsePlaylists(data)).toEqual([
+    {
+      externalId: "PL_JvlJ9_UYULHWUycuqxH_2QyRnL7XLe-",
+      title: "FNF WEEKEND 1 UPDATE",
+      owner: "laik7u7",
+      artworkUrl: "https://i.ytimg.com/vi/xeDa1c-Y224/hq720.jpg",
+    },
+  ])
+})

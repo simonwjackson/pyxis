@@ -70,6 +70,10 @@ export function definePlugin(definition: PluginDefinition): PluginDefinition {
 /// the handler table, so the drift is refused here, at definition time, rather than discovered
 /// by a user whose station never starts.
 function assertSourceFeatures(definition: PluginDefinition): void {
+  for (const operation of definition.manifest.source?.operations ?? []) {
+    if (!definition.capabilities.source?.[operation])
+      throw new Error(`missing declared source operation: ${operation}`)
+  }
   const seedKinds = definition.manifest.source?.stationSeedKinds ?? []
   if (seedKinds.length === 0) return
 

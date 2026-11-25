@@ -2,6 +2,7 @@
 
 use std::collections::HashSet;
 
+use crate::rpc::contract::{RpcFailure, RpcSourcePlaylist, SourceReadOutcome};
 use serde::Deserialize;
 
 use crate::accounts::AuthContext;
@@ -70,11 +71,12 @@ pub struct CatalogArtistSummary {
     pub source_plugin_id: String,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug)]
 pub enum SearchOutcome {
     Ready {
         tracks: Vec<SearchTrack>,
         albums: Vec<CatalogAlbumSummary>,
+        playlists: Vec<RpcSourcePlaylist>,
         artists: Vec<CatalogArtistSummary>,
         failures: Vec<SearchFailure>,
         pages: Vec<RpcSearchPage>,
@@ -108,6 +110,10 @@ enum PluginSearchPage {
     Tracks(PluginSearchOutput),
     Albums(PluginAlbumSearchOutput),
     Artists(PluginArtistSearchOutput),
+    Playlists {
+        playlists: Vec<RpcSourcePlaylist>,
+        cursor: Option<String>,
+    },
 }
 
 /// One recording as a source plugin reports it.
@@ -205,9 +211,13 @@ impl SourceCatalog {
         auth: &AuthContext,
         query: &str,
         limit: u32,
+        exact_match: bool,
         page: Option<&RpcSearchPage>,
     ) -> Result<SearchOutcome, SourceCatalogError> {
-        let selectors = serde_json::json!({ "query": query });
+        let mut selectors = serde_json::json!({ "query": query });
+        if exact_match {
+            selectors["exactMatch"] = true.into();
+        }
         let continuation = if let Some(page) = page {
             let scope = self.cursors.bind(
                 &auth.account_id,
@@ -242,6 +252,7 @@ impl SourceCatalog {
         let mut tracks = Vec::new();
         let mut albums = Vec::new();
         let mut artists = Vec::new();
+        let mut playlists = Vec::new();
         let mut failures = Vec::new();
         let mut pages = Vec::new();
         let bound = limit as usize;
@@ -255,11 +266,17 @@ impl SourceCatalog {
                 RpcSearchKind::Tracks,
                 RpcSearchKind::Albums,
                 RpcSearchKind::Artists,
+                RpcSearchKind::Playlists,
             ] {
                 if page.is_some_and(|page| page.kind != kind) {
                     continue;
                 }
                 let operation = kind.operation();
+                if kind == RpcSearchKind::Playlists
+                    && !source.source_operations.iter().any(|op| op == operation)
+                {
+                    continue;
+                }
                 let mut input = selectors.clone();
                 input["limit"] = limit.into();
                 if let Some(cursor) = &continuation {
@@ -296,6 +313,13 @@ impl SourceCatalog {
                         );
                         output.cursor
                     }
+                    PluginSearchPage::Playlists {
+                        playlists: items,
+                        cursor,
+                    } => {
+                        playlists.extend(items.into_iter().take(bound));
+                        cursor
+                    }
                     PluginSearchPage::Artists(output) => {
                         if let Err(error) = validate_artist_summaries(&output.artists) {
                             failures.push(invalid_search(&source.id, error));
@@ -328,6 +352,7 @@ impl SourceCatalog {
         Ok(SearchOutcome::Ready {
             tracks,
             albums,
+            playlists,
             artists,
             pages,
             failures,
@@ -363,6 +388,29 @@ impl SourceCatalog {
             }
         };
         let decoded = match kind {
+            RpcSearchKind::Playlists => {
+                #[derive(Deserialize)]
+                struct Page {
+                    playlists: Vec<serde_json::Value>,
+                    cursor: Option<String>,
+                }
+                serde_json::from_value::<Page>(output).and_then(|page| {
+                    let playlists = page
+                        .playlists
+                        .into_iter()
+                        .map(|mut item| {
+                            if let Some(record) = item.as_object_mut() {
+                                record.insert("sourcePluginId".into(), plugin_id.into());
+                            }
+                            serde_json::from_value(item)
+                        })
+                        .collect::<Result<Vec<_>, _>>()?;
+                    Ok(PluginSearchPage::Playlists {
+                        playlists,
+                        cursor: page.cursor,
+                    })
+                })
+            }
             RpcSearchKind::Tracks => serde_json::from_value(output).map(PluginSearchPage::Tracks),
             RpcSearchKind::Albums => serde_json::from_value(output).map(PluginSearchPage::Albums),
             RpcSearchKind::Artists => serde_json::from_value(output).map(PluginSearchPage::Artists),
@@ -373,6 +421,72 @@ impl SourceCatalog {
                 failures.push(invalid_search(plugin_id, error));
                 None
             }
+        }
+    }
+
+    /// Authorize a declared read and translate the page token only at the core boundary.
+    pub fn read<T: serde::de::DeserializeOwned>(
+        &self,
+        auth: &AuthContext,
+        plugin: &str,
+        op: &str,
+        mut selectors: serde_json::Value,
+        cursor: Option<&str>,
+        limit: Option<u32>,
+    ) -> SourceReadOutcome<T> {
+        let scope = self.cursors.bind(&auth.account_id, plugin, op, &selectors);
+        if let Some(token) = cursor {
+            let Some(raw) = scope.open(token) else {
+                return SourceReadOutcome::Invalid(RpcFailure::permanent(
+                    "source.invalidCursor",
+                    "invalid source cursor",
+                ));
+            };
+            selectors["cursor"] = raw.into();
+        }
+        if !self
+            .plugins
+            .list()
+            .iter()
+            .any(|p| p.id == plugin && p.source_operations.iter().any(|o| o == op))
+        {
+            return SourceReadOutcome::Unsupported;
+        }
+        let bound = limit.unwrap_or(25).clamp(1, 100);
+        selectors["limit"] = bound.into();
+        let result = (|| -> Result<T, SourceCatalogError> {
+            let config = self
+                .credentials
+                .get(&auth.account_id, plugin)?
+                .map(serde_json::Value::from);
+            let mut output = self.plugins.call_for_account(
+                plugin,
+                "source",
+                op,
+                selectors,
+                auth.account_id.as_str(),
+                config,
+            )?;
+            if let Some(record) = output.as_object_mut() {
+                if let Some(raw) = record.remove("cursor") {
+                    let token: String = serde_json::from_value(raw)
+                        .map_err(|e| SourceCatalogError::InvalidOutput(e.to_string()))?;
+                    if let Some(sealed) = scope.seal(Some(token))? {
+                        record.insert("cursor".into(), sealed.into());
+                    }
+                }
+                if let Some(items) = record.get_mut("items").and_then(|v| v.as_array_mut()) {
+                    items.truncate(bound as usize);
+                }
+            }
+            serde_json::from_value(output)
+                .map_err(|e| SourceCatalogError::InvalidOutput(e.to_string()))
+        })();
+        match result {
+            Ok(value) => SourceReadOutcome::Ready(value),
+            Err(error) => SourceReadOutcome::Unavailable(crate::rpc::dispatch::source_failure(
+                "catalog", error,
+            )),
         }
     }
 
@@ -485,6 +599,7 @@ impl SourceCatalog {
 impl RpcSearchKind {
     fn operation(self) -> &'static str {
         match self {
+            Self::Playlists => "playlist.search",
             Self::Tracks => "search",
             Self::Albums => "album.search",
             Self::Artists => "artist.search",

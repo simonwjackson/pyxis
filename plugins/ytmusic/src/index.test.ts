@@ -5,6 +5,9 @@ import { createYtMusicInternalApi, type YtMusicInternalApi } from "./internal-ap
 import type { YtDlp } from "./ytdlp"
 
 const internal: YtMusicInternalApi = {
+  ...createYtMusicInternalApi((async () => {
+    throw new Error("unexpected fetch")
+  }) as unknown as typeof fetch),
   searchSongs: async (_query, limit) =>
     [
       {

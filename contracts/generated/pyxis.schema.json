@@ -391,6 +391,22 @@
           "properties": {
             "_tag": {
               "type": "string",
+              "const": "source.search.suggest"
+            },
+            "payload": {
+              "$ref": "#/$defs/SourceSuggestRequest"
+            }
+          },
+          "required": [
+            "_tag",
+            "payload"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "_tag": {
+              "type": "string",
               "const": "source.search.run"
             },
             "payload": {
@@ -1537,9 +1553,45 @@
         "targetSessionId"
       ]
     },
+    "SourceSuggestRequest": {
+      "type": "object",
+      "properties": {
+        "pluginId": {
+          "type": "string"
+        },
+        "query": {
+          "type": "string"
+        },
+        "cursor": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "limit": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint32",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "pluginId",
+        "query"
+      ]
+    },
     "SourceSearchRequest": {
       "type": "object",
       "properties": {
+        "exactMatch": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
         "page": {
           "description": "Resume only this source and result kind, with the same query. Absent fans out.",
           "anyOf": [
@@ -1594,7 +1646,8 @@
       "enum": [
         "tracks",
         "albums",
-        "artists"
+        "artists",
+        "playlists"
       ]
     },
     "LibraryAlbumAddRequest": {
@@ -3013,6 +3066,22 @@
           "properties": {
             "_tag": {
               "type": "string",
+              "const": "source.search.suggest"
+            },
+            "outcome": {
+              "$ref": "#/$defs/SourceReadOutcome"
+            }
+          },
+          "required": [
+            "_tag",
+            "outcome"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "_tag": {
+              "type": "string",
               "const": "source.search.run"
             },
             "outcome": {
@@ -4370,6 +4439,13 @@
           "items": {
             "$ref": "#/$defs/StationSeedKind"
           }
+        },
+        "sourceOperations": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
         }
       },
       "additionalProperties": false,
@@ -5195,6 +5271,91 @@
         }
       ]
     },
+    "SourceReadOutcome": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "const": "ready"
+            },
+            "value": {
+              "$ref": "#/$defs/SourcePage"
+            }
+          },
+          "required": [
+            "status",
+            "value"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "const": "unsupported"
+            }
+          },
+          "required": [
+            "status"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "const": "invalid"
+            },
+            "value": {
+              "$ref": "#/$defs/RpcFailure"
+            }
+          },
+          "required": [
+            "status",
+            "value"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "const": "unavailable"
+            },
+            "value": {
+              "$ref": "#/$defs/RpcFailure"
+            }
+          },
+          "required": [
+            "status",
+            "value"
+          ]
+        }
+      ]
+    },
+    "SourcePage": {
+      "type": "object",
+      "properties": {
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "cursor": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "items"
+      ]
+    },
     "SourceSearchOutcome": {
       "oneOf": [
         {
@@ -5263,6 +5424,13 @@
       "description": "Every kind a discovery search can return. A source that cannot answer one kind\ncontributes the kinds it can and appears in no failure, because an unimplemented\noperation is a capability boundary rather than a provider fault.",
       "type": "object",
       "properties": {
+        "playlists": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/RpcSourcePlaylist"
+          },
+          "default": []
+        },
         "pages": {
           "description": "One next page per source and kind that supplied a continuation.",
           "type": [
@@ -5304,6 +5472,46 @@
         "albums",
         "artists",
         "failures"
+      ]
+    },
+    "RpcSourcePlaylist": {
+      "type": "object",
+      "properties": {
+        "externalId": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "owner": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "trackCount": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint32",
+          "minimum": 0
+        },
+        "artworkUrl": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "sourcePluginId": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "externalId",
+        "title",
+        "sourcePluginId"
       ]
     },
     "RpcSearchTrack": {
@@ -7770,6 +7978,13 @@
           "type": "array",
           "items": {
             "$ref": "#/$defs/StationSeedKind"
+          },
+          "default": []
+        },
+        "operations": {
+          "type": "array",
+          "items": {
+            "type": "string"
           },
           "default": []
         }

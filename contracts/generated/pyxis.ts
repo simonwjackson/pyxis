@@ -299,6 +299,7 @@ export interface SourceFeatures {
 	 * all account-owned and cannot be derived from something you point at.
 	 */
 	stationSeedKinds?: StationSeedKind[];
+	operations?: string[];
 }
 
 export interface PluginManifest {
@@ -626,6 +627,7 @@ export interface RpcPlugin {
 	 * not a source, and for a source whose stations cannot be derived from a seed.
 	 */
 	stationSeedKinds: StationSeedKind[];
+	sourceOperations?: string[];
 }
 
 export interface RpcRealtimeRemoval {
@@ -636,6 +638,7 @@ export enum RpcSearchKind {
 	Tracks = "tracks",
 	Albums = "albums",
 	Artists = "artists",
+	Playlists = "playlists",
 }
 
 export interface RpcSearchPage {
@@ -783,12 +786,22 @@ export interface RpcSourceFailure {
 	failure: RpcFailure;
 }
 
+export interface RpcSourcePlaylist {
+	externalId: string;
+	title: string;
+	owner?: string;
+	trackCount?: number;
+	artworkUrl?: string;
+	sourcePluginId: string;
+}
+
 /**
  * Every kind a discovery search can return. A source that cannot answer one kind
  * contributes the kinds it can and appears in no failure, because an unimplemented
  * operation is a capability boundary rather than a provider fault.
  */
 export interface RpcSourceSearchResult {
+	playlists?: RpcSourcePlaylist[];
 	/** One next page per source and kind that supplied a continuation. */
 	pages?: RpcSearchPage[];
 	tracks: RpcSearchTrack[];
@@ -947,7 +960,13 @@ export interface SourceAlbumSearchRequest {
 	query: string;
 }
 
+export interface SourcePage<T> {
+	items: T[];
+	cursor?: string;
+}
+
 export interface SourceSearchRequest {
+	exactMatch?: boolean;
 	/** Resume only this source and result kind, with the same query. Absent fans out. */
 	page?: RpcSearchPage;
 	query: string;
@@ -969,6 +988,13 @@ export interface SourceStationNextRequest {
 
 export interface SourceStationSearchRequest {
 	query: string;
+	limit?: number;
+}
+
+export interface SourceSuggestRequest {
+	pluginId: string;
+	query: string;
+	cursor?: string;
 	limit?: number;
 }
 
@@ -1169,6 +1195,7 @@ export type RpcRequest =
 	| { _tag: "session.command.run", payload: SessionCommandRequest }
 	| { _tag: "session.command.send", payload: SessionCommandRequest }
 	| { _tag: "session.handoff", payload: SessionHandoffRequest }
+	| { _tag: "source.search.suggest", payload: SourceSuggestRequest }
 	| { _tag: "source.search.run", payload: SourceSearchRequest }
 	| { _tag: "library.album.add", payload: LibraryAlbumAddRequest }
 	| { _tag: "library.tracks.get", payload: TracksGetRequest }
@@ -1221,6 +1248,7 @@ export type RpcResponse =
 	| { _tag: "session.command.run", outcome: SessionCommandOutcome }
 	| { _tag: "session.command.send", outcome: SessionCommandSendOutcome }
 	| { _tag: "session.handoff", outcome: SessionHandoffOutcome }
+	| { _tag: "source.search.suggest", outcome: SourceReadOutcome<SourcePage<string>> }
 	| { _tag: "source.search.run", outcome: SourceSearchOutcome }
 	| { _tag: "library.album.add", outcome: AlbumAddOutcome }
 	| { _tag: "library.tracks.get", outcome: TracksGetOutcome }
@@ -1354,6 +1382,12 @@ export type SourceAlbumGetOutcome =
 
 export type SourceAlbumSearchOutcome =
 	| { status: "ready", value: RpcSourceAlbumSummary[] }
+	| { status: "unavailable", value: RpcFailure };
+
+export type SourceReadOutcome<T> =
+	| { status: "ready", value: T }
+	| { status: "unsupported", value?: undefined }
+	| { status: "invalid", value: RpcFailure }
 	| { status: "unavailable", value: RpcFailure };
 
 export type SourceSearchOutcome =
