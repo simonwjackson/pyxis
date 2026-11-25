@@ -540,6 +540,39 @@ async fn positional_source_pages_and_discography_rows_are_rejected() {
 }
 
 #[tokio::test]
+async fn a_misspelled_cursor_field_is_refused_not_read_as_exhaustion() {
+    let dir = tempfile::tempdir().unwrap();
+    let reads = json!({
+        "search.suggest":{"items":["one"],"nextCursor":"more"},
+        "playlist.search":{"playlists":[],"nextCursor":"more"}
+    });
+    let host = PluginHost::start(
+        vec![search_plugin().with_env("PYXIS_LAB_READS", reads.to_string())],
+        HostPolicy::default(),
+    )
+    .unwrap();
+    let app = router(AppState::open_with_plugins(Store::open(dir.path()).unwrap(), host).unwrap());
+    let token = claim(&app).await;
+    let suggest = rpc(
+        &app,
+        json!({"_tag":"source.search.suggest","payload":{"pluginId":"search-source","query":"one","limit":1}}),
+        Some(&token),
+    )
+    .await;
+    assert_eq!(suggest["outcome"]["status"], "unavailable");
+    let search = rpc(
+        &app,
+        json!({"_tag":"source.search.run","payload":{"query":"one"}}),
+        Some(&token),
+    )
+    .await;
+    assert_eq!(
+        search["outcome"]["value"]["failures"][0]["failure"]["code"],
+        "plugin.invalidSearch"
+    );
+}
+
+#[tokio::test]
 async fn atomic_metadata_reads_send_only_the_documented_selectors() {
     let dir = tempfile::tempdir().unwrap();
     let log = dir.path().join("inputs");

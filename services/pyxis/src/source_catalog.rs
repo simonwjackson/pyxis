@@ -412,6 +412,7 @@ impl SourceCatalog {
         let decoded = match kind {
             RpcSearchKind::Playlists => {
                 #[derive(Deserialize)]
+                #[serde(deny_unknown_fields)]
                 struct Page {
                     playlists: Vec<serde_json::Map<String, serde_json::Value>>,
                     cursor: Option<String>,
@@ -524,7 +525,9 @@ impl SourceCatalog {
                     "expected a page object".into(),
                 ));
             }
+            // Unknown fields are refused: a misspelled `cursor` must not read as exhaustion.
             #[derive(Deserialize)]
+            #[serde(deny_unknown_fields)]
             struct PluginPage {
                 items: Vec<serde_json::Value>,
                 cursor: Option<String>,
