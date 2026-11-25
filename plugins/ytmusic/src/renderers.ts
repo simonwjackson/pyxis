@@ -49,9 +49,20 @@ export function parseWatchQueue(value: unknown, limit: number): YtMusicWatchQueu
   }
 
   const continuation = watchContinuation(panel) ?? automixContinuation(panel)
+  return queuePage(
+    {
+      tracks: parseQueueItems(arrayAt(panel, ["contents"]) ?? []),
+      ...(continuation === undefined ? {} : { continuation }),
+    },
+    limit,
+  )
+}
+// A radio panel can change between reads. Carry its unsent rows rather than replaying next.
+export function queuePage(queue: YtMusicWatchQueue, limit: number): YtMusicWatchQueue {
+  if (queue.tracks.length <= limit) return queue
   return {
-    tracks: parseQueueItems(arrayAt(panel, ["contents"]) ?? []).slice(0, limit),
-    ...(continuation === undefined ? {} : { continuation }),
+    tracks: queue.tracks.slice(0, limit),
+    continuation: `panel:${JSON.stringify({ ...queue, tracks: queue.tracks.slice(limit) })}`,
   }
 }
 export function parseQueueItems(items: readonly unknown[]): YtMusicSong[] {

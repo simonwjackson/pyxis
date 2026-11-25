@@ -19,6 +19,7 @@ import {
   parsePlaylists,
   parseSongSearch,
   parseWatchQueue,
+  queuePage,
   stringAt,
   walk,
 } from "./renderers"
@@ -269,11 +270,13 @@ export function createYtMusicInternalApi(fetcher: typeof fetch = fetch): YtMusic
           playlistId = canonicalAlbumId(await request("browse", { browseId: id }), id)
         if (kind === "album" && !playlistId.startsWith("OLAK"))
           throw new YtMusicProviderError("ytmusic.noAlbumMix", "No album playlist", false)
-        if (!shuffle && kind === "playlist") playlistId = `RDAMPL${playlistId}`
+        if (!shuffle) playlistId = `RDAMPL${playlistId}`
       }
       return encodeMix({ playlistId, params })
     },
     async watchQueue(seedVideoId, continuation, limit) {
+      if (continuation?.startsWith("panel:"))
+        return queuePage(JSON.parse(continuation.slice(6)), limit)
       const initial = {
         playlistId: radioPlaylistId(seedVideoId),
         videoId: seedVideoId,
@@ -291,11 +294,14 @@ export function createYtMusicInternalApi(fetcher: typeof fetch = fetch): YtMusic
       }
       const queue = parseWatchQueue(
         await request("next", body, false, resumed ? resumed.token : continuation),
-        limit,
+        Infinity,
       )
       if (resumed && queue.continuation && !decodeMix(queue.continuation))
-        return { ...queue, continuation: encodeMix({ ...mix, token: queue.continuation }) }
-      return queue
+        return queuePage(
+          { ...queue, continuation: encodeMix({ ...mix, token: queue.continuation }) },
+          limit,
+        )
+      return queuePage(queue, limit)
     },
   }
 }

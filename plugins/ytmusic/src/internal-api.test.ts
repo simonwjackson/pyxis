@@ -563,7 +563,7 @@ test("a continuation page is read, not mistaken for an unknown layout", () => {
       continuationContents: {
         playlistPanelContinuation: {
           contents: [queueItem("videoTwo", "Everything In Its Right Place")],
-          continuations: [{ nextRadioContinuationData: { continuation: "page-three" } }],
+          continuations: [{ nextContinuationData: { continuation: "page-three" } }],
         },
       },
     },
@@ -622,6 +622,7 @@ test("artist mixes follow header ids; playlist shuffle params stay percent-encod
     ["artist", "channel", false, "RDEMA703AE9PNaNYb3T-XAhR9g"],
     ["artist", "channel", true, "RDAOA703AE9PNaNYb3T-XAhR9g"],
     ["album", "OLAKabc", true, "OLAKabc"],
+    ["album", "OLAKabc", false, "RDAMPLOLAKabc"],
     ["playlist", "PLabc", true, "PLabc"],
     ["playlist", "PLabc", false, "RDAMPLPLabc"],
   ] as const) {
@@ -636,4 +637,48 @@ test("artist mixes follow header ids; playlist shuffle params stay percent-encod
     await api.watchQueue(station, batch.continuation, 10)
     expect(bodies.at(-1)?.playlistId).toBe("issued-auto")
   }
+})
+
+test("station pages drain the current panel before following its automix", async () => {
+  const { createYtMusicInternalApi } = await import("./internal-api")
+  const ids: string[] = []
+  const api = createYtMusicInternalApi((async (url, init) => {
+    const body = JSON.parse(String(init?.body))
+    if (!String(url).includes("/next?"))
+      return Response.json({ responseContext: { visitorData: "v" } })
+    ids.push(body.playlistId)
+    return Response.json(
+      watchResponse(
+        body.playlistId === "auto"
+          ? [queueItem("four", "Fourth")]
+          : [
+              queueItem("one", "First"),
+              queueItem("two", "Second"),
+              queueItem("three", "Third"),
+              {
+                automixPreviewVideoRenderer: {
+                  navigationEndpoint: { watchPlaylistEndpoint: { playlistId: "auto" } },
+                },
+              },
+            ],
+      ),
+    )
+  }) as typeof fetch)
+  let cursor: string | undefined
+  for (const expected of ["one", "two", "three", "four"]) {
+    const page = await api.watchQueue("seed", cursor, 1)
+    expect(page.tracks.map((t) => t.externalId)).toEqual([expected])
+    cursor = page.continuation
+    expect(ids).toEqual(expected === "four" ? ["RDAMVMseed", "auto"] : ["RDAMVMseed"])
+  }
+  expect(cursor).toBeUndefined()
+})
+test("an artist without a radio endpoint is a typed failure", async () => {
+  const { createYtMusicInternalApi } = await import("./internal-api")
+  const api = createYtMusicInternalApi((async () =>
+    Response.json({ responseContext: { visitorData: "v" }, header: {} })) as typeof fetch)
+  await expect(api.mixStation("artist", "channel", false)).rejects.toMatchObject({
+    code: "ytmusic.noArtistMix",
+    retryable: false,
+  })
 })
