@@ -13,10 +13,6 @@ export interface SearchInput {
   readonly limit?: number
 }
 
-export interface SearchOutput {
-  readonly tracks: readonly SourceTrack[]
-}
-
 export interface StreamResolveInput {
   readonly trackId: string
   readonly preferredFormats: readonly string[]

@@ -157,7 +157,7 @@ export function escapeXml(value: string): string {
     .replaceAll("'", "&apos;")
 }
 
-export function decodeXml(value: string): string {
+function decodeXml(value: string): string {
   return value
     .replaceAll("&lt;", "<")
     .replaceAll("&gt;", ">")

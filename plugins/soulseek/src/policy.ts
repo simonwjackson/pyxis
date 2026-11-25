@@ -171,7 +171,7 @@ export function parseSoulseekPath(value: string): ParsedPath | undefined {
   }
 }
 
-export function isStrictUpgrade(current: TargetFidelity, candidate: TargetFidelity): boolean {
+function isStrictUpgrade(current: TargetFidelity, candidate: TargetFidelity): boolean {
   return fidelityKey(candidate) > fidelityKey(current)
 }
 

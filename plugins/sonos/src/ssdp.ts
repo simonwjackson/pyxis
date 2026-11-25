@@ -22,7 +22,7 @@ export function createSsdpDiscovery(browseMdns: MdnsBrowser = browseAvahi): Ssdp
   }
 }
 
-export async function discoverSsdpLocations(timeoutMs: number): Promise<readonly string[]> {
+async function discoverSsdpLocations(timeoutMs: number): Promise<readonly string[]> {
   return new Promise((resolve) => {
     const locations = new Set<string>()
     const socket = dgram.createSocket({ type: "udp4", reuseAddr: true })

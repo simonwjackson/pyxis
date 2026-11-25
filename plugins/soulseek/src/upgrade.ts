@@ -13,7 +13,7 @@ import {
 const CANDIDATE_TTL_MS = 30 * 60_000
 const MAX_CANDIDATE_REFS = 1000
 
-export interface UpgradeTrack {
+interface UpgradeTrack {
   readonly id: string
   readonly artist: string
   readonly title: string

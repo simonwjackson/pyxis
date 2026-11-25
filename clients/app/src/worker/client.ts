@@ -65,7 +65,7 @@ export type WorkerRequest = { readonly id: string; readonly accountId?: string }
     }
 )
 
-export class WorkerUnavailableError extends Error {
+class WorkerUnavailableError extends Error {
   constructor(message: string) {
     super(message)
     this.name = "WorkerUnavailableError"

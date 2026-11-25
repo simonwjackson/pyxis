@@ -424,7 +424,7 @@ function formatTime(milliseconds: number): string {
   return `${hours}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`
 }
 
-export function parseVolume(value: string | undefined): number | undefined {
+function parseVolume(value: string | undefined): number | undefined {
   if (value === undefined || !/^\d{1,3}$/u.test(value.trim())) return undefined
   const volume = Number.parseInt(value.trim(), 10)
   return volume <= 100 ? volume : undefined

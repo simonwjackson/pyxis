@@ -187,10 +187,6 @@ export function parseZoneGroupState(
   return groups.sort((left, right) => left.coordinatorName.localeCompare(right.coordinatorName))
 }
 
-export function roomById(topology: SonosTopology, roomId: string): SonosRoom | undefined {
-  return topology.groups.flatMap((group) => group.rooms).find((room) => room.id === roomId)
-}
-
 export function coordinatorFor(topology: SonosTopology, roomId: string): SonosRoom | undefined {
   const group = topology.groups.find((candidate) =>
     candidate.rooms.some((room) => room.id === roomId),

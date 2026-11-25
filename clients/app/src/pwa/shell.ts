@@ -1,5 +1,5 @@
 export const SHELL_CACHE_PREFIX = "pyxis-shell-"
-export const NAVIGATION_NETWORK_TIMEOUT_MS = 1_500
+const NAVIGATION_NETWORK_TIMEOUT_MS = 1_500
 
 export async function navigationShellResponse(
   network: (signal: AbortSignal) => Promise<Response>,

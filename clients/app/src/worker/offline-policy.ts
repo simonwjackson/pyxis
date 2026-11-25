@@ -3,7 +3,7 @@ import type { OfflineMedia } from "./contract"
 /// Keep this much headroom before another complete audio file is committed.
 export const MIN_FREE_BYTES = 64 * 1024 * 1024
 /// Above this fill fraction the origin is under storage pressure.
-export const PRESSURE_FRACTION = 0.85
+const PRESSURE_FRACTION = 0.85
 
 export interface StorageEstimateLike {
   readonly usage?: number
