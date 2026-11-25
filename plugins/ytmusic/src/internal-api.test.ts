@@ -622,7 +622,12 @@ test("artist mixes follow header ids; playlist shuffle params stay percent-encod
     ["artist", "channel", false, "RDEMA703AE9PNaNYb3T-XAhR9g"],
     ["artist", "channel", true, "RDAOA703AE9PNaNYb3T-XAhR9g"],
     ["album", "OLAKabc", true, "OLAKabc"],
-    ["album", "OLAKabc", false, "RDAMPLOLAKabc"],
+    [
+      "album",
+      "OLAK5uy_m8Yan_MSAia_ZYmZpl6xm1AINDg8LF1NI",
+      false,
+      "RDAMPLOLAK5uy_m8Yan_MSAia_ZYmZpl6xm1AINDg8LF1NI",
+    ],
     ["playlist", "PLabc", true, "PLabc"],
     ["playlist", "PLabc", false, "RDAMPLPLabc"],
   ] as const) {
@@ -676,7 +681,10 @@ test("station pages drain the current panel before following its automix", async
 test("an artist without a radio endpoint is a typed failure", async () => {
   const { createYtMusicInternalApi } = await import("./internal-api")
   const api = createYtMusicInternalApi((async () =>
-    Response.json({ responseContext: { visitorData: "v" }, header: {} })) as typeof fetch)
+    Response.json({
+      responseContext: { visitorData: "v" },
+      header: {},
+    })) as unknown as typeof fetch)
   await expect(api.mixStation("artist", "channel", false)).rejects.toMatchObject({
     code: "ytmusic.noArtistMix",
     retryable: false,
