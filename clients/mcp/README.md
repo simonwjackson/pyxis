@@ -19,6 +19,10 @@ bun run --cwd clients/mcp start
 | `PYXIS_MCP_PORT` | `4489` | MCP listener port |
 | `PYXIS_BASE_URL` | `http://127.0.0.1:4488` | Trusted Pyxis origin, without path or credentials |
 
+The `--host` and `--port` flags override the two listener settings, as service managers pass
+them. `packages.<system>.pyxis-mcp-app` bundles the server with its tailnet sidecar,
+`pyxis-mcp-tsnet`, for a mountainous service app.
+
 `GET /healthz` returns `200` while the MCP listener is running. It does not check upstream
 health. Keep the listener on loopback behind a trusted TLS edge when serving remote agents;
 protect the MCP-to-core hop too. Requests with a browser `Origin` are not supported.
