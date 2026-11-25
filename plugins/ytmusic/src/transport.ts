@@ -105,7 +105,7 @@ export function createTransport(
       if (token) {
         url.searchParams.set("ctoken", token)
         url.searchParams.set("continuation", token)
-        url.searchParams.set("type", "next")
+        if (endpoint === "next") url.searchParams.set("type", "next")
       }
       let response: Response
       const signal = AbortSignal.timeout(Math.max(1, Math.ceil(deadline - time.now())))

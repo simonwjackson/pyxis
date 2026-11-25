@@ -1,0 +1,288 @@
+[
+  {
+    "musicResponsiveListItemRenderer": {
+      "flexColumns": [
+        {
+          "musicResponsiveListItemFlexColumnRenderer": {
+            "text": {
+              "runs": [
+                {
+                  "text": "I Hate Everything (feat. Action Bronson)",
+                  "navigationEndpoint": {
+                    "clickTrackingParams": "CO8MEMn0AhgAIhMIvazaionohAMVo1t6BR0ImgRS",
+                    "watchEndpoint": {
+                      "videoId": "3_R4ulvg8OY",
+                      "playlistId": "PLaZPMsuQNCsWn0iVMtGbaUXO6z-EdZaZm",
+                      "playerParams": "gAQBiAQB8AUB",
+                      "loggingContext": {
+                        "vssLoggingContext": {
+                          "serializedContextData": "GiJQTGFaUE1zdVFOQ3NXbjBpVk10R2JhVVhPNnotRWRaYVpt"
+                        }
+                      },
+                      "watchEndpointMusicSupportedConfigs": {
+                        "watchEndpointMusicConfig": {
+                          "musicVideoType": "MUSIC_VIDEO_TYPE_ATV"
+                        }
+                      }
+                    }
+                  }
+                }
+              ]
+            },
+            "displayPriority": "MUSIC_RESPONSIVE_LIST_ITEM_COLUMN_DISPLAY_PRIORITY_HIGH"
+          }
+        },
+        {
+          "musicResponsiveListItemFlexColumnRenderer": {
+            "text": {
+              "runs": [
+                {
+                  "text": "The Alchemist",
+                  "navigationEndpoint": {
+                    "clickTrackingParams": "CO8MEMn0AhgAIhMIvazaionohAMVo1t6BR0ImgRS",
+                    "browseEndpoint": {
+                      "browseId": "UC2Eotb0QaPkaJI4Cw4oHZ6Q",
+                      "browseEndpointContextSupportedConfigs": {
+                        "browseEndpointContextMusicConfig": {
+                          "pageType": "MUSIC_PAGE_TYPE_ARTIST"
+                        }
+                      }
+                    }
+                  }
+                }
+              ]
+            },
+            "displayPriority": "MUSIC_RESPONSIVE_LIST_ITEM_COLUMN_DISPLAY_PRIORITY_HIGH"
+          }
+        },
+        {
+          "musicResponsiveListItemFlexColumnRenderer": {
+            "text": {
+              "runs": [
+                {
+                  "text": "The Food Villain",
+                  "navigationEndpoint": {
+                    "clickTrackingParams": "CO8MEMn0AhgAIhMIvazaionohAMVo1t6BR0ImgRS",
+                    "browseEndpoint": {
+                      "browseId": "MPREb_5tjDwqVSJCv",
+                      "browseEndpointContextSupportedConfigs": {
+                        "browseEndpointContextMusicConfig": {
+                          "pageType": "MUSIC_PAGE_TYPE_ALBUM"
+                        }
+                      }
+                    }
+                  }
+                }
+              ]
+            },
+            "displayPriority": "MUSIC_RESPONSIVE_LIST_ITEM_COLUMN_DISPLAY_PRIORITY_MEDIUM"
+          }
+        }
+      ],
+      "fixedColumns": [
+        {
+          "musicResponsiveListItemFixedColumnRenderer": {
+            "text": {
+              "runs": [
+                {
+                  "text": "1:23"
+                }
+              ]
+            },
+            "displayPriority": "MUSIC_RESPONSIVE_LIST_ITEM_COLUMN_DISPLAY_PRIORITY_HIGH",
+            "size": "MUSIC_RESPONSIVE_LIST_ITEM_FIXED_COLUMN_SIZE_SMALL"
+          }
+        }
+      ],
+      "playlistItemData": {
+        "playlistSetVideoId": "56B44F6D10557CC6",
+        "videoId": "3_R4ulvg8OY"
+      }
+    }
+  },
+  {
+    "musicResponsiveListItemRenderer": {
+      "flexColumns": [
+        {
+          "musicResponsiveListItemFlexColumnRenderer": {
+            "text": {
+              "runs": [
+                {
+                  "text": "Freak Show (feat. H3artcrush)",
+                  "navigationEndpoint": {
+                    "clickTrackingParams": "CN4MEMn0AhgBIhMIvazaionohAMVo1t6BR0ImgRS",
+                    "watchEndpoint": {
+                      "videoId": "0VP_LezQ-QE",
+                      "playlistId": "PLaZPMsuQNCsWn0iVMtGbaUXO6z-EdZaZm",
+                      "playerParams": "gAQBiAQB8AUB",
+                      "loggingContext": {
+                        "vssLoggingContext": {
+                          "serializedContextData": "GiJQTGFaUE1zdVFOQ3NXbjBpVk10R2JhVVhPNnotRWRaYVpt"
+                        }
+                      },
+                      "watchEndpointMusicSupportedConfigs": {
+                        "watchEndpointMusicConfig": {
+                          "musicVideoType": "MUSIC_VIDEO_TYPE_ATV"
+                        }
+                      }
+                    }
+                  }
+                }
+              ]
+            },
+            "displayPriority": "MUSIC_RESPONSIVE_LIST_ITEM_COLUMN_DISPLAY_PRIORITY_HIGH"
+          }
+        },
+        {
+          "musicResponsiveListItemFlexColumnRenderer": {
+            "text": {
+              "runs": [
+                {
+                  "text": "Punkinloveee",
+                  "navigationEndpoint": {
+                    "clickTrackingParams": "CN4MEMn0AhgBIhMIvazaionohAMVo1t6BR0ImgRS",
+                    "browseEndpoint": {
+                      "browseId": "UC40dCrsSO4wN5Y9Q0zLYe2g",
+                      "browseEndpointContextSupportedConfigs": {
+                        "browseEndpointContextMusicConfig": {
+                          "pageType": "MUSIC_PAGE_TYPE_ARTIST"
+                        }
+                      }
+                    }
+                  }
+                }
+              ]
+            },
+            "displayPriority": "MUSIC_RESPONSIVE_LIST_ITEM_COLUMN_DISPLAY_PRIORITY_HIGH"
+          }
+        },
+        {
+          "musicResponsiveListItemFlexColumnRenderer": {
+            "text": {
+              "runs": [
+                {
+                  "text": "Freak Show",
+                  "navigationEndpoint": {
+                    "clickTrackingParams": "CN4MEMn0AhgBIhMIvazaionohAMVo1t6BR0ImgRS",
+                    "browseEndpoint": {
+                      "browseId": "MPREb_UVzUZy8bUKt",
+                      "browseEndpointContextSupportedConfigs": {
+                        "browseEndpointContextMusicConfig": {
+                          "pageType": "MUSIC_PAGE_TYPE_ALBUM"
+                        }
+                      }
+                    }
+                  }
+                }
+              ]
+            },
+            "displayPriority": "MUSIC_RESPONSIVE_LIST_ITEM_COLUMN_DISPLAY_PRIORITY_MEDIUM"
+          }
+        }
+      ],
+      "fixedColumns": [
+        {
+          "musicResponsiveListItemFixedColumnRenderer": {
+            "text": {
+              "runs": [
+                {
+                  "text": "2:06"
+                }
+              ]
+            },
+            "displayPriority": "MUSIC_RESPONSIVE_LIST_ITEM_COLUMN_DISPLAY_PRIORITY_HIGH",
+            "size": "MUSIC_RESPONSIVE_LIST_ITEM_FIXED_COLUMN_SIZE_SMALL"
+          }
+        }
+      ],
+      "playlistItemData": {
+        "playlistSetVideoId": "289F4A46DF0A30D2",
+        "videoId": "0VP_LezQ-QE"
+      }
+    }
+  },
+  {
+    "musicResponsiveListItemRenderer": {
+      "flexColumns": [
+        {
+          "musicResponsiveListItemFlexColumnRenderer": {
+            "text": {
+              "runs": [
+                {
+                  "text": "Big Big Sesh - Seshlehem",
+                  "navigationEndpoint": {
+                    "clickTrackingParams": "CLQGEMn0AhgzIhMIvazaionohAMVo1t6BR0ImgRS",
+                    "watchEndpoint": {
+                      "videoId": "TNPmfBrmlxc",
+                      "playlistId": "PLaZPMsuQNCsWn0iVMtGbaUXO6z-EdZaZm",
+                      "playerParams": "gAQBiAQB8AUB",
+                      "loggingContext": {
+                        "vssLoggingContext": {
+                          "serializedContextData": "GiJQTGFaUE1zdVFOQ3NXbjBpVk10R2JhVVhPNnotRWRaYVpt"
+                        }
+                      },
+                      "watchEndpointMusicSupportedConfigs": {
+                        "watchEndpointMusicConfig": {
+                          "musicVideoType": "MUSIC_VIDEO_TYPE_UGC"
+                        }
+                      }
+                    }
+                  }
+                }
+              ]
+            },
+            "displayPriority": "MUSIC_RESPONSIVE_LIST_ITEM_COLUMN_DISPLAY_PRIORITY_HIGH"
+          }
+        },
+        {
+          "musicResponsiveListItemFlexColumnRenderer": {
+            "text": {
+              "runs": [
+                {
+                  "text": "Seshlehem",
+                  "navigationEndpoint": {
+                    "clickTrackingParams": "CLQGEMn0AhgzIhMIvazaionohAMVo1t6BR0ImgRS",
+                    "browseEndpoint": {
+                      "browseId": "UCGE1DCR_xJO5y72HWakqnbA",
+                      "browseEndpointContextSupportedConfigs": {
+                        "browseEndpointContextMusicConfig": {
+                          "pageType": "MUSIC_PAGE_TYPE_USER_CHANNEL"
+                        }
+                      }
+                    }
+                  }
+                }
+              ]
+            },
+            "displayPriority": "MUSIC_RESPONSIVE_LIST_ITEM_COLUMN_DISPLAY_PRIORITY_HIGH"
+          }
+        },
+        {
+          "musicResponsiveListItemFlexColumnRenderer": {
+            "text": {},
+            "displayPriority": "MUSIC_RESPONSIVE_LIST_ITEM_COLUMN_DISPLAY_PRIORITY_MEDIUM"
+          }
+        }
+      ],
+      "fixedColumns": [
+        {
+          "musicResponsiveListItemFixedColumnRenderer": {
+            "text": {
+              "runs": [
+                {
+                  "text": "3:02"
+                }
+              ]
+            },
+            "displayPriority": "MUSIC_RESPONSIVE_LIST_ITEM_COLUMN_DISPLAY_PRIORITY_HIGH",
+            "size": "MUSIC_RESPONSIVE_LIST_ITEM_FIXED_COLUMN_SIZE_SMALL"
+          }
+        }
+      ],
+      "playlistItemData": {
+        "playlistSetVideoId": "138030DF486135A9",
+        "videoId": "TNPmfBrmlxc"
+      }
+    }
+  }
+]

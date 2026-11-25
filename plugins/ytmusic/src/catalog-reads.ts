@@ -13,6 +13,7 @@ import {
   parseSongSearch,
   plainRuns,
   plainRunTexts,
+  playlistSongs,
   stringAt,
   videoId,
   walk,
@@ -81,6 +82,25 @@ function releases(data: unknown, artist: string, section: string) {
   })
   return rows
 }
+type DiscographyContinuation =
+  | { kind: "grid"; endpoint: Record<string, unknown>; token: string }
+  | { kind: "body"; token: string }
+function discographyContinuation(data: unknown, endpoint: Record<string, unknown> | undefined) {
+  let gridToken: string | undefined
+  walk(data, (n) => {
+    const grid = n.gridRenderer ?? n.gridContinuation
+    const c = arrayAt(grid, ["continuations"])?.[0]
+    gridToken ??= stringAt(c, ["nextContinuationData", "continuation"])
+  })
+  if (gridToken && endpoint)
+    return JSON.stringify({
+      kind: "grid",
+      endpoint,
+      token: gridToken,
+    } satisfies DiscographyContinuation)
+  const token = continuationToken(data)
+  return token && JSON.stringify({ kind: "body", token } satisfies DiscographyContinuation)
+}
 export function catalogReads(request: Request) {
   return {
     async discography(id: string, limit: number, cursor?: string) {
@@ -99,19 +119,22 @@ export function catalogReads(request: Request) {
         if (isRecord(h)) name ??= firstText(h.title)
       })
       if (!name) throw new Error("Artist page has no artist name")
-      const data = pos.token
-        ? await request("browse", { continuation: pos.token })
-        : shelf.endpoint
-          ? await request("browse", {
-              browseId: shelf.endpoint.browseId,
-              params: shelf.endpoint.params,
-            })
-          : shelf.body
+      const resume: DiscographyContinuation | undefined = pos.token && JSON.parse(pos.token)
+      const endpoint =
+        resume?.kind === "grid"
+          ? resume.endpoint
+          : shelf.endpoint && { browseId: shelf.endpoint.browseId, params: shelf.endpoint.params }
+      const data =
+        resume?.kind === "body"
+          ? await request("browse", { continuation: resume.token })
+          : endpoint
+            ? await request("browse", endpoint, false, resume?.token)
+            : shelf.body
       const result = boundedPage(
         releases(data, name, shelf.name),
         pos,
         limit,
-        continuationToken(data),
+        discographyContinuation(data, endpoint),
       )
       const items = await Promise.all(
         result.items.map(async (row) =>
@@ -146,7 +169,7 @@ export function catalogReads(request: Request) {
           : arrayAt(n.musicPlaylistShelfRenderer, ["contents"])
       })
       if (!items) throw new Error("Playlist page contains no track shelf")
-      return boundedPage(parseSongSearch(items, Infinity), pos, limit, continuationToken(items))
+      return boundedPage(playlistSongs(items), pos, limit, continuationToken(items))
     },
     async related(id: string, limit: number, cursor?: string) {
       const pos = position(cursor)

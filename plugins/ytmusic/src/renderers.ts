@@ -169,40 +169,56 @@ export function plainRunTexts(value: unknown): readonly string[] {
   return plainRuns(value).flatMap((run) => (typeof run.text === "string" ? [run.text] : []))
 }
 
+// Search deduplicates recordings; playlists represent an ordered sequence of entries.
 export function parseSongSearch(value: unknown, limit: number): readonly YtMusicSong[] {
-  const songs = new Map<string, YtMusicSong>()
+  const seen = new Set<string>()
+  const songs: YtMusicSong[] = []
   walk(value, (record) => {
-    const renderer = record.musicResponsiveListItemRenderer
-    if (!isRecord(renderer)) return
-    const columns = arrayAt(renderer, ["flexColumns"])
-    const title = runs(columns?.[0]).find(
-      (run) => musicVideoType(run) === SONG_VIDEO_TYPE && videoId(run) !== undefined,
-    )
-    if (title === undefined || typeof title.text !== "string") return
-    const externalId = videoId(title)
-    if (externalId === undefined || songs.has(externalId)) return
-    const details = runs(columns?.[1])
-    const album = details.find((run) => pageType(run) === ALBUM_PAGE_TYPE)
-    const albumTitle = typeof album?.text === "string" ? album.text : undefined
-    const artist = songArtist(details, albumTitle)
-    if (artist === undefined) return
-    const albumExternalId = album === undefined ? undefined : browseId(album)
-    const duration = details.flatMap((run) => {
-      const parsed = typeof run.text === "string" ? durationMs(run.text) : undefined
-      return parsed === undefined ? [] : [parsed]
-    })[0]
-    const artworkUrl = largestThumbnail(renderer)
-    songs.set(externalId, {
-      externalId,
-      title: title.text,
-      artist,
-      ...(albumTitle === undefined ? {} : { album: albumTitle }),
-      ...(albumExternalId === undefined ? {} : { albumExternalId }),
-      ...(duration === undefined ? {} : { durationMs: duration }),
-      ...(artworkUrl === undefined ? {} : { artworkUrl }),
-    })
+    const song = catalogSong(record.musicResponsiveListItemRenderer)
+    if (song && !seen.has(song.externalId)) {
+      seen.add(song.externalId)
+      songs.push(song)
+    }
   })
-  return [...songs.values()].slice(0, limit)
+  return songs.slice(0, limit)
+}
+export function playlistSongs(rows: readonly unknown[]): YtMusicSong[] {
+  return rows.flatMap((row) =>
+    isRecord(row) ? (catalogSong(row.musicResponsiveListItemRenderer) ?? []) : [],
+  )
+}
+function catalogSong(renderer: unknown): YtMusicSong | undefined {
+  if (!isRecord(renderer)) return
+  const columns = arrayAt(renderer, ["flexColumns"])
+  const title = runs(columns?.[0]).find(
+    (run) => musicVideoType(run) === SONG_VIDEO_TYPE && videoId(run) !== undefined,
+  )
+  if (title === undefined || typeof title.text !== "string") return
+  const externalId = videoId(title)
+  if (externalId === undefined) return
+  const details = [
+    ...(columns?.slice(1) ?? []),
+    ...(arrayAt(renderer, ["fixedColumns"]) ?? []),
+  ].flatMap(runs)
+  const album = details.find((run) => pageType(run) === ALBUM_PAGE_TYPE)
+  const albumTitle = typeof album?.text === "string" ? album.text : undefined
+  const artist = songArtist(details, albumTitle)
+  if (artist === undefined) return
+  const albumExternalId = album === undefined ? undefined : browseId(album)
+  const duration = details.flatMap((run) => {
+    const parsed = typeof run.text === "string" ? durationMs(run.text) : undefined
+    return parsed === undefined ? [] : [parsed]
+  })[0]
+  const artworkUrl = largestThumbnail(renderer)
+  return {
+    externalId,
+    title: title.text,
+    artist,
+    ...(albumTitle === undefined ? {} : { album: albumTitle }),
+    ...(albumExternalId === undefined ? {} : { albumExternalId }),
+    ...(duration === undefined ? {} : { durationMs: duration }),
+    ...(artworkUrl === undefined ? {} : { artworkUrl }),
+  }
 }
 
 export function parseArtistSearch(value: unknown, limit: number): readonly YtMusicArtistSummary[] {

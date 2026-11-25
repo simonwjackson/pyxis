@@ -1,0 +1,286 @@
+{
+  "artist": {
+    "header": {
+      "musicImmersiveHeaderRenderer": {
+        "title": {
+          "runs": [
+            {
+              "text": "Radiohead"
+            }
+          ]
+        }
+      }
+    },
+    "musicCarouselShelfRenderer": {
+      "header": {
+        "musicCarouselShelfBasicHeaderRenderer": {
+          "title": {
+            "runs": [
+              {
+                "text": "Albums",
+                "navigationEndpoint": {
+                  "browseEndpoint": {
+                    "browseId": "MPADUCr_iyUANcn9OX_yy9piYoLw",
+                    "params": "ggMIegYIARoCAQI%3D"
+                  }
+                }
+              }
+            ]
+          }
+        }
+      }
+    }
+  },
+  "first": {
+    "gridRenderer": {
+      "items": [
+        {
+          "musicTwoRowItemRenderer": {
+            "title": {
+              "runs": [
+                {
+                  "text": "A Moon Shaped Pool",
+                  "navigationEndpoint": {
+                    "clickTrackingParams": "CKgCEKCzAhgBIhMIvtnVtceTgQMVHabYBR0HJwUx",
+                    "browseEndpoint": {
+                      "browseId": "MPREb_zwdwliUWiJm",
+                      "params": "ggMrGilPTEFLNXV5X2wySmRxUTlxLWFIU1FtUml6M05mSWtVMmtrYnhkMS1wcw%3D%3D",
+                      "browseEndpointContextSupportedConfigs": {
+                        "browseEndpointContextMusicConfig": {
+                          "pageType": "MUSIC_PAGE_TYPE_ALBUM"
+                        }
+                      }
+                    }
+                  }
+                }
+              ]
+            },
+            "navigationEndpoint": {
+              "clickTrackingParams": "CKgCEKCzAhgBIhMIvtnVtceTgQMVHabYBR0HJwUx",
+              "browseEndpoint": {
+                "browseId": "MPREb_zwdwliUWiJm",
+                "params": "ggMrGilPTEFLNXV5X2wySmRxUTlxLWFIU1FtUml6M05mSWtVMmtrYnhkMS1wcw%3D%3D",
+                "browseEndpointContextSupportedConfigs": {
+                  "browseEndpointContextMusicConfig": {
+                    "pageType": "MUSIC_PAGE_TYPE_ALBUM"
+                  }
+                }
+              }
+            },
+            "subtitle": {
+              "runs": [
+                {
+                  "text": "Album"
+                },
+                {
+                  "text": " \u2022 "
+                },
+                {
+                  "text": "2016"
+                }
+              ]
+            },
+            "thumbnailOverlay": {
+              "musicItemThumbnailOverlayRenderer": {
+                "background": {
+                  "verticalGradient": {
+                    "gradientLayerColors": ["2147483648", "0", "0"]
+                  }
+                },
+                "content": {
+                  "musicPlayButtonRenderer": {
+                    "playNavigationEndpoint": {
+                      "clickTrackingParams": "CKkCEMjeAiITCL7Z1bXHk4EDFR2m2AUdBycFMQ==",
+                      "watchEndpoint": {
+                        "videoId": "qIm0fsMo0Rg",
+                        "playlistId": "OLAK5uy_l2JdqQ9q-aHSQmRiz3NfIkU2kkbxd1-ps",
+                        "loggingContext": {
+                          "vssLoggingContext": {
+                            "serializedContextData": "GilPTEFLNXV5X2wySmRxUTlxLWFIU1FtUml6M05mSWtVMmtrYnhkMS1wcw%3D%3D"
+                          }
+                        },
+                        "watchEndpointMusicSupportedConfigs": {
+                          "watchEndpointMusicConfig": {
+                            "musicVideoType": "MUSIC_VIDEO_TYPE_ATV"
+                          }
+                        }
+                      }
+                    },
+                    "trackingParams": "CKkCEMjeAiITCL7Z1bXHk4EDFR2m2AUdBycFMQ==",
+                    "playIcon": {
+                      "iconType": "PLAY_ARROW"
+                    },
+                    "pauseIcon": {
+                      "iconType": "PAUSE"
+                    },
+                    "iconColor": 4294967295,
+                    "backgroundColor": 2566914048,
+                    "activeBackgroundColor": 4278190080,
+                    "loadingIndicatorColor": 4294901760,
+                    "playingIcon": {
+                      "iconType": "VOLUME_UP"
+                    },
+                    "iconLoadingColor": 1308622847,
+                    "activeScaleFactor": 1.2,
+                    "buttonSize": "MUSIC_PLAY_BUTTON_SIZE_MEDIUM",
+                    "rippleTarget": "MUSIC_PLAY_BUTTON_RIPPLE_TARGET_SELF",
+                    "accessibilityPlayData": {
+                      "accessibilityData": {
+                        "label": "Play A Moon Shaped Pool"
+                      }
+                    },
+                    "accessibilityPauseData": {
+                      "accessibilityData": {
+                        "label": "Pause A Moon Shaped Pool"
+                      }
+                    }
+                  }
+                },
+                "contentPosition": "MUSIC_ITEM_THUMBNAIL_OVERLAY_CONTENT_POSITION_BOTTOM_RIGHT",
+                "displayStyle": "MUSIC_ITEM_THUMBNAIL_OVERLAY_DISPLAY_STYLE_HOVER"
+              }
+            }
+          }
+        }
+      ],
+      "continuations": [
+        {
+          "nextContinuationData": {
+            "continuation": "second-grid"
+          }
+        }
+      ]
+    }
+  },
+  "second": {
+    "continuationContents": {
+      "gridContinuation": {
+        "items": [
+          {
+            "musicTwoRowItemRenderer": {
+              "title": {
+                "runs": [
+                  {
+                    "text": "KID A MNESIA",
+                    "navigationEndpoint": {
+                      "clickTrackingParams": "CDcQoLMCGAAiEwiP7pvtu4SHAxUzBoMDHRRJCwc=",
+                      "browseEndpoint": {
+                        "browseId": "MPREb_E7NpKw54NIT",
+                        "browseEndpointContextSupportedConfigs": {
+                          "browseEndpointContextMusicConfig": {
+                            "pageType": "MUSIC_PAGE_TYPE_ALBUM"
+                          }
+                        }
+                      }
+                    }
+                  }
+                ]
+              },
+              "navigationEndpoint": {
+                "clickTrackingParams": "CDcQoLMCGAAiEwiP7pvtu4SHAxUzBoMDHRRJCwc=",
+                "browseEndpoint": {
+                  "browseId": "MPREb_E7NpKw54NIT",
+                  "browseEndpointContextSupportedConfigs": {
+                    "browseEndpointContextMusicConfig": {
+                      "pageType": "MUSIC_PAGE_TYPE_ALBUM"
+                    }
+                  }
+                }
+              },
+              "subtitle": {
+                "runs": [
+                  {
+                    "text": "Album"
+                  },
+                  {
+                    "text": " \u2022 "
+                  },
+                  {
+                    "text": "Radiohead",
+                    "navigationEndpoint": {
+                      "clickTrackingParams": "CDcQoLMCGAAiEwiP7pvtu4SHAxUzBoMDHRRJCwc=",
+                      "browseEndpoint": {
+                        "browseId": "UCr_iyUANcn9OX_yy9piYoLw",
+                        "browseEndpointContextSupportedConfigs": {
+                          "browseEndpointContextMusicConfig": {
+                            "pageType": "MUSIC_PAGE_TYPE_ARTIST"
+                          }
+                        }
+                      }
+                    }
+                  },
+                  {
+                    "text": " \u2022 "
+                  },
+                  {
+                    "text": "2021"
+                  }
+                ]
+              },
+              "thumbnailOverlay": {
+                "musicItemThumbnailOverlayRenderer": {
+                  "background": {
+                    "verticalGradient": {
+                      "gradientLayerColors": ["2147483648", "0", "0"]
+                    }
+                  },
+                  "content": {
+                    "musicPlayButtonRenderer": {
+                      "playNavigationEndpoint": {
+                        "clickTrackingParams": "CDgQyN4CIhMIj-6b7buEhwMVMwaDAx0USQsH",
+                        "watchEndpoint": {
+                          "videoId": "d9zk2j3JPK4",
+                          "playlistId": "OLAK5uy_m8Yan_MSAia_ZYmZpl6xm1AINDg8LF1NI",
+                          "loggingContext": {
+                            "vssLoggingContext": {
+                              "serializedContextData": "GilPTEFLNXV5X204WWFuX01TQWlhX1pZbVpwbDZ4bTFBSU5EZzhMRjFOSQ%3D%3D"
+                            }
+                          },
+                          "watchEndpointMusicSupportedConfigs": {
+                            "watchEndpointMusicConfig": {
+                              "musicVideoType": "MUSIC_VIDEO_TYPE_ATV"
+                            }
+                          }
+                        }
+                      },
+                      "trackingParams": "CDgQyN4CIhMIj-6b7buEhwMVMwaDAx0USQsH",
+                      "playIcon": {
+                        "iconType": "PLAY_ARROW"
+                      },
+                      "pauseIcon": {
+                        "iconType": "PAUSE"
+                      },
+                      "iconColor": 4294967295,
+                      "backgroundColor": 2566914048,
+                      "activeBackgroundColor": 4278190080,
+                      "loadingIndicatorColor": 4294901760,
+                      "playingIcon": {
+                        "iconType": "VOLUME_UP"
+                      },
+                      "iconLoadingColor": 1308622847,
+                      "activeScaleFactor": 1.2,
+                      "buttonSize": "MUSIC_PLAY_BUTTON_SIZE_MEDIUM",
+                      "rippleTarget": "MUSIC_PLAY_BUTTON_RIPPLE_TARGET_SELF",
+                      "accessibilityPlayData": {
+                        "accessibilityData": {
+                          "label": "Play KID A MNESIA"
+                        }
+                      },
+                      "accessibilityPauseData": {
+                        "accessibilityData": {
+                          "label": "Pause KID A MNESIA"
+                        }
+                      }
+                    }
+                  },
+                  "contentPosition": "MUSIC_ITEM_THUMBNAIL_OVERLAY_CONTENT_POSITION_BOTTOM_RIGHT",
+                  "displayStyle": "MUSIC_ITEM_THUMBNAIL_OVERLAY_DISPLAY_STYLE_HOVER"
+                }
+              }
+            }
+          }
+        ]
+      }
+    }
+  }
+}
