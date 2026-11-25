@@ -1,0 +1,35 @@
+{
+  "next": {
+    "tabRenderer": {
+      "endpoint": {
+        "browseEndpoint": {
+          "browseId": "MPLYt_5qHogi2HE7p-1",
+          "browseEndpointContextSupportedConfigs": {
+            "browseEndpointContextMusicConfig": {
+              "pageType": "MUSIC_PAGE_TYPE_TRACK_LYRICS"
+            }
+          }
+        }
+      },
+      "title": "Lyrics"
+    }
+  },
+  "browse": {
+    "musicDescriptionShelfRenderer": {
+      "description": {
+        "runs": [
+          {
+            "text": "There was something in the air"
+          }
+        ]
+      },
+      "footer": {
+        "runs": [
+          {
+            "text": "Source: Musixmatch"
+          }
+        ]
+      }
+    }
+  }
+}

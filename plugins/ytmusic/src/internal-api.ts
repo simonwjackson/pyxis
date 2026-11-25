@@ -1,4 +1,5 @@
 import { catalogReads } from "./catalog-reads"
+import { readLyrics } from "./lyrics"
 import { boundedPage, type Page, position } from "./paging"
 import type { ReleaseType } from "./release-type"
 import {
@@ -77,6 +78,7 @@ export interface Playlist {
   artworkUrl?: string
 }
 export interface YtMusicInternalApi extends ReturnType<typeof catalogReads> {
+  lyrics(id: string): ReturnType<typeof readLyrics>
   searchPlaylists(
     query: string,
     limit: number,
@@ -119,6 +121,7 @@ export function createYtMusicInternalApi(fetcher: typeof fetch = fetch): YtMusic
   const request = createTransport(fetcher)
   return {
     ...catalogReads(request),
+    lyrics: (id) => readLyrics(request, id),
     async searchPlaylists(query, limit, exact, cursor) {
       const pos = position(cursor)
       const data = await request(

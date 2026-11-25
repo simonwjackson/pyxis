@@ -516,6 +516,21 @@ export function browseId(run: Record<string, unknown>): string | undefined {
   return stringAt(run, ["navigationEndpoint", "browseEndpoint", "browseId"])
 }
 
+/** Only image-CDN path size directives are resizable; signed video stills and
+ * arbitrary third-party URLs must survive byte for byte. s0 requests the original. */
+export function highResolutionArtwork(input: string): string {
+  if (!URL.canParse(input)) return input
+  const url = new URL(input)
+  if (
+    url.protocol !== "https:" ||
+    !/^(?:[a-z0-9-]+\.)*(?:googleusercontent\.com|ggpht\.com)$/i.test(url.hostname)
+  )
+    return input
+  const path = url.pathname.replace(/=(?:w\d+-h\d+|s\d+)(?=-|$)/u, "=s0")
+  if (path === url.pathname) return input
+  url.pathname = path
+  return url.href
+}
 export function largestThumbnail(value: Record<string, unknown>): string | undefined {
   let largest: { url: string; width: number } | undefined
   walk(value, (record) => {
@@ -523,7 +538,7 @@ export function largestThumbnail(value: Record<string, unknown>): string | undef
     if (largest === undefined || record.width > largest.width)
       largest = { url: record.url, width: record.width }
   })
-  return largest?.url
+  return largest && highResolutionArtwork(largest.url)
 }
 
 /// Every component must be digits only, because `Number` reads an empty component as zero

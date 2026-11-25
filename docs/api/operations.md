@@ -36,6 +36,7 @@ Read [README.md](README.md) first for the envelope rules, and
 | `source.artist.discography` | `source:read` | `ready`, `unsupported`, `invalid`, `unavailable` |
 | `source.playlist.tracks` | `source:read` | `ready`, `unsupported`, `invalid`, `unavailable` |
 | `source.track.details` | `source:read` | `ready`, `unsupported`, `invalid`, `unavailable` |
+| `source.track.lyrics` | `source:read` | `ready`, `unsupported`, `invalid`, `unavailable` |
 | `source.track.credits` | `source:read` | `ready`, `unsupported`, `invalid`, `unavailable` |
 | `source.track.related` | `source:read` | `ready`, `unsupported`, `invalid`, `unavailable` |
 | `source.album.search` | `source:read` | `ready`, `unavailable` |

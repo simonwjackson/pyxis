@@ -487,6 +487,22 @@
           "properties": {
             "_tag": {
               "type": "string",
+              "const": "source.track.lyrics"
+            },
+            "payload": {
+              "$ref": "#/$defs/SourceEntityRequest"
+            }
+          },
+          "required": [
+            "_tag",
+            "payload"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "_tag": {
+              "type": "string",
               "const": "source.search.run"
             },
             "payload": {
@@ -3325,6 +3341,22 @@
           "properties": {
             "_tag": {
               "type": "string",
+              "const": "source.track.lyrics"
+            },
+            "outcome": {
+              "$ref": "#/$defs/SourceReadOutcome5"
+            }
+          },
+          "required": [
+            "_tag",
+            "outcome"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "_tag": {
+              "type": "string",
               "const": "source.search.run"
             },
             "outcome": {
@@ -5973,6 +6005,143 @@
       "required": [
         "role",
         "names"
+      ]
+    },
+    "SourceReadOutcome5": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "const": "ready"
+            },
+            "value": {
+              "$ref": "#/$defs/LyricsResult"
+            }
+          },
+          "required": [
+            "status",
+            "value"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "const": "unsupported"
+            }
+          },
+          "required": [
+            "status"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "const": "invalid"
+            },
+            "value": {
+              "$ref": "#/$defs/RpcFailure"
+            }
+          },
+          "required": [
+            "status",
+            "value"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "const": "unavailable"
+            },
+            "value": {
+              "$ref": "#/$defs/RpcFailure"
+            }
+          },
+          "required": [
+            "status",
+            "value"
+          ]
+        }
+      ]
+    },
+    "LyricsResult": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "const": "found"
+            },
+            "value": {
+              "$ref": "#/$defs/TrackLyrics"
+            }
+          },
+          "required": [
+            "status",
+            "value"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "const": "notFound"
+            }
+          },
+          "required": [
+            "status"
+          ]
+        }
+      ]
+    },
+    "TrackLyrics": {
+      "type": "object",
+      "properties": {
+        "lines": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/LyricLine"
+          }
+        },
+        "attribution": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "lines"
+      ]
+    },
+    "LyricLine": {
+      "type": "object",
+      "properties": {
+        "text": {
+          "type": "string"
+        },
+        "startMs": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint32",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "text"
       ]
     },
     "SourceSearchOutcome": {

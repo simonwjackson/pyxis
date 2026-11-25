@@ -146,6 +146,30 @@ pub struct TrackCredit {
     pub role: String,
     pub names: Vec<String>,
 }
+#[typeshare]
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct LyricLine {
+    pub text: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub start_ms: Option<u32>,
+}
+#[typeshare]
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct TrackLyrics {
+    pub lines: Vec<LyricLine>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub attribution: Option<String>,
+}
+#[typeshare]
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(tag = "status", content = "value", rename_all = "camelCase")]
+pub enum LyricsResult {
+    Found(TrackLyrics),
+    NotFound,
+}
+
 /// Wire identity, not a rewrite number. Incompatible clients fail closed before writes.
 /// Persisted current-rewrite sessions default new mode fields; v1 formats are never read.
 pub const CONTRACT_ID: &str = "pyxis-rpc-v4";
@@ -2135,6 +2159,8 @@ pub enum RpcRequest {
     SourceTrackCredits(SourceEntityRequest),
     #[serde(rename = "source.playlist.tracks")]
     SourcePlaylistTracks(SourceEntityPageRequest),
+    #[serde(rename = "source.track.lyrics")]
+    SourceTrackLyrics(SourceEntityRequest),
     #[serde(rename = "source.search.run")]
     SourceSearchRun(SourceSearchRequest),
     #[serde(rename = "library.album.add")]
@@ -2265,6 +2291,8 @@ pub enum RpcResponse {
     SourceTrackCredits(SourceReadOutcome<Vec<TrackCredit>>),
     #[serde(rename = "source.playlist.tracks")]
     SourcePlaylistTracks(SourceReadOutcome<SourcePage<RpcSearchTrack>>),
+    #[serde(rename = "source.track.lyrics")]
+    SourceTrackLyrics(SourceReadOutcome<LyricsResult>),
     #[serde(rename = "source.search.run")]
     SourceSearchRun(SourceSearchOutcome),
     #[serde(rename = "library.album.add")]
@@ -2329,7 +2357,7 @@ pub enum RpcResponse {
 }
 
 impl RpcRequest {
-    pub const KNOWN_TAGS: [&'static str; 56] = [
+    pub const KNOWN_TAGS: [&'static str; 57] = [
         "system.status.get",
         "auth.device.claim",
         "auth.device.pair",
@@ -2358,6 +2386,7 @@ impl RpcRequest {
         "source.track.details",
         "source.track.credits",
         "source.playlist.tracks",
+        "source.track.lyrics",
         "source.search.run",
         "library.album.add",
         // --- library.tracks.get (U40) ---
@@ -2422,6 +2451,7 @@ impl RpcRequest {
             RpcRequest::SourceTrackDetails(_) => "source.track.details",
             RpcRequest::SourceTrackCredits(_) => "source.track.credits",
             RpcRequest::SourcePlaylistTracks(_) => "source.playlist.tracks",
+            RpcRequest::SourceTrackLyrics(_) => "source.track.lyrics",
             RpcRequest::SourceSearchRun(_) => "source.search.run",
             RpcRequest::LibraryAlbumAdd(_) => "library.album.add",
             // --- library.tracks.get (U40) ---
@@ -2520,6 +2550,7 @@ impl RpcRequest {
             | RpcRequest::SourceTrackDetails(_)
             | RpcRequest::SourceTrackCredits(_)
             | RpcRequest::SourcePlaylistTracks(_)
+            | RpcRequest::SourceTrackLyrics(_)
             | RpcRequest::SourceAlbumSearch(_)
             | RpcRequest::SourceAlbumGet(_)
             | RpcRequest::SourceStationSearch(_)
@@ -2535,7 +2566,7 @@ impl RpcRequest {
 }
 
 impl RpcResponse {
-    pub const KNOWN_OPERATION_TAGS: [&'static str; 56] = RpcRequest::KNOWN_TAGS;
+    pub const KNOWN_OPERATION_TAGS: [&'static str; 57] = RpcRequest::KNOWN_TAGS;
 
     pub fn tag(&self) -> &'static str {
         match self {
@@ -2567,6 +2598,7 @@ impl RpcResponse {
             RpcResponse::SourceTrackDetails(_) => "source.track.details",
             RpcResponse::SourceTrackCredits(_) => "source.track.credits",
             RpcResponse::SourcePlaylistTracks(_) => "source.playlist.tracks",
+            RpcResponse::SourceTrackLyrics(_) => "source.track.lyrics",
             RpcResponse::SourceSearchRun(_) => "source.search.run",
             RpcResponse::LibraryAlbumAdd(_) => "library.album.add",
             // --- library.tracks.get (U40) ---

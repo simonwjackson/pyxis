@@ -177,6 +177,11 @@ export interface ListenTrackEventInput {
 	contextId?: string;
 }
 
+export interface LyricLine {
+	text: string;
+	startMs?: number;
+}
+
 export interface RpcMatchItem {
 	id: string;
 	artist: string;
@@ -1044,6 +1049,11 @@ export interface TrackDetailsRequest {
 	externalIds: string[];
 }
 
+export interface TrackLyrics {
+	lines: LyricLine[];
+	attribution?: string;
+}
+
 export interface TracksGetRequest {
 	trackIds: string[];
 }
@@ -1136,6 +1146,10 @@ export type ListenAppendOutcome =
 export type ListenHistoryOutcome =
 	| { status: "ready", value: RpcListenEvent[] }
 	| { status: "unavailable", value: RpcFailure };
+
+export type LyricsResult =
+	| { status: "found", value: TrackLyrics }
+	| { status: "notFound", value?: undefined };
 
 export type MatchingEvaluateOutcome =
 	| { status: "ready", value: RpcMatchResult }
@@ -1238,6 +1252,7 @@ export type RpcRequest =
 	| { _tag: "source.track.details", payload: TrackDetailsRequest }
 	| { _tag: "source.track.credits", payload: SourceEntityRequest }
 	| { _tag: "source.playlist.tracks", payload: SourceEntityPageRequest }
+	| { _tag: "source.track.lyrics", payload: SourceEntityRequest }
 	| { _tag: "source.search.run", payload: SourceSearchRequest }
 	| { _tag: "library.album.add", payload: LibraryAlbumAddRequest }
 	| { _tag: "library.tracks.get", payload: TracksGetRequest }
@@ -1296,6 +1311,7 @@ export type RpcResponse =
 	| { _tag: "source.track.details", outcome: SourceReadOutcome<SourcePage<RpcSearchTrack>> }
 	| { _tag: "source.track.credits", outcome: SourceReadOutcome<TrackCredit[]> }
 	| { _tag: "source.playlist.tracks", outcome: SourceReadOutcome<SourcePage<RpcSearchTrack>> }
+	| { _tag: "source.track.lyrics", outcome: SourceReadOutcome<LyricsResult> }
 	| { _tag: "source.search.run", outcome: SourceSearchOutcome }
 	| { _tag: "library.album.add", outcome: AlbumAddOutcome }
 	| { _tag: "library.tracks.get", outcome: TracksGetOutcome }

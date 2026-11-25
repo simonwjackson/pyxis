@@ -415,3 +415,28 @@ async fn related_tracks_are_playable_but_not_saved_and_discography_pages_bind_ar
         "invalid"
     );
 }
+
+#[tokio::test]
+async fn lyrics_distinguish_plain_and_timed_lines_from_an_unsupported_source() {
+    let dir = tempfile::tempdir().unwrap();
+    let lyrics = json!({"status":"found","value":{"lines":[{"text":"plain"},{"text":"timed","startMs":320}]}});
+    let host = PluginHost::start(
+        vec![search_plugin().with_env(
+            "PYXIS_LAB_READS",
+            json!({"track.lyrics":lyrics}).to_string(),
+        )],
+        HostPolicy::default(),
+    )
+    .unwrap();
+    let app = router(AppState::open_with_plugins(Store::open(dir.path()).unwrap(), host).unwrap());
+    let token = claim(&app).await;
+    let read = |plugin: &str| json!({"_tag":"source.track.lyrics","payload":{"pluginId":plugin,"externalId":"recording"}});
+    assert_eq!(
+        rpc(&app, read("search-source"), Some(&token)).await["outcome"],
+        json!({"status":"ready","value":lyrics})
+    );
+    assert_eq!(
+        rpc(&app, read("absent"), Some(&token)).await["outcome"]["status"],
+        "unsupported"
+    );
+}

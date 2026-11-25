@@ -104,6 +104,7 @@ clients can discover them in `plugin.list.sourceOperations`.
 | `artist.discography` | `{ externalId, limit, cursor? }` → `{ items: album summaries, cursor? }` |
 | `track.related`, `playlist.tracks` | `{ externalId, limit, cursor? }` → `{ items: tracks, cursor? }` |
 | `track.details` | `{ externalIds }` (1–50 source ids) → `{ items: tracks }` |
+| `track.lyrics` | `{ externalId }` → `{ status: "notFound" }` or `{ status: "found", value: { lines: [{ text, startMs? }], attribution? } }` |
 | `track.credits` | `{ externalId }` → `[{ role, names }]` |
 | `album.get` | `{ externalId }` |
 | `stream.resolve` | `{ trackId, preferredFormats? }` |

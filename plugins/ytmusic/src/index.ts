@@ -34,6 +34,7 @@ export function createYtMusicPlugin(
           "track.related",
           "playlist.tracks",
           "track.credits",
+          "track.lyrics",
         ],
         stationSeedKinds: [
           StationSeedKind.Track,
@@ -62,6 +63,10 @@ export function createYtMusicPlugin(
           const { id, limit, cursor } = validInput(() => entityPage(input))
           const page = await providerCall(() => internalApi.related(id, limit, cursor))
           return { ...page, items: page.items.map(sourceTrack) }
+        },
+        "track.lyrics": async (input) => {
+          const id = validInput(() => externalIdOf(input))
+          return providerCall(() => internalApi.lyrics(id))
         },
         "track.credits": async (input) => {
           const id = validInput(() => externalIdOf(input))
