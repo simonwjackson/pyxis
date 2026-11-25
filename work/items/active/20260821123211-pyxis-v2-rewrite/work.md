@@ -23,13 +23,17 @@ requirements and decisions were captured directly into `plan.md` sections
 
 ## Current position
 
-**2026-11-24, next work: M15, then M13, then M14, then M10.** Two grilling sessions settled
-D26–D35. M15 (U50–U56) deletes the first-party UI, keeping the worker, rpc, pwa and the
-headless confirmed-host, and closes the VISION gaps: history ranges, station-session and capture
-events, account settings with source priority, lean-back in the worker, and session retire and
-expiry. M13 (U40–U45) and M14 (U46–U49) build the core prerequisites and the `clients/mcp`
-server. v4 with D25 is deployed on unzen (`edae24c`, includes `35585ee` and `c879ff7`). Nothing in
-M13–M15 is built yet.
+**2026-11-25, M13, M14 and M15 landed; next work: M10, then M16.** M13 (U40–U45) and M14
+(U46–U49, `clients/mcp`) landed first, from a parallel session. M15 then rebased onto them:
+U50 deleted the first-party UI (`11d5dfb`; `/` answers 404, the worker, rpc, pwa and
+confirmed-host stay); U51 added `listen.journal.list` and left v4 `listen.history.list`
+unchanged (`bebab99`); U52 added `stationSession` and `capture` journal events (`0cd767d`); U53
+added `account.settings.get/set` with source priority (`3c19127`); U55 added `session.retire`,
+the `sessionRetirements` realtime opt-in, worker schema 9 retirement markers, and expiry of
+unreachable device sessions idle more than 30 days, first sweep one hour after start
+(`b3b5704`); U54 added lean-back resume and takeover in the worker (`93e0824`); `359e6d7` made
+the MCP now-playing feed opt in to retirements. U56 (the one-time cleanup on unzen) is recorded
+in `docs/operations/`.
 
 **2026-11-24, D25: primitives-only Pyxis (`pyxis-rpc-v4`).** Placement, library groups,
 hot albums and Stacks are removed across core, contract, worker and both clients. All albums
