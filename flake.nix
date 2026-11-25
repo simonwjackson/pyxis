@@ -43,6 +43,7 @@
         mcp = import ./nix/mcp.nix { inherit pkgs mkBunDerivation; };
         plugins = import ./nix/plugins.nix { inherit pkgs mkBunDerivation; };
         tsnet = import ./nix/pyxis-tsnet.nix { inherit pkgs; };
+        mcpApp = import ./nix/mcp-app.nix { inherit pkgs mcp tsnet; };
         pyxis = import ./nix/package.nix {
           inherit pkgs core player tsnet;
           pluginYtmusic = plugins.ytmusic;
@@ -55,6 +56,7 @@
         packages = {
           inherit core client player pyxis;
           pyxis-mcp = mcp;
+          pyxis-mcp-app = mcpApp;
           plugin-ytmusic = plugins.ytmusic;
           plugin-pandora = plugins.pandora;
           plugin-sonos = plugins.sonos;
