@@ -9,7 +9,7 @@
   ],
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "test": "bun test --path-ignore-patterns='result/**' --path-ignore-patterns='clients/**' && bun run --cwd clients/app test"
+    "test": "bun test --path-ignore-patterns='result/**' --path-ignore-patterns='clients/**' && bun run --cwd clients/app test && bun run --cwd clients/mcp test"
   },
   "//proseql": "The @proseql browser packages are not installed by Bun. The published versions omit the worker WASM runtime, so they are supplied by the same Nix build that produces the Rust engine. See nix/devshell.nix and nix/client.nix.",
   "dependencies": {

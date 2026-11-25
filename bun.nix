@@ -87,11 +87,29 @@
     url = "https://registry.npmjs.org/@jridgewell/sourcemap-codec/-/sourcemap-codec-1.5.5.tgz";
     hash = "sha512-cYQ9310grqxueWbl+WuIUIaiUaDcj7WOq5fVhEljNVgRfOUhY9fy2zTvfoqWsnebh8Sl70VScFbICvJnLKB0Og==";
   };
+  "@modelcontextprotocol/core" = {
+    out_path = "@modelcontextprotocol/core";
+    name = "@modelcontextprotocol/core@2.4.0";
+    url = "https://registry.npmjs.org/@modelcontextprotocol/core/-/core-2.4.0.tgz";
+    hash = "sha512-z8QBKqdfXLPzkLQuG4xp8hrVEMm1PZ1IgxMN2sMbJiFiAKOWXnAzogXn2W4aqIBlP1ea6U5yiqVquvUNM1Cj6Q==";
+  };
+  "@modelcontextprotocol/server" = {
+    out_path = "@modelcontextprotocol/server";
+    name = "@modelcontextprotocol/server@2.4.0";
+    url = "https://registry.npmjs.org/@modelcontextprotocol/server/-/server-2.4.0.tgz";
+    hash = "sha512-rgR9yxSaAJ+bcsi/XroT/S2AfPiIWloXAnrdfYSCms9ivVju0ishu/wW0J21Ho6+ZOR1r7RyeRbjiRuF87ix5Q==";
+  };
   "@oxc-project/types" = {
     out_path = "@oxc-project/types";
     name = "@oxc-project/types@0.146.0";
     url = "https://registry.npmjs.org/@oxc-project/types/-/types-0.146.0.tgz";
     hash = "sha512-XC0QsnnhVe7sLIWmYmdPw7x5P0h4W8vUU3Nv1ySgWXtvCz8NizoAEpGXA0sOYoJQV2Rl13LgURAHQ5cI5ILCSA==";
+  };
+  "@pyxis/mcp" = {
+    out_path = "@pyxis/mcp";
+    name = "@pyxis/mcp@workspace:clients/mcp";
+    url = "https://registry.npmjs.org/@pyxis/mcp/-/mcp-workspace:clients/mcp.tgz";
+    hash = "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==";
   };
   "@pyxis/player" = {
     out_path = "@pyxis/player";
@@ -945,5 +963,11 @@
     name = "zlib@1.0.5";
     url = "https://registry.npmjs.org/zlib/-/zlib-1.0.5.tgz";
     hash = "sha512-40fpE2II+Cd3k8HWTWONfeKE2jL+P42iWJ1zzps5W51qcTsOUKM5Q5m2PFb0CLxlmFAaUuUdJGc3OfZy947v0w==";
+  };
+  "zod" = {
+    out_path = "zod";
+    name = "zod@4.6.7";
+    url = "https://registry.npmjs.org/zod/-/zod-4.6.7.tgz";
+    hash = "sha512-g8W2D2kU6a8untc053fX1uVBKzM7yqAxW/3zwk83+6RyF2+SKOuV+c0wBDhUwzV1PaGapmZH+rmcUzPf+3CGwg==";
   };
 }

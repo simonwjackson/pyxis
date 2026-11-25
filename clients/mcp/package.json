@@ -1,0 +1,14 @@
+{
+  "name": "@pyxis/mcp",
+  "version": "2.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "bun src/main.ts",
+    "test": "cargo build --locked --bin pyxis && bun test ./test"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/server": "2.4.0",
+    "zod": "^4.2.0"
+  }
+}

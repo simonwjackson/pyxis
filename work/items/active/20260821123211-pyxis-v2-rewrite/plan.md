@@ -2114,6 +2114,11 @@ client's Bearer Pyxis API token (D29), and calls Pyxis through the generated con
 Pyxis failures as MCP tool errors and exposes `system.status` as a tool. It is packaged as a flake
 output and declared as a mountainous service app on unzen (loopback backend plus tsnet sidecar).
 
+**Protocol clarification:** the published `2026-07-28` spec defines discovery, the mirrored
+headers, `UnsupportedProtocolVersionError`, MRTR and `subscriptions/listen` as planned.
+D29 is private Pyxis API-key authentication, not MCP's optional OAuth authorization profile
+(which forbids passing an OAuth access token upstream). See `clients/mcp/README.md`.
+
 **Dependencies:** D26, D29
 
 **Test scenarios:** request without a token; revoked token; version mismatch returns

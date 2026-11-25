@@ -7,6 +7,10 @@ Pyxis has two kinds of caller, and the difference matters for more than permissi
 | Device | `auth.device.claim` or `auth.device.pair` | Something a person uses, which can host playback |
 | API token | `auth.token.create` | Automation, which can never host playback |
 
+A `pyx_api_` bearer is an API credential; `pyx_dev_` marks a device credential. The
+prefix distinguishes token kinds, not valid grants. Only the core verifies a token's
+secret, scopes and revocation. Treat the remainder of the token as opaque.
+
 Only a device can create or host a session. An API token can watch and read, and can drive
 another device's session through `session.command.send` if it holds `session:control`, but
 it can never be the thing playing audio. So `session.create` and `session.command.run`

@@ -40,6 +40,7 @@
           inherit pkgs;
           proseql = proseqlPatched;
         };
+        mcp = import ./nix/mcp.nix { inherit pkgs mkBunDerivation; };
         plugins = import ./nix/plugins.nix { inherit pkgs mkBunDerivation; };
         tsnet = import ./nix/pyxis-tsnet.nix { inherit pkgs; };
         pyxis = import ./nix/package.nix {
@@ -53,6 +54,7 @@
       {
         packages = {
           inherit core client player pyxis;
+          pyxis-mcp = mcp;
           plugin-ytmusic = plugins.ytmusic;
           plugin-pandora = plugins.pandora;
           plugin-sonos = plugins.sonos;
@@ -62,6 +64,7 @@
         };
         checks = {
           inherit core client player pyxis;
+          pyxis-mcp = mcp;
           plugin-ytmusic = plugins.ytmusic;
           plugin-pandora = plugins.pandora;
           plugin-sonos = plugins.sonos;
