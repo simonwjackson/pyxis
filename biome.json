@@ -6,7 +6,7 @@
       "!!target",
       "!!node_modules",
       "!!result*",
-      "!!.cache",
+      "!!**/.cache",
       "!!.direnv",
       "!!contracts/generated",
       "!!**/dist"
