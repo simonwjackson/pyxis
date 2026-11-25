@@ -317,6 +317,8 @@ Settled. Do not re-open without the user asking.
 | D36 | Maximize YouTube Music reach after M14: port the three unported Raziel pieces (canonical OLAK album ids from `mprebToOlak`, the 429 rate limiter with exponential backoff, playlist search) and add playlist-seeded radio, artist radio, related tracks, and an artist discography read limited to albums and singles (no top songs) | User decisions, 2026-11-24 Raziel parity grilling. Raziel at `229045b` contained only search, album browse and an uncalled watch-next parser; everything beyond it is new work from documented endpoints. Cost: more dependence on an undocumented upstream API that can change without notice. |
 | D37 | M16 scope: playlist radio seeds are an album (its OLAK playlist) or a YouTube Music playlist found through playlist search; Pyxis playlists cannot seed radio. The artist discography is a read-only catalog call; albums still enter only through explicit add. Moods, genres and charts are dropped, and browse stays "not in the first release" | User decisions, 2026-11-24. Cost: no radio from a Pyxis playlist, because its core track ids have no single upstream playlist. |
 | D38 | M16 pulls in the prior-art checklist (`docs/research/2026-11-24-ytmusic-prior-art.md`), automix included. Radio: the `wAEB` and shuffle params, album, playlist and artist radio from server-issued ids, playlist and album shuffle, automix with the tuner setting, both continuation keys. Robustness: visitorData, retries with backoff, the full browser disguise, a date-based clientVersion. Paging and ids: canonical OLAK, the 2025 POST-body continuations, `music/get_queue`, and Pyxis-side cursors. Catalog: artist discography, related, credits, song details by id. Search: playlists, exact match, suggestions. Metadata: plain and synced lyrics (the `ANDROID_MUSIC` identity), high-resolution artwork, album type | User decisions, 2026-11-24 checklist. Dropped: curated mixes, the consent cookie, the version scrape, the layout canary, the HTML-scrape fallback, top songs, moods/charts, home, video search. Cost: M16 roughly doubles, and synced lyrics adds a second upstream identity that can break on its own. |
+| D39 | Stateless wherever possible, as a project-wide principle. Short-lived server state uses sealed tokens, not server memory or database rows: paging cursors, output stream tokens. Stored state is for product data and one-time records, such as pairing codes. In M16, every paged source read uses sealed cursors (U63) and Sonos stream tokens become sealed (U64) | User decision, 2026-11-24. The user asked for a reason not to be stateless, and none held. Short-lived state forces restarts to drop work, and a sealed token checks the same fences without storage. Cost: cursors get longer (YouTube continuations can be kilobytes), and rotating `credentials.key` invalidates every outstanding token. |
+| D40 | Automix is the next sealed cursor, never a chain inside the plugin. Lyrics, credits, related, suggestions and song details are source-neutral operations that sources declare under D22. Lyrics are one shape with optional per-line timestamps | User decisions, 2026-11-24. Follows D20: no provider-named contract. Cost: more contract surface, and a source that answers none of them shows empty sections. |
 
 ---
 
@@ -479,7 +481,7 @@ milestone below answers a question the user can only answer by using the thing.
 | M15 | **No UI, and the primitives match VISION** (built before M13) | U50, U51, U52, U53, U54, U55, U56 | Does Pyxis run cleanly as a service plus data plane, with a journal that answers time travel, honest source priority, lean-back as data and no stale sessions? |
 | M13 | **The core has what an agent needs** | U40, U41, U42, U43, U44, U45 | Can every MCP tool be built on public RPC alone, with names, queries, shelves, regrouping and sleep timers that tell the truth? |
 | M14 | **My agents drive Pyxis over MCP** | U46, U47, U48, U49 | Can my own agents play, queue, search, tag and run the speakers through a stateless `2026-07-28` MCP server? |
-| M16 | **YouTube Music reaches further** (after M14, before M10) | U57, U58, U59, U60, U61 | Do albums stay single, does the plugin back off politely, and can radio start from an album, a playlist or an artist? |
+| M16 | **YouTube Music reaches further** (after M14, before M10) | U63, U57, U58, U59, U60, U61, U62, U64 | Do albums stay single, does the plugin back off politely, and can radio start from an album, a playlist or an artist? |
 
 Notes on sequencing:
 
@@ -2247,6 +2249,66 @@ artist tools.
 a track with no related section.
 
 **Verification:** focused plugin and source RPC tests, contract drift.
+
+### M16 scope additions (D38–D40)
+
+These widen U57–U61; the base text above still holds where it does not conflict.
+
+- **U57** also implements the 2025 `continuationItemRenderer` POST-body paging for playlists and
+  albums, and parses both `playlistPanelVideoRenderer` shapes.
+- **U58** also bootstraps `visitorData` (an empty `browse` → `responseContext.visitorData`), sends it
+  as `X-Goog-Visitor-Id` and as `context.client.visitorData`, restores the full Firefox client and
+  header set, and derives `clientVersion` from the UTC date. Retries honour `Retry-After`.
+- **U59** also adds exact-match search (spelling correction off) and a source-neutral
+  `source.search.suggest` operation.
+- **U60** also adds playlist and album shuffle (`wAEB8gECKAE%3D`), sends `tunerSettingValue`, accepts
+  both continuation keys, and returns the automix continuation as the next sealed cursor (D40). The
+  plugin never chains batches itself.
+- **U61** also returns album type (album, single, EP), adds source-neutral song details by id and
+  credits, and uses `music/get_queue` for batch song details.
+
+### U62. Lyrics and artwork
+
+**Goal:** a source-neutral `source.track.lyrics` operation returning one lyrics shape with optional
+per-line timestamps (D40). The ytmusic plugin tries synced lyrics through an `ANDROID_MUSIC` context
+and falls back to plain lyrics from the `MPLY` tab. Artwork URLs from Google image hosts are rewritten
+to the largest size.
+
+**Dependencies:** U61
+
+**Test scenarios:** synced lyrics; plain fallback; no lyrics is an explicit miss, not an error; artwork
+rewrite leaves non-Google URLs alone.
+
+**Verification:** focused plugin and source RPC tests, contract drift.
+
+### U63. Sealed stateless cursors (runs first in M16)
+
+**Goal:** per D39, every paged source read (stations, search per kind, playlist tracks, discography,
+related, suggestions) returns a core-issued cursor that seals the plugin's continuation together with
+the account, plugin, query fingerprint and issue time. The core seals it with authenticated encryption,
+using a key derived from `credentials.key`, and drops the in-memory `CursorStore` in `stations.rs`.
+A cursor replayed for another account, plugin or query, or after its lifetime, is refused with the
+existing `unknownStation` / `invalid` outcomes.
+
+**Dependencies:** U30, D39
+
+**Test scenarios:** a cursor survives a core restart; tampering is refused; a cross-account or
+cross-query replay is refused; expiry; a multi-kilobyte plugin continuation round-trips.
+
+**Verification:** focused station and source RPC tests, contract drift.
+
+### U64. Stateless output stream tokens and leftover snapshots
+
+**Goal:** per D39, Sonos stream tokens become sealed, track-bound tokens with an expiry, replacing the
+process-local six-hour tokens, so a speaker keeps playing across a core restart. Remove any remaining
+in-memory page snapshots found by a sweep (the library group pages left with D25).
+
+**Dependencies:** U18, U63
+
+**Test scenarios:** a token survives a restart; a token for one track cannot fetch another; an expired
+token is refused; no bearer reaches the speaker.
+
+**Verification:** focused output and stream tests; a Kids Desk check with the user present.
 
 ## System-Wide Impact
 

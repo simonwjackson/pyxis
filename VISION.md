@@ -157,6 +157,7 @@ An always-on service owns accounts, library, listening history, cross-source ide
 - Any device can control another device's session.
 - The API is the product. The first-party client gets no privileged access that a third-party client cannot have.
 - Multiple accounts, with `default` working out of the box.
+- Stateless wherever possible. Short-lived state, such as paging cursors and stream tokens, travels in sealed tokens, so a restart drops nothing a caller holds. Stored state is for your data.
 
 ### State Model
 
