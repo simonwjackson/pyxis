@@ -1,7 +1,9 @@
 # Pyxis client worker API
 
-The worker is the client data plane. A UI talks only to `WorkerClient` from `client.ts`; it
-must not open IndexedDB, write Cache Storage, call sync RPCs, or invent merge rules itself.
+Pyxis supplies a headless data plane, not a player or an app shell. A host such as Vela,
+Pyxamp, or an operator-supplied browser shell decides how to present sessions and when
+to start playback. Browser hosts use `WorkerClient` from `client.ts` for local reads,
+offline writes, and sync. Leave IndexedDB, Cache Storage, and merge rules to the worker.
 
 ## Ownership
 
@@ -29,6 +31,34 @@ all account-local albums, sessions, receipts, pins, media records, and media cac
 - `offlineOverview()`
 
 These read local state only. They never wait for the network.
+
+## Lean-back: resume here or take over from another device
+
+After `worker.open()`, use `createLeanBackClient(worker)` from `client.ts`. The two reads
+are independent. Neither starts playback, moves a queue, nor creates a session.
+
+- `resumeForDevice()` returns an Effect `Option<RpcSession>` from the local store. It works
+  offline, including when the core last marked this device unreachable. It considers only
+  sessions hosted by `settings().deviceId`: playing first, then newest `updatedAt`, then
+  greatest `id` for a stable tie. `Some` contains the saved queue, cursor and `positionMs`,
+  not a request to play. Once `worker.applySessionRetirement(id)` marks an ID retired, it
+  is no longer eligible. No device ID or no matching session returns `None`.
+- `takeoverCandidates()` requires the device grant. It reads the account's current
+  `session.list`, not the cache. It returns other devices' reachable playing or paused
+  sessions. Stopped, ended and core-hosted output sessions are not candidates. The core
+  omits retired sessions. If the list cannot be read, the call rejects; that is not an
+  empty list. A host can still use the local resume result.
+- `handoff({ sessionId, targetSessionId })` is online and explicit. Pass the chosen remote
+  session's ID as `sessionId` and an empty, reachable session on this device as
+  `targetSessionId` (not a device ID). The helper returns the generated `SessionHandoffOutcome`.
+  Only `ready` means the move succeeded: its `value` is the target snapshot. Surface any
+  other status, such as `sourceUnreachable` or `targetBusy`, and handle rejected promises
+  for transport, grant or protocol errors. Nothing is queued for later handoff. Reconcile
+  via session events or `worker.syncSessions()` rather than rewriting the cached queues.
+
+The host decides whether and when to offer either action. Network calls default to same-origin
+`/rpc`. A host on another origin can pass `createSupportRpc(coreFetch)` from `../rpc/support`
+as the factory's second argument; bind `coreFetch` to the intended Pyxis origin before use.
 
 ## Sync and writes
 

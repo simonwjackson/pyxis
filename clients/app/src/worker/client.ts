@@ -19,6 +19,8 @@ import { createMemoryEngine, openWorkerDatabase } from "./database"
 import type { OfflineDownloadManager } from "./downloads"
 import { type SyncReport, type SyncScope, sync as syncDatabase } from "./sync"
 
+export { createLeanBackClient, type LeanBackClient } from "./lean-back"
+
 export type WorkerRequest = { readonly id: string; readonly accountId?: string } & (
   | { readonly _tag: "worker.open" }
   | { readonly _tag: "worker.settings.read" }
