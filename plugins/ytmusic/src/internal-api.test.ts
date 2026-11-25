@@ -1,4 +1,4 @@
-import { expect, test } from "bun:test"
+import { expect, spyOn, test } from "bun:test"
 import { radioPlaylistId } from "./internal-api"
 import {
   parseAlbum,
@@ -162,7 +162,14 @@ test("album browse parsing uses header fallback and only the deduplicated track 
     },
   }
 
-  expect(parseAlbum(response, "MPRE_album")).toEqual({
+  const warn = spyOn(console, "warn").mockImplementation(() => {})
+  const parsed = parseAlbum(response, "MPRE_album")
+  try {
+    expect(warn).toHaveBeenCalledWith("No canonical album id for MPRE_album")
+  } finally {
+    warn.mockRestore()
+  }
+  expect(parsed).toEqual({
     externalId: "MPRE_album",
     title: "Heroes",
     artist: "David Bowie",
