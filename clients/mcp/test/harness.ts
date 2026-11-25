@@ -8,12 +8,17 @@ import type { registerTools } from "../src/tools/registry"
 
 const root = fileURLToPath(new URL("../../../", import.meta.url))
 
-async function startCore(stateDir: string) {
+async function startCore(stateDir: string, loopbackMedia = false) {
   const binary = resolve(root, process.env.CARGO_TARGET_DIR ?? "target", "debug/pyxis")
   const processHandle = Bun.spawn(
     [binary, "--state-dir", stateDir, "--host", "127.0.0.1", "--port", "0"],
     {
-      env: { PATH: stateDir, HOME: stateDir, PYXIS_LOG: "info" },
+      env: {
+        PATH: stateDir,
+        HOME: stateDir,
+        PYXIS_LOG: "info",
+        ...(loopbackMedia && { PYXIS_LAN_BASE_URL: "http://127.0.0.1:0" }),
+      },
       stdout: "pipe",
       stderr: "inherit",
     },
@@ -55,6 +60,7 @@ async function startCore(stateDir: string) {
 export async function startHarness(
   options: {
     register?: typeof registerTools
+    loopbackMedia?: boolean
     scopes?: string[]
     prepareState?: (stateDir: string) => Promise<void>
   } = {},
@@ -69,7 +75,7 @@ export async function startHarness(
   }
   try {
     await options.prepareState?.(stateDir)
-    core = await startCore(stateDir)
+    core = await startCore(stateDir, options.loopbackMedia)
     const { baseUrl } = core
     const device = await new PyxisClient(baseUrl).call({
       _tag: "auth.device.claim",

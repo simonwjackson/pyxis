@@ -93,6 +93,9 @@ everything provider-shaped lives at the edge behind a plugin protocol.
 
 ### Deferred to Follow-Up Work
 
+- Output (Sonos) Play of non-library search/station candidates: `output_catalog` requires `library.get_track`.
+  U47 returns the core error; playing a song must never add it to the library.
+
 - **Station operation docs (M13 review).** The exhaustive `docs/api/operations.md` table
   predates `source.station.{list,search,create,next}` and omits them. Document the existing
   station calls and check the table against `RpcRequest::KNOWN_TAGS` in a docs follow-up.
@@ -2131,7 +2134,8 @@ succeeds with no prior call.
 
 **Goal:** the round 1 and 2 picks for playback, queue, sessions and Sonos, including
 "play this album", "play next", mute, the sleep timer (U44), takeover, rooms, room play and
-volume, stop all, grouping (U42) and handoff. Name resolution follows D30. MRTR asks before
+volume, stop all, grouping (U42) and handoff. U47 owns every tool that starts playback,
+including find and play, play a station, and start a station from a track. Name resolution follows D30. MRTR asks before
 destructive actions, takeover and ambiguous targets, and proceeds when the client cannot answer
 (D27). The queue read names every track through U40. There is no volume ceiling.
 
@@ -2147,8 +2151,8 @@ reachable match.
 
 **Goal:** library search, album detail, tags, albums by tag, recently added, paged listing,
 artist view and artwork as image content. Writes: tags, album add, bookmarks, playlists and bulk
-tags. Search across sources, album search, an in-library flag and "find and play". Stations: list,
-play, start from a track, and capture the album. History: recent, by range, top, and neglected,
+tags. Search across sources, album search and an in-library flag. Stations: list and capture the album.
+U47 owns find and play and both station playback tools. History: recent, by range, top, and neglected,
 computed in the MCP server. Organizer: snapshot, a tag plan with dry run and apply, and shelves
 (U43). "This is the wrong song" sets a match override. Nothing exposes fidelity upgrades.
 

@@ -66,3 +66,37 @@ a tool call, `RpcFailure` becomes `isError: true` with `code`, `message` and `re
    seed data with `owner.call`, send wire requests with `post`, and `await close()` in
    teardown. A suite needing real plugin fixtures can install them under `plugins/` with
    `prepareState` before boot; the default is zero plugins.
+
+## Playback tools
+
+Pass `target` as an exact session ID, a session name, or a Sonos room name/ID, in that
+order. Room tools look up rooms directly. Name matching ignores case and skips unreachable
+sessions. If several sessions match, the server proposes the most recently updated one;
+pass an ID to select another. Room playback uses the room's group. A room can have a
+core-hosted output session created on demand; the agent never hosts a session.
+
+| Tools | Use |
+|---|---|
+| `session.list`, `session.state` | Find reachable sessions and inspect one session. |
+| `playback.play`, `playback.resume`, `playback.pause`, `playback.stop`, `playback.seek` | Control the current queue; seek uses absolute `positionMs`. |
+| `playback.next`, `playback.previous` | Move one queue occurrence; continue playing only if already playing. |
+| `playback.album`, `playback.find_and_play` | Replace the queue with a library album by `albumId` or the best matching source song by `query`. |
+| `station.play`, `station.from_track` | Play one batch; supply `pluginId` and the source's `stationId` or track `externalId`. No continuous refill. |
+| `queue.get`, `queue.add`, `queue.play_next` | Read the named queue (unknown IDs remain explicit misses), append `trackIds`, or insert them after the current occurrence without starting playback. |
+| `playback.volume`, `playback.mute` | Use the full core volume range (0–100); mute sets zero. Set a new volume to unmute. |
+| `sleep.set`, `sleep.cancel`, `sleep.get` | Set exactly one of `minutes` or `at` (RFC 3339 with offset), optionally `fadeSeconds`. Read the persisted deadline or `null`. |
+| `room.list`, `room.play`, `room.volume`, `playback.takeover` | Discover Sonos topology, play a queue or `trackIds`, set group volume, or take the renderer back with Play. |
+| `room.group`, `room.ungroup` | Set the complete group (`coordinator` and `members`) or make `room` standalone. A session released by regroup keeps its queue but loses its output. |
+| `playback.stop_all`, `session.handoff` | Stop all reachable sessions (one outcome per session), or move playback `from` one device session `to` an idle one. Output handoff is not supported by Pyxis. |
+
+Stop-all, ambiguous targets, queue replacement, handoff of a queue, and regroup with
+session release use MRTR. Pyxis exposes no foreign-stream flag: even a stopped output may
+be playing another app's stream. The server therefore asks before output Play, including
+album, search and station playback. Without form support it proceeds. None of these
+confirmations bypass token scopes. Use `session:read` and `session:control` for playback,
+`library:read` for album or named queue reads, and `source:read` for search and stations.
+
+`dispatched` means the command was sent, not that a device host has confirmed the audio.
+Track selection sends clear, add and play in order; it is not a transaction. If Play fails,
+the selected queue remains. Sonos currently requires library tracks with playable candidates;
+playing a non-library search/station result returns the core error, never an implicit add.
