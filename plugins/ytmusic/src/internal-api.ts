@@ -1,3 +1,4 @@
+import { createTransport, YtMusicProviderError } from "./transport"
 export interface YtMusicAlbumSummary {
   readonly externalId: string
   readonly title: string
@@ -62,7 +63,6 @@ export function radioPlaylistId(seedVideoId: string): string {
   return `RDAMVM${seedVideoId}`
 }
 
-const CLIENT_VERSION = "1.20241023.01.00"
 /// Opaque WEB_REMIX search filters. Each restricts `/search` to one catalog result type,
 /// which is why a song query never returns ordinary uploads.
 const SONG_FILTER = "EgWKAQIIAWoQEAMQBBAJEAoQBRAREBAQFQ%3D%3D"
@@ -77,77 +77,8 @@ const ARTIST_REFERENCE = /^UC[A-Za-z0-9_-]{22}$/u
 /// The core carries durations in a u32 millisecond field, so a larger value cannot be
 /// reported. Omitting it keeps otherwise valid metadata usable.
 const MAX_DURATION_MS = 4_294_967_295
-class YtMusicProviderError extends Error {
-  readonly code: string
-  readonly retryable: boolean
-
-  constructor(code: string, message: string, retryable: boolean) {
-    super(message)
-    this.name = "YtMusicProviderError"
-    this.code = code
-    this.retryable = retryable
-  }
-}
-
-const CONTEXT = {
-  context: {
-    client: {
-      hl: "en",
-      gl: "US",
-      clientName: "WEB_REMIX",
-      clientVersion: CLIENT_VERSION,
-      platform: "DESKTOP",
-    },
-    user: { lockedSafetyMode: false },
-    request: { useSsl: true },
-  },
-}
-
 export function createYtMusicInternalApi(fetcher: typeof fetch = fetch): YtMusicInternalApi {
-  const request = async (endpoint: string, body: Record<string, unknown>): Promise<unknown> => {
-    let response: Response
-    try {
-      response = await fetcher(
-        `https://music.youtube.com/youtubei/v1/${endpoint}?prettyPrint=false`,
-        {
-          method: "POST",
-          headers: {
-            "content-type": "application/json",
-            "user-agent": "Mozilla/5.0",
-            "x-youtube-client-name": "67",
-            "x-youtube-client-version": CLIENT_VERSION,
-            origin: "https://music.youtube.com",
-          },
-          body: JSON.stringify({ ...CONTEXT, ...body }),
-          signal: AbortSignal.timeout(30_000),
-        },
-      )
-    } catch (error) {
-      throw new YtMusicProviderError(
-        "ytmusic.network",
-        error instanceof Error ? error.message : "YouTube Music request failed",
-        true,
-      )
-    }
-    if (!response.ok) {
-      const retryable = response.status === 408 || response.status === 429 || response.status >= 500
-      throw new YtMusicProviderError(
-        `ytmusic.http${response.status}`,
-        `YouTube Music ${endpoint} returned HTTP ${response.status}`,
-        retryable,
-      )
-    }
-    try {
-      return await response.json()
-    } catch (error) {
-      throw new YtMusicProviderError(
-        "ytmusic.invalidResponse",
-        error instanceof Error ? error.message : "YouTube Music returned invalid JSON",
-        false,
-      )
-    }
-  }
-
+  const request = createTransport(fetcher)
   return {
     async searchSongs(query, limit) {
       return parseSongSearch(await request("search", { query, params: SONG_FILTER }), limit)
@@ -161,17 +92,15 @@ export function createYtMusicInternalApi(fetcher: typeof fetch = fetch): YtMusic
         }),
       )
       return Promise.all(
-        albums
-          .slice(0, limit)
-          .map(async (album) => ({
-            ...album,
-            externalId: album.externalId.startsWith("OLAK")
-              ? album.externalId
-              : canonicalAlbumId(
-                  await request("browse", { browseId: album.externalId }),
-                  album.externalId,
-                ),
-          })),
+        albums.slice(0, limit).map(async (album) => ({
+          ...album,
+          externalId: album.externalId.startsWith("OLAK")
+            ? album.externalId
+            : canonicalAlbumId(
+                await request("browse", { browseId: album.externalId }),
+                album.externalId,
+              ),
+        })),
       )
     },
 

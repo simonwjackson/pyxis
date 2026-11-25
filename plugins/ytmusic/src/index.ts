@@ -12,13 +12,14 @@ import {
   type YtMusicInternalApi,
   type YtMusicSong,
 } from "./internal-api"
+import { transportSchema, withTransportConfig } from "./transport"
 import { createYtDlp, type YtDlp } from "./ytdlp"
 
 export function createYtMusicPlugin(
   ytdlp: YtDlp,
   internalApi: YtMusicInternalApi = createYtMusicInternalApi(),
 ) {
-  return definePlugin({
+  const plugin = definePlugin({
     manifest: {
       id: "ytmusic",
       name: "YouTube Music",
@@ -28,7 +29,7 @@ export function createYtMusicPlugin(
       // this source can honor. It owns no stations of its own, which is why `station.list` is
       // absent rather than answering with an empty list it would have to invent.
       source: { stationSeedKinds: [StationSeedKind.Track] },
-      configSchema: {},
+      configSchema: transportSchema,
     },
     initialize: async () => {
       await providerCall(() => ytdlp.check())
@@ -102,6 +103,12 @@ export function createYtMusicPlugin(
       },
     },
   })
+  const handlers = Object.entries(plugin.capabilities.source ?? {}).map(([name, handler]) => [
+    name,
+    (input: unknown, context: Parameters<typeof handler>[1]) =>
+      withTransportConfig(context.config, () => handler(input, context)),
+  ])
+  return { ...plugin, capabilities: { source: Object.fromEntries(handlers) } }
 }
 
 if (import.meta.main) {
