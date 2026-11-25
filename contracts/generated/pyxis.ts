@@ -632,6 +632,19 @@ export interface RpcRealtimeRemoval {
 	id: string;
 }
 
+export enum RpcSearchKind {
+	Tracks = "tracks",
+	Albums = "albums",
+	Artists = "artists",
+}
+
+export interface RpcSearchPage {
+	pluginId: string;
+	kind: RpcSearchKind;
+	/** Opaque, expiring core-issued token. Return the whole page descriptor unchanged. */
+	cursor: string;
+}
+
 export interface RpcSearchTrack {
 	id: string;
 	/**
@@ -776,6 +789,8 @@ export interface RpcSourceFailure {
  * operation is a capability boundary rather than a provider fault.
  */
 export interface RpcSourceSearchResult {
+	/** One next page per source and kind that supplied a continuation. */
+	pages?: RpcSearchPage[];
 	tracks: RpcSearchTrack[];
 	albums: RpcSourceAlbumSummary[];
 	artists: RpcSourceArtistSummary[];
@@ -810,10 +825,7 @@ export interface RpcStation {
  */
 export interface RpcStationBatch {
 	tracks: RpcSearchTrack[];
-	/**
-	 * Opaque continuation for the following batch. The core stores it and hands it back; it
-	 * never parses it.
-	 */
+	/** Opaque, expiring core-issued cursor for the next batch of this station. */
 	cursor?: string;
 	exhausted: boolean;
 }
@@ -936,6 +948,8 @@ export interface SourceAlbumSearchRequest {
 }
 
 export interface SourceSearchRequest {
+	/** Resume only this source and result kind, with the same query. Absent fans out. */
+	page?: RpcSearchPage;
 	query: string;
 	limit?: number;
 }
@@ -1344,6 +1358,7 @@ export type SourceAlbumSearchOutcome =
 
 export type SourceSearchOutcome =
 	| { status: "ready", value: RpcSourceSearchResult }
+	| { status: "invalid", value: RpcFailure }
 	| { status: "noSources", value?: undefined }
 	| { status: "unavailable", value: RpcFailure };
 

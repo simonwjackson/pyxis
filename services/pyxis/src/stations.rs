@@ -7,11 +7,6 @@
 //! This module answers "what comes next". It never plays anything. Playback authority stays
 //! with the session's host device, so fetching recommendations can never start audio.
 
-use std::collections::{HashMap, VecDeque};
-use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::{Arc, Mutex};
-use std::time::{Duration, Instant};
-
 use serde::Deserialize;
 
 use crate::accounts::AuthContext;
@@ -25,12 +20,6 @@ use crate::source_catalog::{
     PluginSearchTrack, SearchFailure, SearchTrack, SourceCatalogError,
 };
 
-/// A cursor is useless after this long. Bounding lifetime keeps a stale continuation from
-/// resuming a station a user abandoned hours ago.
-const CURSOR_TTL: Duration = Duration::from_secs(30 * 60);
-/// Bounding the store keeps a client that opens many stations from growing core memory without
-/// limit. The oldest cursor is evicted first.
-const MAX_CURSORS: usize = 512;
 const DEFAULT_BATCH_LIMIT: u32 = 25;
 const MAX_BATCH_LIMIT: u32 = 100;
 const MAX_STATION_RESULTS: usize = 1_000;
@@ -100,33 +89,12 @@ struct PluginStationBatch {
     exhausted: bool,
 }
 
-/// What the core remembers about a continuation.
-///
-/// The plugin's own cursor never reaches a client. Handing out a core-issued token is what
-/// lets the core check that a continuation is replayed by the same account, against the same
-/// source and the same station, before it is honored.
-#[derive(Debug, Clone)]
-struct CursorEntry {
-    account_id: String,
-    plugin_id: String,
-    station_id: String,
-    plugin_cursor: String,
-    issued_at: Instant,
-}
-
-#[derive(Default)]
-struct CursorStore {
-    entries: HashMap<String, CursorEntry>,
-    order: VecDeque<String>,
-}
-
 #[derive(Clone)]
 pub struct Stations {
     plugins: PluginHost,
     media: Media,
     credentials: CredentialVault,
-    cursors: Arc<Mutex<CursorStore>>,
-    sequence: Arc<AtomicU64>,
+    cursors: crate::source_cursors::SourceCursors,
 }
 
 impl Stations {
@@ -134,9 +102,8 @@ impl Stations {
         Stations {
             plugins,
             media,
+            cursors: credentials.source_cursors(),
             credentials,
-            cursors: Arc::new(Mutex::new(CursorStore::default())),
-            sequence: Arc::new(AtomicU64::new(0)),
         }
     }
 
@@ -279,9 +246,15 @@ impl Stations {
         cursor: Option<&str>,
         limit: Option<u32>,
     ) -> Result<StationNextOutcome, SourceCatalogError> {
+        let scope = self.cursors.bind(
+            &auth.account_id,
+            plugin_id,
+            "station.next",
+            &serde_json::json!(station_id),
+        );
         let plugin_cursor = match cursor {
             None => None,
-            Some(token) => match self.resolve_cursor(auth, plugin_id, station_id, token) {
+            Some(token) => match scope.open(token) {
                 Some(plugin_cursor) => Some(plugin_cursor),
                 // A cursor that does not belong to this account, source and station is refused
                 // exactly like one that never existed. Saying which of the three failed would
@@ -320,12 +293,7 @@ impl Stations {
         for track in batch.tracks.into_iter().take(bound as usize) {
             tracks.push(register_source_track(&self.media, auth, plugin_id, track)?);
         }
-        let cursor = match batch.cursor {
-            Some(plugin_cursor) if !plugin_cursor.trim().is_empty() => {
-                Some(self.issue_cursor(auth, plugin_id, station_id, plugin_cursor))
-            }
-            _ => None,
-        };
+        let cursor = scope.seal(batch.cursor)?;
         Ok(StationNextOutcome::Ready(StationBatch {
             tracks,
             cursor,
@@ -354,64 +322,6 @@ impl Stations {
                 && plugin.status == PluginStatus::Live
                 && plugin.station_seed_kinds.contains(&seed_kind)
         })
-    }
-
-    fn issue_cursor(
-        &self,
-        auth: &AuthContext,
-        plugin_id: &str,
-        station_id: &str,
-        plugin_cursor: String,
-    ) -> String {
-        let sequence = self.sequence.fetch_add(1, Ordering::Relaxed);
-        let token = blake3::hash(
-            format!(
-                "{}\0{plugin_id}\0{station_id}\0{plugin_cursor}\0{sequence}",
-                auth.account_id.as_str()
-            )
-            .as_bytes(),
-        )
-        .to_hex()
-        .to_string()[..32]
-            .to_string();
-
-        let mut store = self.cursors.lock().expect("cursor store");
-        store.entries.insert(
-            token.clone(),
-            CursorEntry {
-                account_id: auth.account_id.as_str().to_string(),
-                plugin_id: plugin_id.into(),
-                station_id: station_id.into(),
-                plugin_cursor,
-                issued_at: Instant::now(),
-            },
-        );
-        store.order.push_back(token.clone());
-        while store.order.len() > MAX_CURSORS {
-            if let Some(oldest) = store.order.pop_front() {
-                store.entries.remove(&oldest);
-            }
-        }
-        token
-    }
-
-    fn resolve_cursor(
-        &self,
-        auth: &AuthContext,
-        plugin_id: &str,
-        station_id: &str,
-        token: &str,
-    ) -> Option<String> {
-        let store = self.cursors.lock().expect("cursor store");
-        let entry = store.entries.get(token)?;
-        if entry.account_id != auth.account_id.as_str()
-            || entry.plugin_id != plugin_id
-            || entry.station_id != station_id
-            || entry.issued_at.elapsed() > CURSOR_TTL
-        {
-            return None;
-        }
-        Some(entry.plugin_cursor.clone())
     }
 }
 

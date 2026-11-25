@@ -251,3 +251,82 @@ async fn rediscovery_replaces_the_persisted_label_including_removed_fields() {
         json!({"tracks":[{"id":id,"title":"Revised title","artist":"David Bowie"}],"misses":[]})
     );
 }
+
+#[tokio::test]
+async fn search_pages_resume_only_the_issuing_plugin_kind_and_query() {
+    let source = |id| {
+        search_plugin()
+            .with_env("PYXIS_LAB_ID", id)
+            .with_env("PYXIS_LAB_ALBUM", "album|Heroes|David Bowie")
+            .with_env("PYXIS_LAB_ARTIST", "artist|David Bowie")
+            .with_env("PYXIS_LAB_CONTINUATION", "private")
+    };
+    let dir = tempfile::tempdir().unwrap();
+    let host =
+        PluginHost::start(vec![source("one"), source("two")], HostPolicy::default()).unwrap();
+    let app = router(AppState::open_with_plugins(Store::open(dir.path()).unwrap(), host).unwrap());
+    let token = claim(&app).await;
+    let first = rpc(
+        &app,
+        json!({"_tag":"source.search.run","payload":{"query":"Bowie"}}),
+        Some(&token),
+    )
+    .await;
+    let pages = first["outcome"]["value"]["pages"].as_array().unwrap();
+    assert_eq!(pages.len(), 6);
+    for page in pages {
+        let kind = page["kind"].as_str().unwrap();
+        let result = rpc(
+            &app,
+            json!({"_tag":"source.search.run","payload":{"query":"Bowie","page":page}}),
+            Some(&token),
+        )
+        .await;
+        let value = &result["outcome"]["value"];
+        assert_eq!(result["outcome"]["status"], "ready");
+        assert!(value["pages"].is_null());
+        assert_eq!(value["failures"], json!([]));
+        assert_eq!(value[kind][0]["sourcePluginId"], page["pluginId"]);
+        for section in ["albums", "artists", "tracks"] {
+            assert_eq!(
+                value[section].as_array().unwrap().len(),
+                usize::from(kind == section)
+            );
+        }
+    }
+    let issued = &pages[0];
+    let mut wrong_kind = issued.clone();
+    wrong_kind["kind"] = json!(if issued["kind"] == "tracks" {
+        "albums"
+    } else {
+        "tracks"
+    });
+    let mut wrong_source = issued.clone();
+    wrong_source["pluginId"] = json!(if issued["pluginId"] == "one" {
+        "two"
+    } else {
+        "one"
+    });
+    let mut tampered = issued.clone();
+    let token_text = issued["cursor"].as_str().unwrap();
+    let replacement = if token_text.starts_with('A') {
+        "B"
+    } else {
+        "A"
+    };
+    tampered["cursor"] = json!(format!("{replacement}{}", &token_text[1..]));
+    for (query, page) in [
+        ("Bowie", &wrong_kind),
+        ("Bowie", &wrong_source),
+        ("other", issued),
+        ("Bowie", &tampered),
+    ] {
+        let refused = rpc(
+            &app,
+            json!({"_tag":"source.search.run","payload":{"query":query,"page":page}}),
+            Some(&token),
+        )
+        .await;
+        assert_eq!(refused["outcome"]["status"], "invalid");
+    }
+}

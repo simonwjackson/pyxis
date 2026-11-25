@@ -95,9 +95,9 @@ only `search` is useful. One that implements all six is a full source.
 
 | Operation | Input |
 |---|---|
-| `search` | `{ query, limit }` |
-| `album.search` | `{ query }` |
-| `artist.search` | `{ query, limit }` |
+| `search` | `{ query, limit, cursor? }` |
+| `album.search` | `{ query, limit?, cursor? }` |
+| `artist.search` | `{ query, limit, cursor? }` |
 | `album.get` | `{ externalId }` |
 | `stream.resolve` | `{ trackId, preferredFormats? }` |
 | `stream.fetch` | `{ trackId, targetPath, preferredFormats? }` |
@@ -107,6 +107,12 @@ operation you do not implement is expected and costs nothing: the core reports t
 do answer and does not put your plugin in the result's `failures`. Answer with the SDK's
 ordinary unknown-operation outcome, which `definePlugin` produces for you by simply not
 declaring the handler.
+
+For discovery search, each kind can return an optional `cursor` string beside its
+results. Return at most `limit` items and point the cursor at the following page.
+The core seals that string for clients. On continuation the plugin receives its own
+original string, never a core token. Omit `cursor` when there is no next page.
+The plugin-scoped `source.album.search` import lookup remains a single unpaged read.
 
 Output shapes are decoded strictly. **An unknown field is rejected, and so is a missing
 required one.** Getting a field name wrong fails the whole call, so copy these exactly.

@@ -320,6 +320,25 @@ fn main() -> anyhow::Result<()> {
             )?;
             continue;
         }
+        let incoming_cursor = match &call.input {
+            PluginValue::Object(input) => input.get("cursor"),
+            _ => None,
+        };
+        // Only the exact continuation issued by this operation selects the second page.
+        if matches!(
+            call.operation.as_str(),
+            "search" | "album.search" | "artist.search"
+        ) {
+            if let Ok(prefix) = std::env::var("PYXIS_LAB_CONTINUATION") {
+                let continuation = PluginValue::String(format!("{prefix}:{}", call.operation));
+                match incoming_cursor {
+                    None => {
+                        value.insert("cursor".into(), continuation);
+                    }
+                    Some(cursor) => assert_eq!(cursor, &continuation),
+                }
+            }
+        }
         if call.operation == "search" {
             if let Ok(search) = std::env::var("PYXIS_LAB_SEARCH") {
                 let fields: Vec<_> = search.split('|').collect();
@@ -497,13 +516,10 @@ fn main() -> anyhow::Result<()> {
             }
         }
         if call.operation == "station.next" && std::env::var("PYXIS_LAB_STATION").is_ok() {
-            let incoming = match &call.input {
-                PluginValue::Object(input) => match input.get("cursor") {
-                    Some(PluginValue::String(cursor)) => Some(cursor.clone()),
-                    _ => None,
-                },
-                _ => None,
-            };
+            let continuation = PluginValue::String(
+                std::env::var("PYXIS_LAB_CONTINUATION")
+                    .unwrap_or_else(|_| "laboratory-page-2".into()),
+            );
             let tracks = copies()
                 .into_iter()
                 .map(|copy| {
@@ -524,15 +540,13 @@ fn main() -> anyhow::Result<()> {
             value.insert("tracks".into(), PluginValue::Array(tracks));
             // A first batch offers a continuation; continuing it exhausts the station. That is
             // enough to prove the core issues, binds and retires a cursor.
-            match incoming {
+            match incoming_cursor {
                 None => {
-                    value.insert(
-                        "cursor".into(),
-                        PluginValue::String("laboratory-page-2".into()),
-                    );
+                    value.insert("cursor".into(), continuation);
                     value.insert("exhausted".into(), PluginValue::Bool(false));
                 }
-                Some(_) => {
+                Some(cursor) => {
+                    assert_eq!(cursor, &continuation);
                     value.insert("exhausted".into(), PluginValue::Bool(true));
                 }
             }

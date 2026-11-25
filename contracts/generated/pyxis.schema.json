@@ -1540,6 +1540,17 @@
     "SourceSearchRequest": {
       "type": "object",
       "properties": {
+        "page": {
+          "description": "Resume only this source and result kind, with the same query. Absent fans out.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/RpcSearchPage"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "query": {
           "type": "string"
         },
@@ -1555,6 +1566,35 @@
       "additionalProperties": false,
       "required": [
         "query"
+      ]
+    },
+    "RpcSearchPage": {
+      "type": "object",
+      "properties": {
+        "pluginId": {
+          "type": "string"
+        },
+        "kind": {
+          "$ref": "#/$defs/RpcSearchKind"
+        },
+        "cursor": {
+          "description": "Opaque, expiring core-issued token. Return the whole page descriptor unchanged.",
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "pluginId",
+        "kind",
+        "cursor"
+      ]
+    },
+    "RpcSearchKind": {
+      "type": "string",
+      "enum": [
+        "tracks",
+        "albums",
+        "artists"
       ]
     },
     "LibraryAlbumAddRequest": {
@@ -5178,6 +5218,22 @@
           "properties": {
             "status": {
               "type": "string",
+              "const": "invalid"
+            },
+            "value": {
+              "$ref": "#/$defs/RpcFailure"
+            }
+          },
+          "required": [
+            "status",
+            "value"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
               "const": "noSources"
             }
           },
@@ -5207,6 +5263,16 @@
       "description": "Every kind a discovery search can return. A source that cannot answer one kind\ncontributes the kinds it can and appears in no failure, because an unimplemented\noperation is a capability boundary rather than a provider fault.",
       "type": "object",
       "properties": {
+        "pages": {
+          "description": "One next page per source and kind that supplied a continuation.",
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "$ref": "#/$defs/RpcSearchPage"
+          }
+        },
         "tracks": {
           "type": "array",
           "items": {
@@ -7033,7 +7099,7 @@
           }
         },
         "cursor": {
-          "description": "Opaque continuation for the following batch. The core stores it and hands it back; it\nnever parses it.",
+          "description": "Opaque, expiring core-issued cursor for the next batch of this station.",
           "type": [
             "string",
             "null"

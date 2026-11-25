@@ -9,6 +9,8 @@ use crate::media::{CandidateMetadata, Fidelity, Media, PluginCandidateInput};
 use crate::plugin_credentials::{CredentialError, CredentialVault};
 use crate::plugins::host::{PluginCallError, PluginHost};
 use crate::plugins::registry::PluginStatus;
+use crate::rpc::contract::{RpcSearchKind, RpcSearchPage};
+use crate::source_cursors::SourceCursors;
 
 const MAX_ALBUM_RESULTS: usize = 1_000;
 const MAX_ARTIST_RESULTS: usize = 1_000;
@@ -75,12 +77,16 @@ pub enum SearchOutcome {
         albums: Vec<CatalogAlbumSummary>,
         artists: Vec<CatalogArtistSummary>,
         failures: Vec<SearchFailure>,
+        pages: Vec<RpcSearchPage>,
     },
+    InvalidCursor,
     NoSources,
 }
 
 #[derive(Debug, thiserror::Error)]
 pub enum SourceCatalogError {
+    #[error(transparent)]
+    CursorSeal(#[from] crate::source_cursors::CursorSealError),
     #[error(transparent)]
     Media(#[from] crate::media::MediaError),
     #[error(transparent)]
@@ -94,7 +100,14 @@ pub enum SourceCatalogError {
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct PluginSearchOutput {
+    cursor: Option<String>,
     tracks: Vec<PluginSearchTrack>,
+}
+
+enum PluginSearchPage {
+    Tracks(PluginSearchOutput),
+    Albums(PluginAlbumSearchOutput),
+    Artists(PluginArtistSearchOutput),
 }
 
 /// One recording as a source plugin reports it.
@@ -119,6 +132,7 @@ pub(crate) struct PluginSearchTrack {
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct PluginArtistSearchOutput {
+    cursor: Option<String>,
     artists: Vec<PluginArtistSummary>,
 }
 
@@ -133,6 +147,7 @@ struct PluginArtistSummary {
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct PluginAlbumSearchOutput {
+    cursor: Option<String>,
     albums: Vec<PluginAlbumSummary>,
 }
 
@@ -172,6 +187,7 @@ pub struct SourceCatalog {
     plugins: PluginHost,
     media: Media,
     credentials: CredentialVault,
+    cursors: SourceCursors,
 }
 
 impl SourceCatalog {
@@ -179,6 +195,7 @@ impl SourceCatalog {
         SourceCatalog {
             plugins,
             media,
+            cursors: credentials.source_cursors(),
             credentials,
         }
     }
@@ -188,13 +205,30 @@ impl SourceCatalog {
         auth: &AuthContext,
         query: &str,
         limit: u32,
+        page: Option<&RpcSearchPage>,
     ) -> Result<SearchOutcome, SourceCatalogError> {
+        let selectors = serde_json::json!({ "query": query });
+        let continuation = if let Some(page) = page {
+            let scope = self.cursors.bind(
+                &auth.account_id,
+                &page.plugin_id,
+                page.kind.operation(),
+                &selectors,
+            );
+            let Some(continuation) = scope.open(&page.cursor) else {
+                return Ok(SearchOutcome::InvalidCursor);
+            };
+            Some(continuation)
+        } else {
+            None
+        };
         let sources: Vec<_> = self
             .plugins
             .list()
             .into_iter()
             .filter(|plugin| {
-                plugin.status == PluginStatus::Live
+                page.is_none_or(|page| page.plugin_id == plugin.id)
+                    && plugin.status == PluginStatus::Live
                     && plugin
                         .capabilities
                         .iter()
@@ -209,6 +243,7 @@ impl SourceCatalog {
         let mut albums = Vec::new();
         let mut artists = Vec::new();
         let mut failures = Vec::new();
+        let mut pages = Vec::new();
         let bound = limit as usize;
         for source in sources {
             let config = self
@@ -216,73 +251,76 @@ impl SourceCatalog {
                 .get(&auth.account_id, &source.id)?
                 .map(serde_json::Value::from);
 
-            let songs: Option<PluginSearchOutput> = self.search_kind(
-                auth,
-                &source.id,
-                "search",
-                serde_json::json!({ "query": query, "limit": limit }),
-                config.clone(),
-                &mut failures,
-            );
-            if let Some(songs) = songs {
-                for track in songs.tracks.into_iter().take(bound) {
-                    tracks.push(register_source_track(&self.media, auth, &source.id, track)?);
+            for kind in [
+                RpcSearchKind::Tracks,
+                RpcSearchKind::Albums,
+                RpcSearchKind::Artists,
+            ] {
+                if page.is_some_and(|page| page.kind != kind) {
+                    continue;
                 }
-            }
-
-            let found: Option<PluginAlbumSearchOutput> = self.search_kind(
-                auth,
-                &source.id,
-                "album.search",
-                serde_json::json!({ "query": query }),
-                config.clone(),
-                &mut failures,
-            );
-            if let Some(found) = found {
-                match validate_album_summaries(&found.albums) {
-                    Ok(()) => albums.extend(found.albums.into_iter().take(bound).map(|album| {
-                        CatalogAlbumSummary {
-                            external_id: album.external_id,
-                            title: album.title,
-                            artist: album.artist,
-                            year: album.year,
-                            artwork_url: album.artwork_url,
-                            source_plugin_id: source.id.clone(),
-                        }
-                    })),
-                    Err(error) => failures.push(SearchFailure {
-                        plugin_id: source.id.clone(),
-                        code: "plugin.invalidSearch".into(),
-                        message: error.to_string(),
-                        retryable: false,
-                    }),
+                let operation = kind.operation();
+                let mut input = selectors.clone();
+                input["limit"] = limit.into();
+                if let Some(cursor) = &continuation {
+                    input["cursor"] = serde_json::json!(cursor);
                 }
-            }
-
-            let found: Option<PluginArtistSearchOutput> = self.search_kind(
-                auth,
-                &source.id,
-                "artist.search",
-                serde_json::json!({ "query": query, "limit": limit }),
-                config,
-                &mut failures,
-            );
-            if let Some(found) = found {
-                match validate_artist_summaries(&found.artists) {
-                    Ok(()) => artists.extend(found.artists.into_iter().take(bound).map(|artist| {
-                        CatalogArtistSummary {
-                            external_id: artist.external_id,
-                            name: artist.name,
-                            artwork_url: artist.artwork_url,
-                            source_plugin_id: source.id.clone(),
+                let Some(output) =
+                    self.search_kind(auth, &source.id, kind, input, config.clone(), &mut failures)
+                else {
+                    continue;
+                };
+                let next = match output {
+                    PluginSearchPage::Tracks(output) => {
+                        for track in output.tracks.into_iter().take(bound) {
+                            tracks.push(register_source_track(
+                                &self.media,
+                                auth,
+                                &source.id,
+                                track,
+                            )?);
                         }
-                    })),
-                    Err(error) => failures.push(SearchFailure {
+                        output.cursor
+                    }
+                    PluginSearchPage::Albums(output) => {
+                        if let Err(error) = validate_album_summaries(&output.albums) {
+                            failures.push(invalid_search(&source.id, error));
+                            continue;
+                        }
+                        albums.extend(
+                            output
+                                .albums
+                                .into_iter()
+                                .take(bound)
+                                .map(|album| album.into_summary(&source.id)),
+                        );
+                        output.cursor
+                    }
+                    PluginSearchPage::Artists(output) => {
+                        if let Err(error) = validate_artist_summaries(&output.artists) {
+                            failures.push(invalid_search(&source.id, error));
+                            continue;
+                        }
+                        artists.extend(output.artists.into_iter().take(bound).map(|artist| {
+                            CatalogArtistSummary {
+                                external_id: artist.external_id,
+                                name: artist.name,
+                                artwork_url: artist.artwork_url,
+                                source_plugin_id: source.id.clone(),
+                            }
+                        }));
+                        output.cursor
+                    }
+                };
+                let scope = self
+                    .cursors
+                    .bind(&auth.account_id, &source.id, operation, &selectors);
+                if let Some(cursor) = scope.seal(next)? {
+                    pages.push(RpcSearchPage {
                         plugin_id: source.id.clone(),
-                        code: "plugin.invalidSearch".into(),
-                        message: error.to_string(),
-                        retryable: false,
-                    }),
+                        kind,
+                        cursor,
+                    });
                 }
             }
         }
@@ -291,6 +329,7 @@ impl SourceCatalog {
             tracks,
             albums,
             artists,
+            pages,
             failures,
         })
     }
@@ -298,19 +337,19 @@ impl SourceCatalog {
     /// Asks one source for one kind of result. A source that does not implement the operation
     /// contributes nothing and reports nothing: refusing an unimplemented kind is a capability
     /// boundary, and calling it a failure would put an error beside every honest result.
-    fn search_kind<T: serde::de::DeserializeOwned>(
+    fn search_kind(
         &self,
         auth: &AuthContext,
         plugin_id: &str,
-        operation: &str,
+        kind: RpcSearchKind,
         input: serde_json::Value,
         config: Option<serde_json::Value>,
         failures: &mut Vec<SearchFailure>,
-    ) -> Option<T> {
+    ) -> Option<PluginSearchPage> {
         let output = match self.plugins.call_for_account(
             plugin_id,
             "source",
-            operation,
+            kind.operation(),
             input,
             auth.account_id.as_str(),
             config,
@@ -323,15 +362,15 @@ impl SourceCatalog {
                 return None;
             }
         };
-        match serde_json::from_value(output) {
+        let decoded = match kind {
+            RpcSearchKind::Tracks => serde_json::from_value(output).map(PluginSearchPage::Tracks),
+            RpcSearchKind::Albums => serde_json::from_value(output).map(PluginSearchPage::Albums),
+            RpcSearchKind::Artists => serde_json::from_value(output).map(PluginSearchPage::Artists),
+        };
+        match decoded {
             Ok(output) => Some(output),
             Err(error) => {
-                failures.push(SearchFailure {
-                    plugin_id: plugin_id.into(),
-                    code: "plugin.invalidSearch".into(),
-                    message: error.to_string(),
-                    retryable: false,
-                });
+                failures.push(invalid_search(plugin_id, error));
                 None
             }
         }
@@ -361,14 +400,7 @@ impl SourceCatalog {
         Ok(output
             .albums
             .into_iter()
-            .map(|album| CatalogAlbumSummary {
-                external_id: album.external_id,
-                title: album.title,
-                artist: album.artist,
-                year: album.year,
-                artwork_url: album.artwork_url,
-                source_plugin_id: plugin_id.into(),
-            })
+            .map(|album| album.into_summary(plugin_id))
             .collect())
     }
 
@@ -447,6 +479,38 @@ impl SourceCatalog {
             source_plugin_id: plugin_id.into(),
             tracks,
         })
+    }
+}
+
+impl RpcSearchKind {
+    fn operation(self) -> &'static str {
+        match self {
+            Self::Tracks => "search",
+            Self::Albums => "album.search",
+            Self::Artists => "artist.search",
+        }
+    }
+}
+
+impl PluginAlbumSummary {
+    fn into_summary(self, plugin_id: &str) -> CatalogAlbumSummary {
+        CatalogAlbumSummary {
+            external_id: self.external_id,
+            title: self.title,
+            artist: self.artist,
+            year: self.year,
+            artwork_url: self.artwork_url,
+            source_plugin_id: plugin_id.into(),
+        }
+    }
+}
+
+fn invalid_search(plugin_id: &str, error: impl ToString) -> SearchFailure {
+    SearchFailure {
+        plugin_id: plugin_id.into(),
+        code: "plugin.invalidSearch".into(),
+        message: error.to_string(),
+        retryable: false,
     }
 }
 

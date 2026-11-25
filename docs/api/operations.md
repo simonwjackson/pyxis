@@ -31,7 +31,7 @@ Read [README.md](README.md) first for the envelope rules, and
 | `session.command.run` | `session:control` | `applied`, `unknownSession`, `notHost`, `notDevice`, `rejected`, `unavailable` |
 | `session.command.send` | `session:control` | `dispatched`, `unknownSession`, `unreachable`, `busy`, `hostOnly`, `unavailable` |
 | `session.handoff` | `session:control` | `ready`, `unknownSession`, `unknownTarget`, `sourceUnreachable`, `targetUnreachable`, `targetBusy`, `sameSession`, `outputUnsupported`, `unavailable` |
-| `source.search.run` | `source:read` | `ready`, `noSources`, `unavailable` |
+| `source.search.run` | `source:read` | `ready`, `noSources`, `invalid`, `unavailable` |
 | `source.album.search` | `source:read` | `ready`, `unavailable` |
 | `source.album.get` | `source:read` | `ready`, `unavailable` |
 | `library.album.add` | `library:write` | `ready`, `invalid`, `unavailable` |
@@ -92,6 +92,18 @@ The core-hosted output adapter seeks the owned stream, reads renderer position, 
 that confirmed position only after it matches within 1000 ms (Sonos whole-second resolution).
 A failed confirmation attempts an ownership-checked rollback. Rollback failure is explicit
 `output.rollbackFailed`. No physical Sonos operation was used to test this behavior.
+
+## Source paging
+
+`source.search.run {query, limit?}` searches all live sources. A source that has more
+results for a kind contributes a `{pluginId, kind, cursor}` descriptor to `pages`.
+Send one descriptor as `page` with the same query to read just that source and kind.
+No descriptor means the source offered no continuation for that kind.
+
+Search and station cursors last 30 minutes and survive a core restart with the same
+`credentials.key`. A changed account, source, query or key invalidates the cursor.
+On `invalid` (search) or `unknownStation` (station batch), start again without it.
+Treat cursors as opaque strings; they can be several kilobytes long.
 
 ## Album queries
 

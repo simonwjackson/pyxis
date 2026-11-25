@@ -68,6 +68,10 @@ impl CredentialVault {
         })
     }
 
+    pub(crate) fn source_cursors(&self) -> crate::source_cursors::SourceCursors {
+        crate::source_cursors::SourceCursors::new(&self.key)
+    }
+
     pub fn set(
         &self,
         account: &AccountId,

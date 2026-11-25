@@ -452,3 +452,32 @@ async fn a_search_result_carries_the_id_that_seeds_its_station() {
         "a station seeded from a search result must play something"
     );
 }
+
+#[tokio::test]
+async fn a_large_continuation_survives_a_core_restart() {
+    let continuation = "fixture-page-next-".repeat(512);
+    let source = || station_source("restart").with_env("PYXIS_LAB_CONTINUATION", &continuation);
+    let (app, token, dir) = app_with(vec![source()]).await;
+    let mut request = json!({"_tag":"source.station.next", "payload": {"pluginId":"restart", "stationId":"restart-station"}});
+    let first = rpc(&app, request.clone(), Some(&token)).await;
+    let cursor = first["outcome"]["value"]["cursor"].as_str().unwrap();
+    assert_ne!(cursor, continuation);
+    request["payload"]["cursor"] = json!(cursor);
+    let other = rpc(
+        &app,
+        json!({"_tag":"account.create", "payload":{"name":"Other", "deviceName":"Other"}}),
+        Some(&token),
+    )
+    .await;
+    let other_token = other["outcome"]["value"]["bearerToken"].as_str().unwrap();
+    let foreign = rpc(&app, request.clone(), Some(other_token)).await;
+    assert_eq!(foreign["outcome"]["status"], "unknownStation");
+    drop(app);
+
+    let store = Store::open(dir.path()).unwrap();
+    let host = PluginHost::start(vec![source()], HostPolicy::default()).unwrap();
+    let app = router(AppState::open_with_plugins(store, host).unwrap());
+    let second = rpc(&app, request, Some(&token)).await;
+    assert_eq!(second["outcome"]["status"], "ready");
+    assert_eq!(second["outcome"]["value"]["exhausted"], true);
+}

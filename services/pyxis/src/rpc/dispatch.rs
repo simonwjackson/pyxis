@@ -810,13 +810,21 @@ pub fn dispatch(state: &AppState, request: RpcRequest, auth: Option<AuthContext>
                 return auth_required();
             };
             let query = request.query.trim();
-            if query.is_empty() {
+            if query.is_empty() && request.page.is_none() {
                 return RpcResponse::SourceSearchRun(SourceSearchOutcome::Unavailable(
                     RpcFailure::permanent("source.invalidQuery", "search query cannot be empty"),
                 ));
             }
             let limit = request.limit.unwrap_or(10).clamp(1, 50);
-            match state.sources.search(&auth, query, limit) {
+            match state
+                .sources
+                .search(&auth, query, limit, request.page.as_ref())
+            {
+                Ok(SearchOutcome::InvalidCursor) => {
+                    RpcResponse::SourceSearchRun(SourceSearchOutcome::Invalid(
+                        RpcFailure::permanent("source.invalidCursor", "invalid search cursor"),
+                    ))
+                }
                 Ok(SearchOutcome::NoSources) => {
                     RpcResponse::SourceSearchRun(SourceSearchOutcome::NoSources)
                 }
@@ -824,9 +832,11 @@ pub fn dispatch(state: &AppState, request: RpcRequest, auth: Option<AuthContext>
                     tracks,
                     albums,
                     artists,
+                    pages,
                     failures,
                 }) => RpcResponse::SourceSearchRun(SourceSearchOutcome::Ready(
                     RpcSourceSearchResult {
+                        pages: (!pages.is_empty()).then_some(pages),
                         tracks: tracks.into_iter().map(rpc_search_track).collect(),
                         albums: albums
                             .into_iter()
@@ -2154,6 +2164,9 @@ fn source_failure(subject: &str, error: crate::source_catalog::SourceCatalogErro
                 retryable: false, ..
             } => RpcFailure::permanent(unavailable, plugin_error.to_string()),
         },
+        SourceCatalogError::CursorSeal(error) => {
+            RpcFailure::permanent(unavailable, error.to_string())
+        }
         SourceCatalogError::InvalidOutput(message) => {
             RpcFailure::permanent(invalid_output, message)
         }

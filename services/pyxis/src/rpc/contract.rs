@@ -352,9 +352,31 @@ pub struct PluginConfigRemoveRequest {
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct SourceSearchRequest {
+    /// Resume only this source and result kind, with the same query. Absent fans out.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub page: Option<RpcSearchPage>,
     pub query: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub limit: Option<u32>,
+}
+
+#[typeshare]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub enum RpcSearchKind {
+    Tracks,
+    Albums,
+    Artists,
+}
+
+#[typeshare]
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct RpcSearchPage {
+    pub plugin_id: String,
+    pub kind: RpcSearchKind,
+    /// Opaque, expiring core-issued token. Return the whole page descriptor unchanged.
+    pub cursor: String,
 }
 
 #[typeshare]
@@ -409,6 +431,9 @@ pub struct RpcSourceArtistSummary {
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct RpcSourceSearchResult {
+    /// One next page per source and kind that supplied a continuation.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub pages: Option<Vec<RpcSearchPage>>,
     pub tracks: Vec<RpcSearchTrack>,
     pub albums: Vec<RpcSourceAlbumSummary>,
     pub artists: Vec<RpcSourceArtistSummary>,
@@ -420,6 +445,7 @@ pub struct RpcSourceSearchResult {
 #[serde(tag = "status", content = "value", rename_all = "camelCase")]
 pub enum SourceSearchOutcome {
     Ready(RpcSourceSearchResult),
+    Invalid(RpcFailure),
     NoSources,
     Unavailable(RpcFailure),
 }
@@ -524,8 +550,7 @@ pub struct RpcStationSeed {
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct RpcStationBatch {
     pub tracks: Vec<RpcSearchTrack>,
-    /// Opaque continuation for the following batch. The core stores it and hands it back; it
-    /// never parses it.
+    /// Opaque, expiring core-issued cursor for the next batch of this station.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub cursor: Option<String>,
     pub exhausted: bool,

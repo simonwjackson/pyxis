@@ -21,6 +21,7 @@ pub mod rpc;
 pub mod sessions;
 pub mod settings;
 pub mod source_catalog;
+mod source_cursors;
 pub mod stations;
 pub mod stream;
 
