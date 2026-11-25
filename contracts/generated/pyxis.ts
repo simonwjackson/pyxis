@@ -65,6 +65,17 @@ export interface BookmarkCommandRequest {
 	command: RpcBookmarkCommand;
 }
 
+export enum CaptureContext {
+	StationTrack = "stationTrack",
+	Search = "search",
+	Other = "other",
+}
+
+export interface CaptureEntryContext {
+	origin: CaptureContext;
+	trackId?: string;
+}
+
 export interface CursorJumpCommand {
 	index: number;
 }
@@ -81,20 +92,18 @@ export interface DevicePairRequest {
 export interface EmptyRequest {
 }
 
-export enum JournalKind {
-	TrackPlayed = "trackPlayed",
-}
-
 export interface JournalListRequest {
 	from?: string;
 	to?: string;
 	cursor?: string;
 	limit?: number;
-	kinds?: JournalKind[];
+	kinds?: JournalEvent["kind"][];
 }
 
 export type JournalEvent =
-	| { kind: "trackPlayed", event: ListenTrackEventInput };
+	| { kind: "trackPlayed", event: ListenTrackEventInput }
+	| { kind: "stationSession", event: ListenStationSessionInput }
+	| { kind: "capture", event: ListenCaptureInput };
 
 export interface JournalPage {
 	events: JournalEvent[];
@@ -115,12 +124,39 @@ export interface LibraryTrackInput {
 }
 
 export interface LibraryAlbumAddRequest {
+	entryContext?: CaptureEntryContext;
 	title: string;
 	artist: string;
 	year?: number;
 	artworkUrl?: string;
 	sourceReference?: LibrarySourceReference;
 	tracks: LibraryTrackInput[];
+}
+
+export interface ListenCaptureInput {
+	id: string;
+	albumId: string;
+	deviceId?: string;
+	capturedAt: string;
+	entryContext: CaptureEntryContext;
+}
+
+export interface ListenEventsAppendRequest {
+	events: (ListenTrackEventInput | JournalEvent)[];
+}
+
+export interface ListenHistoryRequest {
+	limit?: number;
+}
+
+export interface ListenStationSessionInput {
+	id: string;
+	deviceId: string;
+	sourcePluginId: string;
+	stationId: string;
+	sessionId: string;
+	startedAt: string;
+	endedAt?: string;
 }
 
 export interface ListenTrackEventInput {
@@ -134,14 +170,6 @@ export interface ListenTrackEventInput {
 	completed: boolean;
 	context: string;
 	contextId?: string;
-}
-
-export interface ListenEventsAppendRequest {
-	events: ListenTrackEventInput[];
-}
-
-export interface ListenHistoryRequest {
-	limit?: number;
 }
 
 export interface RpcMatchItem {

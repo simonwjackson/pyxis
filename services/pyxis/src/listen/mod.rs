@@ -2,4 +2,4 @@
 
 pub mod events;
 
-pub use events::{AppendResult, ListenError, ListenEvent, ListenLog, TrackListenInput};
+pub use events::{AppendResult, ListenError, ListenLog, TrackListenInput};

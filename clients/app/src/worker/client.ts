@@ -3,11 +3,8 @@
 /// Requests are correlated by id so several can be in flight at once, matching how the RPC
 /// transport already behaves. A caller sees plain promises and never a message channel.
 
-import type {
-  ListenTrackEventInput,
-  RpcSession,
-  RpcSessionCommand,
-} from "../../../../contracts/generated/pyxis"
+import type { RpcSession, RpcSessionCommand } from "../../../../contracts/generated/pyxis"
+import type { ListenEventInput } from "../rpc/client"
 import { createWorkerRpc, type WorkerRpc } from "../rpc/client"
 import type {
   OfflineOverview,
@@ -52,7 +49,7 @@ export type WorkerRequest = { readonly id: string; readonly accountId?: string }
   | { readonly _tag: "worker.sync"; readonly payload: { origin?: string; scope?: SyncScope } }
   | {
       readonly _tag: "worker.queue.listen"
-      readonly payload: { event: ListenTrackEventInput }
+      readonly payload: { event: ListenEventInput }
     }
   | {
       readonly _tag: "worker.queue.session-command"
@@ -122,7 +119,7 @@ export interface WorkerClient {
     expectedRevision?: number,
   ): Promise<RpcSession>
   /// Record locally first. Sync owns network replay and idempotency.
-  queueListen(event: ListenTrackEventInput): Promise<void>
+  queueListen(event: ListenEventInput): Promise<void>
   terminate(): void
 }
 

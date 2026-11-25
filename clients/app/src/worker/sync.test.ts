@@ -7,7 +7,13 @@ import {
   type RpcSessionCommand,
   RpcTransport,
 } from "../../../../contracts/generated/pyxis"
-import { createWorkerRpc, RpcError, type WorkerRpc } from "../rpc/client"
+import {
+  createWorkerRpc,
+  type ListenEventInput,
+  listenEventId,
+  RpcError,
+  type WorkerRpc,
+} from "../rpc/client"
 import { accountFencedDatabase } from "./account-fenced-database"
 import type { WorkerAlbum, WorkerDatabase, WorkerOutboxEntry } from "./contract"
 import { createMemoryEngine, openWorkerDatabase } from "./database"
@@ -71,17 +77,17 @@ function listenWrite(id: string, trackId: string): WorkerOutboxEntry {
   return { id, createdAt: "2026-06-01", attempts: 0, kind: "listen.append", event }
 }
 
-interface FakeServer {
+interface InMemoryServer {
   rpc: WorkerRpc
   albums: Map<string, RpcLibraryAlbum>
-  listens: Map<string, ListenTrackEventInput>
+  listens: Map<string, ListenEventInput>
   offline: boolean
-  reject?: (events: readonly ListenTrackEventInput[]) => string | undefined
+  reject?: (events: readonly ListenEventInput[]) => string | undefined
   listenCalls: number
 }
 
-function server(initial: RpcLibraryAlbum[] = []): FakeServer {
-  const state: FakeServer = {
+function server(initial: RpcLibraryAlbum[] = []): InMemoryServer {
+  const state: InMemoryServer = {
     albums: new Map(initial.map((entry) => [entry.id, entry])),
     listens: new Map(),
     offline: false,
@@ -108,9 +114,9 @@ function server(initial: RpcLibraryAlbum[] = []): FakeServer {
       let accepted = 0
       let duplicates = 0
       for (const event of events) {
-        if (state.listens.has(event.id)) duplicates += 1
+        if (state.listens.has(listenEventId(event))) duplicates += 1
         else {
-          state.listens.set(event.id, event)
+          state.listens.set(listenEventId(event), event)
           accepted += 1
         }
       }
@@ -524,7 +530,9 @@ describe("a batch the server will not take", () => {
   test("isolates the rejected event and still sends the rest", async () => {
     const remote = server()
     remote.reject = (events) =>
-      events.some((event) => event.trackId === "poison") ? "invalid event" : undefined
+      events.some((event) => "trackId" in event && event.trackId === "poison")
+        ? "invalid event"
+        : undefined
     const store = await database([
       listenWrite("01A", "track-1"),
       { ...listenWrite("01B", "poison") },

@@ -8,11 +8,11 @@
 /// there lives below this line. Everything above it renders.
 
 import type {
-  ListenTrackEventInput,
   RpcLibraryAlbum,
   RpcSession,
   RpcSessionCommand,
 } from "../../../../contracts/generated/pyxis"
+import type { ListenEventInput } from "../rpc/client"
 
 /// Bumped whenever the stored shape changes. An existing database at a lower version is
 /// migrated in order. A database at a higher version belongs to a newer build, which this
@@ -154,7 +154,7 @@ export type WorkerOutboxEntry = {
 } & (
   | {
       readonly kind: "listen.append"
-      readonly event: ListenTrackEventInput
+      readonly event: ListenEventInput
     }
   | {
       readonly kind: "session.command"
@@ -297,7 +297,7 @@ export interface WorkerDatabase {
     expectedRevision?: number,
   ): Promise<WorkerSession>
   /// Preserve one completed listen for idempotent replay.
-  queueListen(event: ListenTrackEventInput): Promise<void>
+  queueListen(event: ListenEventInput): Promise<void>
   /// Queued writes in creation order.
   outbox(): Promise<readonly WorkerOutboxEntry[]>
   enqueue(entry: WorkerOutboxEntry): Promise<WorkerOutboxEntry>

@@ -126,6 +126,20 @@ pub struct Library {
     pages: Arc<Mutex<query::AlbumPages>>,
 }
 
+fn append_capture(
+    writes: &mut Vec<crate::db::store::StoreWrite>,
+    album_id: &str,
+    context: Option<(crate::rpc::contract::CaptureEntryContext, Option<&str>)>,
+    actor: &str,
+) -> Result<(), StoreError> {
+    if let Some((ctx, device)) = context {
+        writes.push(crate::listen::events::capture_write(
+            album_id, ctx, device, actor,
+        )?);
+    }
+    Ok(())
+}
+
 impl Library {
     pub fn open(store: Store) -> Self {
         Library {
@@ -142,6 +156,16 @@ impl Library {
         input: AlbumInput,
         updated_by: &str,
     ) -> Result<Album, LibraryError> {
+        self.add_album_with_context(account, input, updated_by, None)
+    }
+
+    pub fn add_album_with_context(
+        &self,
+        account: &AccountId,
+        input: AlbumInput,
+        updated_by: &str,
+        entry_context: Option<(crate::rpc::contract::CaptureEntryContext, Option<&str>)>,
+    ) -> Result<Album, LibraryError> {
         if input.title.trim().is_empty() || input.artist.trim().is_empty() {
             return Err(LibraryError::InvalidAlbum);
         }
@@ -155,6 +179,7 @@ impl Library {
                     input,
                     updated_by,
                     ArtworkUpdate::FillMissing,
+                    entry_context,
                 )?
                 .ok_or_else(|| LibraryError::Corrupt("album vanished during re-add".into()))?;
 
@@ -257,6 +282,7 @@ impl Library {
                 &record,
             )?);
         }
+        append_capture(&mut writes, &id, entry_context, updated_by)?;
         self.store.put_mixed_batch(account, &writes)?;
         if let Some(artwork_url) = artwork_url {
             self.artwork.put(
@@ -283,7 +309,14 @@ impl Library {
         updated_by: &str,
     ) -> Result<Option<Album>, LibraryError> {
         let _guard = self.mutation.lock().expect("library mutation poisoned");
-        self.refresh_existing_locked(account, album_id, input, updated_by, ArtworkUpdate::Replace)
+        self.refresh_existing_locked(
+            account,
+            album_id,
+            input,
+            updated_by,
+            ArtworkUpdate::Replace,
+            None,
+        )
     }
 
     fn refresh_existing_locked(
@@ -293,6 +326,7 @@ impl Library {
         input: AlbumInput,
         updated_by: &str,
         artwork_update: ArtworkUpdate,
+        entry_context: Option<(crate::rpc::contract::CaptureEntryContext, Option<&str>)>,
     ) -> Result<Option<Album>, LibraryError> {
         let Some(mut album) = self
             .store
@@ -355,6 +389,7 @@ impl Library {
                 aggregate_changed = true;
             }
         }
+        append_capture(&mut writes, album_id, entry_context, updated_by)?;
         if aggregate_changed {
             album.revision += 1;
             album.updated_by = updated_by.into();

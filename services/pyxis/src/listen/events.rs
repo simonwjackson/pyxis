@@ -5,11 +5,12 @@ use serde::{Deserialize, Serialize};
 use ulid::Ulid;
 
 use crate::db::schema;
-use crate::db::store::{AccountId, Store, StoreError};
-
+use crate::db::store::{AccountId, Store, StoreError, StoreWrite};
 pub use crate::rpc::contract::ListenTrackEventInput as TrackListenInput;
-pub type ListenEvent = TrackListenInput;
-use crate::rpc::contract::{JournalEvent, JournalKind};
+use crate::rpc::contract::{
+    CaptureEntryContext, JournalEvent, JournalKind, ListenCaptureInput, ListenStationSessionInput,
+};
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct AppendResult {
     pub accepted: usize,
@@ -30,14 +31,24 @@ pub enum ListenError {
     EventIdConflict(String),
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Default, Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct JournalRecord {
     pub id: String,
     pub account_id: String,
     pub kind: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub station_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub session_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ended_at: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub entry_origin: Option<crate::rpc::contract::CaptureContext>,
+
     pub happened_at: String,
-    pub device_id: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub device_id: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub track_id: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -57,6 +68,15 @@ pub(crate) struct JournalRecord {
     pub updated_at: String,
 }
 
+#[derive(Default)]
+pub struct PageQuery<'a> {
+    pub limit: usize,
+    pub from: Option<&'a str>,
+    pub to: Option<&'a str>,
+    pub cursor: Option<&'a str>,
+    pub kinds: Option<&'a [JournalKind]>,
+}
+
 #[derive(Clone)]
 pub struct ListenLog {
     store: Store,
@@ -71,46 +91,50 @@ impl ListenLog {
         }
     }
 
-    /// Each event is one durable append. A process crash can leave a batch partially
-    /// accepted, but replaying the same batch fills the remainder without duplication.
     pub fn append_batch(
         &self,
         account: &AccountId,
         events: Vec<TrackListenInput>,
         updated_by: &str,
     ) -> Result<AppendResult, ListenError> {
-        let _guard = self.append.lock().expect("listen append poisoned");
-        for event in &events {
-            validate(event)?;
-            if let Some(existing) =
-                self.store
-                    .get::<JournalRecord>(schema::LISTEN_EVENTS, account, &event.id)?
-            {
-                if input_of(&existing).as_ref() != Some(event) {
-                    return Err(ListenError::EventIdConflict(event.id.clone()));
-                }
-            }
-        }
+        self.append_events(
+            account,
+            events.into_iter().map(JournalEvent::TrackPlayed).collect(),
+            updated_by,
+        )
+    }
 
-        let mut accepted = 0;
-        let mut duplicates = 0;
+    pub fn append_events(
+        &self,
+        account: &AccountId,
+        events: Vec<JournalEvent>,
+        updated_by: &str,
+    ) -> Result<AppendResult, ListenError> {
+        let _guard = self.append.lock().expect("listen append poisoned");
+        let total = events.len();
+        let mut pending = std::collections::BTreeMap::new();
         for event in events {
-            if self
-                .store
-                .get::<JournalRecord>(schema::LISTEN_EVENTS, account, &event.id)?
-                .is_some()
-            {
-                duplicates += 1;
-                continue;
+            let row = record(event, updated_by)?;
+            let existing =
+                self.store
+                    .get::<JournalRecord>(schema::LISTEN_EVENTS, account, &row.id)?;
+            if let Some(previous) = existing.as_ref().or_else(|| pending.get(&row.id)) {
+                if event_of(previous) != event_of(&row) {
+                    return Err(ListenError::EventIdConflict(row.id));
+                }
+            } else {
+                pending.insert(row.id.clone(), row);
             }
-            let record = record(event, updated_by);
-            self.store
-                .put(schema::LISTEN_EVENTS, account, &record.id, &record)?;
-            accepted += 1;
         }
+        let accepted = pending.len();
+        self.store.put_batch(
+            schema::LISTEN_EVENTS,
+            account,
+            &pending.into_iter().collect::<Vec<_>>(),
+        )?;
         Ok(AppendResult {
             accepted,
-            duplicates,
+            duplicates: total - accepted,
         })
     }
 
@@ -118,29 +142,34 @@ impl ListenLog {
         &self,
         account: &AccountId,
         limit: usize,
-    ) -> Result<Vec<ListenEvent>, ListenError> {
+    ) -> Result<Vec<TrackListenInput>, ListenError> {
         let (events, _) = self.history_page(
             account,
-            limit,
-            None,
-            None,
-            None,
-            Some(&[JournalKind::TrackPlayed]),
+            PageQuery {
+                limit,
+                kinds: Some(&[JournalKind::TrackPlayed]),
+                ..Default::default()
+            },
         )?;
         Ok(events
             .into_iter()
-            .map(|JournalEvent::TrackPlayed(e)| e)
+            .filter_map(|row| match row {
+                JournalEvent::TrackPlayed(e) => Some(e),
+                _ => None,
+            })
             .collect())
     }
 
     pub fn history_page(
         &self,
         account: &AccountId,
-        limit: usize,
-        from: Option<&str>,
-        to: Option<&str>,
-        cursor: Option<&str>,
-        kinds: Option<&[JournalKind]>,
+        PageQuery {
+            limit,
+            from,
+            to,
+            cursor,
+            kinds,
+        }: PageQuery<'_>,
     ) -> Result<(Vec<JournalEvent>, Option<String>), ListenError> {
         let instant = |text: &str| {
             DateTime::parse_from_rfc3339(text).map_err(|_| ListenError::InvalidTime(text.into()))
@@ -170,91 +199,128 @@ impl ListenLog {
             {
                 continue;
             }
-            if kinds.is_some_and(|k| !k.contains(&JournalKind::TrackPlayed)) {
-                continue;
-            }
             if let Some(event) = event_of(&record) {
-                events.push((time, event));
+                if kinds.is_none_or(|k| k.contains(&JournalKind::from(&event))) {
+                    events.push((time, record.id, event));
+                }
             }
         }
-        events.sort_by(|(a, x), (b, y)| (b, &y.id).cmp(&(a, &x.id)));
+        events.sort_by(|(a, x, _), (b, y, _)| (b, y).cmp(&(a, x)));
         let more = events.len() > limit;
         events.truncate(limit);
-        let cursor = events.last().filter(|_| more).map(|(_, e)| e.id.clone());
-        Ok((
-            events
-                .into_iter()
-                .map(|(_, event)| JournalEvent::TrackPlayed(event))
-                .collect(),
-            cursor,
-        ))
+        let cursor = events.last().filter(|_| more).map(|(_, id, _)| id.clone());
+        Ok((events.into_iter().map(|(_, _, e)| e).collect(), cursor))
     }
 }
-
-fn validate(event: &TrackListenInput) -> Result<(), ListenError> {
-    Ulid::from_string(&event.id).map_err(|_| ListenError::InvalidEventId(event.id.clone()))?;
-    DateTime::parse_from_rfc3339(&event.listened_at)
-        .map_err(|_| ListenError::InvalidTime(event.listened_at.clone()))?;
-    Ok(())
-}
-
-fn record(event: TrackListenInput, updated_by: &str) -> JournalRecord {
-    JournalRecord {
-        id: event.id,
-        account_id: String::new(),
-        kind: "trackPlayed".into(),
-        happened_at: event.listened_at,
-        device_id: event.device_id,
-        track_id: Some(event.track_id),
-        album_id: event.album_id,
-        source_plugin_id: event.source_plugin_id,
-        played_ms: event.played_ms.map(u64::from),
-        completed: Some(event.completed),
-        context: Some(event.context),
-        context_id: event.context_id,
-        revision: 1,
-        updated_by: updated_by.into(),
-        updated_at: Utc::now().to_rfc3339_opts(SecondsFormat::Nanos, true),
+fn record(event: JournalEvent, actor: &str) -> Result<JournalRecord, ListenError> {
+    let mut row = JournalRecord::default();
+    match event {
+        JournalEvent::TrackPlayed(e) => {
+            row.kind = "trackPlayed".into();
+            row.id = e.id;
+            row.device_id = Some(e.device_id);
+            row.happened_at = e.listened_at;
+            row.track_id = Some(e.track_id);
+            row.album_id = e.album_id;
+            row.source_plugin_id = e.source_plugin_id;
+            row.completed = Some(e.completed);
+            row.context = Some(e.context);
+            row.context_id = e.context_id;
+            row.played_ms = e.played_ms.map(u64::from);
+        }
+        JournalEvent::StationSession(e) => {
+            row.kind = "stationSession".into();
+            row.id = e.id;
+            row.device_id = Some(e.device_id);
+            row.happened_at = e.started_at;
+            row.source_plugin_id = Some(e.source_plugin_id);
+            row.session_id = Some(e.session_id);
+            row.station_id = Some(e.station_id);
+            row.ended_at = e.ended_at;
+        }
+        JournalEvent::Capture(e) => {
+            row.kind = "capture".into();
+            row.id = e.id;
+            row.device_id = e.device_id;
+            row.happened_at = e.captured_at;
+            row.album_id = Some(e.album_id);
+            row.track_id = e.entry_context.track_id;
+            row.entry_origin = Some(e.entry_context.origin);
+        }
     }
+    Ulid::from_string(&row.id).map_err(|_| ListenError::InvalidEventId(row.id.clone()))?;
+    let instant = |s: &str| {
+        DateTime::parse_from_rfc3339(s).map_err(|_| ListenError::InvalidTime(s.to_string()))
+    };
+    let start = instant(&row.happened_at)?;
+    if let Some(end) = &row.ended_at {
+        if instant(end)? < start {
+            return Err(ListenError::InvalidTime(end.clone()));
+        }
+    }
+    row.updated_by = actor.into();
+    row.revision = 1;
+    row.updated_at = Utc::now().to_rfc3339_opts(SecondsFormat::Nanos, true);
+    Ok(row)
 }
 
-fn input_of(record: &JournalRecord) -> Option<TrackListenInput> {
-    Some(TrackListenInput {
-        id: record.id.clone(),
-        track_id: record.track_id.clone()?,
-        album_id: record.album_id.clone(),
-        device_id: record.device_id.clone(),
-        source_plugin_id: record.source_plugin_id.clone(),
-        listened_at: record.happened_at.clone(),
-        played_ms: record
-            .played_ms
-            .map(|n| u32::try_from(n).unwrap_or(u32::MAX)),
-        completed: record.completed.unwrap_or(false),
-        context: record.context.clone()?,
-        context_id: record.context_id.clone(),
+/// The library commits this write in the same transaction as the album add.
+pub(crate) fn capture_write(
+    album_id: &str,
+    context: CaptureEntryContext,
+    device_id: Option<&str>,
+    actor: &str,
+) -> Result<StoreWrite, StoreError> {
+    let row = record(
+        JournalEvent::Capture(ListenCaptureInput {
+            id: Ulid::new().to_string(),
+            album_id: album_id.into(),
+            device_id: device_id.map(str::to_owned),
+            captured_at: Utc::now().to_rfc3339(),
+            entry_context: context,
+        }),
+        actor,
+    )
+    .expect("server-issued id and timestamp");
+    Store::write(schema::LISTEN_EVENTS, &row.id, &row)
+}
+
+fn event_of(row: &JournalRecord) -> Option<JournalEvent> {
+    Some(match row.kind.as_str() {
+        "trackPlayed" => JournalEvent::TrackPlayed(TrackListenInput {
+            id: row.id.clone(),
+            device_id: row.device_id.clone()?,
+            track_id: row.track_id.clone()?,
+            album_id: row.album_id.clone(),
+            source_plugin_id: row.source_plugin_id.clone(),
+            listened_at: row.happened_at.clone(),
+            played_ms: row.played_ms.map(|n| u32::try_from(n).unwrap_or(u32::MAX)),
+            completed: row.completed.unwrap_or(false),
+            context: row.context.clone()?,
+            context_id: row.context_id.clone(),
+        }),
+        "stationSession" => JournalEvent::StationSession(ListenStationSessionInput {
+            id: row.id.clone(),
+            device_id: row.device_id.clone()?,
+            source_plugin_id: row.source_plugin_id.clone()?,
+            station_id: row.station_id.clone()?,
+            session_id: row.session_id.clone()?,
+            started_at: row.happened_at.clone(),
+            ended_at: row.ended_at.clone(),
+        }),
+        "capture" => JournalEvent::Capture(ListenCaptureInput {
+            id: row.id.clone(),
+            device_id: row.device_id.clone(),
+            album_id: row.album_id.clone()?,
+            captured_at: row.happened_at.clone(),
+            entry_context: CaptureEntryContext {
+                origin: row.entry_origin.clone()?,
+                track_id: row.track_id.clone(),
+            },
+        }),
+        _ => return None,
     })
 }
-
-fn event_of(record: &JournalRecord) -> Option<ListenEvent> {
-    if record.kind != "trackPlayed" {
-        return None;
-    }
-    Some(ListenEvent {
-        id: record.id.clone(),
-        track_id: record.track_id.clone()?,
-        album_id: record.album_id.clone(),
-        device_id: record.device_id.clone(),
-        source_plugin_id: record.source_plugin_id.clone(),
-        listened_at: record.happened_at.clone(),
-        played_ms: record
-            .played_ms
-            .map(|n| u32::try_from(n).unwrap_or(u32::MAX)),
-        completed: record.completed.unwrap_or(false),
-        context: record.context.clone()?,
-        context_id: record.context_id.clone(),
-    })
-}
-
 #[cfg(test)]
 mod property_tests {
     use super::*;

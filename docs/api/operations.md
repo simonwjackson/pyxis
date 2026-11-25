@@ -349,3 +349,18 @@ and restores normal gain. `armed` gives the gain, fade-start delay and time left
 At `stop`, verify that the latest timer ID still matches, stop playback, restore volume,
 and report the returned command with its `sleep:<id>` receipt. The offline report and
 the backstop use the same receipt. See the worker README for the host integration steps.
+
+### Journal event shapes
+
+`listen.events.append.events` accepts the original track-play input or a tagged journal row (the same union that `listen.journal.list` returns):
+
+```json
+{"kind":"stationSession","event":{"id":"01M0K000000000000000000001","deviceId":"phone","sourcePluginId":"radio","stationId":"jazz","sessionId":"desk","startedAt":"2026-02-02T12:00:00Z","endedAt":"2026-02-02T12:30:00Z"}}
+{"kind":"capture","event":{"id":"01M0K000000000000000000002","deviceId":"phone","albumId":"album","capturedAt":"2026-02-02T12:05:00Z","entryContext":{"origin":"stationTrack","trackId":"track"}}}
+```
+
+Omit `endedAt` if the end is unknown. An open event is not later overwritten. Journal rows sort by `listenedAt`, `startedAt`, or `capturedAt` respectively.
+Track-only `listen.history.list` never includes these new rows. `library.album.add` accepts optional `entryContext` with
+`origin` (`stationTrack`, `search`, or `other`) and optional `trackId`. With context it commits a
+capture alongside the add, including re-adds. Without context it emits no event. A token-authenticated album add records the token as
+the audit actor and omits `deviceId` from its capture.

@@ -6,7 +6,7 @@
 
 import { describe, expect, test } from "vitest"
 import type { ListenTrackEventInput, RpcLibraryAlbum } from "../../../../contracts/generated/pyxis"
-import { RpcError, type WorkerRpc } from "../rpc/client"
+import { type ListenEventInput, listenEventId, RpcError, type WorkerRpc } from "../rpc/client"
 import type { WorkerOutboxEntry } from "./contract"
 import { createMemoryEngine, openWorkerDatabase } from "./database"
 import { sync } from "./sync"
@@ -63,7 +63,7 @@ function scenario(seed: number): Scenario {
 interface Server {
   rpc: WorkerRpc
   readonly albums: Map<string, RpcLibraryAlbum>
-  readonly listens: Map<string, ListenTrackEventInput>
+  readonly listens: Map<string, ListenEventInput>
   offline: boolean
   /// Cuts the connection after this many writes have landed. This is what makes a run
   /// genuinely partial: some writes are applied, the rest stay queued.
@@ -74,7 +74,7 @@ interface Server {
 
 function server(initial: readonly RpcLibraryAlbum[]): Server {
   const albums = new Map(initial.map((entry) => [entry.id, { ...entry }]))
-  const listens = new Map<string, ListenTrackEventInput>()
+  const listens = new Map<string, ListenEventInput>()
   const state: Server = {
     albums,
     listens,
@@ -108,9 +108,9 @@ function server(initial: readonly RpcLibraryAlbum[]): Server {
       let accepted = 0
       let duplicates = 0
       for (const event of events) {
-        if (listens.has(event.id)) duplicates += 1
+        if (listens.has(listenEventId(event))) duplicates += 1
         else {
-          listens.set(event.id, event)
+          listens.set(listenEventId(event), event)
           accepted += 1
         }
       }

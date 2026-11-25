@@ -7,11 +7,17 @@ import { RPC_CONTRACT_ID } from "../../../../contracts/generated/pyxis"
 /// that rather than store it as a library.
 
 import type {
-  ListenTrackEventInput,
+  ListenEventsAppendRequest,
   RpcLibraryAlbum,
   RpcSession,
   RpcSessionCommand,
 } from "../../../../contracts/generated/pyxis"
+
+export type ListenEventInput = ListenEventsAppendRequest["events"][number]
+
+export function listenEventId(input: ListenEventInput): string {
+  return "kind" in input ? input.event.id : input.id
+}
 
 export class RpcError extends Error {
   constructor(
@@ -39,7 +45,7 @@ export interface WorkerRpc {
     commandId: string,
   ): Promise<RpcSession | undefined>
   appendListen(
-    events: readonly ListenTrackEventInput[],
+    events: readonly ListenEventInput[],
   ): Promise<{ accepted: number; duplicates: number }>
 }
 

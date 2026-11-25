@@ -5,10 +5,8 @@
 /// half a database is worse than one that refetches.
 
 import { monotonicFactory } from "ulid"
-import type {
-  ListenTrackEventInput,
-  RpcSessionCommand,
-} from "../../../../contracts/generated/pyxis"
+import type { RpcSessionCommand } from "../../../../contracts/generated/pyxis"
+import { type ListenEventInput, listenEventId } from "../rpc/client"
 import {
   type OfflineMedia,
   type OfflinePin,
@@ -796,9 +794,10 @@ class LocalWorkerDatabase implements WorkerDatabase {
     return stored
   }
 
-  async queueListen(event: ListenTrackEventInput): Promise<void> {
+  async queueListen(event: ListenEventInput): Promise<void> {
     const existing = (await this.engine.outbox.all()).find(
-      (entry) => entry.kind === "listen.append" && entry.event.id === event.id,
+      (entry) =>
+        entry.kind === "listen.append" && listenEventId(entry.event) === listenEventId(event),
     )
     if (existing !== undefined) {
       if (
@@ -807,7 +806,7 @@ class LocalWorkerDatabase implements WorkerDatabase {
       ) {
         return
       }
-      throw new Error(`listen ID ${event.id} already belongs to different content`)
+      throw new Error(`listen ID ${listenEventId(event)} already belongs to different content`)
     }
     await this.enqueue({
       id: nextOutboxId(),

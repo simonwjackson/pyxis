@@ -365,3 +365,31 @@ async fn add_tagged(
 
 #[path = "library_rpc/shelves.rs"]
 mod shelves;
+
+#[tokio::test]
+async fn only_contextual_album_adds_append_captures() {
+    let dir = tempfile::tempdir().unwrap();
+    let app = router(AppState::open(Store::open(dir.path()).unwrap()).unwrap());
+    let token = token(&app).await;
+    let mut add = add_request();
+    let first = rpc(&app, add.clone(), Some(&token)).await;
+    add["payload"]["entryContext"] = json!({"origin":"search"});
+    let grant=rpc(&app,json!({"_tag":"auth.token.create","payload":{"name":"importer","scopes":["library:write"]}}),Some(&token)).await;
+    let bearer = grant["outcome"]["value"]["bearerToken"].as_str().unwrap();
+    assert_eq!(
+        rpc(&app, add, Some(bearer)).await["outcome"]["status"],
+        "ready"
+    );
+    let history = rpc(
+        &app,
+        json!({"_tag":"listen.journal.list","payload":{}}),
+        Some(&token),
+    )
+    .await;
+    let rows = history["outcome"]["value"]["events"].as_array().unwrap();
+    assert_eq!(rows.len(), 1);
+    assert!(rows[0]["event"].get("deviceId").is_none());
+    assert_eq!(rows[0]["event"]["albumId"], first["outcome"]["value"]["id"]);
+    assert_eq!(rows[0]["kind"], "capture");
+    assert_eq!(rows[0]["event"]["entryContext"], json!({"origin":"search"}));
+}

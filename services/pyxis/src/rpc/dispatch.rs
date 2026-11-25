@@ -7,6 +7,8 @@
 mod sleep;
 pub use sleep::SleepLane;
 
+
+use super::contract::{JournalEvent, ListenEventInput};
 use crate::accounts::{
     Account, AccountError, ApiTokenGrant, AuthContext, AuthGrant, ClaimOutcome, PairOutcome,
     Principal,
@@ -15,7 +17,7 @@ use crate::api::AppState;
 use crate::library::{
     Album, AlbumInput, Bookmark, LibraryError, Playlist, PlaylistInput, SourceReference, TrackInput,
 };
-use crate::listen::{ListenError, TrackListenInput};
+use crate::listen::ListenError;
 use crate::matching::{Decision, MatchItem, OverrideDecision};
 use crate::output_catalog::{OutputError, OutputTopology};
 use crate::rpc::contract::{
@@ -832,10 +834,20 @@ pub fn dispatch(state: &AppState, request: RpcRequest, auth: Option<AuthContext>
                     })
                     .collect(),
             };
-            match state
-                .library
-                .add_album(&auth.account_id, input, auth.principal_id())
-            {
+            match state.library.add_album_with_context(
+                &auth.account_id,
+                input,
+                auth.principal_id(),
+                request.entry_context.map(|ctx| {
+                    (
+                        ctx,
+                        match &auth.principal {
+                            Principal::Device { id } => Some(id.as_str()),
+                            Principal::ApiToken { .. } => None,
+                        },
+                    )
+                }),
+            ) {
                 Ok(album) => {
                     let album = rpc_album(album);
                     publish_album(state, &auth, &album);
@@ -1194,35 +1206,20 @@ pub fn dispatch(state: &AppState, request: RpcRequest, auth: Option<AuthContext>
             let Some(auth) = auth else {
                 return auth_required();
             };
-            if let Principal::Device { id } = &auth.principal {
-                if request.events.iter().any(|event| &event.device_id != id) {
-                    return RpcResponse::ListenEventsAppend(ListenAppendOutcome::Invalid(
-                        RpcFailure::permanent(
-                            "listen.deviceMismatch",
-                            "a device token can only append its own events",
-                        ),
-                    ));
-                }
-            }
-            let events = request
+            let events: Vec<_> = request
                 .events
                 .into_iter()
-                .map(|event| TrackListenInput {
-                    id: event.id,
-                    track_id: event.track_id,
-                    album_id: event.album_id,
-                    device_id: event.device_id,
-                    source_plugin_id: event.source_plugin_id,
-                    listened_at: event.listened_at,
-                    played_ms: event.played_ms,
-                    completed: event.completed,
-                    context: event.context,
-                    context_id: event.context_id,
+                .map(|e| match e {
+                    ListenEventInput::Track(t) => JournalEvent::TrackPlayed(t),
+                    ListenEventInput::Journal(row) => row,
                 })
                 .collect();
+            if let Principal::Device { id } = &auth.principal {
+                if events.iter().any(|row|match row {JournalEvent::TrackPlayed(e)=>Some(&e.device_id),JournalEvent::StationSession(e)=>Some(&e.device_id),JournalEvent::Capture(e)=>e.device_id.as_ref()}!=Some(id)) {return RpcResponse::ListenEventsAppend(ListenAppendOutcome::Invalid(RpcFailure::permanent("listen.deviceMismatch","a device token can only append its own events")));}
+            }
             match state
                 .listen
-                .append_batch(&auth.account_id, events, auth.principal_id())
+                .append_events(&auth.account_id, events, auth.principal_id())
             {
                 Ok(result) => RpcResponse::ListenEventsAppend(ListenAppendOutcome::Ready(
                     RpcListenAppendResult {
@@ -1255,11 +1252,13 @@ pub fn dispatch(state: &AppState, request: RpcRequest, auth: Option<AuthContext>
             RpcResponse::ListenJournalList(
                 match state.listen.history_page(
                     &auth.account_id,
-                    limit,
-                    request.from.as_deref(),
-                    request.to.as_deref(),
-                    request.cursor.as_deref(),
-                    request.kinds.as_deref(),
+                    crate::listen::events::PageQuery {
+                        limit,
+                        from: request.from.as_deref(),
+                        to: request.to.as_deref(),
+                        cursor: request.cursor.as_deref(),
+                        kinds: request.kinds.as_deref(),
+                    },
                 ) {
                     Ok((events, next_cursor)) => Outcome::Ready(JournalPage {
                         events,

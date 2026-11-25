@@ -145,7 +145,14 @@ fn history_cursor_cannot_address_another_accounts_event() {
     )
     .unwrap();
     assert!(matches!(
-        log.history_page(&AccountId::new("b"), 1, None, None, Some(id), None),
+        log.history_page(
+            &AccountId::new("b"),
+            pyxis::listen::events::PageQuery {
+                limit: 1,
+                cursor: Some(id),
+                ..Default::default()
+            }
+        ),
         Err(ListenError::InvalidCursor)
     ));
 }

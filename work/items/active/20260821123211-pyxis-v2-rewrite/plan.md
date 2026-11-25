@@ -1963,7 +1963,9 @@ concurrent appends; empty range; account fencing.
 **Goal:** per D32, two new journal kinds. A `stationSession` records the station, its start and end,
 and the hosting session. A `capture` records an album add with its entry context (station track,
 search, or other) and is emitted by `library.album.add` when the caller supplies that context.
-Both are append-only, merge like `trackPlayed`, and return through U51. No location.
+Both are append-only, merge like `trackPlayed`, and use the same tagged event model for
+append and `listen.journal.list`. Track-only history stays unchanged. A token-authenticated
+capture records no device identity. No location.
 
 **Dependencies:** U9, U30, U51
 

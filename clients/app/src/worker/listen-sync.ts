@@ -7,7 +7,7 @@
 /// client cannot be told which event was at fault, so a single malformed event would
 /// otherwise block every later listen forever. Splitting the batch isolates it.
 
-import type { ListenTrackEventInput } from "../../../../contracts/generated/pyxis"
+import type { ListenEventInput } from "../rpc/client"
 import { RpcError, type WorkerRpc } from "../rpc/client"
 
 /// Large enough that a long offline session drains quickly, small enough that one rejected
@@ -26,7 +26,7 @@ export interface ListenSubmission {
 
 interface Pending {
   readonly id: string
-  readonly event: ListenTrackEventInput
+  readonly event: ListenEventInput
 }
 
 export async function submitListens(

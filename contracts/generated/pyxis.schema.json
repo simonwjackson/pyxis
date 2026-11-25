@@ -895,7 +895,9 @@
     "JournalKind": {
       "type": "string",
       "enum": [
-        "trackPlayed"
+        "trackPlayed",
+        "stationSession",
+        "capture"
       ]
     },
     "AccountCreateRequest": {
@@ -1489,6 +1491,16 @@
     "LibraryAlbumAddRequest": {
       "type": "object",
       "properties": {
+        "entryContext": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CaptureEntryContext"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "title": {
           "type": "string"
         },
@@ -1531,6 +1543,32 @@
         "title",
         "artist",
         "tracks"
+      ]
+    },
+    "CaptureEntryContext": {
+      "type": "object",
+      "properties": {
+        "origin": {
+          "$ref": "#/$defs/CaptureContext"
+        },
+        "trackId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "origin"
+      ]
+    },
+    "CaptureContext": {
+      "type": "string",
+      "enum": [
+        "stationTrack",
+        "search",
+        "other"
       ]
     },
     "LibrarySourceReference": {
@@ -2002,13 +2040,23 @@
         "events": {
           "type": "array",
           "items": {
-            "$ref": "#/$defs/ListenTrackEventInput"
+            "$ref": "#/$defs/ListenEventInput"
           }
         }
       },
       "additionalProperties": false,
       "required": [
         "events"
+      ]
+    },
+    "ListenEventInput": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ListenTrackEventInput"
+        },
+        {
+          "$ref": "#/$defs/JournalEvent"
+        }
       ]
     },
     "ListenTrackEventInput": {
@@ -2067,6 +2115,126 @@
         "listenedAt",
         "completed",
         "context"
+      ]
+    },
+    "JournalEvent": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "trackPlayed"
+            },
+            "event": {
+              "$ref": "#/$defs/ListenTrackEventInput"
+            }
+          },
+          "required": [
+            "kind",
+            "event"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "stationSession"
+            },
+            "event": {
+              "$ref": "#/$defs/ListenStationSessionInput"
+            }
+          },
+          "required": [
+            "kind",
+            "event"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "capture"
+            },
+            "event": {
+              "$ref": "#/$defs/ListenCaptureInput"
+            }
+          },
+          "required": [
+            "kind",
+            "event"
+          ]
+        }
+      ]
+    },
+    "ListenStationSessionInput": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "deviceId": {
+          "type": "string"
+        },
+        "sourcePluginId": {
+          "type": "string"
+        },
+        "stationId": {
+          "type": "string"
+        },
+        "sessionId": {
+          "type": "string"
+        },
+        "startedAt": {
+          "type": "string"
+        },
+        "endedAt": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "deviceId",
+        "sourcePluginId",
+        "stationId",
+        "sessionId",
+        "startedAt"
+      ]
+    },
+    "ListenCaptureInput": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "albumId": {
+          "type": "string"
+        },
+        "deviceId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "capturedAt": {
+          "type": "string"
+        },
+        "entryContext": {
+          "$ref": "#/$defs/CaptureEntryContext"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "albumId",
+        "capturedAt",
+        "entryContext"
       ]
     },
     "ListenHistoryRequest": {
@@ -3676,26 +3844,6 @@
       "additionalProperties": false,
       "required": [
         "events"
-      ]
-    },
-    "JournalEvent": {
-      "oneOf": [
-        {
-          "type": "object",
-          "properties": {
-            "kind": {
-              "type": "string",
-              "const": "trackPlayed"
-            },
-            "event": {
-              "$ref": "#/$defs/ListenTrackEventInput"
-            }
-          },
-          "required": [
-            "kind",
-            "event"
-          ]
-        }
       ]
     },
     "AccountListOutcome": {

@@ -354,7 +354,11 @@ pub fn listen_events() -> CollectionDescriptor {
         vec![
             field("kind", SchemaNode::Str),
             field("happenedAt", SchemaNode::Str),
-            field("deviceId", SchemaNode::Str),
+            field("stationId", optional(SchemaNode::Str)),
+            field("sessionId", optional(SchemaNode::Str)),
+            field("endedAt", optional(SchemaNode::Str)),
+            field("entryOrigin", optional(SchemaNode::Str)),
+            field("deviceId", optional(SchemaNode::Str)),
             field("trackId", optional(SchemaNode::Str)),
             field("albumId", optional(SchemaNode::Str)),
             field("sourcePluginId", optional(SchemaNode::Str)),

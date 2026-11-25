@@ -1013,6 +1013,8 @@ pub struct LibraryTrackInput {
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct LibraryAlbumAddRequest {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub entry_context: Option<CaptureEntryContext>,
     pub title: String,
     pub artist: String,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -1465,6 +1467,58 @@ pub enum PlaylistListOutcome {
 
 #[typeshare]
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub enum CaptureContext {
+    StationTrack,
+    Search,
+    Other,
+}
+
+#[typeshare]
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct CaptureEntryContext {
+    pub origin: CaptureContext,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub track_id: Option<String>,
+}
+
+#[typeshare]
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct ListenStationSessionInput {
+    pub id: String,
+    pub device_id: String,
+    pub source_plugin_id: String,
+    pub station_id: String,
+    pub session_id: String,
+    pub started_at: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ended_at: Option<String>,
+}
+
+#[typeshare]
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct ListenCaptureInput {
+    pub id: String,
+    pub album_id: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub device_id: Option<String>,
+    pub captured_at: String,
+    pub entry_context: CaptureEntryContext,
+}
+
+// Existing v4 callers append track plays without a tag. All tagged input uses
+// the journal row type directly; input and output cannot acquire different variants.
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(untagged)]
+pub enum ListenEventInput {
+    Track(ListenTrackEventInput),
+    Journal(JournalEvent),
+}
+#[typeshare]
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct ListenTrackEventInput {
     pub id: String,
@@ -1487,7 +1541,8 @@ pub struct ListenTrackEventInput {
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct ListenEventsAppendRequest {
-    pub events: Vec<ListenTrackEventInput>,
+    #[typeshare(typescript(type = "(ListenTrackEventInput | JournalEvent)[]"))]
+    pub events: Vec<ListenEventInput>,
 }
 
 #[typeshare]
@@ -1521,19 +1576,23 @@ pub struct JournalListRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub limit: Option<u32>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    #[typeshare(typescript(type = "JournalEvent[\"kind\"][]"))]
     pub kinds: Option<Vec<JournalKind>>,
 }
 #[typeshare]
-#[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize, JsonSchema)]
-#[serde(rename_all = "camelCase")]
-pub enum JournalKind {
-    TrackPlayed,
-}
-#[typeshare]
-#[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize, JsonSchema)]
+#[derive(
+    Clone, Debug, PartialEq, Eq, Deserialize, Serialize, JsonSchema, strum::EnumDiscriminants,
+)]
+#[strum_discriminants(
+    name(JournalKind),
+    derive(Deserialize, Serialize, JsonSchema),
+    serde(rename_all = "camelCase")
+)]
 #[serde(tag = "kind", content = "event", rename_all = "camelCase")]
 pub enum JournalEvent {
     TrackPlayed(ListenTrackEventInput),
+    StationSession(ListenStationSessionInput),
+    Capture(ListenCaptureInput),
 }
 #[typeshare]
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
