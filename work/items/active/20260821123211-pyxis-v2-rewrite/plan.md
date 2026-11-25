@@ -2212,6 +2212,12 @@ Album and playlist seeds call the watch endpoint with the OLAK or playlist id in
 seed reads the artist page for its radio reference (and shuffle reference when present) and follows
 it. Batches reuse the existing watch-queue parser, continuations and D18 upload filtering.
 
+**Prior art (2026-11-24 research, `docs/research/2026-11-24-ytmusic-prior-art.md`):** read artist
+radio and shuffle ids from the artist header buttons. Never build `RDEM`/`RDAO` + channelId: ytmusicapi's
+own example contradicts that. Send `params` `wAEB` for radio and the literal `wAEB8gECKAE%3D` for
+shuffle. Accept both `nextRadioContinuationData` and `nextContinuationData`. Playlist and album browse
+paging also needs the 2025 `continuationItemRenderer` POST-body form.
+
 **Dependencies:** U30, U31, U57, U59
 
 **Test scenarios:** each seed on fixtures; a continuation; an artist without a radio reference fails
