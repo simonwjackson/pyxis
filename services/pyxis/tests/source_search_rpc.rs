@@ -507,7 +507,69 @@ async fn positional_playlist_rows_are_rejected() {
     .await;
     assert_eq!(search["outcome"]["value"]["playlists"], json!([]));
     assert_eq!(
-        search["outcome"]["value"]["failures"][0]["code"],
+        search["outcome"]["value"]["failures"][0]["failure"]["code"],
         "plugin.invalidSearch"
     );
+}
+
+#[tokio::test]
+async fn positional_source_pages_and_discography_rows_are_rejected() {
+    let dir = tempfile::tempdir().unwrap();
+    let reads = json!({"artist.discography":{"items":[[null,"id","title","artist",null,null,"another-source"]]},"search.suggest":[["one","two"],"raw-secret"]});
+    let host = PluginHost::start(
+        vec![search_plugin().with_env("PYXIS_LAB_READS", reads.to_string())],
+        HostPolicy::default(),
+    )
+    .unwrap();
+    let app = router(AppState::open_with_plugins(Store::open(dir.path()).unwrap(), host).unwrap());
+    let token = claim(&app).await;
+    for (tag, payload) in [
+        (
+            "source.search.suggest",
+            json!({"pluginId":"search-source","query":"one","limit":1}),
+        ),
+        (
+            "source.artist.discography",
+            json!({"pluginId":"search-source","externalId":"artist"}),
+        ),
+    ] {
+        let page = rpc(&app, json!({"_tag":tag,"payload":payload}), Some(&token)).await;
+        assert_eq!(page["outcome"]["status"], "unavailable");
+        assert!(!page.to_string().contains("raw-secret"));
+    }
+}
+
+#[tokio::test]
+async fn atomic_metadata_reads_send_only_the_documented_selectors() {
+    let dir = tempfile::tempdir().unwrap();
+    let log = dir.path().join("inputs");
+    let reads = json!({"track.details":{"items":[]},"track.credits":[]});
+    let host = PluginHost::start(
+        vec![search_plugin()
+            .with_env("PYXIS_LAB_READS", reads.to_string())
+            .with_env("PYXIS_LAB_CALL_LOG", log.to_str().unwrap())],
+        HostPolicy::default(),
+    )
+    .unwrap();
+    let app = router(AppState::open_with_plugins(Store::open(dir.path()).unwrap(), host).unwrap());
+    let token = claim(&app).await;
+    for (op, selector) in [
+        ("track.details", json!({"externalIds":["id"]})),
+        ("track.credits", json!({"externalId":"id"})),
+    ] {
+        let mut payload = selector.clone();
+        payload["pluginId"] = "search-source".into();
+        let result = rpc(
+            &app,
+            json!({"_tag":format!("source.{op}"),"payload":payload}),
+            Some(&token),
+        )
+        .await;
+        assert_eq!(result["outcome"]["status"], "ready", "{result}");
+        let calls = std::fs::read_to_string(&log).unwrap();
+        assert!(
+            calls.lines().any(|line| line == format!("{op}|{selector}")),
+            "{calls}"
+        );
+    }
 }

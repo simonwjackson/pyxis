@@ -810,13 +810,15 @@ pub fn dispatch(state: &AppState, request: RpcRequest, auth: Option<AuthContext>
             let Some(auth) = auth else {
                 return auth_required();
             };
-            RpcResponse::SourceArtistDiscography(state.sources.read(
+            RpcResponse::SourceArtistDiscography(state.sources.read_page(
                 &auth,
                 &request.plugin_id,
                 "artist.discography",
                 serde_json::json!({"externalId":request.external_id}),
-                request.cursor.as_deref(),
-                request.limit,
+                crate::source_catalog::ReadWindow::Page {
+                    cursor: request.cursor.as_deref(),
+                    limit: request.limit,
+                },
             ))
         }
         RpcRequest::SourcePlaylistTracks(request) => {
@@ -828,8 +830,10 @@ pub fn dispatch(state: &AppState, request: RpcRequest, auth: Option<AuthContext>
                 &request.plugin_id,
                 "playlist.tracks",
                 serde_json::json!({"externalId":request.external_id}),
-                request.cursor.as_deref(),
-                request.limit,
+                crate::source_catalog::ReadWindow::Page {
+                    cursor: request.cursor.as_deref(),
+                    limit: request.limit,
+                },
             ))
         }
         RpcRequest::SourceTrackRelated(request) => {
@@ -841,8 +845,10 @@ pub fn dispatch(state: &AppState, request: RpcRequest, auth: Option<AuthContext>
                 &request.plugin_id,
                 "track.related",
                 serde_json::json!({"externalId":request.external_id}),
-                request.cursor.as_deref(),
-                request.limit,
+                crate::source_catalog::ReadWindow::Page {
+                    cursor: request.cursor.as_deref(),
+                    limit: request.limit,
+                },
             ))
         }
         RpcRequest::SourceTrackDetails(request) => {
@@ -868,8 +874,7 @@ pub fn dispatch(state: &AppState, request: RpcRequest, auth: Option<AuthContext>
                 &request.plugin_id,
                 "track.details",
                 serde_json::json!({"externalIds":request.external_ids}),
-                None,
-                Some(50),
+                crate::source_catalog::ReadWindow::Batch(request.external_ids.len() as u32),
             ))
         }
         RpcRequest::SourceTrackLyrics(request) => {
@@ -894,21 +899,21 @@ pub fn dispatch(state: &AppState, request: RpcRequest, auth: Option<AuthContext>
                 &request.plugin_id,
                 "track.credits",
                 serde_json::json!({"externalId":request.external_id}),
-                None,
-                None,
             ))
         }
         RpcRequest::SourceSearchSuggest(request) => {
             let Some(auth) = auth else {
                 return auth_required();
             };
-            RpcResponse::SourceSearchSuggest(state.sources.read(
+            RpcResponse::SourceSearchSuggest(state.sources.read_page(
                 &auth,
                 &request.plugin_id,
                 "search.suggest",
                 serde_json::json!({"query":request.query}),
-                request.cursor.as_deref(),
-                request.limit,
+                crate::source_catalog::ReadWindow::Page {
+                    cursor: request.cursor.as_deref(),
+                    limit: request.limit,
+                },
             ))
         }
         RpcRequest::SourceSearchRun(request) => {

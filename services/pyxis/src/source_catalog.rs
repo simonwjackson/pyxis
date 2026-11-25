@@ -2,7 +2,7 @@
 
 use std::collections::HashSet;
 
-use crate::rpc::contract::{RpcFailure, RpcSourcePlaylist, SourceReadOutcome};
+use crate::rpc::contract::{RpcFailure, RpcSourcePlaylist, SourcePage, SourceReadOutcome};
 use serde::Deserialize;
 
 use crate::accounts::AuthContext;
@@ -106,6 +106,20 @@ pub enum SourceCatalogError {
 struct PluginSearchOutput {
     cursor: Option<String>,
     tracks: Vec<PluginSearchTrack>,
+}
+
+pub(crate) enum ReadWindow<'a> {
+    Page {
+        cursor: Option<&'a str>,
+        limit: Option<u32>,
+    },
+    Batch(u32),
+}
+
+fn decode_value<T: serde::de::DeserializeOwned>(
+    value: serde_json::Value,
+) -> Result<T, SourceCatalogError> {
+    serde_json::from_value(value).map_err(|e| SourceCatalogError::InvalidOutput(e.to_string()))
 }
 
 enum PluginSearchPage {
@@ -430,26 +444,14 @@ impl SourceCatalog {
         }
     }
 
-    /// Authorize a declared read and translate the page token only at the core boundary.
-    pub fn read<T: serde::de::DeserializeOwned>(
+    fn call_read<T>(
         &self,
         auth: &AuthContext,
         plugin: &str,
         op: &str,
-        mut selectors: serde_json::Value,
-        cursor: Option<&str>,
-        limit: Option<u32>,
+        input: serde_json::Value,
+        decode: impl FnOnce(serde_json::Value) -> Result<T, SourceCatalogError>,
     ) -> SourceReadOutcome<T> {
-        let scope = self.cursors.bind(&auth.account_id, plugin, op, &selectors);
-        if let Some(token) = cursor {
-            let Some(raw) = scope.open(token) else {
-                return SourceReadOutcome::Invalid(RpcFailure::permanent(
-                    "source.invalidCursor",
-                    "invalid source cursor",
-                ));
-            };
-            selectors["cursor"] = raw.into();
-        }
         if !self
             .plugins
             .list()
@@ -458,42 +460,19 @@ impl SourceCatalog {
         {
             return SourceReadOutcome::Unsupported;
         }
-        let bound = limit.unwrap_or(25).clamp(1, 100);
-        selectors["limit"] = bound.into();
-        let result = (|| -> Result<T, SourceCatalogError> {
+        let result = (|| {
             let config = self
                 .credentials
                 .get(&auth.account_id, plugin)?
                 .map(serde_json::Value::from);
-            let mut output = self.plugins.call_for_account(
+            decode(self.plugins.call_for_account(
                 plugin,
                 "source",
                 op,
-                selectors,
+                input,
                 auth.account_id.as_str(),
                 config,
-            )?;
-            if let Some(record) = output.as_object_mut() {
-                if let Some(raw) = record.remove("cursor") {
-                    let token: String = serde_json::from_value(raw)
-                        .map_err(|e| SourceCatalogError::InvalidOutput(e.to_string()))?;
-                    if let Some(sealed) = scope.seal(Some(token))? {
-                        record.insert("cursor".into(), sealed.into());
-                    }
-                }
-                if let Some(items) = record.get_mut("items").and_then(|v| v.as_array_mut()) {
-                    items.truncate(bound as usize);
-                    if op == "artist.discography" {
-                        for item in items {
-                            if let Some(row) = item.as_object_mut() {
-                                row.insert("sourcePluginId".into(), plugin.into());
-                            }
-                        }
-                    }
-                }
-            }
-            serde_json::from_value(output)
-                .map_err(|e| SourceCatalogError::InvalidOutput(e.to_string()))
+            )?)
         })();
         match result {
             Ok(value) => SourceReadOutcome::Ready(value),
@@ -502,20 +481,87 @@ impl SourceCatalog {
             )),
         }
     }
-
+    pub fn read<T: serde::de::DeserializeOwned>(
+        &self,
+        auth: &AuthContext,
+        plugin: &str,
+        op: &str,
+        selectors: serde_json::Value,
+    ) -> SourceReadOutcome<T> {
+        self.call_read(auth, plugin, op, selectors, decode_value)
+    }
+    pub(crate) fn read_page<T: serde::de::DeserializeOwned>(
+        &self,
+        auth: &AuthContext,
+        plugin: &str,
+        op: &str,
+        mut selectors: serde_json::Value,
+        window: ReadWindow<'_>,
+    ) -> SourceReadOutcome<SourcePage<T>> {
+        let scope = self.cursors.bind(&auth.account_id, plugin, op, &selectors);
+        let bound = match window {
+            ReadWindow::Page { cursor, limit } => {
+                if let Some(token) = cursor {
+                    let Some(raw) = scope.open(token) else {
+                        return SourceReadOutcome::Invalid(RpcFailure::permanent(
+                            "source.invalidCursor",
+                            "invalid source cursor",
+                        ));
+                    };
+                    selectors["cursor"] = raw.into();
+                }
+                let bound = limit.unwrap_or(25).clamp(1, 100);
+                selectors["limit"] = bound.into();
+                bound
+            }
+            ReadWindow::Batch(bound) => bound,
+        };
+        self.call_read(auth, plugin, op, selectors, |output| {
+            // serde accepts positional arrays for structs. Only named page fields and
+            // object-shaped metadata rows are part of the source plugin protocol.
+            if !output.is_object() {
+                return Err(SourceCatalogError::InvalidOutput(
+                    "expected a page object".into(),
+                ));
+            }
+            #[derive(Deserialize)]
+            struct PluginPage {
+                items: Vec<serde_json::Value>,
+                cursor: Option<String>,
+            }
+            let page: PluginPage = decode_value(output)?;
+            let items = page
+                .items
+                .into_iter()
+                .take(bound as usize)
+                .map(|mut row| {
+                    if op != "search.suggest" {
+                        let object = row.as_object_mut().ok_or_else(|| {
+                            SourceCatalogError::InvalidOutput("expected a metadata object".into())
+                        })?;
+                        if op == "artist.discography" {
+                            object.insert("sourcePluginId".into(), plugin.into());
+                        }
+                    }
+                    decode_value(row)
+                })
+                .collect::<Result<_, _>>()?;
+            let cursor = match window {
+                ReadWindow::Page { .. } => scope.seal(page.cursor)?,
+                ReadWindow::Batch(_) => None,
+            };
+            Ok(SourcePage { items, cursor })
+        })
+    }
     pub(crate) fn track_read(
         &self,
         auth: &AuthContext,
         plugin: &str,
         op: &str,
         selectors: serde_json::Value,
-        cursor: Option<&str>,
-        limit: Option<u32>,
-    ) -> SourceReadOutcome<crate::rpc::contract::SourcePage<crate::rpc::contract::RpcSearchTrack>>
-    {
-        use crate::rpc::contract::SourcePage;
-        match self.read::<SourcePage<PluginSearchTrack>>(auth, plugin, op, selectors, cursor, limit)
-        {
+        window: ReadWindow<'_>,
+    ) -> SourceReadOutcome<SourcePage<crate::rpc::contract::RpcSearchTrack>> {
+        match self.read_page::<PluginSearchTrack>(auth, plugin, op, selectors, window) {
             SourceReadOutcome::Ready(page) => {
                 let items = page
                     .items
