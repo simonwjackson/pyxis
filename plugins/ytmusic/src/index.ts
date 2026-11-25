@@ -100,28 +100,25 @@ export function createYtMusicPlugin(
           return providerCall(() => internalApi.suggest(r.query, r.limit ?? 10, r.cursor))
         },
         search: async (input) => {
-          const request = validInput(() => searchInput(input))
-          return providerCall(async () => ({
-            tracks: (
-              await internalApi.searchSongs(request.query, request.limit ?? 10, request.exactMatch)
-            ).map(sourceTrack),
-          }))
-        },
-        "artist.search": async (input) => {
-          const request = validInput(() => searchInput(input))
-          return {
-            artists: await providerCall(() =>
-              internalApi.searchArtists(request.query, request.limit ?? 10, request.exactMatch),
-            ),
-          }
+          const r = validInput(() => searchInput(input))
+          const { items, ...page } = await providerCall(() =>
+            internalApi.searchSongs(r.query, r.limit ?? 10, r.exactMatch, r.cursor),
+          )
+          return { tracks: items.map(sourceTrack), ...page }
         },
         "album.search": async (input) => {
-          const request = validInput(() => searchInput(input))
-          return {
-            albums: await providerCall(() =>
-              internalApi.searchAlbums(request.query, request.limit, request.exactMatch),
-            ),
-          }
+          const r = validInput(() => searchInput(input))
+          const { items, ...page } = await providerCall(() =>
+            internalApi.searchAlbums(r.query, r.limit ?? 10, r.exactMatch, r.cursor),
+          )
+          return { albums: items, ...page }
+        },
+        "artist.search": async (input) => {
+          const r = validInput(() => searchInput(input))
+          const { items, ...page } = await providerCall(() =>
+            internalApi.searchArtists(r.query, r.limit ?? 10, r.exactMatch, r.cursor),
+          )
+          return { artists: items, ...page }
         },
         "album.get": async (input) => {
           const externalId = validInput(() => externalIdOf(input))

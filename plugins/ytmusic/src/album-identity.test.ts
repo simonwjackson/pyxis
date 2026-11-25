@@ -71,7 +71,9 @@ test("the id found by search opens the same album, including its POST continuati
     }
     return Response.json({ responseContext: { visitorData: "visitor" } })
   }) as typeof fetch)
-  const [result] = await api.searchAlbums("17", 1)
+  const {
+    items: [result],
+  } = await api.searchAlbums("17", 1)
   expect(result?.externalId).toBe(olak)
   const opened = await api.getAlbum(result?.externalId ?? "")
   expect(opened.externalId).toBe(olak)

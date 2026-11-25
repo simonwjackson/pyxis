@@ -8,8 +8,8 @@ const internal: YtMusicInternalApi = {
   ...createYtMusicInternalApi((async () => {
     throw new Error("unexpected fetch")
   }) as unknown as typeof fetch),
-  searchSongs: async (_query, limit) =>
-    [
+  searchSongs: async (_query, limit) => ({
+    items: [
       {
         externalId: "videoOne",
         title: "Heroes",
@@ -21,12 +21,13 @@ const internal: YtMusicInternalApi = {
       },
       { externalId: "videoTwo", title: "Blackstar", artist: "David Bowie" },
     ].slice(0, limit),
-  searchArtists: async () => [
-    { externalId: "UC1234567890123456789012", name: "David Bowie", artworkUrl: "large" },
-  ],
-  searchAlbums: async () => [
-    { externalId: "MPRE_album", title: "Heroes", artist: "David Bowie", year: 1977 },
-  ],
+  }),
+  searchArtists: async () => ({
+    items: [{ externalId: "UC1234567890123456789012", name: "David Bowie", artworkUrl: "large" }],
+  }),
+  searchAlbums: async () => ({
+    items: [{ externalId: "MPRE_album", title: "Heroes", artist: "David Bowie", year: 1977 }],
+  }),
   getAlbum: async (externalId) => ({
     externalId,
     title: "Heroes",

@@ -1,0 +1,396 @@
+[
+  {
+    "musicShelfRenderer": {
+      "contents": [
+        {
+          "musicResponsiveListItemRenderer": {
+            "flexColumns": [
+              {
+                "musicResponsiveListItemFlexColumnRenderer": {
+                  "text": {
+                    "runs": [
+                      {
+                        "text": "Die With A Smile",
+                        "navigationEndpoint": {
+                          "watchEndpoint": {
+                            "videoId": "DlFXDl_ROAM",
+                            "watchEndpointMusicSupportedConfigs": {
+                              "watchEndpointMusicConfig": {
+                                "musicVideoType": "MUSIC_VIDEO_TYPE_ATV"
+                              }
+                            }
+                          }
+                        }
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "musicResponsiveListItemFlexColumnRenderer": {
+                  "text": {
+                    "runs": [
+                      {
+                        "text": "Lady Gaga",
+                        "navigationEndpoint": {
+                          "browseEndpoint": {
+                            "browseId": "UCGKXb1syicud01CJOOFRykg",
+                            "browseEndpointContextSupportedConfigs": {
+                              "browseEndpointContextMusicConfig": {
+                                "pageType": "MUSIC_PAGE_TYPE_ARTIST"
+                              }
+                            }
+                          }
+                        }
+                      },
+                      {
+                        "text": " & "
+                      },
+                      {
+                        "text": "Bruno Mars",
+                        "navigationEndpoint": {
+                          "browseEndpoint": {
+                            "browseId": "UCZn4r7heNOPY-C43YIywnVA",
+                            "browseEndpointContextSupportedConfigs": {
+                              "browseEndpointContextMusicConfig": {
+                                "pageType": "MUSIC_PAGE_TYPE_ARTIST"
+                              }
+                            }
+                          }
+                        }
+                      },
+                      {
+                        "text": " \u2022 "
+                      },
+                      {
+                        "text": "MAYHEM",
+                        "navigationEndpoint": {
+                          "browseEndpoint": {
+                            "browseId": "MPREb_fdn3rDTkRH3",
+                            "browseEndpointContextSupportedConfigs": {
+                              "browseEndpointContextMusicConfig": {
+                                "pageType": "MUSIC_PAGE_TYPE_ALBUM"
+                              }
+                            }
+                          }
+                        }
+                      },
+                      {
+                        "text": " \u2022 "
+                      },
+                      {
+                        "text": "4:12"
+                      }
+                    ]
+                  }
+                }
+              }
+            ]
+          }
+        },
+        {
+          "musicResponsiveListItemRenderer": {
+            "flexColumns": [
+              {
+                "musicResponsiveListItemFlexColumnRenderer": {
+                  "text": {
+                    "runs": [
+                      {
+                        "text": "Clean Air",
+                        "navigationEndpoint": {
+                          "watchEndpoint": {
+                            "videoId": "_WfL_j6-DvM",
+                            "watchEndpointMusicSupportedConfigs": {
+                              "watchEndpointMusicConfig": {
+                                "musicVideoType": "MUSIC_VIDEO_TYPE_ATV"
+                              }
+                            }
+                          }
+                        }
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "musicResponsiveListItemFlexColumnRenderer": {
+                  "text": {
+                    "runs": [
+                      {
+                        "text": "Laufey",
+                        "navigationEndpoint": {
+                          "browseEndpoint": {
+                            "browseId": "UCJtROTPxo3qnEzww8JyDxuA",
+                            "browseEndpointContextSupportedConfigs": {
+                              "browseEndpointContextMusicConfig": {
+                                "pageType": "MUSIC_PAGE_TYPE_ARTIST"
+                              }
+                            }
+                          }
+                        }
+                      },
+                      {
+                        "text": " \u2022 "
+                      },
+                      {
+                        "text": "A Matter of Time",
+                        "navigationEndpoint": {
+                          "browseEndpoint": {
+                            "browseId": "MPREb_P7kflyJRUTn",
+                            "browseEndpointContextSupportedConfigs": {
+                              "browseEndpointContextMusicConfig": {
+                                "pageType": "MUSIC_PAGE_TYPE_ALBUM"
+                              }
+                            }
+                          }
+                        }
+                      },
+                      {
+                        "text": " \u2022 "
+                      },
+                      {
+                        "text": "2:36"
+                      }
+                    ]
+                  }
+                }
+              }
+            ]
+          }
+        },
+        {
+          "musicResponsiveListItemRenderer": {
+            "flexColumns": [
+              {
+                "musicResponsiveListItemFlexColumnRenderer": {
+                  "text": {
+                    "runs": [
+                      {
+                        "text": "Cleaner Air",
+                        "navigationEndpoint": {
+                          "watchEndpoint": {
+                            "videoId": "tXOKabXyR5Q",
+                            "watchEndpointMusicSupportedConfigs": {
+                              "watchEndpointMusicConfig": {
+                                "musicVideoType": "MUSIC_VIDEO_TYPE_ATV"
+                              }
+                            }
+                          }
+                        }
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "musicResponsiveListItemFlexColumnRenderer": {
+                  "text": {
+                    "runs": [
+                      {
+                        "text": "Yeek",
+                        "navigationEndpoint": {
+                          "browseEndpoint": {
+                            "browseId": "UC2Kyhy56ViDlZUcE3FitbXg",
+                            "browseEndpointContextSupportedConfigs": {
+                              "browseEndpointContextMusicConfig": {
+                                "pageType": "MUSIC_PAGE_TYPE_ARTIST"
+                              }
+                            }
+                          }
+                        }
+                      },
+                      {
+                        "text": " \u2022 "
+                      },
+                      {
+                        "text": "Cleaner Air",
+                        "navigationEndpoint": {
+                          "browseEndpoint": {
+                            "browseId": "MPREb_UgY7pmRhtDH",
+                            "browseEndpointContextSupportedConfigs": {
+                              "browseEndpointContextMusicConfig": {
+                                "pageType": "MUSIC_PAGE_TYPE_ALBUM"
+                              }
+                            }
+                          }
+                        }
+                      },
+                      {
+                        "text": " \u2022 "
+                      },
+                      {
+                        "text": "2:09"
+                      }
+                    ]
+                  }
+                }
+              }
+            ]
+          }
+        }
+      ],
+      "continuations": [
+        {
+          "nextContinuationData": {
+            "continuation": "page-two"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "continuationContents": {
+      "musicShelfContinuation": {
+        "contents": [
+          {
+            "musicResponsiveListItemRenderer": {
+              "flexColumns": [
+                {
+                  "musicResponsiveListItemFlexColumnRenderer": {
+                    "text": {
+                      "runs": [
+                        {
+                          "text": "House Of Balloons / Glass Table Girls",
+                          "navigationEndpoint": {
+                            "watchEndpoint": {
+                              "videoId": "1OZnXQQPBU0",
+                              "watchEndpointMusicSupportedConfigs": {
+                                "watchEndpointMusicConfig": {
+                                  "musicVideoType": "MUSIC_VIDEO_TYPE_ATV"
+                                }
+                              }
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  }
+                },
+                {
+                  "musicResponsiveListItemFlexColumnRenderer": {
+                    "text": {
+                      "runs": [
+                        {
+                          "text": "The Weeknd",
+                          "navigationEndpoint": {
+                            "browseEndpoint": {
+                              "browseId": "UClYV6hHlupm_S_ObS1W-DYw",
+                              "browseEndpointContextSupportedConfigs": {
+                                "browseEndpointContextMusicConfig": {
+                                  "pageType": "MUSIC_PAGE_TYPE_ARTIST"
+                                }
+                              }
+                            }
+                          }
+                        },
+                        {
+                          "text": " \u2022 "
+                        },
+                        {
+                          "text": "House Of Balloons",
+                          "navigationEndpoint": {
+                            "browseEndpoint": {
+                              "browseId": "MPREb_MuaI9RZQa8o",
+                              "browseEndpointContextSupportedConfigs": {
+                                "browseEndpointContextMusicConfig": {
+                                  "pageType": "MUSIC_PAGE_TYPE_ALBUM"
+                                }
+                              }
+                            }
+                          }
+                        },
+                        {
+                          "text": " \u2022 "
+                        },
+                        {
+                          "text": "6:48"
+                        }
+                      ]
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "musicResponsiveListItemRenderer": {
+              "flexColumns": [
+                {
+                  "musicResponsiveListItemFlexColumnRenderer": {
+                    "text": {
+                      "runs": [
+                        {
+                          "text": "C'est le weekend 2 hartek (Remix)",
+                          "navigationEndpoint": {
+                            "watchEndpoint": {
+                              "videoId": "si-g77lVJ2E",
+                              "watchEndpointMusicSupportedConfigs": {
+                                "watchEndpointMusicConfig": {
+                                  "musicVideoType": "MUSIC_VIDEO_TYPE_ATV"
+                                }
+                              }
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  }
+                },
+                {
+                  "musicResponsiveListItemFlexColumnRenderer": {
+                    "text": {
+                      "runs": [
+                        {
+                          "text": "Cartoonmix79",
+                          "navigationEndpoint": {
+                            "browseEndpoint": {
+                              "browseId": "UCWOuGodWP9gbCWJb4s_eLsw",
+                              "browseEndpointContextSupportedConfigs": {
+                                "browseEndpointContextMusicConfig": {
+                                  "pageType": "MUSIC_PAGE_TYPE_ARTIST"
+                                }
+                              }
+                            }
+                          }
+                        },
+                        {
+                          "text": " \u2022 "
+                        },
+                        {
+                          "text": "C'est le weekend 2 hartek (Remix)",
+                          "navigationEndpoint": {
+                            "browseEndpoint": {
+                              "browseId": "MPREb_PphRf2xtaUD",
+                              "browseEndpointContextSupportedConfigs": {
+                                "browseEndpointContextMusicConfig": {
+                                  "pageType": "MUSIC_PAGE_TYPE_ALBUM"
+                                }
+                              }
+                            }
+                          }
+                        },
+                        {
+                          "text": " \u2022 "
+                        },
+                        {
+                          "text": "2:30"
+                        }
+                      ]
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        ],
+        "continuations": [
+          {
+            "nextContinuationData": {
+              "continuation": "page-three"
+            }
+          }
+        ]
+      }
+    }
+  }
+]

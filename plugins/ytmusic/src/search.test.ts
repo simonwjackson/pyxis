@@ -32,3 +32,28 @@ test("exact filters reach search; suggestions resume at the next text", async ()
   expect(first.items).toEqual(["weekend"])
   expect(await api.suggest("weekend", 1, first.cursor)).toEqual({ items: ["weekend update"] })
 })
+
+test("track pages resume inside a shelf and then request its upstream continuation", async () => {
+  const pages = (await import("../fixtures/song-pages.json")).default
+  const requests: (string | null)[] = []
+  const api = createYtMusicInternalApi((async (url, opts) => {
+    const uri = new URL(String(url))
+    if (!uri.pathname.endsWith("/search"))
+      return Response.json({ responseContext: { visitorData: "v" } })
+    const token = uri.searchParams.get("ctoken")
+    requests.push(token)
+    expect(JSON.parse(String(opts?.body)).query).toBe("recording")
+    return Response.json(pages[token ? 1 : 0])
+  }) as typeof fetch)
+  const one = await api.searchSongs("recording", 2)
+  const two = await api.searchSongs("recording", 2, false, one.cursor)
+  const three = await api.searchSongs("recording", 2, false, two.cursor)
+  expect(requests).toEqual([null, null, "page-two"])
+  expect([...one.items, ...two.items, ...three.items].map((t) => t.externalId)).toEqual([
+    "DlFXDl_ROAM",
+    "_WfL_j6-DvM",
+    "tXOKabXyR5Q",
+    "1OZnXQQPBU0",
+    "si-g77lVJ2E",
+  ])
+})

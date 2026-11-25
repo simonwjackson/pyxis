@@ -86,17 +86,24 @@ export interface YtMusicInternalApi extends ReturnType<typeof catalogReads> {
     cursor?: string,
   ): Promise<Page<Playlist>>
   suggest(query: string, limit: number, cursor?: string): Promise<Page<string>>
-  searchSongs(query: string, limit: number, exact?: boolean): Promise<readonly YtMusicSong[]>
+  searchSongs(
+    query: string,
+    limit: number,
+    exact?: boolean,
+    cursor?: string,
+  ): Promise<Page<YtMusicSong>>
   searchAlbums(
     query: string,
     limit?: number,
     exact?: boolean,
-  ): Promise<readonly YtMusicAlbumSummary[]>
+    cursor?: string,
+  ): Promise<Page<YtMusicAlbumSummary>>
   searchArtists(
     query: string,
     limit: number,
     exact?: boolean,
-  ): Promise<readonly YtMusicArtistSummary[]>
+    cursor?: string,
+  ): Promise<Page<YtMusicArtistSummary>>
   getAlbum(externalId: string): Promise<YtMusicAlbum>
   mixStation(kind: "album" | "artist" | "playlist", id: string, shuffle: boolean): Promise<string>
   watchQueue(
@@ -119,25 +126,30 @@ const ALBUM_FILTER = "EgWKAQIYAWoOEAMQBBAJEAoQERAQEBU%3D"
 const ARTIST_FILTER = "EgWKAQIgAWoQEAMQBBAJEAoQBRAREBAQFQ%3D%3D"
 export function createYtMusicInternalApi(fetcher: typeof fetch = fetch): YtMusicInternalApi {
   const request = createTransport(fetcher)
+  async function searchPage<T>(
+    query: string,
+    params: string,
+    limit: number,
+    cursor: string | undefined,
+    parse: (data: unknown, limit: number) => readonly T[],
+  ): Promise<Page<T>> {
+    const pos = position(cursor)
+    const data = await request("search", { query, params }, false, pos.token)
+    return boundedPage(parse(data, Infinity), pos, limit, continuationToken(data))
+  }
   return {
     ...catalogReads(request),
     lyrics: (id) => readLyrics(request, id),
-    async searchPlaylists(query, limit, exact, cursor) {
-      const pos = position(cursor)
-      const data = await request(
-        "search",
-        pos.token
-          ? { continuation: pos.token }
-          : {
-              query,
-              params: exact
-                ? "Eg-KAQwIABAAGAAgACgBMABCAggBagoQBBADEAkQBRAK"
-                : "EgeKAQQoAEABahAQAxAEEAkQChAFEBEQEBAV",
-            },
-        false,
-        pos.token,
+    searchPlaylists(query, limit, exact, cursor) {
+      return searchPage(
+        query,
+        exact
+          ? "Eg-KAQwIABAAGAAgACgBMABCAggBagoQBBADEAkQBRAK"
+          : "EgeKAQQoAEABahAQAxAEEAkQChAFEBEQEBAV",
+        limit,
+        cursor,
+        parsePlaylists,
       )
-      return boundedPage(parsePlaylists(data), pos, limit, continuationToken(data))
     },
     async suggest(query, limit, cursor) {
       const data = await request("music/get_search_suggestions", { input: query })
@@ -152,25 +164,34 @@ export function createYtMusicInternalApi(fetcher: typeof fetch = fetch): YtMusic
       })
       return boundedPage(items, position(cursor), limit)
     },
-    async searchSongs(query, limit, exact) {
-      return parseSongSearch(
-        await request("search", {
-          query,
-          params: exact ? "EgWKAQIIAUICCAFqDBAOEAoQAxAEEAkQBQ%3D%3D" : SONG_FILTER,
-        }),
+    searchSongs(query, limit, exact, cursor) {
+      return searchPage(
+        query,
+        exact ? "EgWKAQIIAUICCAFqDBAOEAoQAxAEEAkQBQ%3D%3D" : SONG_FILTER,
         limit,
+        cursor,
+        parseSongSearch,
       )
     },
-
-    async searchAlbums(query, limit = 10, exact) {
-      const albums = parseAlbumSearch(
-        await request("search", {
-          query,
-          params: exact ? "EgWKAQIYAUICCAFqDBAOEAoQAxAEEAkQBQ%3D%3D" : ALBUM_FILTER,
-        }),
+    searchArtists(query, limit, exact, cursor) {
+      return searchPage(
+        query,
+        exact ? "EgWKAQIgAUICCAFqDBAOEAoQAxAEEAkQBQ%3D%3D" : ARTIST_FILTER,
+        limit,
+        cursor,
+        parseArtistSearch,
       )
-      return Promise.all(
-        albums.slice(0, limit).map(async (album) => ({
+    },
+    async searchAlbums(query, limit = 10, exact, cursor) {
+      const page = await searchPage(
+        query,
+        exact ? "EgWKAQIYAUICCAFqDBAOEAoQAxAEEAkQBQ%3D%3D" : ALBUM_FILTER,
+        limit,
+        cursor,
+        parseAlbumSearch,
+      )
+      const items = await Promise.all(
+        page.items.map(async (album) => ({
           ...album,
           externalId: album.externalId.startsWith("OLAK")
             ? album.externalId
@@ -180,18 +201,8 @@ export function createYtMusicInternalApi(fetcher: typeof fetch = fetch): YtMusic
               ),
         })),
       )
+      return { ...page, items }
     },
-
-    async searchArtists(query, limit, exact) {
-      return parseArtistSearch(
-        await request("search", {
-          query,
-          params: exact ? "EgWKAQIgAUICCAFqDBAOEAoQAxAEEAkQBQ%3D%3D" : ARTIST_FILTER,
-        }),
-        limit,
-      )
-    },
-
     async getAlbum(externalId) {
       const requestedBrowseId = externalId.startsWith("OLAK") ? `VL${externalId}` : externalId
       let page = await request("browse", { browseId: requestedBrowseId })
