@@ -5,6 +5,7 @@
 //! exists, auto-adoption stops and new devices need a short-lived pairing code.
 
 pub mod pairing;
+pub mod settings;
 pub mod tokens;
 
 use std::collections::BTreeSet;
@@ -164,6 +165,7 @@ struct ApiTokenRecord {
 #[derive(Clone)]
 pub struct Accounts {
     store: Store,
+    settings_mutation: std::sync::Arc<std::sync::Mutex<()>>,
     pairings: PairingRegistry,
 }
 
@@ -171,6 +173,7 @@ impl Accounts {
     pub fn open(store: Store) -> Result<Self, AccountError> {
         let accounts = Accounts {
             store,
+            settings_mutation: Default::default(),
             pairings: PairingRegistry::standard(),
         };
         accounts.ensure_default()?;

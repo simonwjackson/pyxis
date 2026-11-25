@@ -1,6 +1,5 @@
 //! Playable candidates and quality-first resolution.
 
-use std::cmp::Ordering;
 use std::collections::BTreeSet;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
@@ -29,8 +28,6 @@ pub struct PluginCandidateInput {
     pub external_id: String,
     pub format: Option<String>,
     pub fidelity: Fidelity,
-    /// Higher wins, but only after fidelity and locality are equal.
-    pub source_priority: i32,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -62,7 +59,6 @@ pub struct MediaCandidate {
     pub location: CandidateLocation,
     pub format: Option<String>,
     pub fidelity: Fidelity,
-    pub source_priority: i32,
     pub discovered_at: String,
 }
 
@@ -124,7 +120,6 @@ struct CandidateRecord {
     bitrate_kbps: Option<u32>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     sample_rate_hz: Option<u32>,
-    source_priority: i32,
     discovered_at: String,
     revision: u64,
     updated_by: String,
@@ -201,7 +196,6 @@ impl CandidateRepository {
                 },
                 format: input.format,
                 fidelity: input.fidelity,
-                source_priority: input.source_priority,
                 discovered_at: now(),
             };
             created.push((
@@ -232,7 +226,6 @@ impl CandidateRepository {
             },
             format: input.format,
             fidelity: input.fidelity,
-            source_priority: input.source_priority,
             discovered_at: now(),
         };
         self.put(account, &candidate, updated_by)?;
@@ -255,7 +248,6 @@ impl CandidateRepository {
             location: CandidateLocation::Local { media_file_id },
             format,
             fidelity,
-            source_priority: 0,
             discovered_at: now(),
         };
         self.put(account, &candidate, updated_by)?;
@@ -291,7 +283,23 @@ impl CandidateRepository {
         local: &LocalMediaStore,
     ) -> Result<ResolveOutcome, CandidateError> {
         let mut candidates = self.list_for_track(account, track_id)?;
-        candidates.sort_by(|left, right| compare(right, left));
+        let settings = crate::accounts::settings::read(&self.store, account)?;
+        let priority = |candidate: &MediaCandidate| match &candidate.location {
+            CandidateLocation::Plugin { plugin_id, .. } => settings
+                .source_priority
+                .iter()
+                .position(|id| id == plugin_id)
+                .unwrap_or(usize::MAX),
+            CandidateLocation::Local { .. } => 0,
+        };
+        candidates.sort_by(|left, right| {
+            right
+                .fidelity
+                .cmp(&left.fidelity)
+                .then_with(|| is_local(right).cmp(&is_local(left)))
+                .then_with(|| priority(left).cmp(&priority(right)))
+                .then_with(|| right.id.cmp(&left.id))
+        });
 
         for candidate in candidates {
             if let ResolveOutcome::Ready(candidate) =
@@ -419,7 +427,6 @@ fn candidate_record(candidate: &MediaCandidate, updated_by: &str) -> CandidateRe
         lossless: candidate.fidelity.lossless,
         bitrate_kbps: candidate.fidelity.bitrate_kbps,
         sample_rate_hz: candidate.fidelity.sample_rate_hz,
-        source_priority: candidate.source_priority,
         discovered_at: candidate.discovered_at.clone(),
         revision: 1,
         updated_by: updated_by.into(),
@@ -452,18 +459,9 @@ impl TryFrom<CandidateRecord> for MediaCandidate {
                 bitrate_kbps: record.bitrate_kbps,
                 sample_rate_hz: record.sample_rate_hz,
             },
-            source_priority: record.source_priority,
             discovered_at: record.discovered_at,
         })
     }
-}
-
-fn compare(left: &MediaCandidate, right: &MediaCandidate) -> Ordering {
-    left.fidelity
-        .cmp(&right.fidelity)
-        .then_with(|| is_local(left).cmp(&is_local(right)))
-        .then_with(|| left.source_priority.cmp(&right.source_priority))
-        .then_with(|| left.id.cmp(&right.id))
 }
 
 fn is_local(candidate: &MediaCandidate) -> bool {

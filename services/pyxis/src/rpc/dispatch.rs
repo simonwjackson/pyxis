@@ -121,6 +121,44 @@ pub fn dispatch(state: &AppState, request: RpcRequest, auth: Option<AuthContext>
                 )),
             }
         }
+        RpcRequest::AccountSettingsGet(_) => {
+            use super::contract::AccountSettingsGetOutcome as Outcome;
+            let Some(auth) = auth else {
+                return auth_required();
+            };
+            RpcResponse::AccountSettingsGet(match state.accounts.settings(&auth.account_id) {
+                Ok(settings) => Outcome::Ready(settings),
+                Err(e) => Outcome::Unavailable(RpcFailure::retryable(
+                    "settings.unavailable",
+                    e.to_string(),
+                )),
+            })
+        }
+        RpcRequest::AccountSettingsSet(request) => {
+            use super::contract::AccountSettingsSetOutcome as Outcome;
+            use crate::accounts::settings::SetError;
+            let Some(auth) = auth else {
+                return auth_required();
+            };
+            RpcResponse::AccountSettingsSet(
+                match state.accounts.set_settings(
+                    &auth,
+                    request.expected_revision,
+                    request.source_priority,
+                ) {
+                    Ok(settings) => Outcome::Ready(settings),
+                    Err(SetError::Conflict(settings)) => Outcome::Conflict(settings),
+                    Err(SetError::Invalid) => Outcome::Invalid(RpcFailure::permanent(
+                        "settings.invalidPriority",
+                        "sourcePriority requires distinct nonempty plugin ids",
+                    )),
+                    Err(SetError::Store(e)) => Outcome::Unavailable(RpcFailure::retryable(
+                        "settings.unavailable",
+                        e.to_string(),
+                    )),
+                },
+            )
+        }
         RpcRequest::AccountList(_) => {
             let Some(auth) = auth else {
                 return auth_required();

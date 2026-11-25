@@ -410,7 +410,6 @@ impl SourceCatalog {
                                 bitrate_kbps: None,
                                 sample_rate_hz: None,
                             },
-                            source_priority: 0,
                         },
                         CandidateMetadata {
                             title: track.title.clone(),
@@ -517,7 +516,6 @@ pub(crate) fn register_source_track(
                 bitrate_kbps: None,
                 sample_rate_hz: None,
             },
-            source_priority: 0,
         },
         CandidateMetadata {
             title: track.title.clone(),

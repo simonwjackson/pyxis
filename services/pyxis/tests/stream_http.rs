@@ -147,7 +147,6 @@ fn state_with_remote(url: &str) -> (TempDir, AppState) {
                     bitrate_kbps: Some(128),
                     sample_rate_hz: Some(48_000),
                 },
-                source_priority: 10,
             },
             "test",
         )
@@ -376,7 +375,6 @@ async fn an_expired_plugin_url_is_resolved_once_more_before_failing() {
                     bitrate_kbps: Some(128),
                     sample_rate_hz: Some(48_000),
                 },
-                source_priority: 10,
             },
             "test",
         )
@@ -417,7 +415,6 @@ async fn client_bound_urls_fall_back_to_plugin_directed_file_fetch() {
                     bitrate_kbps: Some(128),
                     sample_rate_hz: Some(48_000),
                 },
-                source_priority: 10,
             },
             "test",
         )

@@ -24,7 +24,6 @@ fn plugin(
     lossless: bool,
     bitrate_kbps: u32,
     sample_rate_hz: u32,
-    source_priority: i32,
 ) -> PluginCandidateInput {
     PluginCandidateInput {
         plugin_id: plugin_id.into(),
@@ -35,7 +34,6 @@ fn plugin(
             bitrate_kbps: Some(bitrate_kbps),
             sample_rate_hz: Some(sample_rate_hz),
         },
-        source_priority,
     }
 }
 
@@ -46,7 +44,7 @@ fn a_higher_fidelity_candidate_becomes_the_resolution_without_touching_the_track
         .add_plugin_candidate(
             &account,
             "track-1",
-            plugin("ytmusic", "low", false, 128, 44_100, 10),
+            plugin("ytmusic", "low", false, 128, 44_100),
             "device-a",
         )
         .expect("low candidate");
@@ -64,7 +62,7 @@ fn a_higher_fidelity_candidate_becomes_the_resolution_without_touching_the_track
         .add_plugin_candidate(
             &account,
             "track-1",
-            plugin("ytmusic", "high", false, 320, 48_000, 10),
+            plugin("ytmusic", "high", false, 320, 48_000),
             "device-a",
         )
         .expect("high candidate");
@@ -91,7 +89,7 @@ fn a_higher_fidelity_candidate_becomes_the_resolution_without_touching_the_track
         .add_plugin_candidate(
             &account,
             "track-1",
-            plugin("ytmusic", "lossless", true, 1, 44_100, 0),
+            plugin("ytmusic", "lossless", true, 1, 44_100),
             "device-a",
         )
         .expect("lossless candidate");
@@ -108,12 +106,20 @@ fn a_higher_fidelity_candidate_becomes_the_resolution_without_touching_the_track
 
 #[test]
 fn source_priority_breaks_only_an_equal_quality_tie() {
-    let (_dir, media, account) = setup();
+    let dir = tempfile::tempdir().unwrap();
+    let store = Store::open(dir.path()).unwrap();
+    let accounts = pyxis::accounts::Accounts::open(store.clone()).unwrap();
+    let media = Media::open(store).unwrap();
+    let account = AccountId::new("account-a");
+    let auth = pyxis::accounts::AuthContext {
+        account_id: account.clone(),
+        principal: pyxis::accounts::Principal::Device { id: "phone".into() },
+    };
     media
         .add_plugin_candidate(
             &account,
             "track-1",
-            plugin("pandora", "p", false, 192, 44_100, 10),
+            plugin("pandora", "p", false, 192, 44_100),
             "device-a",
         )
         .expect("pandora");
@@ -121,11 +127,18 @@ fn source_priority_breaks_only_an_equal_quality_tie() {
         .add_plugin_candidate(
             &account,
             "track-1",
-            plugin("ytmusic", "y", false, 192, 44_100, 20),
+            plugin("ytmusic", "y", false, 192, 44_100),
             "device-a",
         )
         .expect("ytmusic");
 
+    accounts
+        .set_settings(
+            &auth,
+            0,
+            vec!["absent".into(), "ytmusic".into(), "pandora".into()],
+        )
+        .unwrap();
     let resolved = media
         .resolve(&account, "track-1", &live(&["pandora", "ytmusic"]))
         .expect("resolve")
@@ -133,6 +146,35 @@ fn source_priority_breaks_only_an_equal_quality_tie() {
         .expect("ready");
 
     assert_eq!(resolved.id, preferred.id);
+    accounts
+        .set_settings(&auth, 1, vec!["pandora".into()])
+        .unwrap();
+    assert_ne!(
+        media
+            .resolve(&account, "track-1", &live(&["pandora", "ytmusic"]))
+            .unwrap()
+            .ready()
+            .unwrap()
+            .id,
+        preferred.id
+    );
+    let better = media
+        .add_plugin_candidate(
+            &account,
+            "track-1",
+            plugin("ytmusic", "better", true, 320, 48_000),
+            "device-a",
+        )
+        .unwrap();
+    assert_eq!(
+        media
+            .resolve(&account, "track-1", &live(&["pandora", "ytmusic"]))
+            .unwrap()
+            .ready()
+            .unwrap()
+            .id,
+        better.id
+    );
 }
 
 #[test]
@@ -142,7 +184,7 @@ fn a_local_file_wins_over_a_remote_candidate_of_equal_quality() {
         .add_plugin_candidate(
             &account,
             "track-1",
-            plugin("ytmusic", "remote", false, 320, 48_000, 100),
+            plugin("ytmusic", "remote", false, 320, 48_000),
             "device-a",
         )
         .expect("remote");
@@ -217,7 +259,7 @@ fn no_available_candidates_is_an_explicit_unavailable_outcome() {
         .add_plugin_candidate(
             &account,
             "track-1",
-            plugin("not-installed", "remote", false, 320, 48_000, 0),
+            plugin("not-installed", "remote", false, 320, 48_000),
             "device-a",
         )
         .expect("candidate");

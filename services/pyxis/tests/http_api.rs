@@ -321,3 +321,37 @@ async fn a_known_operation_with_an_invalid_payload_is_rejected_explicitly() {
     assert_eq!(body["_tag"], "rpc.failure");
     assert_eq!(body["outcome"]["value"]["code"], "request.invalidPayload");
 }
+
+#[tokio::test]
+async fn account_settings_persist_unknown_sources_and_fence_revisions_and_accounts() {
+    let (_dir, app) = test_app();
+    let first = claim_device(&app, "phone").await;
+    let token = Some(bearer(&first));
+    let get = json!({"_tag":"account.settings.get","payload":{}});
+    let set = json!({"_tag":"account.settings.set","payload":{"sourcePriority":["unknown"],"expectedRevision":0}});
+    let before = rpc(&app, get.clone(), token).await;
+    assert_eq!(
+        before["outcome"]["value"],
+        json!({"revision":0,"sourcePriority":[]})
+    );
+    let saved = rpc(&app, set.clone(), token).await;
+    assert_eq!(
+        saved["outcome"]["value"],
+        json!({"revision":1,"sourcePriority":["unknown"]})
+    );
+    assert_eq!(rpc(&app, set, token).await["outcome"]["status"], "conflict");
+    assert_eq!(
+        rpc(&app, get.clone(), token).await["outcome"],
+        saved["outcome"]
+    );
+    let other = rpc(
+        &app,
+        json!({"_tag":"account.create","payload":{"name":"family","deviceName":"tablet"}}),
+        token,
+    )
+    .await;
+    assert_eq!(
+        rpc(&app, get, Some(bearer(&other))).await["outcome"],
+        before["outcome"]
+    );
+}

@@ -15,6 +15,11 @@ export interface AccountCreateRequest {
 	deviceName: string;
 }
 
+export interface AccountSettingsSetRequest {
+	expectedRevision: number;
+	sourcePriority: string[];
+}
+
 export type RpcAlbumCommand =
 	| { _tag: "tags.set", payload: TagsSetCommand }
 	| { _tag: "artwork.refresh", payload: EmptyRequest }
@@ -428,6 +433,11 @@ export interface RpcAccount {
 	 */
 	isDefault: boolean;
 	createdAt: string;
+}
+
+export interface RpcAccountSettings {
+	revision: number;
+	sourcePriority: string[];
 }
 
 export interface RpcLibraryTrack {
@@ -972,6 +982,16 @@ export type AccountListOutcome =
 	| { status: "ready", value: RpcAccount[] }
 	| { status: "unavailable", value: RpcFailure };
 
+export type AccountSettingsGetOutcome =
+	| { status: "ready", value: RpcAccountSettings }
+	| { status: "unavailable", value: RpcFailure };
+
+export type AccountSettingsSetOutcome =
+	| { status: "ready", value: RpcAccountSettings }
+	| { status: "conflict", value: RpcAccountSettings }
+	| { status: "invalid", value: RpcFailure }
+	| { status: "unavailable", value: RpcFailure };
+
 export type AlbumAddOutcome =
 	| { status: "ready", value: RpcLibraryAlbum }
 	| { status: "invalid", value: RpcFailure }
@@ -1118,6 +1138,8 @@ export type RpcRequest =
 	| { _tag: "auth.token.create", payload: ApiTokenCreateRequest }
 	| { _tag: "auth.token.revoke", payload: ApiTokenRevokeRequest }
 	| { _tag: "listen.journal.list", payload: JournalListRequest }
+	| { _tag: "account.settings.get", payload: EmptyRequest }
+	| { _tag: "account.settings.set", payload: AccountSettingsSetRequest }
 	| { _tag: "account.list", payload: EmptyRequest }
 	| { _tag: "account.create", payload: AccountCreateRequest }
 	| { _tag: "plugin.list", payload: EmptyRequest }
@@ -1167,6 +1189,8 @@ export type RpcResponse =
 	| { _tag: "auth.token.create", outcome: ApiTokenCreateOutcome }
 	| { _tag: "auth.token.revoke", outcome: CommandOutcome }
 	| { _tag: "listen.journal.list", outcome: JournalListOutcome }
+	| { _tag: "account.settings.get", outcome: AccountSettingsGetOutcome }
+	| { _tag: "account.settings.set", outcome: AccountSettingsSetOutcome }
 	| { _tag: "account.list", outcome: AccountListOutcome }
 	| { _tag: "account.create", outcome: AccountCreateOutcome }
 	| { _tag: "plugin.list", outcome: PluginListOutcome }

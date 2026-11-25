@@ -18,6 +18,8 @@ Read [README.md](README.md) first for the envelope rules, and
 | `auth.token.revoke` | `account:admin` | `succeeded`, `unknown`, `unavailable` |
 | `account.list` | `account:read` | `ready`, `unavailable` |
 | `account.create` | `account:admin` | `ready`, `nameTaken`, `unavailable` |
+| `account.settings.get` | `account:read` | `ready`, `unavailable` |
+| `account.settings.set` | `account:admin` | `ready`, `conflict`, `invalid`, `unavailable` |
 | `plugin.list` | `account:read` | `ready`, `unavailable` |
 | `output.targets.list` | `session:read` | `ready`, `unavailable` |
 | `output.session.create` | `session:control` | `ready`, `unknownTarget`, `unavailable` |
@@ -364,3 +366,12 @@ Track-only `listen.history.list` never includes these new rows. `library.album.a
 `origin` (`stationTrack`, `search`, or `other`) and optional `trackId`. With context it commits a
 capture alongside the add, including re-adds. Without context it emits no event. A token-authenticated album add records the token as
 the audit actor and omits `deviceId` from its capture.
+
+### Account settings
+
+`account.settings.get {}` returns `{revision, sourcePriority}` for the authenticated account.
+The default is `{revision:0, sourcePriority:[]}`. `account.settings.set {expectedRevision,
+sourcePriority}` replaces the order and returns the next revision. `conflict` carries the
+current settings. List up to 256 distinct nonempty plugin ids (at most 256 bytes each), best
+first. Unknown ids persist. Priority applies immediately to existing candidates, after audio
+quality and locality; unlisted sources rank last.

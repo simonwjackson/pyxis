@@ -281,7 +281,7 @@ pub fn track_candidates() -> CollectionDescriptor {
             field("lossless", optional(SchemaNode::Bool)),
             field("bitrateKbps", optional(SchemaNode::Num)),
             field("sampleRateHz", optional(SchemaNode::Num)),
-            field("sourcePriority", SchemaNode::Num),
+            field("sourcePriority", optional(SchemaNode::Num)),
             field("discoveredAt", SchemaNode::Str),
         ],
     )
