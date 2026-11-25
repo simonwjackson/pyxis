@@ -6,13 +6,23 @@ export function fail(code: string, message: string): never {
 }
 
 export function sessions(client: PyxisClient, includeUnreachable = false) {
-  return client.call({ _tag: "session.list", payload: { includeUnreachable } }).then((r) => r.value)
+  return client
+    .call({ _tag: "session.list", payload: { includeUnreachable } })
+    .then((r) => r.value.sort((a, b) => a.id.localeCompare(b.id)))
 }
 
 export function rooms(client: PyxisClient) {
   return client
     .call({ _tag: "output.targets.list", payload: { pluginId: "sonos" } })
-    .then((r) => r.value)
+    .then(({ value }) => ({
+      ...value,
+      groups: value.groups
+        .sort((a, b) => a.id.localeCompare(b.id))
+        .map((group) => ({
+          ...group,
+          rooms: group.rooms.sort((a, b) => a.id.localeCompare(b.id)),
+        })),
+    }))
 }
 
 export function matchRoom(topology: RpcOutputTopology, query: string) {

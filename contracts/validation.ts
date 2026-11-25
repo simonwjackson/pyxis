@@ -1,7 +1,7 @@
 // Pure wire validation shared by both page adapters. No transport, storage or state ports
 // belong here; the generated Rust schema remains the only definition of valid payloads.
 import Ajv2020, { type ValidateFunction } from "ajv/dist/2020"
-import type { RpcRequest, RpcResponse } from "./generated/pyxis"
+import type { RealtimeServerMessage, RpcRequest, RpcResponse } from "./generated/pyxis"
 import contractSchema from "./generated/pyxis.schema.json"
 
 const ajv = new Ajv2020({
@@ -35,9 +35,13 @@ const ajv = new Ajv2020({
 })
 ajv.addSchema(contractSchema, "pyxis-contract")
 
-function validator<T>(definition: "RpcRequest" | "RpcResponse"): ValidateFunction<T> {
+function validator<T>(
+  definition: "RpcRequest" | "RpcResponse" | "RealtimeServerMessage",
+): ValidateFunction<T> {
   return ajv.compile<T>({ $ref: `pyxis-contract#/$defs/${definition}` })
 }
+
+export const isRealtimeServerMessage = validator<RealtimeServerMessage>("RealtimeServerMessage")
 
 const requestValidator = validator<RpcRequest>("RpcRequest")
 const responseValidator = validator<RpcResponse>("RpcResponse")

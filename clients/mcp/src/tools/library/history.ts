@@ -39,9 +39,12 @@ function project(library: RpcLibraryAlbum[], events: RpcListenEvent[]) {
   }
   return { stats, tracks, unattributedPlays }
 }
+export const history = async (pyxis: PyxisClient, limit = 50) =>
+  (await pyxis.call({ _tag: "listen.history.list", payload: { limit } })).value.sort((a, b) => {
+    const diff = time(b.listenedAt) - time(a.listenedAt)
+    return diff > 0n ? 1 : diff < 0n ? -1 : cmp(a.id, b.id)
+  })
 export function registerHistory(server: McpServer, pyxis: PyxisClient) {
-  const read = async (limit: number) =>
-    (await pyxis.call({ _tag: "listen.history.list", payload: { limit } })).value
   const coverage = (events: RpcListenEvent[]) => ({
     eventsScanned: events.length,
     historyMayBeTruncated: events.length === cap,
@@ -52,7 +55,7 @@ export function registerHistory(server: McpServer, pyxis: PyxisClient) {
     "Read recent track plays, newest first.",
     { limit },
     "read",
-    async ({ limit }) => data({ events: await read(limit ?? 50) }),
+    async ({ limit }) => data({ events: await history(pyxis, limit) }),
   )
   tool(
     server,
@@ -64,7 +67,7 @@ export function registerHistory(server: McpServer, pyxis: PyxisClient) {
       const start = time(from),
         end = time(to)
       if (start > end) invalid("from must not be after to.")
-      const events = await read(cap)
+      const events = await history(pyxis, cap)
       const matches = events.filter((e) => {
         const when = time(e.listenedAt)
         return when >= start && when < end
@@ -83,7 +86,7 @@ export function registerHistory(server: McpServer, pyxis: PyxisClient) {
     { limit },
     "read",
     async ({ limit = 20 }) => {
-      const [library, events] = await Promise.all([albums(pyxis), read(cap)])
+      const [library, events] = await Promise.all([albums(pyxis), history(pyxis, cap)])
       const { stats, tracks, unattributedPlays } = project(library, events),
         byId = new Map(library.map((a) => [a.id, a]))
       return data({
@@ -112,7 +115,7 @@ export function registerHistory(server: McpServer, pyxis: PyxisClient) {
     { before: instant, limit },
     "read",
     async ({ before, limit = 20 }) => {
-      const [library, events] = await Promise.all([albums(pyxis), read(cap)])
+      const [library, events] = await Promise.all([albums(pyxis), history(pyxis, cap)])
       const { stats } = project(library, events),
         cutoff = time(before)
       const neglected = library

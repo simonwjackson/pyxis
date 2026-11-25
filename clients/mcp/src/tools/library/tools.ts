@@ -57,7 +57,9 @@ export const expression: z.ZodType<RpcTagExpression> = z.lazy(() =>
   ]),
 )
 export async function albums(pyxis: PyxisClient) {
-  return (await pyxis.call({ _tag: "library.albums.list", payload: {} })).value
+  return (await pyxis.call({ _tag: "library.albums.list", payload: {} })).value.sort((a, b) =>
+    a.id.localeCompare(b.id),
+  )
 }
 export async function albumById(pyxis: PyxisClient, albumId: string) {
   return (await albums(pyxis)).find((a) => a.id === albumId)

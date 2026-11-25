@@ -93,6 +93,10 @@ everything provider-shaped lives at the edge behind a plugin protocol.
 
 ### Deferred to Follow-Up Work
 
+- **Realtime revocation.** Pyxis checks a token when accepting `/realtime`, not while
+  pumping events. Revocation blocks subsequent RPCs and reconnects, but not invalidations
+  on an existing U49 stream. Immediate termination needs revocation on live core sockets.
+
 - Output (Sonos) Play of non-library search/station candidates: `output_catalog` requires `library.get_track`.
   U47 returns the core error; playing a song must never add it to the library.
 - **M14/M15 journal integration.** U48 on the M13 base can only read the latest 1000 plays.
@@ -2171,7 +2175,9 @@ stats against seeded history; search with zero plugins answers `noSources` hones
 ### U49. Resources, subscriptions and prompts
 
 **Goal:** resources for now playing, albums, tags, recent history, artwork, the library and
-Sonos rooms, each with `ttlMs` and `cacheScope` and deterministic ordering. `subscriptions/listen`
+Sonos rooms, with deterministic ordering. Per the `2026-07-28` caching specification,
+`ttlMs` and `cacheScope` belong on complete results (including `resources/read`), not on
+resource descriptors. Use private scope for account data. `subscriptions/listen`
 for now-playing changes, fed from Pyxis `/realtime`. Prompts: DJ and Rediscover. No Tasks
 extension and no MCP Apps.
 

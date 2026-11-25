@@ -6,13 +6,8 @@ import { artwork } from "./artwork"
 import { albumById, albums, data, expression, id, outcome, page, sort, tool } from "./tools"
 
 export function registerAlbums(server: McpServer, pyxis: PyxisClient) {
-  const query = async (filters: AlbumsQueryRequest, limit?: number, cursor?: string) =>
-    outcome(
-      await pyxis.call({
-        _tag: "library.albums.query",
-        payload: { ...filters, ...(limit && { limit }), ...(cursor && { cursor }) },
-      }),
-    )
+  const query = (filters: AlbumsQueryRequest, limit?: number, cursor?: string) =>
+    albumPage(pyxis, filters, limit, cursor)
   tool(
     server,
     "library.albums",
@@ -75,32 +70,51 @@ export function registerAlbums(server: McpServer, pyxis: PyxisClient) {
     "Read a library album and its tracks by core album ID.",
     { albumId: id },
     "read",
-    async ({ albumId }) => {
-      const value = await albumById(pyxis, albumId)
-      return outcome(value ? { status: "ready", value } : { status: "unknown" })
-    },
+    ({ albumId }) => albumDetail(pyxis, albumId),
   )
-  tool(server, "library.tags", "List tags and their album counts.", {}, "read", async () => {
-    const counts = new Map<string, number>()
-    for (const album of await albums(pyxis))
-      for (const tag of album.tags) counts.set(tag, (counts.get(tag) ?? 0) + 1)
-    return data({
-      tags: Array.from(counts.keys())
-        .sort()
-        .map((tag) => ({ tag, count: counts.get(tag) })),
-    })
-  })
+  tool(server, "library.tags", "List tags and their album counts.", {}, "read", () =>
+    tagCounts(pyxis),
+  )
   tool(
     server,
     "library.artwork",
     "Fetch the stored album cover over HTTP and return MCP image content.",
     { albumId: id },
     "read",
-    async ({ albumId }) => {
-      const album = await albumById(pyxis, albumId)
-      if (!album) return outcome({ status: "unknown" })
-      if (!album.artworkUrl) return data({ status: "noArtwork" })
-      return artwork(album.artworkUrl)
-    },
+    ({ albumId }) => albumArtwork(pyxis, albumId),
   )
+}
+
+export const albumPage = async (
+  pyxis: PyxisClient,
+  filters: AlbumsQueryRequest,
+  limit?: number,
+  cursor?: string,
+) =>
+  outcome(
+    await pyxis.call({
+      _tag: "library.albums.query",
+      payload: { ...filters, ...(limit && { limit }), ...(cursor && { cursor }) },
+    }),
+  )
+
+export async function albumDetail(pyxis: PyxisClient, albumId: string) {
+  const value = await albumById(pyxis, albumId)
+  return outcome(value ? { status: "ready", value } : { status: "unknown" })
+}
+export async function tagCounts(pyxis: PyxisClient) {
+  const counts = new Map<string, number>()
+  for (const album of await albums(pyxis))
+    for (const tag of album.tags) counts.set(tag, (counts.get(tag) ?? 0) + 1)
+  return data({
+    tags: Array.from(counts.keys())
+      .sort()
+      .map((tag) => ({ tag, count: counts.get(tag) })),
+  })
+}
+export async function albumArtwork(pyxis: PyxisClient, albumId: string) {
+  const album = await albumById(pyxis, albumId)
+  if (!album) return outcome({ status: "unknown" })
+  if (!album.artworkUrl) return data({ status: "noArtwork" })
+  return artwork(album.artworkUrl)
 }

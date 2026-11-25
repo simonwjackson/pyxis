@@ -151,3 +151,38 @@ write an artwork URL, so a library read must not become an arbitrary network fet
 server fetches only the stored URL, sends no Pyxis bearer, refuses redirects, and accepts PNG,
 JPEG, WebP and GIF responses up to 4 MiB within eight seconds. Image data returns in MCP
 `content`, never on plugin stdio.
+
+## Resources, subscriptions and prompts
+
+Use `resources/list` for fixed URIs and `resources/templates/list` for album IDs. Each
+`resources/read` result is private to the requesting token. JSON text has the same shape
+as the matching tool's `structuredContent`. Cover images are base64 resource blobs with
+an image MIME type; the same trusted-origin and size limits apply as for the artwork tool.
+
+| URI | Matching tool (default arguments unless noted) | `ttlMs` |
+|---|---|---:|
+| `pyxis://now-playing` | `session.list`: reachable sessions by ID, with transport and current track ID | 0 |
+| `pyxis://albums` | `library.albums`: first page; continue with the tool and its cursor | 30000 |
+| `pyxis://albums/{albumId}` | `library.album`: album detail and tracks in album order | 30000 |
+| `pyxis://artwork/{albumId}` | `library.artwork`: cover image, or JSON `noArtwork` | 30000 |
+| `pyxis://tags` | `library.tags`: tags by name with counts | 30000 |
+| `pyxis://history/recent` | `history.recent`: latest 50 plays, newest first | 5000 |
+| `pyxis://library` | `organizer.snapshot`: full library by album ID | 30000 |
+| `pyxis://sonos/rooms` | `room.list`: groups by ID, then rooms by ID | 0 |
+
+For [subscriptions/listen](https://modelcontextprotocol.io/specification/2026-07-28/basic/patterns/subscriptions),
+include `"notifications":{"resourceSubscriptions":["pyxis://now-playing"]}` in the request
+params. Wait for the SSE acknowledgment, then read the resource. The adapter opens one
+Pyxis `/realtime` connection for this stream, using the caller's own token in the hello
+frame (`sessions` topic, `session:read` required). Pyxis checks the token at handshake, not
+on each event. Revoking a token blocks new requests but does not terminate an already
+accepted Pyxis socket. The adapter honors only the now-playing URI.
+Each new session revision invalidates that URI once; `notifications/resources/updated`
+includes `pyxis.dev/sessionId` and `pyxis.dev/revision` in `_meta`. Read again for current
+state. Closing the SSE stream closes its upstream socket. After a disconnect, listen and
+read again: there is no saved cursor or replay across MCP requests.
+
+Use `prompts/list` to discover **DJ** (`mood` required) and **Rediscover** (no arguments).
+`prompts/get` renders instructions; it never starts playback. DJ guides selection and
+playback for a mood or moment. Rediscover uses history and library tags to suggest albums,
+then waits for the user's choice before playing one.

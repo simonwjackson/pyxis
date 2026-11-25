@@ -106,6 +106,7 @@ export async function startHarness(
         method: string,
         params: Record<string, unknown> = {},
         options: {
+          signal?: AbortSignal
           headers?: Record<string, string>
           token?: string | null
           version?: string
@@ -116,6 +117,7 @@ export async function startHarness(
         const bearer = options.token === undefined ? token.value.bearerToken : options.token
         const name = params.name ?? params.uri
         return fetch(endpoint, {
+          ...(options.signal && { signal: options.signal }),
           method: "POST",
           headers: {
             "content-type": "application/json",

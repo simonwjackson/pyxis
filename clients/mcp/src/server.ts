@@ -1,5 +1,8 @@
-import { createMcpHandler, McpServer } from "@modelcontextprotocol/server"
+import { createMcpHandler, McpServer, type McpServerFactory } from "@modelcontextprotocol/server"
+import { registerPrompts } from "./prompts/register"
 import { PyxisClient, PyxisError } from "./pyxis-client"
+import { registerResources } from "./resources/register"
+import { subscriptionHandler } from "./subscriptions/listen"
 import { registerTools } from "./tools/registry"
 
 export const protocolVersion = "2026-07-28"
@@ -17,18 +20,27 @@ export function serveMcp(settings: McpSettings, register = registerTools) {
       request.headers.get("authorization") ?? undefined,
       request.signal,
     )
-  const handler = createMcpHandler(
-    ({ requestInfo }) => {
-      if (!requestInfo) throw new Error("Pyxis requires an HTTP request")
-      const server = new McpServer(
-        { name: "pyxis", version: "2.0.0" },
-        { supportedProtocolVersions: [protocolVersion] },
-      )
-      register(server, clientFor(requestInfo))
-      return server
-    },
-    { legacy: "reject" },
-  )
+  const factory: McpServerFactory = ({ requestInfo }) => {
+    if (!requestInfo) throw new Error("Pyxis requires an HTTP request")
+    const server = new McpServer(
+      { name: "pyxis", version: "2.0.0" },
+      {
+        supportedProtocolVersions: [protocolVersion],
+        capabilities: {
+          resources: { subscribe: true, listChanged: false },
+          tools: { listChanged: false },
+          prompts: { listChanged: false },
+        },
+      },
+    )
+    const client = clientFor(requestInfo)
+    register(server, client)
+    registerResources(server, client)
+    registerPrompts(server)
+    return server
+  }
+  const handler = createMcpHandler(factory, { legacy: "reject" })
+  const listens = subscriptionHandler(factory, settings.baseUrl)
 
   const listener = Bun.serve({
     hostname: settings.hostname,
@@ -61,14 +73,17 @@ export function serveMcp(settings: McpSettings, register = registerTools) {
           headers: unauthorized ? { "www-authenticate": "Bearer" } : {},
         })
       }
+      if (request.method === "POST" && request.headers.get("mcp-method") === "subscriptions/listen")
+        return listens.fetch(request, request.headers.get("authorization")?.slice(7) ?? "")
       return handler.fetch(request)
     },
   })
   return {
     url: listener.url,
     async close() {
+      listens.close()
       await handler.close()
-      await listener.stop(true)
+      await listener.stop()
     },
   }
 }

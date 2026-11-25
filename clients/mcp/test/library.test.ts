@@ -245,7 +245,15 @@ test("artwork is fetched only from a configured origin, without the Pyxis bearer
       isError: true,
       structuredContent: { code: "artwork.unavailable" },
     })
-    expect(requests).toEqual([null, null])
+    const uri = `pyxis://artwork/${albumId}`
+    expect(await (await h.post("resources/read", { uri })).json()).toMatchObject({
+      result: {
+        cacheScope: "private",
+        ttlMs: 30000,
+        contents: [{ uri, mimeType: "image/png", blob: bytes.toString("base64") }],
+      },
+    })
+    expect(requests).toEqual([null, null, null])
   } finally {
     if (previous === undefined) delete process.env.PYXIS_MCP_ARTWORK_ORIGINS
     else process.env.PYXIS_MCP_ARTWORK_ORIGINS = previous
