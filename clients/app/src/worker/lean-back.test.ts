@@ -17,6 +17,8 @@ import { assertRpcRequest } from "../../../../contracts/validation"
 import { createSupportRpc } from "../rpc/support"
 import { createDirectWorkerClient, createLeanBackClient } from "./client"
 
+// Node's fetch says "fetch failed"; Bun's says "Unable to connect".
+const connectionLost = /fetch failed|unable to connect/i
 const deviceId = "phone"
 const bearerToken = "phone-token"
 
@@ -184,9 +186,9 @@ describe("lean-back host API", () => {
     const endpoint = await sessionEndpoint()
     const host = createLeanBackClient(worker, endpoint.rpc)
     await endpoint.close()
-    await expect(host.takeoverCandidates()).rejects.toThrow(/fetch failed/i)
+    await expect(host.takeoverCandidates()).rejects.toThrow(connectionLost)
     await expect(host.handoff({ sessionId: "remote", targetSessionId: "local" })).rejects.toThrow(
-      /fetch failed/i,
+      connectionLost,
     )
   })
 
