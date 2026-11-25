@@ -108,6 +108,7 @@ export function createTransport(
         url.searchParams.set("type", "next")
       }
       let response: Response
+      const signal = AbortSignal.timeout(Math.max(1, Math.ceil(deadline - time.now())))
       try {
         response = await fetcher(url, {
           method: "POST",
@@ -143,7 +144,7 @@ export function createTransport(
             },
             ...body,
           }),
-          signal: AbortSignal.timeout(Math.max(1, Math.ceil(deadline - time.now()))),
+          signal,
         })
       } catch (error) {
         throw new YtMusicProviderError("ytmusic.network", String(error), true)
@@ -152,6 +153,12 @@ export function createTransport(
         try {
           return await response.json()
         } catch {
+          if (signal.aborted)
+            throw new YtMusicProviderError(
+              "ytmusic.deadline",
+              "Response body exceeded the call budget",
+              true,
+            )
           throw new YtMusicProviderError(
             "ytmusic.invalidResponse",
             "Invalid YouTube Music JSON",
@@ -181,6 +188,27 @@ export function createTransport(
       if (attempt >= setting("maxRetries") || coolingUntil >= deadline) throw error
     }
   }
+  // The bootstrap promise is shared; its creator may have more time left than this caller.
+  async function waitForVisitor(promise: Promise<string>, deadline: number) {
+    const remaining = deadline - time.now()
+    const error = new YtMusicProviderError(
+      "ytmusic.deadline",
+      "Visitor bootstrap exceeded the call budget",
+      true,
+    )
+    if (remaining <= 0) throw error
+    let timer: ReturnType<typeof setTimeout> | undefined
+    try {
+      return await Promise.race([
+        promise,
+        new Promise<never>((_, reject) => {
+          timer = setTimeout(() => reject(error), remaining)
+        }),
+      ])
+    } finally {
+      clearTimeout(timer)
+    }
+  }
   return async (
     endpoint: string,
     body: Record<string, unknown>,
@@ -188,6 +216,8 @@ export function createTransport(
     token?: string,
   ) => {
     const deadline = configScope.getStore()?.deadline ?? time.now() + operationBudgetMs
+    if (time.now() >= deadline)
+      throw new YtMusicProviderError("ytmusic.deadline", "No call budget remains", true)
     visitor ??= post(deadline, "browse", {})
       .then((data) => {
         const v = (data as { responseContext?: { visitorData?: unknown } })?.responseContext
@@ -204,6 +234,6 @@ export function createTransport(
         visitor = undefined
         throw error
       })
-    return post(deadline, endpoint, body, await visitor, android, token)
+    return post(deadline, endpoint, body, await waitForVisitor(visitor, deadline), android, token)
   }
 }

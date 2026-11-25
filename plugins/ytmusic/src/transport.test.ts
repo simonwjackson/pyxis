@@ -144,3 +144,38 @@ test("persistent 503 is retried exactly maxRetries times", async () => {
   ).rejects.toMatchObject({ code: "ytmusic.http503", retryable: true })
   expect(attempts).toBe(4)
 })
+
+test("a second HTTP request within the same capability has only the remaining budget", async () => {
+  let now = Date.now(),
+    attempts = 0
+  const request = createTransport(
+    async (url) => {
+      if (url.pathname.endsWith("/browse"))
+        return Response.json({ responseContext: { visitorData: "v" } })
+      attempts++
+      if (attempts === 1) {
+        now += 15000
+        return Response.json({})
+      }
+      return new Response(null, { status: 503, headers: { "Retry-After": "13" } })
+    },
+    {
+      now: () => now,
+      sleep: async (ms) => {
+        now += ms
+      },
+      random: () => 0,
+    },
+  )
+  await expect(
+    withTransportConfig(
+      {},
+      async () => {
+        await request("next", {})
+        await request("search", {})
+      },
+      () => now,
+    ),
+  ).rejects.toMatchObject({ retryable: true })
+  expect(attempts).toBe(2)
+})
