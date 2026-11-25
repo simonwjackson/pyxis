@@ -8,6 +8,9 @@ use serde_json::{json, Value};
 use crate::db::store::AccountId;
 
 const TTL_SECONDS: i64 = 30 * 60;
+// Reserve the RPC tag, field names, kind and page controls in addition to the
+// variable-size fields (including the JSON-escaped query or external id).
+const RESUME_ENVELOPE_BYTES: usize = 1024;
 
 #[derive(Clone)]
 pub(crate) struct SourceCursors(SealedTokens);
@@ -15,6 +18,9 @@ pub(crate) struct SourceCursors(SealedTokens);
 pub(crate) struct PageScope<'a> {
     tokens: &'a SealedTokens,
     fingerprint: blake3::Hash,
+    max_cursor_bytes: usize,
+    plugin: &'a str,
+    operation: &'a str,
 }
 
 impl SourceCursors {
@@ -28,17 +34,22 @@ impl SourceCursors {
 
     /// `query` contains all selectors, not page controls (cursor and limit). Structured
     /// encoding keeps fields distinct even when an external id contains a separator.
-    pub(crate) fn bind(
-        &self,
+    pub(crate) fn bind<'a>(
+        &'a self,
         account: &AccountId,
-        plugin: &str,
-        operation: &str,
+        plugin: &'a str,
+        operation: &'a str,
         query: &Value,
-    ) -> PageScope<'_> {
-        let scope = json!([account.as_str(), plugin, operation, query]);
+    ) -> PageScope<'a> {
+        let scope = json!([account.as_str(), plugin, operation, query]).to_string();
         PageScope {
             tokens: &self.0,
-            fingerprint: blake3::hash(scope.to_string().as_bytes()),
+            fingerprint: blake3::hash(scope.as_bytes()),
+            // The serialized scope includes every variable-size field the client resends.
+            max_cursor_bytes: (crate::api::MAX_RPC_BODY_BYTES - RESUME_ENVELOPE_BYTES)
+                .saturating_sub(scope.len()),
+            plugin,
+            operation,
         }
     }
 }
@@ -56,8 +67,20 @@ impl PageScope<'_> {
     }
 
     fn seal_at(&self, continuation: &str, now: i64) -> Result<String, SealError> {
-        self.tokens
-            .seal(self.fingerprint.as_bytes(), continuation.as_bytes(), now)
+        let cursor = self
+            .tokens
+            .seal(self.fingerprint.as_bytes(), continuation.as_bytes(), now)?;
+        if cursor.len() > self.max_cursor_bytes {
+            tracing::warn!(
+                plugin_id = self.plugin,
+                operation = self.operation,
+                encoded_bytes = cursor.len(),
+                max_cursor_bytes = self.max_cursor_bytes,
+                "source cursor would exceed resume request budget"
+            );
+            return Err(SealError);
+        }
+        Ok(cursor)
     }
 
     fn open_at(&self, token: &str, now: i64) -> Option<String> {

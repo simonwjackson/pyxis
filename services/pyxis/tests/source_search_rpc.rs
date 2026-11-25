@@ -440,3 +440,49 @@ async fn lyrics_distinguish_plain_and_timed_lines_from_an_unsupported_source() {
         "unsupported"
     );
 }
+
+#[tokio::test]
+async fn a_search_page_must_fit_the_resume_request_with_its_query() {
+    // Leave one byte on the safe side of the paging budget. The next source's
+    // continuation is two raw bytes longer and crosses it after sealing.
+    let mut query = "\"".repeat(450_000); // Each quote takes two bytes on the wire.
+    let plugin_id = "search-source";
+    let prefix = "x".repeat(4096);
+    for extra in ["", "xx"] {
+        let dir = tempfile::tempdir().unwrap();
+        let host = PluginHost::start(
+            vec![search_plugin().with_env("PYXIS_LAB_CONTINUATION", format!("{prefix}{extra}"))],
+            HostPolicy::default(),
+        )
+        .unwrap();
+        let app =
+            router(AppState::open_with_plugins(Store::open(dir.path()).unwrap(), host).unwrap());
+        let bearer = claim(&app).await;
+        let request = |query: &str| json!({"_tag":"source.search.run","payload":{"query":query}});
+        if extra.is_empty() {
+            let probe = rpc(&app, request("size probe"), Some(&bearer)).await;
+            let token_len = probe["outcome"]["value"]["pages"][0]["cursor"]
+                .as_str()
+                .unwrap()
+                .len();
+            let varying_bytes = json!(["default", plugin_id, "search", {"query": &query}])
+                .to_string()
+                .len();
+            let remaining = 1024 * 1024 - 1024 - varying_bytes - token_len;
+            query.push_str(&"q".repeat(remaining - 1));
+        }
+        let first = rpc(&app, request(&query), Some(&bearer)).await;
+        if extra.is_empty() {
+            assert_eq!(first["outcome"]["status"], "ready");
+            assert!(first["outcome"]["value"]["pages"][0]["cursor"].is_string());
+            let mut next = request(&query);
+            next["payload"]["page"] = first["outcome"]["value"]["pages"][0].clone();
+            let resumed = rpc(&app, next, Some(&bearer)).await;
+            assert_eq!(resumed["outcome"]["status"], "ready");
+            assert!(resumed["outcome"]["value"]["pages"].is_null());
+            assert_eq!(resumed["outcome"]["value"]["failures"], json!([]));
+        } else {
+            assert_eq!(first["outcome"]["status"], "unavailable");
+        }
+    }
+}

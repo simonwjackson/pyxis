@@ -110,7 +110,9 @@ No descriptor means the source offered no continuation for that kind.
 Search and station cursors last 30 minutes and survive a core restart with the same
 `credentials.key`. A changed account, source, query or key invalidates the cursor.
 On `invalid` (search) or `unknownStation` (station batch), start again without it.
-Treat cursors as opaque strings; they can be several kilobytes long.
+Treat cursors as opaque strings; they can be several kilobytes long. If a sealed
+cursor and its query exceed the resume request budget, the core returns `unavailable`
+for the page rather than publishing an unusable cursor or reporting exhaustion.
 
 ## Album queries
 
