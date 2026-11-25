@@ -486,3 +486,28 @@ async fn a_search_page_must_fit_the_resume_request_with_its_query() {
         }
     }
 }
+
+#[tokio::test]
+async fn positional_playlist_rows_are_rejected() {
+    let dir = tempfile::tempdir().unwrap();
+    let reads =
+        json!({"playlist.search":{"playlists":[["id","title",null,null,null,"another-source"]]}});
+    let host = PluginHost::start(
+        vec![search_plugin().with_env("PYXIS_LAB_READS", reads.to_string())],
+        HostPolicy::default(),
+    )
+    .unwrap();
+    let app = router(AppState::open_with_plugins(Store::open(dir.path()).unwrap(), host).unwrap());
+    let token = claim(&app).await;
+    let search = rpc(
+        &app,
+        json!({"_tag":"source.search.run","payload":{"query":"one"}}),
+        Some(&token),
+    )
+    .await;
+    assert_eq!(search["outcome"]["value"]["playlists"], json!([]));
+    assert_eq!(
+        search["outcome"]["value"]["failures"][0]["code"],
+        "plugin.invalidSearch"
+    );
+}

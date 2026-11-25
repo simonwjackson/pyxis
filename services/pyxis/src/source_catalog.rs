@@ -391,11 +391,15 @@ impl SourceCatalog {
                 return None;
             }
         };
+        if !output.is_object() {
+            failures.push(invalid_search(plugin_id, "expected a search page object"));
+            return None;
+        }
         let decoded = match kind {
             RpcSearchKind::Playlists => {
                 #[derive(Deserialize)]
                 struct Page {
-                    playlists: Vec<serde_json::Value>,
+                    playlists: Vec<serde_json::Map<String, serde_json::Value>>,
                     cursor: Option<String>,
                 }
                 serde_json::from_value::<Page>(output).and_then(|page| {
@@ -403,10 +407,8 @@ impl SourceCatalog {
                         .playlists
                         .into_iter()
                         .map(|mut item| {
-                            if let Some(record) = item.as_object_mut() {
-                                record.insert("sourcePluginId".into(), plugin_id.into());
-                            }
-                            serde_json::from_value(item)
+                            item.insert("sourcePluginId".into(), plugin_id.into());
+                            serde_json::from_value(serde_json::Value::Object(item))
                         })
                         .collect::<Result<Vec<_>, _>>()?;
                     Ok(PluginSearchPage::Playlists {
