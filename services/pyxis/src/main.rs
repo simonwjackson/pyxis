@@ -1,7 +1,7 @@
 use std::net::IpAddr;
 use std::path::PathBuf;
 
-use clap::Parser;
+use clap::{Parser, Subcommand};
 use pyxis::api::{self, AppState};
 use pyxis::db::store::Store;
 use pyxis::instance_lock::InstanceLock;
@@ -12,6 +12,9 @@ use pyxis::settings::{ProcessEnv, Settings};
 #[derive(Parser, Debug)]
 #[command(name = "pyxis", version, about = "Pyxis music service")]
 struct Args {
+    #[command(subcommand)]
+    command: Option<Command>,
+
     /// Address to bind. Defaults to loopback; the tailnet edge is a separate process.
     #[arg(long, env = "PYXIS_HOST")]
     host: Option<IpAddr>,
@@ -34,8 +37,44 @@ struct Args {
     allowed_origins: Option<AllowedOrigins>,
 }
 
+#[derive(Subcommand, Debug)]
+enum Command {
+    Media {
+        #[command(subcommand)]
+        command: MediaCommand,
+    },
+}
+
+#[derive(Subcommand, Debug)]
+enum MediaCommand {
+    /// Recover staged local audio with the 2026-11-24 zao manifest.
+    ImportLocal {
+        #[arg(long)]
+        state_dir: PathBuf,
+        #[arg(long)]
+        manifest: PathBuf,
+        #[arg(long)]
+        dry_run: bool,
+    },
+}
+
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
+    let args = Args::parse();
+    if let Some(Command::Media {
+        command:
+            MediaCommand::ImportLocal {
+                state_dir,
+                manifest,
+                dry_run,
+            },
+    }) = args.command
+    {
+        let summary = pyxis::media::import_local::run(&state_dir, &manifest, dry_run)?;
+        println!("{}", serde_json::to_string_pretty(&summary)?);
+        return Ok(());
+    }
+    // Operator stdout is JSON only. Preserve the server's existing log stream.
     tracing_subscriber::fmt()
         .with_env_filter(
             tracing_subscriber::EnvFilter::try_from_env("PYXIS_LOG")
@@ -43,7 +82,6 @@ async fn main() -> anyhow::Result<()> {
         )
         .init();
 
-    let args = Args::parse();
     let settings = Settings::resolve(
         args.host,
         args.port,

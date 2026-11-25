@@ -61,6 +61,7 @@ fn operation(reason: &str, message: String) -> EngineError {
 enum WriteMode {
     Merge,
     SessionSnapshot,
+    FidelityUpgradeSnapshot,
 }
 
 #[derive(Debug, Clone)]
@@ -86,6 +87,24 @@ impl Store {
                 .map_err(|error| StoreError::Engine(error.to_string()))?;
         }
 
+        let store = Self::open_snapshot(state_dir)?;
+        store.convert_placement_tags()?;
+        Ok(store)
+    }
+
+    /// Open an existing snapshot without migrations or filesystem initialization.
+    /// Drop rather than close this handle during a dry run: close always flushes.
+    pub(crate) fn open_existing(state_dir: &Path) -> Result<Self> {
+        if !Self::path_for(state_dir).is_file() {
+            return Err(StoreError::Engine(
+                "existing Pyxis database is required".into(),
+            ));
+        }
+        Self::open_snapshot(state_dir)
+    }
+
+    fn open_snapshot(state_dir: &Path) -> Result<Self> {
+        let path = Self::path_for(state_dir);
         let runtime = NativeRuntime::open(NativeRuntimeConfig {
             path: path.to_string_lossy().into_owned(),
             collections: schema::all()
@@ -95,12 +114,10 @@ impl Store {
         })
         .map_err(engine)?;
 
-        let store = Store {
+        Ok(Store {
             runtime,
             state_dir: state_dir.to_path_buf(),
-        };
-        store.convert_placement_tags()?;
-        Ok(store)
+        })
     }
 
     /// Retire the current-v2 placement field in one durable transaction. Its absence is
@@ -261,6 +278,19 @@ impl Store {
         self.put_mixed_batch(account, &[Self::session_snapshot(id, record)?])
     }
 
+    /// Jobs are complete server-owned snapshots. Atomic replacement clears an old
+    /// lease/error without persisting nulls that older core schemas cannot read.
+    pub(crate) fn put_fidelity_upgrade_job<T: Serialize>(
+        &self,
+        account: &AccountId,
+        id: &str,
+        record: &T,
+    ) -> Result<()> {
+        let mut write = Self::write(schema::FIDELITY_UPGRADE_JOBS, id, record)?;
+        write.mode = WriteMode::FidelityUpgradeSnapshot;
+        self.put_mixed_batch(account, &[write])
+    }
+
     /// Write records across several collections as one durable ProseQL commit.
     pub fn put_mixed_batch(&self, account: &AccountId, writes: &[StoreWrite]) -> Result<()> {
         if writes.is_empty() {
@@ -290,7 +320,10 @@ impl Store {
                             ));
                         }
                     }
-                    if write.mode == WriteMode::SessionSnapshot {
+                    if matches!(
+                        write.mode,
+                        WriteMode::SessionSnapshot | WriteMode::FidelityUpgradeSnapshot
+                    ) {
                         let updated_at = write.value.get("updatedAt").cloned();
                         // NativeRuntime::mutate commits or rolls back this entire batch.
                         // No reader or durable file can observe the intermediate deletion.
@@ -299,7 +332,7 @@ impl Store {
                         }
                         database.create(&write.collection, write.value)?;
                         // Native create overwrites timestamps; retain the session's own
-                        // timestamp so the acknowledgement and a fresh read agree.
+                        // timestamp so the domain result and a fresh read agree.
                         if let Some(updated_at) = updated_at {
                             database.update(
                                 &write.collection,

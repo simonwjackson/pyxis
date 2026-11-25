@@ -85,6 +85,29 @@ impl LocalMediaStore {
         Ok(LocalMediaStore { store, root })
     }
 
+    pub(crate) fn inspect(store: Store) -> Self {
+        let root = store.state_dir().join("media");
+        LocalMediaStore { store, root }
+    }
+
+    /// Unlike serving, inspection does not touch access times or quarantine bytes.
+    pub(crate) fn verified_exists(
+        &self,
+        account: &AccountId,
+        id: &str,
+    ) -> Result<bool, MediaStoreError> {
+        let Some(record) = self
+            .store
+            .get::<MediaFileRecord>(schema::MEDIA_FILES, account, id)?
+        else {
+            return Ok(false);
+        };
+        let path = self.root.join(record.path);
+        Ok(record.status == MediaFileStatus::Ready
+            && path.is_file()
+            && checksum(&path).is_ok_and(|value| value == record.checksum))
+    }
+
     pub fn import(
         &self,
         account: &AccountId,

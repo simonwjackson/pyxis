@@ -15,6 +15,23 @@ pub struct InstanceLock {
 }
 
 impl InstanceLock {
+    /// Operator commands require an initialized instance. Do not create even the lock
+    /// file during inspection: a misspelled state directory must fail without writes.
+    pub fn acquire_existing(state_dir: &Path) -> Result<Self> {
+        let path = state_dir.join("instance.lock");
+        let file = OpenOptions::new()
+            .read(true)
+            .open(&path)
+            .with_context(|| format!("open existing instance lock {}", path.display()))?;
+        Self::lock(file, &path)
+    }
+
+    fn lock(file: File, path: &Path) -> Result<Self> {
+        file.try_lock_exclusive()
+            .with_context(|| format!("another Pyxis server owns {}", path.display()))?;
+        Ok(InstanceLock { file })
+    }
+
     pub fn acquire(state_dir: &Path) -> Result<Self> {
         std::fs::create_dir_all(state_dir)
             .with_context(|| format!("create state directory {}", state_dir.display()))?;
@@ -27,10 +44,7 @@ impl InstanceLock {
             .open(&path)
             .with_context(|| format!("open instance lock {}", path.display()))?;
 
-        file.try_lock_exclusive()
-            .with_context(|| format!("another Pyxis server owns {}", path.display()))?;
-
-        Ok(InstanceLock { file })
+        Self::lock(file, &path)
     }
 }
 

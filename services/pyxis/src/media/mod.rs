@@ -2,6 +2,7 @@
 
 pub mod candidates;
 pub mod fidelity;
+pub mod import_local;
 pub mod probe;
 pub mod store;
 
@@ -69,6 +70,23 @@ impl Media {
             candidates: CandidateRepository::new(store.clone()),
             local: LocalMediaStore::open(store)?,
         })
+    }
+
+    pub(crate) fn inspect(store: Store) -> Self {
+        Media {
+            candidates: CandidateRepository::new(store.clone()),
+            local: LocalMediaStore::inspect(store),
+        }
+    }
+
+    pub(crate) fn best_local_fidelity(
+        &self,
+        account: &AccountId,
+        track_id: &str,
+    ) -> Result<Option<Fidelity>, MediaError> {
+        Ok(self
+            .candidates
+            .best_local_fidelity(account, track_id, &self.local)?)
     }
 
     pub fn add_plugin_candidate(

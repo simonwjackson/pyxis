@@ -314,10 +314,7 @@ impl FidelityUpgrader {
                 return self.reject(account, job, now, probe_error_code(&error).into());
             }
         };
-        if !matches!(
-            probed.format.as_str(),
-            "flac" | "wav" | "mp3" | "m4a" | "aac"
-        ) {
+        if !playback_safe_format(&probed.format) {
             return self.reject(account, job, now, "format.unsupported".into());
         }
         if probed.fidelity <= current {
@@ -348,21 +345,7 @@ impl FidelityUpgrader {
             },
             "provider:soulseek",
         )?;
-        job.status = if probed.fidelity.lossless {
-            "satisfied".into()
-        } else {
-            "retry".into()
-        };
-        job.attempts += 1;
-        job.next_attempt_at = if probed.fidelity.lossless {
-            (now + chrono::Duration::days(7)).to_rfc3339()
-        } else {
-            (now + retry_delay(job.attempts)).to_rfc3339()
-        };
-        job.lease_until = None;
-        job.last_error_code = None;
-        job.revision += 1;
-        job.updated_at = now.to_rfc3339();
+        job.record_import(probed.fidelity, now, "provider:soulseek");
         self.put_job(account, &job)?;
         Ok(UpgradeRun::Upgraded {
             track_id: target.track.id,
@@ -419,13 +402,13 @@ impl FidelityUpgrader {
         candidate: &UpgradeCandidate,
         duration_ms: Option<u32>,
     ) -> Result<bool, UpgradeError> {
-        let mut item = candidate_match_item(candidate);
-        item.duration_ms = duration_ms;
-        Ok(self
-            .matcher
-            .decide(account, &target_match_item(target), &item)?
-            .decision
-            == Decision::AutoMerge)
+        Ok(probed_recording_matches(
+            &self.matcher,
+            account,
+            &target_match_item(target),
+            candidate_match_item(candidate),
+            duration_ms,
+        )?)
     }
 
     fn defer(
@@ -495,8 +478,7 @@ impl FidelityUpgrader {
     }
 
     fn put_job(&self, account: &AccountId, job: &UpgradeJobRecord) -> Result<(), UpgradeError> {
-        self.store
-            .put(schema::FIDELITY_UPGRADE_JOBS, account, &job.id, job)?;
+        self.store.put_fidelity_upgrade_job(account, &job.id, job)?;
         Ok(())
     }
 
@@ -576,6 +558,27 @@ struct UpgradeJobRecord {
 }
 
 impl UpgradeJobRecord {
+    fn record_import(&mut self, fidelity: Fidelity, now: DateTime<Utc>, updated_by: &str) {
+        self.status = if fidelity.lossless {
+            "satisfied"
+        } else {
+            "retry"
+        }
+        .into();
+        self.attempts += 1;
+        self.next_attempt_at = if fidelity.lossless {
+            now + chrono::Duration::days(7)
+        } else {
+            now + retry_delay(self.attempts)
+        }
+        .to_rfc3339();
+        self.lease_until = None;
+        self.last_error_code = None;
+        self.revision += 1;
+        self.updated_by = updated_by.into();
+        self.updated_at = now.to_rfc3339();
+    }
+
     fn new(account: &AccountId, track_id: &str, now: DateTime<Utc>) -> Self {
         UpgradeJobRecord {
             id: format!("{PROVIDER_ID}:{track_id}"),
@@ -658,6 +661,47 @@ fn parse_download(value: Value, path: &Path) -> Result<UpgradeDownloadResponse, 
     Ok(response)
 }
 
+pub(crate) fn playback_safe_format(format: &str) -> bool {
+    matches!(format, "flac" | "wav" | "mp3" | "m4a" | "aac")
+}
+
+/// Re-run the normal recording matcher with the measured duration, never the
+/// advertised duration. Operator imports supply the library identity for both sides.
+pub(crate) fn probed_recording_matches(
+    matcher: &Matcher,
+    account: &AccountId,
+    target: &MatchItem,
+    mut candidate: MatchItem,
+    duration_ms: Option<u32>,
+) -> Result<bool, StoreError> {
+    candidate.duration_ms = duration_ms;
+    Ok(matcher.decide(account, target, &candidate)?.decision == Decision::AutoMerge)
+}
+
+/// Share successful-import scheduling with the background provider. A lossless
+/// re-run also repairs a job left behind by an interrupted operator import.
+pub(crate) fn record_local_upgrade(
+    store: &Store,
+    account: &AccountId,
+    track_id: &str,
+    fidelity: Fidelity,
+    now: DateTime<Utc>,
+    updated_by: &str,
+) -> Result<(), StoreError> {
+    let id = format!("{PROVIDER_ID}:{track_id}");
+    let previous = store.get::<UpgradeJobRecord>(schema::FIDELITY_UPGRADE_JOBS, account, &id)?;
+    if fidelity.lossless
+        && previous.as_ref().is_some_and(|job| {
+            job.status == "satisfied" && job.lease_until.is_none() && job.last_error_code.is_none()
+        })
+    {
+        return Ok(());
+    }
+    let mut job = previous.unwrap_or_else(|| UpgradeJobRecord::new(account, track_id, now));
+    job.record_import(fidelity, now, updated_by);
+    store.put_fidelity_upgrade_job(account, &job.id, &job)
+}
+
 fn target_json(target: &UpgradeTarget) -> Value {
     json!({
         "id": target.track.id,
@@ -670,13 +714,17 @@ fn target_json(target: &UpgradeTarget) -> Value {
 }
 
 fn target_match_item(target: &UpgradeTarget) -> MatchItem {
+    library_match_item(&target.album, &target.track)
+}
+
+pub(crate) fn library_match_item(album: &Album, track: &Track) -> MatchItem {
     MatchItem {
-        id: target.track.id.clone(),
-        artist: target.track.artist.clone(),
-        title: target.track.title.clone(),
-        album: Some(target.album.title.clone()),
-        duration_ms: target.track.duration_ms,
-        year: target.album.year,
+        id: track.id.clone(),
+        artist: track.artist.clone(),
+        title: track.title.clone(),
+        album: Some(album.title.clone()),
+        duration_ms: track.duration_ms,
+        year: album.year,
     }
 }
 
@@ -743,7 +791,7 @@ fn plugin_error_code(error: &PluginCallError) -> String {
     }
 }
 
-fn probe_error_code(error: &ProbeError) -> &'static str {
+pub(crate) fn probe_error_code(error: &ProbeError) -> &'static str {
     match error {
         ProbeError::Spawn(_) => "probe.unavailable",
         ProbeError::Timeout => "probe.timeout",

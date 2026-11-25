@@ -312,6 +312,25 @@ impl CandidateRepository {
         Ok(ResolveOutcome::Unavailable)
     }
 
+    pub(crate) fn best_local_fidelity(
+        &self,
+        account: &AccountId,
+        track_id: &str,
+        local: &LocalMediaStore,
+    ) -> Result<Option<Fidelity>, CandidateError> {
+        let mut best = None;
+        for candidate in self.list_for_track(account, track_id)? {
+            if let CandidateLocation::Local { media_file_id } = &candidate.location {
+                if local.verified_exists(account, media_file_id)? {
+                    best = Some(best.map_or(candidate.fidelity, |current: Fidelity| {
+                        current.max(candidate.fidelity)
+                    }));
+                }
+            }
+        }
+        Ok(best)
+    }
+
     pub fn remove_for_media_files(
         &self,
         account: &AccountId,
