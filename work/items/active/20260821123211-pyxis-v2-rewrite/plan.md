@@ -94,6 +94,15 @@ everything provider-shaped lives at the edge behind a plugin protocol.
 
 ### Deferred to Follow-Up Work
 
+- **MCP search cannot follow a page (M16 review note).** `clients/mcp/src/tools/library/catalog.ts`
+  returns `pages` from `source.search.run`, but the tool's strict input accepts only `query` and
+  `limit`, not `page` or `exactMatch`. RPC paging works; the MCP tool is not a continuation path.
+- **Search continuation per kind (M16 review note).** `plugins/ytmusic/src/search.test.ts` tests a
+  real upstream continuation for songs only. Albums and artists share the helper, but a handler
+  that drops its own cursor in `plugins/ytmusic/src/index.ts` would not fail a test.
+- **U64 on real hardware.** Play a track on the Kids Desk Sonos speaker through a sealed stream
+  token, with a person at the speaker. Automated tests cover restart, wrong track, tampering and
+  expiry (`docs/operations/2026-11-25-m16-youtube-music-reach.md`).
 - **Cross-origin test lint.** With aka's Nix-shell Clippy, `cross_origin.rs`'s `open_socket`
   triggers `result_large_err` (the `SocketError` is 136 bytes). Check the pinned toolchain
   before changing this test; it is unrelated to U64's output and paging paths.
