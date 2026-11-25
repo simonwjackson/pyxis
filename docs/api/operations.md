@@ -223,6 +223,7 @@ its current groups and rooms. Discovery also refreshes output-session reachabili
 is controllable only while the plugin can currently find it.
 
 `output.group.set` applies a complete desired group and returns converged topology.
+An operator-supplied shell served via `--web-root` can call it like any other client.
 A successful regroup stops and detaches your sessions whose room moves under another
 coordinator. Each detached session keeps its queue, becomes unreachable and publishes one
 session state without `output`. A room becoming standalone keeps its own session. A group

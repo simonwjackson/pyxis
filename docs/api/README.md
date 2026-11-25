@@ -14,8 +14,8 @@ Media bytes are deliberately outside both. They travel over plain HTTP at
 without protocol translation.
 
 There is no REST resource tree. The only other route is `GET /healthz`, which returns 200
-when the process can serve requests. Without a web root, `/` returns 404. An operator can supply a client
-with `--web-root` to serve its shell at `/`.
+when the process can serve requests. With no web root, `/` returns 404. An operator can pass
+`--web-root <directory>` to serve their own shell at `/` and as the unmatched-path fallback.
 
 ## Contract identity
 
