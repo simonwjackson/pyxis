@@ -12,10 +12,6 @@
   pluginSoulseek,
 }:
 
-let
-  coreUnit = import ./units/pyxis.service.nix { inherit pkgs; };
-  tsnetUnit = import ./units/pyxis-tsnet.service.nix { inherit pkgs; };
-in
 pkgs.stdenvNoCC.mkDerivation {
   pname = "pyxis";
   version = "2.0.0";
@@ -23,7 +19,7 @@ pkgs.stdenvNoCC.mkDerivation {
   nativeBuildInputs = [ pkgs.makeWrapper ];
 
   installPhase = ''
-    mkdir -p $out/bin $out/share/systemd/user
+    mkdir -p $out/bin
 
     makeWrapper ${core}/bin/pyxis $out/bin/pyxis \
       --set PYXIS_WEB_ROOT ${player} \
@@ -37,15 +33,10 @@ pkgs.stdenvNoCC.mkDerivation {
     ln -s ${pluginPandora}/bin/pyxis-plugin-pandora $out/bin/pyxis-plugin-pandora
     ln -s ${pluginSonos}/bin/pyxis-plugin-sonos $out/bin/pyxis-plugin-sonos
     ln -s ${pluginSoulseek}/bin/pyxis-plugin-soulseek $out/bin/pyxis-plugin-soulseek
-
-    cp ${coreUnit}/share/systemd/user/pyxis.service $out/share/systemd/user/
-    cp ${tsnetUnit}/share/systemd/user/pyxis-tsnet.service $out/share/systemd/user/
-    cp ${pluginYtmusic}/share/systemd/user/pyxis-ytdlp-update.service $out/share/systemd/user/
-    cp ${pluginYtmusic}/share/systemd/user/pyxis-ytdlp-update.timer $out/share/systemd/user/
   '';
 
   meta = {
-    description = "Pyxis core, player client, source/output plugins, and user services";
+    description = "Pyxis core, player client, and source/output plugins";
     mainProgram = "pyxis";
   };
 }

@@ -1,62 +1,28 @@
-# Install Pyxis with `nix profile`
+# Run Pyxis
 
-Pyxis v2 installs per user. The aggregate package contains the Rust core, built reference
-client, YouTube Music, Pandora, Sonos, and download-only Soulseek plugins, the yt-dlp updater,
-the dedicated tsnet edge, and four systemd user units.
+## Production
 
-## Existing NixOS service must leave first
+Production runs on **unzen** through mountainous `serviceApps.pyxis`, following the
+`service-apps-unzen` branch. Production deployment is managed in mountainous, not by
+this repository's former zao deployment scripts or systemd user units.
 
-The old system units and the new user units cannot run together. Both use the `pyxis`
-tailnet hostname, and both bind their configured localhost port.
+The `pyxis` package contains the Rust core, player client, YouTube Music, Pandora, Sonos,
+and download-only Soulseek plugins, the `pyxis-ytdlp-update` binary, and the dedicated
+tsnet edge. It does not install systemd units.
 
-The M2 activation stopped these legacy units before enabling v2:
+## Development
 
-```text
-pyxis.service
-tsnet-proxy-pyxis.service
-```
-
-They remain declared by the current NixOS generation. Deploy the prepared `mountainous`
-removal before a reboot or system switch can start them again. Verify both old units are
-inactive. Do not delete `/var/lib/pyxis` or `/var/lib/borg/pyxis`. The former is the read-only
-legacy source, and the latter remains rollback evidence.
-
-## Install
-
-From a clean committed checkout:
+Inside the project dev shell, run:
 
 ```sh
-nix profile add .#pyxis
-systemctl --user daemon-reload
-systemctl --user enable --now pyxis.service
-systemctl --user enable --now pyxis-ytdlp-update.timer
+just dev
 ```
 
-Verify localhost before starting the tailnet edge:
+The core listens at <http://127.0.0.1:4488>; the unstyled reference client is at
+<http://127.0.0.1:5173>.
 
-```sh
-curl -fsS http://127.0.0.1:4488/healthz
-systemctl --user status pyxis.service
-systemctl --user list-timers pyxis-ytdlp-update.timer
-```
-
-Then start the edge:
-
-```sh
-systemctl --user enable --now pyxis-tsnet.service
-journalctl --user -u pyxis-tsnet.service -f
-```
-
-The first start can print an authorization URL. Authorize it once. Replacing an older
-`pyxis` tailnet node can briefly report a `pyxis-1` name during authorization. Restart the
-edge after authorization and verify that its log reports the final origin:
-
-```text
-https://pyxis.hummingbird-lake.ts.net
-```
-
-Also verify that plain HTTP redirects to that exact HTTPS origin. Do not rename the origin.
-Installed PWA state and offline downloads are origin-scoped.
+`tools/configure-plugin`, `tools/verify-api-example`, and `tools/backfill-library-artwork`
+default to `http://127.0.0.1:4488`. Set `PYXIS_ORIGIN` to use another service origin.
 
 ## Install and verify the PWA
 
@@ -75,7 +41,9 @@ album. Re-enable networking afterward and confirm deferred writes reconcile.
 Cache Storage, IndexedDB, service workers, and stream credentials are all scoped to the
 exact HTTPS origin. Clearing site data removes the device grant and offline media.
 
-## State
+## Core defaults
+
+These are program defaults, not production state paths configured by mountainous.
 
 | Data | Default path |
 |---|---|
@@ -93,15 +61,11 @@ By default only pages on Pyxis's own origin can use it from a browser. To let a 
 another origin, such as a car dashboard PWA, call `/rpc`, read `/stream/:trackId` and open
 `/realtime`, list its exact origin in `PYXIS_ALLOWED_ORIGINS` (or `--allowed-origins`):
 
-```ini
-[Service]
-Environment=PYXIS_ALLOWED_ORIGINS=https://vela.example,http://car.local:8080
+```sh
+export PYXIS_ALLOWED_ORIGINS=https://vela.example,http://car.local:8080
 ```
 
-```sh
-systemctl --user daemon-reload
-systemctl --user restart pyxis.service
-```
+Apply this environment setting where the core starts.
 
 | Rule | Detail |
 |---|---|
@@ -158,16 +122,10 @@ account bearer tokens are never sent to speakers. Fixture tests prove discovery,
 SOAP faults, core-hosted sessions, transport, volume, grouping, and stream-ticket binding. A
 real speaker is still required for M4 product acceptance.
 
-Configure the LAN listener with a user-service override, then restart:
-
-```ini
-[Service]
-Environment=PYXIS_LAN_BASE_URL=http://192.168.1.2:9000
-```
+Configure the LAN listener in the environment where the core starts:
 
 ```sh
-systemctl --user daemon-reload
-systemctl --user restart pyxis.service
+export PYXIS_LAN_BASE_URL=http://192.168.1.2:9000
 ```
 
 Use an address assigned to the Pyxis host, not `0.0.0.0`, because that address is embedded in
@@ -194,23 +152,8 @@ only automatic matches, probes every complete download with `ffprobe`, requires 
 improvement, and retries peer/network failures later. Partial or ambiguous downloads never become
 media candidates.
 
-## Upgrade
+## yt-dlp updates
 
-```sh
-nix profile upgrade --refresh pyxis
-systemctl --user daemon-reload
-systemctl --user restart pyxis.service pyxis-tsnet.service
-```
-
-The yt-dlp timer updates its mutable binary without restarting Pyxis. The pinned nixpkgs
-binary remains the fallback if a nightly update fails.
-
-## Remove
-
-```sh
-systemctl --user disable --now \
-  pyxis.service pyxis-tsnet.service pyxis-ytdlp-update.timer
-nix profile remove pyxis
-```
-
-Profile removal does not delete user data.
+The package provides `pyxis-ytdlp-update` for the deployment's updater to run. It updates
+the mutable binary without restarting Pyxis. The pinned nixpkgs binary remains the fallback
+if an update fails.

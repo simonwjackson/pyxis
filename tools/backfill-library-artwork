@@ -72,8 +72,8 @@ def main():
     )
     parser.add_argument(
         "--url",
-        default=os.environ.get("PYXIS_URL", "http://127.0.0.1:4488"),
-        help="Pyxis origin. Defaults to PYXIS_URL or http://127.0.0.1:4488.",
+        default=os.environ.get("PYXIS_ORIGIN") or os.environ.get("PYXIS_URL", "http://127.0.0.1:4488"),
+        help="Pyxis origin. Defaults to PYXIS_ORIGIN, then PYXIS_URL, then http://127.0.0.1:4488.",
     )
     parser.add_argument(
         "--token-file",

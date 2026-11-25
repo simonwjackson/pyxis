@@ -5,20 +5,18 @@ and sync. Every music provider is a third-party plugin. Clients are offline-firs
 
 This branch is a ground-up v2 rewrite. It shares no code with v1.
 
-## Status
+## Production and development
 
-**M1 — A song plays — is ready for product validation.**
+Production runs on **unzen** through mountainous `serviceApps.pyxis`, following the
+`service-apps-unzen` branch.
+
+For local development, use the project dev shell and run:
 
 ```sh
 just dev
 ```
 
-Open <http://127.0.0.1:5173>. The page is intentionally unstyled. Search YouTube Music,
-add a result to the queue, then press Play. It claims the `default` account, discovers the
-plugin, creates a device-hosted session, resolves and caches audio, and plays through the
-browser.
-
-M2 restores the 371-album library and installs the product on the tailnet.
+Open <http://127.0.0.1:5173> for the unstyled reference client.
 
 Read [`work/items/active/20260821123211-pyxis-v2-rewrite/plan.md`](work/items/active/20260821123211-pyxis-v2-rewrite/plan.md).
 
@@ -81,12 +79,5 @@ The core runs and serves with zero plugins installed.
 
 ## Install
 
-The aggregate profile package now builds:
-
-```sh
-nix profile add .#pyxis
-```
-
-Do not enable its user units until the old NixOS `pyxis.service` and
-`tsnet-proxy-pyxis.service` are inactive. See [`docs/install.md`](docs/install.md) for the
-verified handoff, state paths, user units, upgrades, and rollback boundary.
+See [`docs/install.md`](docs/install.md) for production and development setup, core
+configuration, and plugin configuration.

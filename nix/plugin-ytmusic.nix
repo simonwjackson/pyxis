@@ -20,7 +20,6 @@ let
       echo "yt-dlp nightly $version installed at $dir/yt-dlp"
     '';
   };
-  units = import ./units/pyxis-ytdlp-update.timer.nix { inherit pkgs; };
 in
 pkgs.stdenvNoCC.mkDerivation {
   pname = "pyxis-plugin-ytmusic";
@@ -30,7 +29,7 @@ pkgs.stdenvNoCC.mkDerivation {
 
   installPhase = ''
     root=$out/lib/pyxis
-    mkdir -p $out/bin $out/share/systemd $root/plugins/ytmusic $root/packages/plugin-sdk $root/contracts $root/node_modules/@pyxis
+    mkdir -p $out/bin $root/plugins/ytmusic $root/packages/plugin-sdk $root/contracts $root/node_modules/@pyxis
 
     cp ${../plugins/ytmusic/package.json} $root/plugins/ytmusic/package.json
     cp -r ${../plugins/ytmusic/src} $root/plugins/ytmusic/src
@@ -48,7 +47,6 @@ pkgs.stdenvNoCC.mkDerivation {
       --add-flags $root/plugins/ytmusic/src/index.ts \
       --prefix PATH : ${pkgs.lib.makeBinPath [ pkgs.yt-dlp pkgs.ffmpeg-headless pkgs.python3 ]}
     ln -s ${updater}/bin/pyxis-ytdlp-update $out/bin/pyxis-ytdlp-update
-    cp -r ${units}/share/systemd/user $out/share/systemd/
   '';
 
   meta = {

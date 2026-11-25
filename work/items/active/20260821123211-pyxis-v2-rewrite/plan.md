@@ -74,7 +74,8 @@ everything provider-shaped lives at the edge behind a plugin protocol.
 - R9. yt-dlp updates on a nightly timer.
 - R10. The RPC API is designed for third-party clients, not only the first-party app. Not REST.
 - R11. Rust core, TypeScript plugins.
-- R12. Install via `nix profile` and `systemctl --user`. NixOS module comes later.
+- R12. Production runs on unzen through mountainous `serviceApps.pyxis`, following
+  `service-apps-unzen`. Development uses `just dev`; this repository ships no systemd units.
 - R13. Visual design is out of scope. Deliver the service, the protocol, the client data
   plane, and a deliberately ugly reference client.
 - R14. Legacy data import is ephemeral tooling that is deleted once used.
@@ -300,7 +301,7 @@ Settled. Do not re-open without the user asking.
 | D10 | Soulseek never uploads | User decision. Cost: many peers refuse download-only clients, so expect long queues and a low hit rate. The plugin is designed to be patient, not fast |
 | D11 | Legacy import is an external ephemeral tool emitting a re-acquisition manifest | Honors R2 and R14. The live manifest contains 386 v1 albums, which are re-resolved through plugins as if added by hand. Old source-ref bindings are discarded deliberately |
 | D12 | Monorepo, separate flake output per plugin | Fast iteration while plugins still only speak the public protocol, which keeps the third-party contract honest |
-| D13 | `nix profile` plus `systemctl --user` for v1 | Matches the reference projects and iterates faster than a system rebuild. NixOS module deferred |
+| D13 | **Superseded by the user, 2026-11-24:** production runs on unzen through mountainous `serviceApps.pyxis`, following `service-apps-unzen`; development uses `just dev` | Remove the obsolete zao deploy scripts and packaged user units. Keep the `pyxis-ytdlp-update` binary for mountainous. Historical U25 installation steps below no longer apply |
 | D14 | The Rust contract module is the protocol source of truth, with typeshare and schemars codegen | One definition produces TypeScript types and a JSON Schema. The schema is the runtime trust boundary, mirroring the reference projects |
 | D15 | The core owns a local media store and local-file playback | Soulseek downloads are local files, so local playback is a core capability rather than a plugin concern |
 | D16 | The client worker data plane is in scope; the UI above it is not | Offline correctness is a distributed-systems problem, not a design problem. The design model consumes a documented worker API |
